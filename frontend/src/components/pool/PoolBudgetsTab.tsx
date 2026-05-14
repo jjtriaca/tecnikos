@@ -79,7 +79,7 @@ export default function PoolBudgetsTab() {
     } catch (err: any) {
       const msg = err?.payload?.message || "Erro ao carregar dados de Piscina";
       if (String(msg).includes("não está ativo")) {
-        toast("Modulo Piscina nao esta ativo. Ative em Configuracoes.", "error");
+        toast("Módulo Piscina nao esta ativo. Ative em Configurações.", "error");
       } else {
         toast(msg, "error");
       }
@@ -138,7 +138,7 @@ export default function PoolBudgetsTab() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50 text-xs font-semibold uppercase text-slate-600">
-              <th className="px-4 py-3 text-left">Codigo</th>
+              <th className="px-4 py-3 text-left">Código</th>
               <th className="px-4 py-3 text-left">{subTab === "orcamentos" ? "Titulo" : "Orcamento"}</th>
               <th className="px-4 py-3 text-left">Cliente</th>
               <th className="px-4 py-3 text-right">Valor</th>

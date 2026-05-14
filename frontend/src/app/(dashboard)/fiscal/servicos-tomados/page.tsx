@@ -79,7 +79,7 @@ export default function ServicosTomadosPage() {
       const result = await api.get<ServicoTomadoItem[]>(`/fiscal-periods/servicos-tomados?year=${year}&month=${month}`);
       setItems(result);
     } catch {
-      toast("Erro ao carregar servicos tomados", "error");
+      toast("Erro ao carregar serviços tomados", "error");
     } finally {
       setLoading(false);
     }
@@ -117,8 +117,8 @@ export default function ServicosTomadosPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Servicos Tomados</h1>
-          <p className="text-sm text-slate-500 mt-1">NFS-e de entrada — Livro de Registro de Servicos Tomados</p>
+          <h1 className="text-2xl font-bold text-slate-800">Serviços Tomados</h1>
+          <p className="text-sm text-slate-500 mt-1">NFS-e de entrada — Livro de Registro de Serviços Tomados</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={handlePrevMonth} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
@@ -138,7 +138,7 @@ export default function ServicosTomadosPage() {
           <p className="text-2xl font-bold text-slate-800 mt-1">{items.length}</p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-          <p className="text-xs text-slate-500 uppercase tracking-wider">Valor Servicos</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wider">Valor Serviços</p>
           <p className="text-lg font-bold text-green-600 mt-1">R$ {fmtCents(totals.valorServicos)}</p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
@@ -178,7 +178,7 @@ export default function ServicosTomadosPage() {
                   <th className="px-4 py-3 font-medium">Prestador</th>
                   <th className="px-4 py-3 font-medium">CNPJ/CPF</th>
                   <th className="px-4 py-3 font-medium">Item LC 116</th>
-                  <th className="px-4 py-3 font-medium text-right">Valor Servico</th>
+                  <th className="px-4 py-3 font-medium text-right">Valor Serviço</th>
                   <th className="px-4 py-3 font-medium text-right">Aliq. ISS</th>
                   <th className="px-4 py-3 font-medium text-right">ISS</th>
                   <th className="px-4 py-3 font-medium text-center">Retido</th>

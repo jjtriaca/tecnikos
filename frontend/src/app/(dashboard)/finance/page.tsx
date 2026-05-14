@@ -78,15 +78,15 @@ const MAIN_TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "receber", label: "A Receber", icon: "📥" },
   { id: "pagar", label: "A Pagar", icon: "📤" },
   { id: "parcelas", label: "Parcelas", icon: "📑" },
-  { id: "cartoes", label: "Baixa Cartoes", icon: "🔻" },
-  { id: "conciliacao", label: "Conciliacao", icon: "🔄" },
+  { id: "cartoes", label: "Baixa Cartões", icon: "🔻" },
+  { id: "conciliacao", label: "Conciliação", icon: "🔄" },
 ];
 
 const CADASTRO_TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "contas", label: "Caixas/Bancos", icon: "🏦" },
   // "Formas de Pagamento" (tipos genericos) escondido do menu principal em v1.08.100
-  // — os tipos (PIX, Cartao Credito, Boleto, etc.) ja vem pre-configurados.
-  // "Taxas de Cartao" escondido em v1.09.04 — taxas agora sao embutidas em cada
+  // — os tipos (PIX, Cartão Credito, Boleto, etc.) ja vem pre-configurados.
+  // "Taxas de Cartão" escondido em v1.09.04 — taxas agora sao embutidas em cada
   // Meio de Pagamento (secao "Taxas de parcelamento" no form).
   // Admin pode acessar via URL direta /finance?tab=formas ou /finance?tab=taxas se precisar customizar.
   { id: "instrumentos", label: "Meios de Pagamento e Recebimento", icon: "💳" },
@@ -178,7 +178,7 @@ function getEntryFilters(type: FinancialEntryType): FilterDefinition[] {
   },
   {
     key: "dateType",
-    label: "Periodo por",
+    label: "Período por",
     type: "select",
     placeholder: "Criação",
     options: [
@@ -329,31 +329,10 @@ function buildEntryColumns(type: FinancialEntryType): ColumnDefinition<Financial
     },
   ];
 
-  if (type === "PAYABLE") {
-    cols.push({
-      id: "grossCents",
-      label: "Bruto",
-      sortable: true,
-      align: "right",
-      render: (e) => <span className="text-xs text-slate-700">{formatCurrency(e.grossCents)}</span>,
-    });
-    cols.push({
-      id: "commission",
-      label: "Comissão",
-      align: "right",
-      render: (e) =>
-        e.commissionCents != null ? (
-          <span className="text-amber-600 text-xs">
-            -{formatCurrency(e.commissionCents)}
-            {e.commissionBps != null && (
-              <span className="ml-1 text-slate-400">({(e.commissionBps / 100).toFixed(1)}%)</span>
-            )}
-          </span>
-        ) : (
-          <span className="text-xs text-slate-400">—</span>
-        ),
-    });
-  }
+  // Bruto e Comissao escondidas em A Pagar:
+  // - 99% das despesas (NFe, fornecedores, contas) nao tem comissao — coluna fica vazia
+  // - Quando ha repasse com comissao retida, dado fica disponível na tela de detalhe da entry
+  // Vide tela /finance/entries/[id] que renderiza grossCents + commissionCents.
 
   cols.push(
     {
@@ -520,7 +499,7 @@ export default function FinancePage() {
 
   const visibleMainTabs = useMemo(() => {
     if (!sysConfig) return MAIN_TABS.filter((t) => t.id !== "cartoes");
-    const show = sysConfig.financial?.showBaixaCartoes === true;
+    const show = sysConfig.financial?.showBaixaCartões === true;
     return show ? MAIN_TABS : MAIN_TABS.filter((t) => t.id !== "cartoes");
   }, [sysConfig]);
 
@@ -961,7 +940,7 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
                 className="rounded border border-slate-300 px-2 py-1 text-xs focus:border-blue-500 outline-none">
                 <option value="all">Todas as contas</option>
                 {dashData?.cashAccounts?.map((a: any) => (
-                  <option key={a.id} value={a.name}>{a.name} ({a.type === "BANCO" ? "Banco" : a.type === "TRANSITO" ? "Transito" : a.type === "CARTAO_CREDITO" ? "Cartao" : "Caixa"})</option>
+                  <option key={a.id} value={a.name}>{a.name} ({a.type === "BANCO" ? "Banco" : a.type === "TRANSITO" ? "Transito" : a.type === "CARTAO_CREDITO" ? "Cartão" : "Caixa"})</option>
                 ))}
               </select>
               <select value={stmtDirection} onChange={(e) => { setStmtDirection(e.target.value); setStmtPaymentType("all"); }}
@@ -1310,7 +1289,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
     if (payAction?.entry.financialAccount?.id) {
       setPayAccountId(payAction.entry.financialAccount.id);
     } else if (payAction?.entry.type === "RECEIVABLE") {
-      // Auto-select "Receita de Servicos" (code 1100) for receivables
+      // Auto-select "Receita de Serviços" (code 1100) for receivables
       const receita = postableAccounts.find((a) => a.code === "1100");
       setPayAccountId(receita?.id || "");
     } else {
@@ -1831,7 +1810,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                     <option value="">Nenhuma (nao atualizar saldo)</option>
                     {activeAccounts
                       .filter((a: any) => type === "RECEIVABLE" ? a.showInReceivables !== false : a.showInPayables !== false)
-                      .map((a) => <option key={a.id} value={a.id}>{a.name} ({a.type === "BANCO" ? "Banco" : a.type === "TRANSITO" ? "Transito" : a.type === "CARTAO_CREDITO" ? "Cartao" : "Caixa"})</option>)}
+                      .map((a) => <option key={a.id} value={a.id}>{a.name} ({a.type === "BANCO" ? "Banco" : a.type === "TRANSITO" ? "Transito" : a.type === "CARTAO_CREDITO" ? "Cartão" : "Caixa"})</option>)}
                   </select>
                   {!batchAccountId && (
                     <p className="mt-1 text-[10px] text-amber-600 flex items-center gap-1">
@@ -1968,7 +1947,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                     }}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
                   >
-                    <option value="">Selecao manual...</option>
+                    <option value="">Seleção manual...</option>
                     {allInstruments.map((pi: any) => {
                       const code = pi.paymentMethod?.code || "";
                       const isCard = code.includes("CARTAO") || code.includes("CREDITO") || code.includes("DEBITO");
@@ -1987,7 +1966,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                 </div>
               )}
 
-              {/* Payment method dropdown manual (quando usuario seleciona "Selecao manual..." ou nao ha meios) */}
+              {/* Payment method dropdown manual (quando usuario seleciona "Seleção manual..." ou nao ha meios) */}
               {(showManualPayable || allInstruments.length === 0) && (
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -2029,7 +2008,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                   Fallback pra tenants que ainda nao cadastraram instrumentos */}
               {isCardPayment && !selectedInstrumentId && payUpdateFinancials && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Cartao *</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Cartão *</label>
                   {filteredCardRates.length === 0 ? (
                     <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
                       <p className="font-medium">Nenhum cartao cadastrado para {cardType === "DEBITO" ? "debito" : "credito"}.</p>
@@ -2057,7 +2036,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                 const inst = allInstruments.find((i: any) => i.id === selectedInstrumentId);
                 if (!inst) return null;
                 const code = (inst.paymentMethod?.code || "").toUpperCase();
-                const methodLabel = code.includes("CREDITO") ? "Credito" : code.includes("DEBITO") ? "Debito" : (inst.paymentMethod?.name || "Cartao");
+                const methodLabel = code.includes("CREDITO") ? "Credito" : code.includes("DEBITO") ? "Debito" : (inst.paymentMethod?.name || "Cartão");
                 return (
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
                     <div className="flex gap-4">
@@ -2103,7 +2082,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                     </div>
                   </div>
                   <p className="mt-1.5 text-[10px] text-blue-600">
-                    O saldo do caixa sera atualizado na baixa (aba Baixa Cartoes).
+                    O saldo do caixa sera atualizado na baixa (aba Baixa Cartões).
                   </p>
                 </div>
               )}
@@ -2111,7 +2090,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
               {/* Card info when no card selected yet */}
               {isCardPayment && !selectedCardRate && filteredCardRates.length > 0 && (
                 <p className="text-[10px] text-blue-600">
-                  O saldo do caixa sera atualizado na baixa (aba Baixa Cartoes).
+                  O saldo do caixa sera atualizado na baixa (aba Baixa Cartões).
                 </p>
               )}
 
@@ -2161,7 +2140,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                       .filter((a: any) => type === "RECEIVABLE" ? a.showInReceivables !== false : a.showInPayables !== false)
                       .map((a) => (
                       <option key={a.id} value={a.id}>
-                        {a.name} ({a.type === "BANCO" ? "Banco" : a.type === "TRANSITO" ? "Transito" : a.type === "CARTAO_CREDITO" ? "Cartao" : "Caixa"})
+                        {a.name} ({a.type === "BANCO" ? "Banco" : a.type === "TRANSITO" ? "Transito" : a.type === "CARTAO_CREDITO" ? "Cartão" : "Caixa"})
                       </option>
                     ))}
                   </select>
@@ -2181,7 +2160,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                   <p className="text-xs font-medium text-amber-700">Dados do Cheque</p>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-[10px] text-slate-600 mb-0.5">Numero do Cheque *</label>
+                      <label className="block text-[10px] text-slate-600 mb-0.5">Número do Cheque *</label>
                       <input type="text" value={checkNumber} onChange={(e) => setCheckNumber(e.target.value)}
                         className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-500 outline-none" placeholder="000001" />
                     </div>
@@ -2332,7 +2311,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                   </svg>
                   <div className="text-xs text-amber-800">
                     <strong>{selectedPartner.name}</strong> esta sem CPF/CNPJ cadastrado.
-                    Para emissao de NFS-e e relatorios fiscais, e necessario informar o documento.
+                    Para emissao de NFS-e e relatórios fiscais, e necessário informar o documento.
                     {" "}
                     <a href={`/partners/${selectedPartner.id}/edit`} target="_blank" rel="noopener noreferrer"
                       className="underline font-medium hover:text-amber-900">

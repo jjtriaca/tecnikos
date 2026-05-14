@@ -49,7 +49,7 @@ interface NfseConfig {
   focusNfeEnvironment: string;
   inscricaoMunicipal: string | null;
   codigoMunicipio: string | null;
-  naturezaOperacao: string;
+  naturezaOperação: string;
   regimeEspecialTributacao: string | null;
   optanteSimplesNacional: boolean;
   itemListaServico: string | null;
@@ -74,7 +74,7 @@ const EMPTY_CONFIG: NfseConfig = {
   focusNfeEnvironment: "HOMOLOGATION",
   inscricaoMunicipal: null,
   codigoMunicipio: null,
-  naturezaOperacao: "1",
+  naturezaOperação: "1",
   regimeEspecialTributacao: null,
   optanteSimplesNacional: false,
   itemListaServico: null,
@@ -125,7 +125,7 @@ const labelClass = "block text-xs font-medium text-slate-600 mb-1";
 function editableSnapshot(c: NfseConfig, t: string): string {
   return JSON.stringify([
     c.focusNfeEnvironment, c.inscricaoMunicipal, c.codigoMunicipio,
-    c.naturezaOperacao, c.regimeEspecialTributacao, c.optanteSimplesNacional,
+    c.naturezaOperação, c.regimeEspecialTributacao, c.optanteSimplesNacional,
     c.itemListaServico, c.codigoCnae, c.codigoTributarioMunicipio, c.codigoTributarioNacional, c.codigoTributarioNacionalServico,
     c.nfseLayout, c.aliquotaIss, c.autoEmitOnEntry, c.askOnFinishOS, c.receiveWithoutNfse,
     c.sendEmailToTomador, c.afterEmissionSendWhatsApp, c.rpsSeries, c.defaultDiscriminacao, t,
@@ -163,7 +163,7 @@ export default function FiscalSettingsPage() {
   const fiscalSnapshot = JSON.stringify(fiscal);
   const isFiscalDirty = savedFiscalSnapshot !== "" && fiscalSnapshot !== savedFiscalSnapshot;
 
-  function flashSuccess(msg = "Configuracoes salvas com sucesso!", ms = 3000) {
+  function flashSuccess(msg = "Configurações salvas com sucesso!", ms = 3000) {
     if (successTimerRef.current) clearTimeout(successTimerRef.current);
     setSuccessMsg(msg);
     successTimerRef.current = setTimeout(() => setSuccessMsg(null), ms);
@@ -231,7 +231,7 @@ export default function FiscalSettingsPage() {
   async function handleSaveServiceCode() {
     setCodeFormError(null);
     if (!editingCode?.codigo || !editingCode?.descricao) {
-      setCodeFormError("Codigo (cTribNac) e Descricao sao obrigatorios.");
+      setCodeFormError("Código (cTribNac) e Descricao sao obrigatorios.");
       return;
     }
     setSavingCode(true);
@@ -257,20 +257,20 @@ export default function FiscalSettingsPage() {
       setEditingCode(null);
       setShowCodeForm(false);
       setCodeFormError(null);
-      flashSuccess("Servico salvo!");
+      flashSuccess("Serviço salvo!");
     } catch (err: any) {
-      setCodeFormError(err?.message || "Erro ao salvar servico");
+      setCodeFormError(err?.message || "Erro ao salvar serviço");
     } finally {
       setSavingCode(false);
     }
   }
 
   async function handleDeleteServiceCode(id: string) {
-    if (!confirm("Excluir este servico?")) return;
+    if (!confirm("Excluir este serviço?")) return;
     try {
       await api.del(`/nfse-emission/service-codes/${id}`);
       await fetchServiceCodes();
-      flashSuccess("Servico excluido!");
+      flashSuccess("Serviço excluido!");
     } catch (err: any) {
       setErrorMsg(err?.message || "Erro ao excluir");
     }
@@ -291,7 +291,7 @@ export default function FiscalSettingsPage() {
         focusNfeEnvironment: config.focusNfeEnvironment,
         inscricaoMunicipal: config.inscricaoMunicipal || undefined,
         codigoMunicipio: config.codigoMunicipio || undefined,
-        naturezaOperacao: config.naturezaOperacao,
+        naturezaOperação: config.naturezaOperação,
         regimeEspecialTributacao: config.regimeEspecialTributacao || undefined,
         optanteSimplesNacional: config.optanteSimplesNacional,
         itemListaServico: config.itemListaServico || undefined,
@@ -343,7 +343,7 @@ export default function FiscalSettingsPage() {
       const result = await api.patch<FiscalConfig>("/companies/fiscal-config", payload);
       setFiscal(result);
       setSavedFiscalSnapshot(JSON.stringify(result));
-      flashSuccess("Configuracoes fiscais salvas com sucesso!");
+      flashSuccess("Configurações fiscais salvas com sucesso!");
     } catch (err: any) {
       setErrorMsg(err?.message || "Erro ao salvar configuracoes fiscais");
     } finally {
@@ -358,7 +358,7 @@ export default function FiscalSettingsPage() {
       const next = !fiscalEnabled;
       await api.patch("/companies/fiscal-module", { fiscalEnabled: next });
       await refreshFiscal();
-      flashSuccess(next ? "Modulo fiscal habilitado!" : "Modulo fiscal desabilitado!");
+      flashSuccess(next ? "Módulo fiscal habilitado!" : "Módulo fiscal desabilitado!");
     } catch (err: any) {
       setErrorMsg(err?.message || "Erro ao alterar modulo fiscal");
     } finally {
@@ -386,12 +386,12 @@ export default function FiscalSettingsPage() {
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1">
           <Link href="/settings" className="text-sm text-slate-400 hover:text-slate-600 transition-colors">
-            Configuracoes
+            Configurações
           </Link>
           <span className="text-slate-300">/</span>
           <span className="text-sm text-slate-700 font-medium">Fiscal</span>
         </div>
-        <h1 className="text-2xl font-bold text-slate-900">Configuracoes Fiscais</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Configurações Fiscais</h1>
         <p className="text-sm text-slate-500 mt-1">
           Regime tributario, dados do contabilista e emissao de NFS-e
         </p>
@@ -417,7 +417,7 @@ export default function FiscalSettingsPage() {
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-slate-700">Modulo Fiscal (NFS-e)</h3>
+              <h3 className="text-sm font-semibold text-slate-700">Módulo Fiscal (NFS-e)</h3>
               <p className="text-xs text-slate-400">
                 {fiscalEnabled
                   ? "Habilitado — emissao de notas fiscais ativa"
@@ -444,7 +444,7 @@ export default function FiscalSettingsPage() {
       {!fiscalEnabled && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-8 text-center mb-6">
           <svg className="w-12 h-12 text-amber-400 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.694-.833-2.464 0L4.34 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
-          <h3 className="text-sm font-semibold text-amber-800 mb-1">Modulo fiscal desabilitado</h3>
+          <h3 className="text-sm font-semibold text-amber-800 mb-1">Módulo fiscal desabilitado</h3>
           <p className="text-xs text-amber-600">
             Ative o modulo acima para configurar a emissao de NFS-e e ter acesso ao menu NFe.
           </p>
@@ -624,7 +624,7 @@ export default function FiscalSettingsPage() {
         <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
         <div className="relative flex justify-center">
           <span className="bg-slate-50 px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Configuracoes NFS-e (Saida)
+            Configurações NFS-e (Saida)
           </span>
         </div>
       </div>
@@ -644,13 +644,13 @@ export default function FiscalSettingsPage() {
             <li>Cadastre sua empresa (CNPJ) e anexe o <strong>certificado digital</strong> (e-CNPJ A1)</li>
             <li>Habilite o documento <strong>NFSe</strong> na aba &quot;Documentos Fiscais&quot;</li>
             <li>Copie os <strong>tokens</strong> da aba &quot;Tokens&quot; (producao e homologacao) e cole abaixo</li>
-            <li>Escolha o <strong>ambiente</strong> (Homologacao para testes, Producao para notas reais)</li>
+            <li>Escolha o <strong>ambiente</strong> (Homologacao para testes, Produção para notas reais)</li>
           </ol>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className={labelClass}>Token Producao</label>
+            <label className={labelClass}>Token Produção</label>
             <PasswordInput
               value={token}
               onChange={(e) => setToken(e.target.value)}
@@ -675,7 +675,7 @@ export default function FiscalSettingsPage() {
               className={inputClass}
             >
               <option value="HOMOLOGATION">Homologacao (testes)</option>
-              <option value="PRODUCTION">Producao</option>
+              <option value="PRODUCTION">Produção</option>
             </select>
           </div>
           <div>
@@ -711,7 +711,7 @@ export default function FiscalSettingsPage() {
         </div>
         {tokenTestResult && (
           <div className={`mt-3 px-3 py-2 rounded-lg text-xs font-medium ${tokenTestResult.valid ? "bg-green-50 border border-green-200 text-green-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
-            {tokenTestResult.valid ? "✓ " : "✗ "}{tokenTestResult.message} ({config.focusNfeEnvironment === "HOMOLOGATION" ? "Homologacao" : "Producao"})
+            {tokenTestResult.valid ? "✓ " : "✗ "}{tokenTestResult.message} ({config.focusNfeEnvironment === "HOMOLOGATION" ? "Homologacao" : "Produção"})
           </div>
         )}
       </div>
@@ -729,12 +729,12 @@ export default function FiscalSettingsPage() {
               type="text"
               value={config.inscricaoMunicipal || ""}
               onChange={(e) => setConfig({ ...config, inscricaoMunicipal: e.target.value })}
-              placeholder="Numero da IM"
+              placeholder="Número da IM"
               className={inputClass}
             />
           </div>
           <div>
-            <label className={labelClass}>Codigo Municipio (IBGE)</label>
+            <label className={labelClass}>Código Municipio (IBGE)</label>
             <input
               type="text"
               value={config.codigoMunicipio || ""}
@@ -755,10 +755,10 @@ export default function FiscalSettingsPage() {
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className={labelClass}>Natureza da Operacao</label>
+            <label className={labelClass}>Natureza da Operação</label>
             <select
-              value={config.naturezaOperacao}
-              onChange={(e) => setConfig({ ...config, naturezaOperacao: e.target.value })}
+              value={config.naturezaOperação}
+              onChange={(e) => setConfig({ ...config, naturezaOperação: e.target.value })}
               className={inputClass}
             >
               {NATUREZA_OPTIONS.map((o) => (
@@ -803,15 +803,15 @@ export default function FiscalSettingsPage() {
         </div>
       </div>
 
-      {/* ── Codigos do Servico ── */}
+      {/* ── Códigos do Serviço ── */}
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm mb-6">
         <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
           <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" /></svg>
-          Codigos do Servico
+          Códigos do Serviço
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className={labelClass}>Item Lista Servico (LC 116)</label>
+            <label className={labelClass}>Item Lista Serviço (LC 116)</label>
             <input
               type="text"
               value={config.itemListaServico || ""}
@@ -821,7 +821,7 @@ export default function FiscalSettingsPage() {
             />
           </div>
           <div>
-            <label className={labelClass}>Codigo CNAE</label>
+            <label className={labelClass}>Código CNAE</label>
             <input
               type="text"
               value={config.codigoCnae || ""}
@@ -832,37 +832,37 @@ export default function FiscalSettingsPage() {
             />
           </div>
           <div>
-            <label className={labelClass}>Codigo Tributario Municipal</label>
+            <label className={labelClass}>Código Tributario Municipal</label>
             <input
               type="text"
               value={config.codigoTributarioMunicipio || ""}
               onChange={(e) => setConfig({ ...config, codigoTributarioMunicipio: e.target.value })}
-              placeholder="Codigo da prefeitura"
+              placeholder="Código da prefeitura"
               className={inputClass}
             />
           </div>
         </div>
       </div>
 
-      {/* ── Servicos Habilitados na Prefeitura ── */}
+      {/* ── Serviços Habilitados na Prefeitura ── */}
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm mb-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
             <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
-            Servicos Habilitados na Prefeitura
+            Serviços Habilitados na Prefeitura
           </h3>
           <button
             onClick={() => { setEditingCode({ ...emptyCode }); setShowCodeForm(true); setCodeSearch(""); }}
             className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
           >
-            + Novo Servico
+            + Novo Serviço
           </button>
         </div>
-        <p className="text-xs text-slate-400 mb-4">Cadastre os servicos que sua empresa esta apta a prestar. Ao emitir NFS-e, voce selecionara o servico adequado.</p>
+        <p className="text-xs text-slate-400 mb-4">Cadastre os serviços que sua empresa esta apta a prestar. Ao emitir NFS-e, voce selecionara o serviço adequado.</p>
 
         {serviceCodes.length === 0 && !showCodeForm && (
           <div className="text-center py-8 text-slate-400 text-sm">
-            Nenhum servico cadastrado. Clique em &quot;+ Novo Servico&quot; para adicionar.
+            Nenhum serviço cadastrado. Clique em &quot;+ Novo Serviço&quot; para adicionar.
           </div>
         )}
 
@@ -921,19 +921,19 @@ export default function FiscalSettingsPage() {
         {/* Inline form */}
         {showCodeForm && editingCode && (
           <div className="mt-4 p-4 border border-slate-200 rounded-lg bg-slate-50">
-            <h4 className="text-xs font-semibold text-slate-600 mb-3">{editingCode.id ? "Editar Servico" : "Novo Servico"}</h4>
+            <h4 className="text-xs font-semibold text-slate-600 mb-3">{editingCode.id ? "Editar Serviço" : "Novo Serviço"}</h4>
 
             {/* Searchable service selector — only for new items */}
             {!editingCode.id && (
               <div className="mb-4" ref={codeSearchRef}>
-                <label className={labelClass}>Buscar servico na tabela nacional *</label>
+                <label className={labelClass}>Buscar serviço na tabela nacional *</label>
                 <div className="relative">
                   <input
                     type="text"
                     value={codeSearch}
                     onChange={(e) => { setCodeSearch(e.target.value); setShowCodeDropdown(true); }}
                     onFocus={() => setShowCodeDropdown(true)}
-                    placeholder="Digite o codigo, nome do servico ou item LC 116..."
+                    placeholder="Digite o codigo, nome do serviço ou item LC 116..."
                     className={inputClass + " pr-8"}
                   />
                   <svg className="absolute right-2.5 top-2.5 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
@@ -987,13 +987,13 @@ export default function FiscalSettingsPage() {
               <div>
                 <label className={labelClass}>Tipo</label>
                 <select value={editingCode.tipo} onChange={(e) => setEditingCode({ ...editingCode, tipo: e.target.value })} className={inputClass}>
-                  <option value="SERVICO">Servico</option>
+                  <option value="SERVICO">Serviço</option>
                   <option value="OBRA">Obra</option>
                 </select>
               </div>
               <div className="md:col-span-3">
                 <label className={labelClass}>Descricao *</label>
-                <input type="text" value={editingCode.descricao} onChange={(e) => setEditingCode({ ...editingCode, descricao: e.target.value })} placeholder="Descricao do servico" className={inputClass} />
+                <input type="text" value={editingCode.descricao} onChange={(e) => setEditingCode({ ...editingCode, descricao: e.target.value })} placeholder="Descricao do serviço" className={inputClass} />
               </div>
               <div>
                 <label className={labelClass}>Aliquota ISS (%)</label>
@@ -1009,7 +1009,7 @@ export default function FiscalSettingsPage() {
               </div>
               <div>
                 <label className={labelClass}>Cod. Trib. Municipal</label>
-                <input type="text" value={editingCode.codigoTribMunicipal || ""} onChange={(e) => setEditingCode({ ...editingCode, codigoTribMunicipal: e.target.value })} placeholder="Codigo da prefeitura" className={inputClass} />
+                <input type="text" value={editingCode.codigoTribMunicipal || ""} onChange={(e) => setEditingCode({ ...editingCode, codigoTribMunicipal: e.target.value })} placeholder="Código da prefeitura" className={inputClass} />
               </div>
             </div>
             {codeFormError && (
@@ -1053,7 +1053,7 @@ export default function FiscalSettingsPage() {
           </div>
         </div>
         <div className="mt-4">
-          <label className={labelClass}>Discriminacao padrao do servico</label>
+          <label className={labelClass}>Discriminacao padrao do serviço</label>
           <textarea
             value={config.defaultDiscriminacao || ""}
             onChange={(e) => setConfig({ ...config, defaultDiscriminacao: e.target.value })}
@@ -1122,7 +1122,7 @@ export default function FiscalSettingsPage() {
             />
             <div>
               <span className="font-medium">Enviar NFS-e por WhatsApp ao tomador</span>
-              <p className="text-xs text-slate-400">Apos emissao autorizada, envia dados da NFS-e e PDF via WhatsApp</p>
+              <p className="text-xs text-slate-400">Após emissao autorizada, envia dados da NFS-e e PDF via WhatsApp</p>
             </div>
           </label>
 
@@ -1151,7 +1151,7 @@ export default function FiscalSettingsPage() {
           disabled={saving || !isDirty}
           className="rounded-lg bg-green-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {saving ? "Salvando..." : "Salvar Configuracoes"}
+          {saving ? "Salvando..." : "Salvar Configurações"}
         </button>
       </div>
       </>)}

@@ -753,7 +753,7 @@ export default function OrderDetailPage() {
             <div className="flex-1">
               <h4 className="text-sm font-semibold text-teal-900">Emitir NFS-e</h4>
               <p className="text-xs text-teal-700 mt-0.5">
-                A OS foi concluida. Deseja emitir a Nota Fiscal de Servico agora?
+                A OS foi concluída. Deseja emitir a Nota Fiscal de Serviço agora?
               </p>
               <div className="flex gap-2 mt-3">
                 <button
@@ -1278,7 +1278,7 @@ export default function OrderDetailPage() {
               <svg className="h-3.5 w-3.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              Tempo de Servico
+              Tempo de Serviço
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <div className="text-center">

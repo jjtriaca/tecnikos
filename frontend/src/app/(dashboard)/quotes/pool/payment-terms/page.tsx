@@ -62,7 +62,7 @@ export default function PoolPaymentTermsPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Formas de pagamento de obra</h1>
           <p className="text-sm text-slate-600 mt-1">
-            Estrutura de parcelas usada nos orcamentos do modulo Piscina. Distinto dos metodos de pagamento financeiros (Pix/Cartao/etc).
+            Estrutura de parcelas usada nos orcamentos do modulo Piscina. Distinto dos metodos de pagamento financeiros (Pix/Cartão/etc).
           </p>
         </div>
         <button

@@ -277,7 +277,7 @@ export default function AgendaSelector({
           <table className="w-full text-xs border-collapse min-w-[600px]">
             <thead>
               <tr>
-                <th className="text-left py-1.5 px-2 text-slate-500 font-medium sticky left-0 bg-teal-50/80 min-w-[120px]">Tecnico</th>
+                <th className="text-left py-1.5 px-2 text-slate-500 font-medium sticky left-0 bg-teal-50/80 min-w-[120px]">Técnico</th>
                 {weekDays.map((day, i) => {
                   const dayNum = day.getDay();
                   const isWorkDay = workingDays.includes(dayNum);
@@ -349,9 +349,9 @@ export default function AgendaSelector({
       {/* Selection fields */}
       <div className="border-t border-teal-200 pt-3 space-y-3">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {/* Tecnico */}
+          {/* Técnico */}
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-slate-600">Tecnico *</span>
+            <span className="text-xs font-medium text-slate-600">Técnico *</span>
             <select value={selectedTechId} onChange={e => setSelectedTechId(e.target.value)}
               className="text-sm rounded-lg border border-slate-300 px-2 py-1.5 bg-white focus:border-teal-500 focus:ring-1 focus:ring-teal-200 outline-none">
               <option value="">Selecione...</option>

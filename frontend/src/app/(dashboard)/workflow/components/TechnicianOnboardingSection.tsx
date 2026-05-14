@@ -57,7 +57,7 @@ const CONTRACT_VARIABLES = ['{nome}', '{empresa}', '{razao_social}', '{cnpj_empr
 
 const DEFAULT_POSITIVE_KEYWORDS = ['sim', 'aceito', 'confirmo', 'ok', 'pode ser', 'quero', 'topo', 'bora'];
 const DEFAULT_NEGATIVE_KEYWORDS = ['nao', 'não', 'recuso', 'desisto', 'nao quero', 'não quero', 'cancela'];
-const DEFAULT_REPLY_MESSAGE = 'Ok {nome}, a partir de agora voce faz parte do time da {razao_social}! Em breve voce recebera suas primeiras ordens de servico.';
+const DEFAULT_REPLY_MESSAGE = 'Ok {nome}, a partir de agora voce faz parte do time da {razao_social}! Em breve voce recebera suas primeiras ordens de serviço.';
 const DEFAULT_DECLINE_MESSAGE = '{nome} recusou a participacao como tecnico. Resposta: "{resposta}"';
 
 const CONFIRM_VIA_OPTIONS = [
@@ -223,7 +223,7 @@ function TriggerSection({
                 type="text"
                 value={triggerConfig.contractName}
                 onChange={(e) => update({ contractName: e.target.value })}
-                placeholder="Ex: Contrato de Prestacao de Servicos"
+                placeholder="Ex: Contrato de Prestacao de Serviços"
                 className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
               />
             </label>
@@ -570,7 +570,7 @@ function ConflictResolutionBanner({
       <div className="flex items-start gap-2">
         <span className="text-base mt-0.5">⚠️</span>
         <div>
-          <h4 className="text-sm font-semibold text-amber-800">Conflito: Tecnico criado com especializacao</h4>
+          <h4 className="text-sm font-semibold text-amber-800">Conflito: Técnico criado com especializacao</h4>
           <p className="text-xs text-amber-700 mt-0.5">
             Quando o tecnico e cadastrado ja com uma especializacao e existe um fluxo &ldquo;Nova Especializacao&rdquo; ativo, ambos poderiam disparar enviando mensagens duplicadas.
           </p>
@@ -603,7 +603,7 @@ function SpecInfoBanner() {
       <div className="flex items-start gap-2">
         <span className="text-sm mt-0.5">ℹ️</span>
         <p className="text-xs text-blue-700">
-          Se o tecnico foi recem-criado e existe um fluxo &ldquo;Novo Tecnico&rdquo; ativo, a configuracao de conflito daquele fluxo sera aplicada automaticamente para evitar mensagens duplicadas.
+          Se o tecnico foi recem-criado e existe um fluxo &ldquo;Novo Técnico&rdquo; ativo, a configuracao de conflito daquele fluxo sera aplicada automaticamente para evitar mensagens duplicadas.
         </p>
       </div>
     </div>
@@ -620,7 +620,7 @@ export default function TechnicianOnboardingSection({ config, onChange, triggerI
 
   // Determine header title/subtitle based on trigger
   const headerIcon = isTechTrigger ? '👷' : isSpecTrigger ? '🔧' : '👷';
-  const headerTitle = isTechTrigger ? 'Onboarding de Tecnico' : isSpecTrigger ? 'Nova Especializacao' : 'Novo Tecnico';
+  const headerTitle = isTechTrigger ? 'Onboarding de Técnico' : isSpecTrigger ? 'Nova Especializacao' : 'Novo Técnico';
   const headerSubtitle = isTechTrigger
     ? 'Boas-vindas e contrato para novos tecnicos'
     : isSpecTrigger

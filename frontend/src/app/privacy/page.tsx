@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Politica de Privacidade",
-  description: "Politica de privacidade da plataforma Tecnikos. Saiba como tratamos seus dados pessoais.",
+  title: "Política de Privacidade",
+  description: "Política de privacidade da plataforma Tecnikos. Saiba como tratamos seus dados pessoais.",
   alternates: {
     canonical: "https://tecnikos.com.br/privacy",
   },
@@ -13,10 +13,10 @@ export default function PrivacyPage() {
     <div className="min-h-screen bg-slate-50 py-12 px-4">
       <div className="mx-auto max-w-3xl bg-white rounded-2xl shadow-sm border border-slate-200 p-8 sm:p-12">
         <h1 className="text-3xl font-bold text-slate-900 mb-2">
-          Politica de Privacidade
+          Política de Privacidade
         </h1>
         <p className="text-sm text-slate-500 mb-8">
-          Ultima atualizacao: 07 de marco de 2026
+          Última atualizacao: 07 de marco de 2026
         </p>
 
         <div className="prose prose-slate max-w-none text-sm leading-relaxed space-y-6">
@@ -26,9 +26,9 @@ export default function PrivacyPage() {
             </h2>
             <p className="text-slate-600">
               O Tecnikos coleta informacoes necessarias para a prestacao dos
-              servicos de gestao de servicos tecnicos, incluindo: nome, email,
+              serviços de gestao de serviços tecnicos, incluindo: nome, email,
               telefone, CNPJ/CPF, endereco e dados financeiros relacionados a
-              ordens de servico e faturamento. Tambem coletamos dados de uso do
+              ordens de serviço e faturamento. Também coletamos dados de uso do
               sistema para melhoria continua da plataforma.
             </p>
           </section>
@@ -39,9 +39,9 @@ export default function PrivacyPage() {
             </h2>
             <p className="text-slate-600">
               As informacoes coletadas sao utilizadas para: gerenciar ordens de
-              servico e cadastros de parceiros; processar lancamentos financeiros;
+              serviço e cadastros de parceiros; processar lancamentos financeiros;
               enviar notificacoes operacionais via WhatsApp e email; emitir notas
-              fiscais de servico (NFS-e); gerar relatorios gerenciais e fiscais;
+              fiscais de serviço (NFS-e); gerar relatorios gerenciais e fiscais;
               e manter a seguranca da plataforma.
             </p>
           </section>
@@ -80,7 +80,7 @@ export default function PrivacyPage() {
               Nao vendemos, alugamos ou compartilhamos dados pessoais com
               terceiros para fins comerciais. Dados podem ser compartilhados
               apenas com: provedores de infraestrutura necessarios para operacao
-              do servico; autoridades fiscais conforme exigido por lei (SPED,
+              do serviço; autoridades fiscais conforme exigido por lei (SPED,
               NFS-e); e mediante ordem judicial.
             </p>
           </section>
@@ -139,7 +139,7 @@ export default function PrivacyPage() {
 
         <div className="mt-10 pt-6 border-t border-slate-200 text-center">
           <p className="text-xs text-slate-400">
-            Tecnikos &mdash; Gestao de Servicos Tecnicos
+            Tecnikos &mdash; Gestão de Serviços Técnicos
           </p>
           <p className="text-xs text-slate-400 mt-1">
             SLS Obras LTDA &mdash; CNPJ: 47.226.599/0001-40

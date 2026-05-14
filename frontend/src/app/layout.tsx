@@ -27,10 +27,10 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "Tecnikos — Gestao Inteligente de Servicos Tecnicos",
+    default: "Tecnikos — Gestao Inteligente de Serviços Técnicos",
     template: "%s | Tecnikos",
   },
-  description: "Plataforma SaaS para empresas que gerenciam equipes de tecnicos em campo. Ordens de servico, despacho, financeiro e automacao.",
+  description: "Plataforma SaaS para empresas que gerenciam equipes de tecnicos em campo. Ordens de serviço, despacho, financeiro e automacao.",
   metadataBase: new URL("https://tecnikos.com.br"),
   manifest: "/manifest.json",
   icons: {
@@ -56,12 +56,12 @@ export const metadata: Metadata = {
     locale: "pt_BR",
     url: "https://tecnikos.com.br",
     siteName: "Tecnikos",
-    title: "Tecnikos — Gestao Inteligente de Servicos Tecnicos",
-    description: "Plataforma SaaS para empresas que gerenciam equipes de tecnicos em campo. Ordens de servico, despacho, financeiro e automacao.",
+    title: "Tecnikos — Gestao Inteligente de Serviços Técnicos",
+    description: "Plataforma SaaS para empresas que gerenciam equipes de tecnicos em campo. Ordens de serviço, despacho, financeiro e automacao.",
   },
   twitter: {
     card: "summary",
-    title: "Tecnikos — Gestao Inteligente de Servicos Tecnicos",
+    title: "Tecnikos — Gestao Inteligente de Serviços Técnicos",
     description: "Plataforma SaaS para empresas que gerenciam equipes de tecnicos em campo.",
   },
   alternates: {

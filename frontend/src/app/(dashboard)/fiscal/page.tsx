@@ -118,7 +118,7 @@ export default function FiscalDashboardPage() {
     setClosingPeriod(true);
     try {
       await api.post("/fiscal-periods/close", { year, month });
-      toast("Periodo fechado com sucesso");
+      toast("Período fechado com sucesso");
       fetchDashboard();
     } catch {
       toast("Erro ao fechar periodo", "error");
@@ -131,7 +131,7 @@ export default function FiscalDashboardPage() {
     if (!confirm("Deseja reabrir este periodo fiscal?")) return;
     try {
       await api.post(`/fiscal-periods/${id}/reopen`);
-      toast("Periodo reaberto");
+      toast("Período reaberto");
       fetchDashboard();
     } catch {
       toast("Erro ao reabrir periodo", "error");
@@ -171,7 +171,7 @@ export default function FiscalDashboardPage() {
         </div>
       </div>
 
-      {/* KPI Cards - Periodo Atual */}
+      {/* KPI Cards - Período Atual */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
           <p className="text-xs text-slate-500 uppercase tracking-wider">NFe Entrada</p>
@@ -181,7 +181,7 @@ export default function FiscalDashboardPage() {
         <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
           <p className="text-xs text-slate-500 uppercase tracking-wider">NFS-e Entrada</p>
           <p className="text-2xl font-bold text-slate-800 mt-1">{ap.totalNfseEntrada}</p>
-          <p className="text-xs text-slate-400">servicos tomados</p>
+          <p className="text-xs text-slate-400">serviços tomados</p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
           <p className="text-xs text-slate-500 uppercase tracking-wider">NFS-e Saida</p>
@@ -195,7 +195,7 @@ export default function FiscalDashboardPage() {
         </div>
       </div>
 
-      {/* Apuracao Impostos - Periodo Atual */}
+      {/* Apuracao Impostos - Período Atual */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between">
           <h2 className="font-semibold text-slate-800">Apuracao — {MONTH_NAMES[currentPeriod.month]}/{currentPeriod.year}</h2>
@@ -204,7 +204,7 @@ export default function FiscalDashboardPage() {
             disabled={closingPeriod}
             className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
-            {closingPeriod ? "Fechando..." : "Fechar Periodo"}
+            {closingPeriod ? "Fechando..." : "Fechar Período"}
           </button>
         </div>
         <div className="p-4">
@@ -316,10 +316,10 @@ export default function FiscalDashboardPage() {
         </div>
       </div>
 
-      {/* Historico de Periodos */}
+      {/* Historico de Períodos */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
         <div className="p-4 border-b border-slate-100">
-          <h2 className="font-semibold text-slate-800">Periodos Fiscais</h2>
+          <h2 className="font-semibold text-slate-800">Períodos Fiscais</h2>
         </div>
         <div className="p-4">
           {periods.length === 0 ? (
@@ -329,7 +329,7 @@ export default function FiscalDashboardPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-slate-500 border-b border-slate-100">
-                    <th className="pb-2 font-medium">Periodo</th>
+                    <th className="pb-2 font-medium">Período</th>
                     <th className="pb-2 font-medium">Status</th>
                     <th className="pb-2 font-medium text-right">NFe</th>
                     <th className="pb-2 font-medium text-right">NFS-e Ent.</th>

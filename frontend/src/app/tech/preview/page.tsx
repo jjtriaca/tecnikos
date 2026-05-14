@@ -298,7 +298,7 @@ function AutoBlockVisual({ block }: { block: BlockDef }) {
           <div className="inline-block rounded-full bg-amber-100 px-4 py-1.5">
             <span className="text-base font-bold text-amber-800 font-mono">{timeLabel}</span>
           </div>
-          <p className="text-xs text-amber-500">Transicao automatica apos o tempo</p>
+          <p className="text-xs text-amber-500">Transicao automática apos o tempo</p>
         </div>
       );
     }
@@ -312,7 +312,7 @@ function AutoBlockVisual({ block }: { block: BlockDef }) {
           <div className="inline-block rounded-full bg-blue-100 px-4 py-1.5">
             <span className="text-base font-bold text-blue-800">{labels[newStatus] || newStatus}</span>
           </div>
-          <p className="text-xs text-blue-500">Automatico</p>
+          <p className="text-xs text-blue-500">Automático</p>
         </div>
       );
     }
@@ -327,7 +327,7 @@ function AutoBlockVisual({ block }: { block: BlockDef }) {
           <div className="inline-block rounded-full bg-green-100 px-4 py-1.5">
             <span className="text-base font-bold text-green-800">{channel}</span>
           </div>
-          <p className="text-xs text-green-500">Automatico</p>
+          <p className="text-xs text-green-500">Automático</p>
         </div>
       );
     }
@@ -344,7 +344,7 @@ function AutoBlockVisual({ block }: { block: BlockDef }) {
         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-center space-y-3">
           <div className="text-3xl">{block.icon || "⚙️"}</div>
           <p className="text-sm font-semibold text-slate-700">{block.name}</p>
-          <p className="text-xs text-slate-500">Automatico</p>
+          <p className="text-xs text-slate-500">Automático</p>
         </div>
       );
   }
@@ -462,7 +462,7 @@ export default function TechPreviewPage() {
       case "client": return showClient ? <InfoRow key={key} icon="user" color="blue" label="Cliente" value={MOCK_ORDER.clientName} /> : null;
       case "clientPhone": return showClientPhone ? <InfoRow key={key} icon="phone" color="blue" label="Telefone" value={MOCK_ORDER.clientPhone} /> : null;
       case "siteContact": return showSiteContact ? <InfoRow key={key} icon="home" color="blue" label="Contato no local" value={MOCK_ORDER.siteContact} /> : null;
-      case "address": return showAddress ? <InfoRow key={key} icon="location" color="blue" label="Endereco" value={MOCK_ORDER.addressText} /> : null;
+      case "address": return showAddress ? <InfoRow key={key} icon="location" color="blue" label="Endereço" value={MOCK_ORDER.addressText} /> : null;
       case "value": return showValue ? <InfoRow key={key} icon="money" color="green" label="Valor" value={formatCurrency(MOCK_ORDER.valueCents)} bold /> : null;
       case "deadline": return showDeadline ? <InfoRow key={key} icon="clock" color="slate" label="Prazo" value={new Date(MOCK_ORDER.deadlineAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })} /> : null;
       case "commission": return showCommission ? <InfoRow key={key} icon="money" color="green" label={commissionLabel} value={formatCurrency(MOCK_ORDER.commissionCents)} bold /> : null;

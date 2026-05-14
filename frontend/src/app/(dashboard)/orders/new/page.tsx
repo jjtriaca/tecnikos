@@ -734,12 +734,12 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
             return;
           } else {
             // Toggle OFF: block creation
-            setError("O valor total dos servicos deve ser maior que zero. Ative 'Permitir OS com valor zero' em Configuracoes > Sistema para criar OS sem valor.");
+            setError("O valor total dos serviços deve ser maior que zero. Ative 'Permitir OS com valor zero' em Configurações > Sistema para criar OS sem valor.");
             setLoading(false);
             return;
           }
         } catch {
-          setError("O valor total dos servicos deve ser maior que zero");
+          setError("O valor total dos serviços deve ser maior que zero");
           setLoading(false);
           return;
         }
@@ -1113,7 +1113,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
             </label>
           )}
 
-          {/* ─── 3. Endereco (sempre aberto, nao colapsavel) ─ */}
+          {/* ─── 3. Endereço (sempre aberto, nao colapsavel) ─ */}
           <fieldset disabled={lockedFields.address} className={lockedFields.address ? "opacity-60" : ""}>
           <div className="space-y-3">
             <div className="flex items-center gap-2">
@@ -1187,7 +1187,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
                   </label>
                 )}
 
-                {/* Rua/Av + Numero */}
+                {/* Rua/Av + Número */}
                 <div className="grid grid-cols-3 gap-3">
                   <label className="flex flex-col gap-1.5 col-span-2">
                     <span className="text-sm font-medium text-slate-700">Rua/Av *</span>
@@ -1255,7 +1255,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
               </div>
             )}
 
-            {/* Contato no Local (dentro do Endereco) */}
+            {/* Contato no Local (dentro do Endereço) */}
             <label className="flex flex-col gap-1.5">
               <span className="text-sm font-medium text-slate-700">Contato no Local</span>
               <input
@@ -1331,7 +1331,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
             </label>
           )}
 
-          {/* ─── 5. Servicos (tabela) ──────────────────────── */}
+          {/* ─── 5. Serviços (tabela) ──────────────────────── */}
           <fieldset disabled={lockedFields.services} className={lockedFields.services ? "opacity-60" : ""}>
           {lockedFields.services && <p className="text-xs text-amber-600 mb-1">Serviços bloqueados neste status</p>}
           <ServiceItemsSection
@@ -1499,7 +1499,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
                 </label>
               </div>
               {!returnPaidToTech && (
-                <p className="text-xs text-amber-600 ml-1">Tecnico nao recebera comissao neste retorno</p>
+                <p className="text-xs text-amber-600 ml-1">Técnico nao recebera comissao neste retorno</p>
               )}
             </div>
           )}
@@ -1579,7 +1579,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
                 <div className="text-3xl mb-2">⚠️</div>
                 <h3 className="text-sm font-bold text-slate-800">Valor da OS zerado</h3>
                 <p className="text-xs text-slate-500 mt-2">
-                  O valor total dos servicos e <span className="font-bold text-red-600">R$ 0,00</span>.
+                  O valor total dos serviços e <span className="font-bold text-red-600">R$ 0,00</span>.
                 </p>
               </div>
 

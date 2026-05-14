@@ -142,7 +142,7 @@ function LoginPageInner() {
               <img src="/logo-icon.svg" alt="Tecnikos" className="h-10 w-10" />
               <div>
                 <div className="text-base font-bold text-slate-900">Tecnikos</div>
-                <div className="text-[11px] text-slate-400">Gestao de Servicos Tecnicos</div>
+                <div className="text-[11px] text-slate-400">Gestão de Serviços Técnicos</div>
               </div>
             </div>
 
@@ -272,7 +272,7 @@ function LoginPageInner() {
               </button>
 
               <div className="pt-3 text-center text-[11px] text-slate-300">
-                Tecnikos &mdash; Gestao de Servicos Tecnicos
+                Tecnikos &mdash; Gestão de Serviços Técnicos
               </div>
             </form>
           </div>

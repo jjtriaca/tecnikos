@@ -22,7 +22,7 @@ type SystemConfig = {
     autoGenerateReceivable: boolean;
     autoGeneratePayable: boolean;
     defaultDueDays: number;
-    showBaixaCartoes: boolean;
+    showBaixaCartões: boolean;
     lockAccountOnReceive: boolean;
     lockPlanOnReceive: boolean;
     autoReconciliation: boolean;
@@ -59,9 +59,9 @@ type FieldConfig = {
 const SECTIONS: SectionConfig[] = [
   {
     key: "os",
-    title: "Ordens de Servico",
+    title: "Ordens de Serviço",
     icon: "📋",
-    description: "Configuracoes de comportamento das OS",
+    description: "Configurações de comportamento das OS",
     fields: [
       {
         section: "os",
@@ -81,7 +81,7 @@ const SECTIONS: SectionConfig[] = [
         section: "os",
         key: "allowTechSelfAssign",
         label: "Permitir tecnico auto-atribuir",
-        description: "Tecnico pode aceitar OS sem aprovacao do gestor",
+        description: "Técnico pode aceitar OS sem aprovacao do gestor",
         type: "toggle",
       },
       {
@@ -102,7 +102,7 @@ const SECTIONS: SectionConfig[] = [
         section: "os",
         key: "allowEditAprovada",
         label: "Permitir editar OS Aprovada",
-        description: "Permite editar OS aprovada, desde que nenhum lancamento financeiro esteja pago ou recebido. Se houver, sera necessario estornar antes.",
+        description: "Permite editar OS aprovada, desde que nenhum lancamento financeiro esteja pago ou recebido. Se houver, sera necessário estornar antes.",
         type: "toggle",
       },
     ],
@@ -136,8 +136,8 @@ const SECTIONS: SectionConfig[] = [
       },
       {
         section: "financial",
-        key: "showBaixaCartoes",
-        label: "Exibir aba Baixa de Cartoes",
+        key: "showBaixaCartões",
+        label: "Exibir aba Baixa de Cartões",
         description: "Quando desligado, a baixa de cartoes e feita automaticamente pela conciliacao bancaria (importacao OFX/CSV). Ligue apenas se nao utiliza conciliacao por importacao.",
         type: "toggle",
       },
@@ -152,13 +152,13 @@ const SECTIONS: SectionConfig[] = [
         section: "financial",
         key: "lockPlanOnReceive",
         label: "Travar plano de contas ao receber",
-        description: "Impede edicao do plano de contas no recebimento. O padrao e Receita de Servicos (1100).",
+        description: "Impede edicao do plano de contas no recebimento. O padrao e Receita de Serviços (1100).",
         type: "toggle",
       },
       {
         section: "financial",
         key: "autoReconciliation",
-        label: "Conciliacao automatica",
+        label: "Conciliação automática",
         description: "Ao importar extrato (OFX/CSV), concilia automaticamente linhas que possuem correspondencia exata de valor e data com lancamentos pendentes ou pagos.",
         type: "toggle",
       },
@@ -188,7 +188,7 @@ const SECTIONS: SectionConfig[] = [
         section: "notifications",
         key: "emailOnStatusChange",
         label: "E-mail ao mudar status",
-        description: "Envia e-mail quando o status da OS muda (ex: atribuida, concluida)",
+        description: "Envia e-mail quando o status da OS muda (ex: atribuida, concluída)",
         type: "toggle",
       },
       {
@@ -204,12 +204,12 @@ const SECTIONS: SectionConfig[] = [
     key: "quotes",
     title: "Orcamentos",
     icon: "📝",
-    description: "Configuracoes de orcamentos",
+    description: "Configurações de orcamentos",
     fields: [
       {
         section: "quotes",
         key: "autoSendOnSave",
-        label: "Envio automatico ao salvar",
+        label: "Envio automático ao salvar",
         description: "Ao salvar o orcamento, exibe modal para escolher envio por WhatsApp, Email ou ambos. Se desativado, salva apenas como rascunho.",
         type: "toggle",
       },
@@ -233,7 +233,7 @@ const SECTIONS: SectionConfig[] = [
     key: "evaluation",
     title: "Avaliacao",
     icon: "⭐",
-    description: "Configuracoes de avaliacao e aprovacao",
+    description: "Configurações de avaliacao e aprovacao",
     fields: [
       {
         section: "evaluation",
@@ -246,7 +246,7 @@ const SECTIONS: SectionConfig[] = [
         section: "evaluation",
         key: "sendClientEvalLink",
         label: "Enviar link de avaliacao ao cliente",
-        description: "Apos a OS ser concluida, envia automaticamente um link para o cliente avaliar o tecnico",
+        description: "Após a OS ser concluída, envia automaticamente um link para o cliente avaliar o tecnico",
         type: "toggle",
       },
     ],
@@ -353,7 +353,7 @@ export default function SystemConfigPage() {
       const updated = await api.patch<SystemConfig>("/companies/system-config", config);
       setConfig(updated);
       setDirty(false);
-      toast("Configuracoes salvas com sucesso!", "success");
+      toast("Configurações salvas com sucesso!", "success");
     } catch {
       toast("Erro ao salvar configuracoes", "error");
     } finally {
@@ -381,7 +381,7 @@ export default function SystemConfigPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <h1 className="text-xl font-bold text-slate-800">Configuracoes do Sistema</h1>
+            <h1 className="text-xl font-bold text-slate-800">Configurações do Sistema</h1>
           </div>
           <p className="text-sm text-slate-500 ml-7">
             Controle o comportamento geral do sistema
@@ -514,7 +514,7 @@ function PdfLayoutSection({ value, onChange }: { value: number; onChange: (v: nu
           <span className="text-base">📄</span>
           <div>
             <h3 className="text-sm font-semibold text-slate-700">Layout do PDF — OS e Orcamentos</h3>
-            <p className="text-[11px] text-slate-500">Escolha o modelo visual usado ao gerar PDF das Ordens de Servico e Orcamentos</p>
+            <p className="text-[11px] text-slate-500">Escolha o modelo visual usado ao gerar PDF das Ordens de Serviço e Orcamentos</p>
           </div>
         </div>
       </div>
@@ -574,21 +574,21 @@ const NFSE_VAR_GROUPS = [
       { var: "{caepf_cliente}", label: "CAEPF", desc: "CAEPF da propriedade rural" },
       { var: "{razao_social_cliente}", label: "Razao Social", desc: "Razao social (PJ) ou nome (PF)" },
       { var: "{nome_fantasia_cliente}", label: "Nome Fantasia", desc: "Nome fantasia ou propriedade" },
-      { var: "{endereco_cliente}", label: "Endereco", desc: "Endereco completo do tomador" },
+      { var: "{endereco_cliente}", label: "Endereço", desc: "Endereço completo do tomador" },
       { var: "{complemento_cliente}", label: "Complemento", desc: "Complemento do endereco (apto, sala, fazenda)" },
       { var: "{telefone_cliente}", label: "Telefone", desc: "Telefone do tomador" },
       { var: "{email_cliente}", label: "Email", desc: "Email do tomador" },
     ],
   },
   {
-    label: "📋 Ordem de Servico",
+    label: "📋 Ordem de Serviço",
     color: "green",
     vars: [
-      { var: "{codigo_os}", label: "Codigo OS", desc: "Ex: OS-00046" },
+      { var: "{codigo_os}", label: "Código OS", desc: "Ex: OS-00046" },
       { var: "{titulo_os}", label: "Titulo", desc: "Titulo da OS" },
       { var: "{descricao_os}", label: "Descricao", desc: "Descricao detalhada da OS" },
-      { var: "{nome_tecnico}", label: "Tecnico", desc: "Tecnico atribuido" },
-      { var: "{endereco_servico}", label: "Endereco Servico", desc: "Local do servico (rua, bairro, cidade/UF)" },
+      { var: "{nome_tecnico}", label: "Técnico", desc: "Técnico atribuido" },
+      { var: "{endereco_servico}", label: "Endereço Serviço", desc: "Local do serviço (rua, bairro, cidade/UF)" },
       { var: "{complemento_servico}", label: "Complemento", desc: "Complemento (fazenda, lote, etc)" },
     ],
   },
@@ -597,9 +597,9 @@ const NFSE_VAR_GROUPS = [
     color: "amber",
     vars: [
       { var: "{valor_total}", label: "Valor Total", desc: "Valor total da NFS-e" },
-      { var: "{numero_nfse}", label: "Numero NFS-e", desc: "Numero da nota emitida" },
+      { var: "{numero_nfse}", label: "Número NFS-e", desc: "Número da nota emitida" },
       { var: "{data_emissao}", label: "Data Emissao", desc: "Data de emissao" },
-      { var: "{codigo_servico}", label: "Cod. Servico", desc: "Item lista servico LC 116" },
+      { var: "{codigo_servico}", label: "Cod. Serviço", desc: "Item lista serviço LC 116" },
       { var: "{aliquota_iss}", label: "Aliquota ISS", desc: "Aliquota ISS em %" },
       { var: "{valor_iss}", label: "Valor ISS", desc: "Valor do ISS calculado" },
     ],
@@ -680,7 +680,7 @@ function NfseTemplateSection({ value, onChange }: { value: string; onChange: (v:
           value={value}
           onChange={(e) => onChange(e.target.value)}
           rows={5}
-          placeholder={"Ex: Servico prestado conforme {titulo_os} para {nome_cliente} ({documento_cliente}).\nISS retido na fonte: {aliquota_iss}% sobre {valor_total}.\nPrestador: {nome_empresa} - CNPJ {cnpj_empresa} - IM {im_empresa}."}
+          placeholder={"Ex: Serviço prestado conforme {titulo_os} para {nome_cliente} ({documento_cliente}).\nISS retido na fonte: {aliquota_iss}% sobre {valor_total}.\nPrestador: {nome_empresa} - CNPJ {cnpj_empresa} - IM {im_empresa}."}
           className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-300 focus:outline-none focus:border-blue-300 focus:ring-1 focus:ring-blue-200 resize-y font-mono"
         />
 

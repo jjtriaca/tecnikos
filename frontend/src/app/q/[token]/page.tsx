@@ -52,10 +52,10 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("pt-BR");
 }
 
-const TYPE_LABELS: Record<string, string> = { SERVICE: "Servico", PRODUCT: "Produto", LABOR: "Mao de Obra" };
+const TYPE_LABELS: Record<string, string> = { SERVICE: "Serviço", PRODUCT: "Produto", LABOR: "Mao de Obra" };
 
 const STATUS_MAP: Record<string, { label: string; color: string; bgPage: string }> = {
-  ENVIADO: { label: "Aguardando Aprovacao", color: "bg-blue-100 text-blue-800", bgPage: "from-blue-50 to-white" },
+  ENVIADO: { label: "Aguardando Aprovação", color: "bg-blue-100 text-blue-800", bgPage: "from-blue-50 to-white" },
   APROVADO: { label: "Aprovado", color: "bg-green-100 text-green-800", bgPage: "from-green-50 to-white" },
   REJEITADO: { label: "Rejeitado", color: "bg-red-100 text-red-800", bgPage: "from-red-50 to-white" },
   EXPIRADO: { label: "Expirado", color: "bg-orange-100 text-orange-800", bgPage: "from-orange-50 to-white" },
@@ -174,7 +174,7 @@ export default function PublicQuotePage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
             </svg>
           </div>
-          <h2 className="text-xl font-bold text-slate-800 mb-2">Orcamento Indisponivel</h2>
+          <h2 className="text-xl font-bold text-slate-800 mb-2">Orcamento Indisponível</h2>
           <p className="text-slate-500">{error}</p>
         </div>
       </div>
@@ -385,7 +385,7 @@ export default function PublicQuotePage() {
             {/* Approve form */}
             {showApproveForm && (
               <div className="rounded-2xl bg-white shadow-lg border border-green-200 p-6">
-                <h3 className="text-lg font-bold text-slate-800 mb-3">Confirmar Aprovacao</h3>
+                <h3 className="text-lg font-bold text-slate-800 mb-3">Confirmar Aprovação</h3>
                 <p className="text-sm text-slate-500 mb-4">
                   Informe seu nome para confirmar a aprovacao do orcamento no valor de{" "}
                   <span className="font-bold text-blue-700">{formatCurrency(quote.totalCents)}</span>.
@@ -401,7 +401,7 @@ export default function PublicQuotePage() {
                 <div className="flex gap-3">
                   <button onClick={handleApprove} disabled={!approverName.trim() || actionLoading}
                     className="flex-1 rounded-lg bg-green-600 py-3 text-base font-bold text-white hover:bg-green-700 transition-colors disabled:opacity-50">
-                    {actionLoading ? "Processando..." : "Confirmar Aprovacao"}
+                    {actionLoading ? "Processando..." : "Confirmar Aprovação"}
                   </button>
                   <button onClick={() => { setShowApproveForm(false); setApproverName(""); }}
                     className="rounded-lg border border-slate-300 px-4 py-3 text-base text-slate-600 hover:bg-slate-100 transition-colors">

@@ -291,7 +291,7 @@ export default function EmailSettingsPage() {
               href="/settings"
               className="text-sm text-slate-400 hover:text-slate-600 transition-colors"
             >
-              Configuracoes
+              Configurações
             </Link>
             <span className="text-slate-300">/</span>
             <span className="text-sm text-slate-700 font-medium">Email</span>
@@ -300,7 +300,7 @@ export default function EmailSettingsPage() {
             Servidor de Email SMTP
           </h1>
           <p className="text-sm text-slate-500">
-            Configure seu servidor SMTP para envio automatico de emails.
+            Configure seu servidor SMTP para envio automático de emails.
           </p>
         </div>
       </div>
@@ -382,7 +382,7 @@ export default function EmailSettingsPage() {
       {showForm && (
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm mb-6">
           <h3 className="text-sm font-semibold text-slate-700 mb-4">
-            {isConnected ? "Editar Configuracao SMTP" : "Conectar Servidor SMTP"}
+            {isConnected ? "Editar Configuração SMTP" : "Conectar Servidor SMTP"}
           </h3>
 
           <div className="space-y-4">
@@ -665,7 +665,7 @@ export default function EmailSettingsPage() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-slate-700">
-                Configuracao SMTP
+                Configuração SMTP
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 Altere as configuracoes do servidor de email.
@@ -693,7 +693,7 @@ export default function EmailSettingsPage() {
                   d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
                 />
               </svg>
-              Editar Configuracao
+              Editar Configuração
             </button>
           </div>
         </div>

@@ -83,7 +83,7 @@ export default function PoolTemplatesPage() {
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <Link href="/settings" className="text-xs text-slate-500 hover:text-slate-700">← Configuracoes</Link>
+          <Link href="/settings" className="text-xs text-slate-500 hover:text-slate-700">← Configurações</Link>
           <h1 className="text-2xl font-bold text-slate-900">Templates de Etapas</h1>
           <p className="mt-1 text-sm text-slate-500">
             Modelos pre-prontos de orcamento. Ao criar um orcamento, escolher um template gera os items automaticamente.
@@ -288,14 +288,14 @@ function TemplateForm({ editing, catalog, onClose, onSubmit }: {
                               <div className="flex-1 text-sm text-slate-800">
                                 {c.product?.description || c.service?.name || "(sem nome)"}
                                 <span className="ml-2 text-[10px] text-slate-400">
-                                  {c.product ? "Produto" : "Servico"}
+                                  {c.product ? "Produto" : "Serviço"}
                                 </span>
                               </div>
                               {itemInTpl && (
                                 <label className="flex items-center gap-1 text-xs text-slate-600">
                                   <input type="checkbox" checked={!!itemInTpl.required}
                                     onChange={() => toggleRequired(secIdx, c.id)} />
-                                  obrigatorio
+                                  obrigatório
                                 </label>
                               )}
                             </div>

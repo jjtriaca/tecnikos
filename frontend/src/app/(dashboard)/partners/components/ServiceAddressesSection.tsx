@@ -54,7 +54,7 @@ function formatAddr(a: ServiceAddress): string {
   if (a.addressNumber) parts.push(a.addressNumber);
   if (a.neighborhood) parts.push(`- ${a.neighborhood}`);
   if (a.city && a.state) parts.push(`${a.city}/${a.state}`);
-  return parts.join(', ') || 'Endereco incompleto';
+  return parts.join(', ') || 'Endereço incompleto';
 }
 
 /* ------------------------------------------------------------------ */
@@ -183,10 +183,10 @@ export default function ServiceAddressesSection({ partnerId }: Props) {
 
       if (editingId) {
         await api.put(`/service-addresses/${editingId}`, payload);
-        toast('Endereco atualizado com sucesso.', 'success');
+        toast('Endereço atualizado com sucesso.', 'success');
       } else {
         await api.post('/service-addresses', payload);
-        toast('Endereco criado com sucesso.', 'success');
+        toast('Endereço criado com sucesso.', 'success');
       }
 
       setShowForm(false);
@@ -212,7 +212,7 @@ export default function ServiceAddressesSection({ partnerId }: Props) {
     try {
       await api.patch(`/service-addresses/${addr.id}/toggle`);
       toast(
-        addr.active ? 'Endereco desativado.' : 'Endereco ativado.',
+        addr.active ? 'Endereço desativado.' : 'Endereço ativado.',
         'success',
       );
       loadAddresses();
@@ -237,7 +237,7 @@ export default function ServiceAddressesSection({ partnerId }: Props) {
 
     try {
       await api.del(`/service-addresses/${addr.id}`);
-      toast('Endereco excluido com sucesso.', 'success');
+      toast('Endereço excluido com sucesso.', 'success');
       loadAddresses();
     } catch (err) {
       if (err instanceof ApiError) {
@@ -255,14 +255,14 @@ export default function ServiceAddressesSection({ partnerId }: Props) {
   return (
     <div className="border-t border-slate-200 pt-4 mt-4">
       <div className="flex items-center justify-between mb-3">
-        <h4 className="text-sm font-semibold text-slate-800">Enderecos de Atendimento</h4>
+        <h4 className="text-sm font-semibold text-slate-800">Endereços de Atendimento</h4>
         {!showForm && (
           <button
             type="button"
             onClick={handleNew}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
           >
-            Novo Endereco
+            Novo Endereço
           </button>
         )}
       </div>
@@ -271,7 +271,7 @@ export default function ServiceAddressesSection({ partnerId }: Props) {
       {showForm && (
         <div className="border border-slate-200 rounded-lg p-4 mb-4 bg-slate-50">
           <p className="text-sm font-semibold text-slate-800 mb-3">
-            {editingId ? 'Editar Endereco' : 'Novo Endereco de Atendimento'}
+            {editingId ? 'Editar Endereço' : 'Novo Endereço de Atendimento'}
           </p>
 
           <div className="space-y-3">
@@ -287,7 +287,7 @@ export default function ServiceAddressesSection({ partnerId }: Props) {
               />
             </div>
 
-            {/* CEP + Logradouro + Numero */}
+            {/* CEP + Logradouro + Número */}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div>
                 <label className="text-xs font-medium text-slate-600">CEP</label>
@@ -317,7 +317,7 @@ export default function ServiceAddressesSection({ partnerId }: Props) {
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-600">Numero</label>
+                <label className="text-xs font-medium text-slate-600">Número</label>
                 <input
                   value={form.addressNumber}
                   onChange={(e) => setForm((f) => ({ ...f, addressNumber: e.target.value }))}

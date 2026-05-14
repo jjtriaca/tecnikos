@@ -56,7 +56,7 @@ const CLIENT_CONTRACT_VARIABLES = ['{nome}', '{empresa}', '{razao_social}', '{cn
 
 const DEFAULT_POSITIVE_KEYWORDS = ['sim', 'aceito', 'confirmo', 'ok', 'pode ser', 'quero', 'topo', 'bora'];
 const DEFAULT_NEGATIVE_KEYWORDS = ['nao', 'não', 'recuso', 'desisto', 'nao quero', 'não quero', 'cancela'];
-const DEFAULT_REPLY_MESSAGE = 'Perfeito {nome}! Seu cadastro como cliente esta confirmado. Em breve voce podera solicitar servicos pela plataforma.';
+const DEFAULT_REPLY_MESSAGE = 'Perfeito {nome}! Seu cadastro como cliente esta confirmado. Em breve voce podera solicitar serviços pela plataforma.';
 const DEFAULT_DECLINE_MESSAGE = 'Atencao: o cliente {nome} ({email}) recusou o cadastro. Resposta: "{resposta}".';
 
 const CONFIRM_VIA_OPTIONS = [
@@ -188,7 +188,7 @@ export default function ClientOnboardingSection({ config, onChange }: Props) {
           <span className="text-lg">👤</span>
           <div className="min-w-0">
             <h3 className="text-sm font-bold text-slate-800">Onboarding de Cliente</h3>
-            <p className="text-xs text-slate-400">Boas-vindas e termos de servico para novos clientes</p>
+            <p className="text-xs text-slate-400">Boas-vindas e termos de serviço para novos clientes</p>
           </div>
           {config.enabled && (
             <>
@@ -237,7 +237,7 @@ export default function ClientOnboardingSection({ config, onChange }: Props) {
           <div className="flex flex-wrap gap-1.5">
             {config.sendContractLink && (
               <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
-                📄 Termos de servico
+                📄 Termos de serviço
               </span>
             )}
             {config.sendWelcomeMessage && (
@@ -253,17 +253,17 @@ export default function ClientOnboardingSection({ config, onChange }: Props) {
       {config.enabled && expanded && (
         <div className="px-4 pb-5 space-y-4 border-t border-blue-100 pt-4">
 
-          {/* ── Termos de Servico / Contrato ── */}
+          {/* ── Termos de Serviço / Contrato ── */}
           <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 space-y-2">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-200 px-1.5 py-0.5 rounded">TERMOS</span>
-              <span className="text-xs text-slate-500">Contrato de prestacao de servicos</span>
+              <span className="text-xs text-slate-500">Contrato de prestacao de serviços</span>
             </div>
             <Toggle
               checked={config.sendContractLink}
               onChange={(v) => update({ sendContractLink: v })}
-              label="Enviar termos de servico"
-              hint="Envia um link para o cliente visualizar e aceitar os termos de prestacao de servicos"
+              label="Enviar termos de serviço"
+              hint="Envia um link para o cliente visualizar e aceitar os termos de prestacao de serviços"
             />
 
             <ConfigRow visible={config.sendContractLink}>
@@ -290,7 +290,7 @@ export default function ClientOnboardingSection({ config, onChange }: Props) {
                   type="text"
                   value={config.contractName}
                   onChange={(e) => update({ contractName: e.target.value })}
-                  placeholder="Ex: Termos de Prestacao de Servicos"
+                  placeholder="Ex: Termos de Prestacao de Serviços"
                   className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none"
                 />
               </label>
@@ -302,7 +302,7 @@ export default function ClientOnboardingSection({ config, onChange }: Props) {
                   ref={textareaRef}
                   value={config.contractContent}
                   onChange={(e) => update({ contractContent: e.target.value })}
-                  placeholder="Digite o texto dos termos de servico que o cliente devera aceitar..."
+                  placeholder="Digite o texto dos termos de serviço que o cliente devera aceitar..."
                   rows={6}
                   className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none resize-y"
                 />

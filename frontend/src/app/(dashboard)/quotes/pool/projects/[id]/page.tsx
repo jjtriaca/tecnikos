@@ -82,7 +82,7 @@ const PROJECT_STATUS: Record<string, { label: string; cls: string }> = {
 };
 
 const ENTRY_TYPE: Record<string, string> = {
-  MATERIAL: "Material", SERVICO: "Servico", SUBEMPREITADA: "Subempreitada",
+  MATERIAL: "Material", SERVICO: "Serviço", SUBEMPREITADA: "Subempreitada",
   FRETE: "Frete", OUTRO: "Outro",
 };
 

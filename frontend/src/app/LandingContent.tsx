@@ -144,15 +144,15 @@ export default function LandingContent() {
           )}
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-white leading-tight mb-6">
-            Gestao inteligente de{" "}
+            Gestão inteligente de{" "}
             <span className="bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">
-              servicos tecnicos
+              serviços tecnicos
             </span>
           </h1>
 
           <p className="text-lg sm:text-xl text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed">
-            Ordens de servico, despacho, financeiro e automacao em uma unica plataforma
-            para empresas de servicos tecnicos em campo.
+            Ordens de serviço, despacho, financeiro e automacao em uma unica plataforma
+            para empresas de serviços tecnicos em campo.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -196,7 +196,7 @@ export default function LandingContent() {
                 <span className="text-4xl font-bold text-amber-400">R$ 15</span>
                 <span className="text-slate-400 text-sm text-left">/mes por<br />6 meses</span>
               </div>
-              <p className="text-xs text-slate-500 mt-2">Apos os 6 meses, o plano passa para o valor normal vigente</p>
+              <p className="text-xs text-slate-500 mt-2">Após os 6 meses, o plano passa para o valor normal vigente</p>
             </div>
 
             {/* How it works */}
@@ -228,7 +228,7 @@ export default function LandingContent() {
                     </h3>
                     {slot.available ? (
                       <span className="text-[10px] font-bold text-green-400 bg-green-400/10 rounded-full px-2 py-0.5">
-                        Disponivel
+                        Disponível
                       </span>
                     ) : (
                       <span className="text-[10px] font-bold text-slate-500 bg-slate-700 rounded-full px-2 py-0.5">
@@ -320,7 +320,7 @@ export default function LandingContent() {
                   plan.maxUsers >= 999 ? "Usuarios ilimitados" : `Ate ${plan.maxUsers} usuario${plan.maxUsers !== 1 ? "s" : ""} gestores`,
                   plan.maxOsPerMonth === 0 ? "OS ilimitadas" : `${plan.maxOsPerMonth} OS/mes`,
                   plan.maxTechnicians === 0 || plan.maxTechnicians == null
-                    ? "Tecnicos ilimitados"
+                    ? "Técnicos ilimitados"
                     : `${plan.maxTechnicians} tecnico${plan.maxTechnicians !== 1 ? "s" : ""}`,
                   plan.maxAiMessages != null && plan.maxAiMessages > 0
                     ? `Assistente IA (${plan.maxAiMessages} msgs/mes)`
@@ -414,7 +414,7 @@ export default function LandingContent() {
             <div className="text-center sm:text-right">
               <p className="text-xs text-slate-500">SLS Obras LTDA — CNPJ: 47.226.599/0001-40</p>
               <div className="flex items-center justify-center sm:justify-end gap-4 mt-1">
-                <Link href="/privacy" className="text-xs text-slate-600 hover:text-slate-400 transition-colors">Politica de Privacidade</Link>
+                <Link href="/privacy" className="text-xs text-slate-600 hover:text-slate-400 transition-colors">Política de Privacidade</Link>
               </div>
             </div>
           </div>
@@ -440,7 +440,7 @@ export default function LandingContent() {
               <h4 className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-2">Condicoes do Programa</h4>
               <ul className="text-xs text-amber-700 space-y-1.5 leading-relaxed">
                 <li>• Plano Essencial completo por R$ 15/mes durante 6 meses</li>
-                <li>• Apos os 6 meses, o plano passa para o valor vigente do Essencial</li>
+                <li>• Após os 6 meses, o plano passa para o valor vigente do Essencial</li>
                 <li>• A empresa se compromete a usar o sistema ativamente e reportar problemas</li>
                 <li>• Apenas 1 vaga por segmento de atuacao</li>
                 <li>• A vaga e pessoal e intransferivel</li>

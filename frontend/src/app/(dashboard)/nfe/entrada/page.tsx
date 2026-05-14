@@ -87,7 +87,7 @@ const LAYOUT_BADGE: Record<string, { label: string; cls: string }> = {
 function buildColumns(): ColumnDefinition<NfseEntrada>[] {
   return [
     { id: "actions", label: "Acoes", sortable: false, render: () => null as any },
-    { id: "numero", label: "Numero", sortable: true, render: (r) => <span className="font-medium text-slate-900 text-xs">{r.numero || "\u2014"}</span> },
+    { id: "numero", label: "Número", sortable: true, render: (r) => <span className="font-medium text-slate-900 text-xs">{r.numero || "\u2014"}</span> },
     { id: "dataEmissao", label: "Emissao", sortable: true, render: (r) => <span className="text-xs text-slate-700">{fmtDate(r.dataEmissao)}</span> },
     { id: "competencia", label: "Compet.", sortable: true, render: (r) => <span className="text-xs text-slate-600">{r.competencia || "\u2014"}</span> },
     { id: "prestadorRazaoSocial", label: "Prestador", sortable: true, render: (r) => (
@@ -309,7 +309,7 @@ export default function NfseEntradaPage() {
       return;
     }
     if (!mf.valorServicos) {
-      toast("Informe o valor dos servicos", "error");
+      toast("Informe o valor dos serviços", "error");
       return;
     }
     setSavingManual(true);
@@ -502,7 +502,7 @@ export default function NfseEntradaPage() {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">NFS-e de Entrada</h1>
-        <p className="text-sm text-slate-500 mt-1">Notas fiscais de servico recebidas (servicos tomados)</p>
+        <p className="text-sm text-slate-500 mt-1">Notas fiscais de serviço recebidas (serviços tomados)</p>
       </div>
 
       {/* Summary Cards */}
@@ -512,7 +512,7 @@ export default function NfseEntradaPage() {
           <p className="text-2xl font-bold text-slate-900 mt-1">{meta.total}</p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium text-slate-500">Valor Servicos (pagina)</p>
+          <p className="text-xs font-medium text-slate-500">Valor Serviços (pagina)</p>
           <p className="text-2xl font-bold text-blue-600 mt-1">{fmt(totalServicos)}</p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -548,7 +548,7 @@ export default function NfseEntradaPage() {
               Baixar NFS-e
             </a>
             <p className="text-[11px] text-slate-400 max-w-lg leading-relaxed">
-              A importacao manual de XML e gratuita e ilimitada. A baixa automatica traz praticidade e organizacao, permitindo visualizar todas as notas de servico emitidas contra sua empresa. Para usar, adquira um pacote de importacoes. Diferente da NFe (disponivel na Receita Federal), a consulta de NFS-e depende de integracao com cada prefeitura — algumas ainda nao estao integradas, entao nem todas as notas aparecerao aqui.
+              A importacao manual de XML e gratuita e ilimitada. A baixa automática traz praticidade e organizacao, permitindo visualizar todas as notas de serviço emitidas contra sua empresa. Para usar, adquira um pacote de importacoes. Diferente da NFe (disponivel na Receita Federal), a consulta de NFS-e depende de integracao com cada prefeitura — algumas ainda nao estao integradas, entao nem todas as notas aparecerao aqui.
             </p>
           </div>
         )}
@@ -592,7 +592,7 @@ export default function NfseEntradaPage() {
           {/* Identificacao */}
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Identificacao</p>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-5">
-            <div><label className={labelClass}>Numero NFS-e</label><input type="text" value={mf.numero} onChange={(e) => setMf({ ...mf, numero: e.target.value })} placeholder="12345" className={inputClass} /></div>
+            <div><label className={labelClass}>Número NFS-e</label><input type="text" value={mf.numero} onChange={(e) => setMf({ ...mf, numero: e.target.value })} placeholder="12345" className={inputClass} /></div>
             <div><label className={labelClass}>Data Emissao</label><input type="date" value={mf.dataEmissao} onChange={(e) => setMf({ ...mf, dataEmissao: e.target.value })} className={inputClass} /></div>
             <div><label className={labelClass}>Competencia</label><input type="month" value={mf.competencia} onChange={(e) => setMf({ ...mf, competencia: e.target.value })} className={inputClass} /></div>
           </div>
@@ -607,21 +607,21 @@ export default function NfseEntradaPage() {
             <div><label className={labelClass}>UF</label><input type="text" value={mf.prestadorUf} onChange={(e) => setMf({ ...mf, prestadorUf: e.target.value.toUpperCase() })} placeholder="MT" maxLength={2} className={inputClass} /></div>
           </div>
 
-          {/* Servico */}
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Servico</p>
+          {/* Serviço */}
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Serviço</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-2">
             <div><label className={labelClass}>Item LC 116</label><input type="text" value={mf.itemListaServico} onChange={(e) => setMf({ ...mf, itemListaServico: e.target.value })} placeholder="7.02" className={inputClass} /></div>
             <div><label className={labelClass}>CNAE</label><input type="text" value={mf.codigoCnae} onChange={(e) => setMf({ ...mf, codigoCnae: e.target.value })} placeholder="7 digitos" className={inputClass} /></div>
           </div>
           <div className="mb-5">
-            <label className={labelClass}>Discriminacao do Servico</label>
-            <textarea value={mf.discriminacao} onChange={(e) => setMf({ ...mf, discriminacao: e.target.value })} rows={2} placeholder="Descricao do servico" className={inputClass + " resize-none"} />
+            <label className={labelClass}>Discriminacao do Serviço</label>
+            <textarea value={mf.discriminacao} onChange={(e) => setMf({ ...mf, discriminacao: e.target.value })} rows={2} placeholder="Descricao do serviço" className={inputClass + " resize-none"} />
           </div>
 
           {/* Valores */}
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Valores (R$)</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-            <div><label className={labelClass}>Valor Servicos *</label><input type="text" value={mf.valorServicos} onChange={(e) => setMf({ ...mf, valorServicos: e.target.value })} placeholder="1000.00" className={inputClass} /></div>
+            <div><label className={labelClass}>Valor Serviços *</label><input type="text" value={mf.valorServicos} onChange={(e) => setMf({ ...mf, valorServicos: e.target.value })} placeholder="1000.00" className={inputClass} /></div>
             <div><label className={labelClass}>Base Calculo ISS</label><input type="text" value={mf.baseCalculo} onChange={(e) => setMf({ ...mf, baseCalculo: e.target.value })} placeholder="1000.00" className={inputClass} /></div>
             <div><label className={labelClass}>Aliquota ISS (%)</label><input type="text" value={mf.aliquotaIss} onChange={(e) => setMf({ ...mf, aliquotaIss: e.target.value })} placeholder="2.00" className={inputClass} /></div>
             <div><label className={labelClass}>Valor ISS</label><input type="text" value={mf.valorIss} onChange={(e) => setMf({ ...mf, valorIss: e.target.value })} placeholder="20.00" className={inputClass} /></div>
@@ -643,7 +643,7 @@ export default function NfseEntradaPage() {
           {/* Construcao Civil */}
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Construcao Civil (opcional)</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
-            <div><label className={labelClass}>CNO / Codigo Obra</label><input type="text" value={mf.codigoObra} onChange={(e) => setMf({ ...mf, codigoObra: e.target.value })} className={inputClass} /></div>
+            <div><label className={labelClass}>CNO / Código Obra</label><input type="text" value={mf.codigoObra} onChange={(e) => setMf({ ...mf, codigoObra: e.target.value })} className={inputClass} /></div>
             <div><label className={labelClass}>ART / RRT</label><input type="text" value={mf.art} onChange={(e) => setMf({ ...mf, art: e.target.value })} className={inputClass} /></div>
           </div>
 
@@ -663,7 +663,7 @@ export default function NfseEntradaPage() {
         onReset={tp.resetFilters}
         search={tp.search}
         onSearchChange={tp.setSearch}
-        searchPlaceholder="Numero, prestador, CNPJ, descricao..."
+        searchPlaceholder="Número, prestador, CNPJ, descricao..."
       />
 
       {/* Table */}
@@ -817,7 +817,7 @@ export default function NfseEntradaPage() {
                       ) : s}
                     </div>
                     <span className={`text-xs ${wizardStep === s ? "text-blue-700 font-medium" : "text-slate-400"}`}>
-                      {s === 1 ? "Prestador" : s === 2 ? "Financeiro" : "Confirmacao"}
+                      {s === 1 ? "Prestador" : s === 2 ? "Financeiro" : "Confirmação"}
                     </span>
                     {s < 3 && <div className="w-6 h-px bg-slate-200" />}
                   </div>
@@ -829,7 +829,7 @@ export default function NfseEntradaPage() {
               {/* ── Step 1: Prestador ────────────────────────── */}
               {wizardStep === 1 && (
                 <div>
-                  <h4 className="text-sm font-semibold text-slate-800 mb-3">Prestador do Servico</h4>
+                  <h4 className="text-sm font-semibold text-slate-800 mb-3">Prestador do Serviço</h4>
                   <div className="bg-slate-50 rounded-lg p-3 mb-4 text-xs space-y-1">
                     <div className="flex justify-between"><span className="text-slate-500">Razao Social</span><span className="font-medium text-slate-900">{processEntry.prestadorRazaoSocial || "\u2014"}</span></div>
                     <div className="flex justify-between"><span className="text-slate-500">CNPJ/CPF</span><span className="font-mono text-slate-700">{fmtDoc(processEntry.prestadorCnpjCpf)}</span></div>
@@ -1045,17 +1045,17 @@ export default function NfseEntradaPage() {
                 </div>
               )}
 
-              {/* ── Step 3: Confirmacao ─────────────────────── */}
+              {/* ── Step 3: Confirmação ─────────────────────── */}
               {wizardStep === 3 && (
                 <div>
-                  <h4 className="text-sm font-semibold text-slate-800 mb-4">Confirmacao</h4>
+                  <h4 className="text-sm font-semibold text-slate-800 mb-4">Confirmação</h4>
                   <div className="space-y-4">
                     {/* NFS-e summary */}
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                       <p className="text-xs text-slate-500 uppercase tracking-wider font-semibold mb-2">NFS-e</p>
                       <div className="text-xs space-y-1">
-                        <div className="flex justify-between"><span className="text-slate-500">Numero</span><span className="font-medium text-slate-900">{processEntry.numero || "\u2014"}</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">Servico</span><span className="font-medium text-slate-900 truncate max-w-[250px]" title={processEntry.discriminacao || undefined}>{processEntry.discriminacao || "\u2014"}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Número</span><span className="font-medium text-slate-900">{processEntry.numero || "\u2014"}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-500">Servi\u00e7o</span><span className="font-medium text-slate-900 truncate max-w-[250px]" title={processEntry.discriminacao || undefined}>{processEntry.discriminacao || "\u2014"}</span></div>
                         <div className="flex justify-between"><span className="text-slate-500">Valor</span><span className="font-semibold text-slate-900">{fmt(processEntry.valorServicosCents)}</span></div>
                       </div>
                     </div>
@@ -1107,7 +1107,7 @@ export default function NfseEntradaPage() {
                       {processing ? (
                         <><div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" /> Importando...</>
                       ) : (
-                        <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Confirmar Importacao</>
+                        <><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Confirmar Importação</>
                       )}
                     </button>
                   </div>

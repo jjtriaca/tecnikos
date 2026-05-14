@@ -121,7 +121,7 @@ export default function NewPoolBudgetPage() {
       .catch((err) => toast(err?.payload?.message || "Erro ao carregar orcamento", "error"));
   }, [editId]);
 
-  // Quando muda cliente: sugere titulo automatico (se vazio) e solicitante = nome do cliente
+  // Quando muda cliente: sugere titulo automático (se vazio) e solicitante = nome do cliente
   function handleClientChange(p: Partner | null) {
     setClient(p);
     setForm((f) => {
@@ -137,7 +137,7 @@ export default function NewPoolBudgetPage() {
     });
   }
 
-  // Operacoes nas linhas de dimensoes
+  // Operações nas linhas de dimensoes
   function updateSection(idx: number, field: "name" | "length" | "width" | "depth", value: string | number) {
     setForm((f) => ({
       ...f,

@@ -95,9 +95,9 @@ export default function TechnicianReportPage() {
   function handleExportCSV() {
     if (!report?.rows.length) return;
     const cols: ExportColumn[] = [
-      { header: "Codigo", value: (r: any) => r.code },
+      { header: "Código", value: (r: any) => r.code },
       { header: "Titulo", value: (r: any) => r.title },
-      { header: "Servico", value: (r: any) => r.serviceName },
+      { header: "Serviço", value: (r: any) => r.serviceName },
       { header: "Data", value: (r: any) => fmtDate(r.completedAt) },
       { header: "A caminho", value: (r: any) => fmtHour(r.enRouteAt) },
       { header: "Inicio", value: (r: any) => fmtHour(r.startedAt) },
@@ -127,7 +127,7 @@ export default function TechnicianReportPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <h1 className="text-xl font-bold text-slate-800">Relatorio do Tecnico</h1>
+          <h1 className="text-xl font-bold text-slate-800">Relatório do Técnico</h1>
         </div>
         {report?.rows.length ? (
           <button onClick={handleExportCSV}
@@ -141,7 +141,7 @@ export default function TechnicianReportPage() {
       <div className="rounded-xl border border-slate-200 bg-white p-4 mb-6">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[200px]">
-            <label className="block text-xs font-medium text-slate-600 mb-1">Tecnico</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Técnico</label>
             <select value={selectedTech} onChange={e => setSelectedTech(e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 outline-none">
               <option value="">Selecione...</option>
@@ -238,7 +238,7 @@ export default function TechnicianReportPage() {
           {/* By service breakdown */}
           {report.byService.length > 1 && (
             <div className="rounded-xl border border-slate-200 bg-white p-4 mb-4">
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Por Servico</h3>
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Por Serviço</h3>
               <div className="space-y-1.5">
                 {report.byService.map((svc, i) => (
                   <div key={i} className="flex items-center gap-2 text-sm">
@@ -261,9 +261,9 @@ export default function TechnicianReportPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 text-[10px] text-slate-400 uppercase">
-                    <th className="px-3 py-2 text-left font-medium">Codigo</th>
+                    <th className="px-3 py-2 text-left font-medium">Código</th>
                     <th className="px-3 py-2 text-left font-medium">Titulo</th>
-                    <th className="px-3 py-2 text-left font-medium">Servico</th>
+                    <th className="px-3 py-2 text-left font-medium">Serviço</th>
                     <th className="px-3 py-2 text-center font-medium">Data</th>
                     <th className="px-3 py-2 text-center font-medium">A caminho</th>
                     <th className="px-3 py-2 text-center font-medium">Inicio</th>

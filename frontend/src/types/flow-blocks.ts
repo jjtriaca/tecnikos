@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
    FLOW BLOCKS — Sistema unificado de blocos "puzzle-piece"
-   Combina workflow (execucao tecnico) + automacao (acoes sistema)
+   Combina workflow (execucao técnico) + automacao (acoes sistema)
    em um unico builder estilo MIT App Inventor.
    Todos os nomes em Portugues Brasileiro.
    ═══════════════════════════════════════════════════════════════ */
@@ -83,9 +83,9 @@ export const TRIGGER_EVENTS: TriggerEvent[] = [
   { id: 'os_specialization_created', label: 'OS Especialização', icon: '🔍', entity: 'SERVICE_ORDER', description: 'OS criada com seleção de especialização' },
   { id: 'os_directed_created',      label: 'OS Direcionada',    icon: '🎯', entity: 'SERVICE_ORDER', description: 'OS criada com técnico direcionado' },
   { id: 'os_agenda_created',        label: 'OS Agenda',         icon: '📅', entity: 'SERVICE_ORDER', description: 'OS criada em regime de agenda (CLT)' },
-  { id: 'os_assigned',       label: 'OS Atribuida',       icon: '👤', entity: 'SERVICE_ORDER', description: 'Quando um tecnico e atribuido' },
+  { id: 'os_assigned',       label: 'OS Atribuida',       icon: '👤', entity: 'SERVICE_ORDER', description: 'Quando um técnico e atribuido' },
   { id: 'os_status_changed', label: 'Status OS Alterado', icon: '🔄', entity: 'SERVICE_ORDER', description: 'Quando o status da OS muda' },
-  { id: 'os_completed',      label: 'OS Finalizada',      icon: '✅', entity: 'SERVICE_ORDER', description: 'Quando a OS e concluida' },
+  { id: 'os_completed',      label: 'OS Finalizada',      icon: '✅', entity: 'SERVICE_ORDER', description: 'Quando a OS e concluída' },
   { id: 'os_approved',       label: 'OS Aprovada',        icon: '👍', entity: 'SERVICE_ORDER', description: 'Quando a OS e aprovada' },
   { id: 'os_cancelled',      label: 'OS Cancelada',       icon: '❌', entity: 'SERVICE_ORDER', description: 'Quando a OS e cancelada' },
   { id: 'partner_created',        label: 'Parceiro Criado',          icon: '➕', entity: 'PARTNER', description: 'Quando um parceiro e cadastrado' },
@@ -108,15 +108,15 @@ export const SYSTEM_FIELDS = [
   { value: 'os.title', label: 'OS → Titulo' },
   { value: 'os.description', label: 'OS → Descricao' },
   { value: 'os.status', label: 'OS → Status' },
-  { value: 'os.type', label: 'OS → Tipo de Servico' },
+  { value: 'os.type', label: 'OS → Tipo de Serviço' },
   { value: 'os.priority', label: 'OS → Prioridade' },
   { value: 'os.valueCents', label: 'OS → Valor (centavos)' },
   { value: 'os.valueFormatted', label: 'OS → Valor (R$)' },
   { value: 'os.scheduledDate', label: 'OS → Data Agendada' },
   { value: 'os.scheduledTime', label: 'OS → Hora Agendada' },
-  { value: 'os.address', label: 'OS → Endereco Completo' },
+  { value: 'os.address', label: 'OS → Endereço Completo' },
   { value: 'os.street', label: 'OS → Rua' },
-  { value: 'os.number', label: 'OS → Numero' },
+  { value: 'os.number', label: 'OS → Número' },
   { value: 'os.complement', label: 'OS → Complemento' },
   { value: 'os.neighborhood', label: 'OS → Bairro' },
   { value: 'os.city', label: 'OS → Cidade' },
@@ -131,11 +131,11 @@ export const SYSTEM_FIELDS = [
   { value: 'client.phone', label: 'Cliente → Telefone' },
   { value: 'client.email', label: 'Cliente → Email' },
   { value: 'client.document', label: 'Cliente → CPF/CNPJ' },
-  { value: 'tech.name', label: 'Tecnico → Nome' },
-  { value: 'tech.phone', label: 'Tecnico → Telefone' },
-  { value: 'tech.email', label: 'Tecnico → Email' },
-  { value: 'tech.rating', label: 'Tecnico → Avaliacao' },
-  { value: 'tech.specialization', label: 'Tecnico → Especializacao' },
+  { value: 'tech.name', label: 'Técnico → Nome' },
+  { value: 'tech.phone', label: 'Técnico → Telefone' },
+  { value: 'tech.email', label: 'Técnico → Email' },
+  { value: 'tech.rating', label: 'Técnico → Avaliacao' },
+  { value: 'tech.specialization', label: 'Técnico → Especializacao' },
   { value: 'partner.name', label: 'Parceiro → Nome Fantasia' },
   { value: 'partner.legalName', label: 'Parceiro → Razao Social' },
   { value: 'partner.document', label: 'Parceiro → CNPJ' },
@@ -147,7 +147,7 @@ export const SYSTEM_FIELDS = [
   { value: 'company.phone', label: 'Empresa → Telefone' },
   { value: 'finance.commission', label: 'Financeiro → Comissao (%)' },
   { value: 'finance.totalValue', label: 'Financeiro → Valor Total (R$)' },
-  { value: 'finance.techPayment', label: 'Financeiro → Pagto Tecnico (R$)' },
+  { value: 'finance.techPayment', label: 'Financeiro → Pagto Técnico (R$)' },
 ];
 
 /* ── Variáveis de Template para NOTIFY ───────────────────────── */
@@ -169,30 +169,30 @@ export const NOTIFY_TEMPLATE_VARS: { key: string; label: string; group: string }
   { key: '{titulo}',       label: 'Titulo da OS',       group: 'OS' },
   { key: '{descricao}',    label: 'Descricao',          group: 'OS' },
   { key: '{status}',       label: 'Status',             group: 'OS' },
-  { key: '{endereco}',     label: 'Endereco completo',  group: 'OS' },
+  { key: '{endereco}',     label: 'Endereço completo',  group: 'OS' },
   { key: '{prazo}',        label: 'Prazo',              group: 'OS' },
   { key: '{contato_local}',label: 'Contato no local',   group: 'OS' },
   { key: '{link}',         label: 'Link da OS',         group: 'OS' },
   // Valores
   { key: '{valor}',        label: 'Valor Total (R$)',   group: 'Financeiro' },
   { key: '{comissao}',     label: 'Comissao (%)',       group: 'Financeiro' },
-  { key: '{valor_tecnico}',label: 'Valor Tecnico (R$)', group: 'Financeiro' },
+  { key: '{valor_tecnico}',label: 'Valor Técnico (R$)', group: 'Financeiro' },
   // Pessoas
   { key: '{cliente}',      label: 'Nome do Cliente',    group: 'Pessoas' },
   { key: '{cliente_fone}', label: 'Telefone Cliente',   group: 'Pessoas' },
-  { key: '{tecnico}',      label: 'Nome do Tecnico',    group: 'Pessoas' },
-  { key: '{tecnico_fone}', label: 'Telefone Tecnico',   group: 'Pessoas' },
+  { key: '{tecnico}',      label: 'Nome do Técnico',    group: 'Pessoas' },
+  { key: '{tecnico_fone}', label: 'Telefone Técnico',   group: 'Pessoas' },
   { key: '{empresa}',      label: 'Nome da Empresa',    group: 'Pessoas' },
 ];
 
 export const DEFAULT_NOTIFY_RECIPIENTS: NotifyRecipient[] = [
   {
     type: 'GESTOR', enabled: true, channel: 'WHATSAPP',
-    message: 'Nova OS: {titulo}\nCliente: {cliente}\nEndereco: {endereco}\nServico: {descricao}\nValor: {valor}',
+    message: 'Nova OS: {titulo}\nCliente: {cliente}\nEndereço: {endereco}\nServiço: {descricao}\nValor: {valor}',
   },
   {
     type: 'TECNICO', enabled: false, channel: 'WHATSAPP',
-    message: 'OS atribuida: {titulo}\nComissao: {comissao}\nValor: {valor_tecnico}\nPrazo: {prazo}\nEndereco: {endereco}\nContato no local: {contato_local}',
+    message: 'OS atribuida: {titulo}\nComissao: {comissao}\nValor: {valor_tecnico}\nPrazo: {prazo}\nEndereço: {endereco}\nContato no local: {contato_local}',
     includeLink: true,
   },
   {
@@ -217,22 +217,22 @@ export const FLOW_CATALOG: FlowCatalogEntry[] = [
     ],
   },
 
-  // ─── CAMPO (Tecnico) ──────────────────────────
-  { type: 'STEP', name: 'Executar Etapa', icon: '⚙️', description: 'Passo que o tecnico confirma',
+  // ─── CAMPO (Técnico) ──────────────────────────
+  { type: 'STEP', name: 'Executar Etapa', icon: '⚙️', description: 'Passo que o técnico confirma',
     category: 'FIELD', shape: 'stack', puzzleColor: '#2563eb', requiresInteraction: true,
     bgColor: 'bg-blue-50', borderColor: 'border-blue-400', textColor: 'text-blue-900', iconBg: 'bg-blue-500',
     configFields: [
-      { id: 'description', label: 'Descricao', type: 'text', placeholder: 'O que o tecnico deve fazer' },
+      { id: 'description', label: 'Descricao', type: 'text', placeholder: 'O que o técnico deve fazer' },
       { id: 'requirePhoto', label: 'Exigir Foto', type: 'toggle', defaultValue: false },
       { id: 'requireNote', label: 'Exigir Observacao', type: 'toggle', defaultValue: false },
       { id: 'requireGps', label: 'Exigir GPS', type: 'toggle', defaultValue: false },
     ],
   },
-  { type: 'PHOTO', name: 'Tirar Foto', icon: '📸', description: 'Exigir foto do tecnico',
+  { type: 'PHOTO', name: 'Tirar Foto', icon: '📸', description: 'Exigir foto do técnico',
     category: 'FIELD', shape: 'stack', puzzleColor: '#2563eb', requiresInteraction: true,
     bgColor: 'bg-blue-50', borderColor: 'border-blue-400', textColor: 'text-blue-900', iconBg: 'bg-blue-500',
     configFields: [
-      { id: 'label', label: 'Titulo', type: 'text', defaultValue: 'Foto', placeholder: 'Ex: Foto antes do servico' },
+      { id: 'label', label: 'Titulo', type: 'text', defaultValue: 'Foto', placeholder: 'Ex: Foto antes do serviço' },
       { id: 'minPhotos', label: 'Minimo de fotos', type: 'number', defaultValue: 1 },
       { id: 'photoType', label: 'Tipo', type: 'select', defaultValue: 'GERAL', options: [
         { value: 'ANTES', label: 'Antes' }, { value: 'DEPOIS', label: 'Depois' },
@@ -252,7 +252,7 @@ export const FLOW_CATALOG: FlowCatalogEntry[] = [
     category: 'FIELD', shape: 'stack', puzzleColor: '#2563eb', requiresInteraction: true,
     bgColor: 'bg-blue-50', borderColor: 'border-blue-400', textColor: 'text-blue-900', iconBg: 'bg-blue-500',
     configFields: [
-      { id: 'auto', label: 'Captura automatica', type: 'toggle', defaultValue: true },
+      { id: 'auto', label: 'Captura automática', type: 'toggle', defaultValue: true },
       { id: 'requireActivation', label: 'Exigir GPS ativo p/ prosseguir', type: 'toggle', defaultValue: false },
       { id: 'trackContinuous', label: 'Rastreamento continuo', type: 'toggle', defaultValue: false },
       { id: 'label', label: 'Rotulo', type: 'select', defaultValue: 'POSICAO', options: [
@@ -314,13 +314,13 @@ export const FLOW_CATALOG: FlowCatalogEntry[] = [
     bgColor: 'bg-amber-50', borderColor: 'border-amber-400', textColor: 'text-amber-900', iconBg: 'bg-amber-500',
     configFields: [
       { id: 'conditionType', label: 'Tipo', type: 'select', defaultValue: 'question', options: [
-        { value: 'question', label: 'Pergunta ao Tecnico' }, { value: 'field_check', label: 'Verificar Campo da OS' },
+        { value: 'question', label: 'Pergunta ao Técnico' }, { value: 'field_check', label: 'Verificar Campo da OS' },
       ]},
       { id: 'question', label: 'Pergunta', type: 'text', placeholder: 'Ex: Precisa de reparo?' },
       { id: 'field', label: 'Campo', type: 'select', options: [
         { value: 'status', label: 'Status' }, { value: 'valueCents', label: 'Valor' },
         { value: 'state', label: 'Estado (UF)' }, { value: 'city', label: 'Cidade' },
-        { value: 'type', label: 'Tipo de Servico' }, { value: 'priority', label: 'Prioridade' },
+        { value: 'type', label: 'Tipo de Serviço' }, { value: 'priority', label: 'Prioridade' },
       ]},
       { id: 'operator', label: 'Operador', type: 'select', options: [
         { value: 'eq', label: 'Igual a' }, { value: 'neq', label: 'Diferente de' },
@@ -354,9 +354,9 @@ export const FLOW_CATALOG: FlowCatalogEntry[] = [
       { id: 'triggerConditions', label: 'Disparar antecipadamente quando', type: 'checklist',
         defaultValue: [],
         options: [
-          { value: 'os_assigned',       label: 'Tecnico aceitar a OS' },
+          { value: 'os_assigned',       label: 'Técnico aceitar a OS' },
           { value: 'os_status_changed', label: 'Status da OS mudar' },
-          { value: 'os_completed',      label: 'OS for concluida' },
+          { value: 'os_completed',      label: 'OS for concluída' },
           { value: 'os_approved',       label: 'OS for aprovada' },
         ] },
       { id: 'targetStatus', label: 'Status alvo (quando "Status mudar")', type: 'select', defaultValue: '',
@@ -397,7 +397,7 @@ export const FLOW_CATALOG: FlowCatalogEntry[] = [
     configFields: [
       { id: 'radiusMeters', label: 'Raio (metros)', type: 'number', defaultValue: 200, placeholder: 'Ex: 200' },
       { id: 'target', label: 'Ponto Alvo', type: 'select', defaultValue: 'OS_ADDRESS', options: [
-        { value: 'OS_ADDRESS', label: 'Endereco da OS' }, { value: 'CUSTOM', label: 'Coordenadas customizadas' },
+        { value: 'OS_ADDRESS', label: 'Endereço da OS' }, { value: 'CUSTOM', label: 'Coordenadas customizadas' },
       ]},
       { id: 'customLat', label: 'Latitude', type: 'text', placeholder: '-15.7801' },
       { id: 'customLng', label: 'Longitude', type: 'text', placeholder: '-47.9292' },
@@ -423,7 +423,7 @@ export const FLOW_CATALOG: FlowCatalogEntry[] = [
       ]},
     ],
   },
-  { type: 'APPROVAL', name: 'Aguardar Aprovacao', icon: '🔒', description: 'Trava ate aprovar',
+  { type: 'APPROVAL', name: 'Aguardar Aprovação', icon: '🔒', description: 'Trava ate aprovar',
     category: 'COMMUNICATION', shape: 'stack', puzzleColor: '#059669', requiresInteraction: true,
     bgColor: 'bg-emerald-50', borderColor: 'border-emerald-400', textColor: 'text-emerald-900', iconBg: 'bg-emerald-500',
     configFields: [
@@ -458,7 +458,7 @@ export const FLOW_CATALOG: FlowCatalogEntry[] = [
       { id: 'headers', label: 'Headers (JSON)', type: 'textarea', placeholder: '{"Authorization":"Bearer ..."}' },
     ],
   },
-  { type: 'ASSIGN_TECH', name: 'Atribuir Tecnico', icon: '👷', description: 'Atribui automaticamente',
+  { type: 'ASSIGN_TECH', name: 'Atribuir Técnico', icon: '👷', description: 'Atribui automáticamente',
     category: 'INTEGRATION', shape: 'stack', puzzleColor: '#e11d48', requiresInteraction: false,
     bgColor: 'bg-rose-50', borderColor: 'border-rose-400', textColor: 'text-rose-900', iconBg: 'bg-rose-500',
     configFields: [
@@ -467,21 +467,21 @@ export const FLOW_CATALOG: FlowCatalogEntry[] = [
         { value: 'LEAST_BUSY', label: 'Menos Ocupado' },
         { value: 'NEAREST', label: 'Mais Proximo' },
         { value: 'BY_SPECIALIZATION', label: 'Por Especializacao' },
-        { value: 'TECNICO_ATRIBUIDO', label: 'Tecnico Atribuido (da OS)' },
+        { value: 'TECNICO_ATRIBUIDO', label: 'Técnico Atribuido (da OS)' },
       ]},
       { id: 'specializations', label: 'Especializacoes', type: 'checklist',
         optionsFrom: 'specializations',
         showWhen: { field: 'strategy', value: 'BY_SPECIALIZATION' },
       },
-      { id: 'techSource', label: 'Origem do Tecnico', type: 'select',
+      { id: 'techSource', label: 'Origem do Técnico', type: 'select',
         showWhen: { field: 'strategy', value: 'TECNICO_ATRIBUIDO' },
         defaultValue: 'OS_FIELD',
         options: [
-          { value: 'OS_FIELD', label: 'Campo Tecnico da OS' },
-          { value: 'SPECIFIC', label: 'Tecnico Especifico' },
+          { value: 'OS_FIELD', label: 'Campo Técnico da OS' },
+          { value: 'SPECIFIC', label: 'Técnico Especifico' },
         ],
       },
-      { id: 'techId', label: 'Tecnico', type: 'select',
+      { id: 'techId', label: 'Técnico', type: 'select',
         optionsFrom: 'technicians',
         showWhen: { field: 'techSource', value: 'SPECIFIC' },
       },
@@ -503,9 +503,9 @@ export const FLOW_CATALOG: FlowCatalogEntry[] = [
 
 export const CATEGORY_META: Record<FlowBlockCategory, { label: string; icon: string; color: string; description: string }> = {
   TRIGGER:       { label: 'Gatilho',      icon: '⚡', color: '#d97706', description: 'Quando o fluxo dispara' },
-  FIELD:         { label: 'Campo',        icon: '🔧', color: '#2563eb', description: 'Acoes do tecnico em campo' },
+  FIELD:         { label: 'Campo',        icon: '🔧', color: '#2563eb', description: 'Acoes do técnico em campo' },
   CONDITION:     { label: 'Condicao',     icon: '❓', color: '#d97706', description: 'Ramificacao SIM/NAO' },
-  SYSTEM:        { label: 'Sistema',      icon: '⚙️', color: '#7c3aed', description: 'Acoes automaticas' },
+  SYSTEM:        { label: 'Sistema',      icon: '⚙️', color: '#7c3aed', description: 'Acoes automáticas' },
   COMMUNICATION: { label: 'Comunicacao',  icon: '💬', color: '#059669', description: 'Mensagens e alertas' },
   FINANCIAL:     { label: 'Financeiro',   icon: '💰', color: '#0d9488', description: 'Lancamentos financeiros' },
   INTEGRATION:   { label: 'Integracao',   icon: '🔗', color: '#e11d48', description: 'Integracao externa' },

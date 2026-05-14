@@ -197,7 +197,7 @@ export default function PaymentInstrumentsTab() {
     }
 
     // Conta caixa/banco e OBRIGATORIA — sem ela, lancamentos ficam orfaos sem afetar saldo.
-    // Cartao de credito de pagamento cria conta automaticamente (isCreditForPaymentOnly), entao nao valida.
+    // Cartão de credito de pagamento cria conta automaticamente (isCreditForPaymentOnly), entao nao valida.
     const isCreditForPaymentOnly = selectedPM?.code === "CARTAO_CREDITO" && formData.showInPayables && !formData.showInReceivables;
     if (!isCreditForPaymentOnly) {
       if (formData.accountOption === "existing" && !formData.cashAccountId) {
@@ -467,7 +467,7 @@ export default function PaymentInstrumentsTab() {
                       onChange={(e) => setFormData({ ...formData, paymentMethodId: e.target.value, cardBrand: "", cardLast4: "" })}
                       className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
                     >
-                      <option value="">Selecione o tipo (PIX, Cartao Credito, Boleto, ...)</option>
+                      <option value="">Selecione o tipo (PIX, Cartão Credito, Boleto, ...)</option>
                       {paymentMethods.map((pm) => (
                         <option key={pm.id} value={pm.id}>{pm.name}</option>
                       ))}
@@ -483,7 +483,7 @@ export default function PaymentInstrumentsTab() {
                           onClick={autoName}
                           className="text-[10px] text-blue-600 hover:text-blue-700 font-medium"
                         >
-                          Gerar nome automatico
+                          Gerar nome automático
                         </button>
                       )}
                     </div>
@@ -513,7 +513,7 @@ export default function PaymentInstrumentsTab() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">Ultimos 4 digitos</label>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Últimos 4 digitos</label>
                         <input
                           type="text"
                           maxLength={4}
@@ -536,10 +536,10 @@ export default function PaymentInstrumentsTab() {
                 </h4>
                 <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 space-y-2">
                   {isCard ? (
-                    // Cartao fisico: EXCLUSIVO — cartao da empresa SO paga, maquininha SO recebe
+                    // Cartão fisico: EXCLUSIVO — cartao da empresa SO paga, maquininha SO recebe
                     <>
                       <p className="text-[11px] text-slate-500 mb-1">
-                        Cartoes sao exclusivos — escolha <strong>uma</strong> direcao:
+                        Cartões sao exclusivos — escolha <strong>uma</strong> direcao:
                       </p>
                       <label className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -569,7 +569,7 @@ export default function PaymentInstrumentsTab() {
                       </label>
                       {formData.showInReceivables && formData.showInPayables && (
                         <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
-                          &#9888; Cartao nao pode ter as duas direcoes marcadas. Escolha uma acima.
+                          &#9888; Cartão nao pode ter as duas direcoes marcadas. Escolha uma acima.
                         </p>
                       )}
                     </>
@@ -623,7 +623,7 @@ export default function PaymentInstrumentsTab() {
                       className="h-4 w-4 mt-0.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
                     />
                     <span className="text-sm text-slate-700">
-                      <span className="font-medium">Baixa automatica ao usar</span>
+                      <span className="font-medium">Baixa automática ao usar</span>
                       <p className="text-[11px] text-slate-500 mt-0.5">
                         Lancamento ja nasce como PAGO (recomendado para Dinheiro e PIX instantaneo). Desmarcar para cartoes e boletos que precisam conciliar com extrato.
                       </p>
@@ -666,9 +666,9 @@ export default function PaymentInstrumentsTab() {
                 </h4>
                 {isCreditCard && formData.showInPayables && !formData.showInReceivables ? (
                   <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
-                    <span className="font-medium">💳 Cartao de credito de pagamento — conta virtual automatica:</span>
+                    <span className="font-medium">💳 Cartão de credito de pagamento — conta virtual automática:</span>
                     <p className="mt-0.5">
-                      O sistema cria e gerencia uma conta "Cartao {formData.name || "..."}" para acumular o saldo devedor da fatura. Voce paga a fatura depois via transferencia da sua conta bancaria.
+                      O sistema cria e gerencia uma conta "Cartão {formData.name || "..."}" para acumular o saldo devedor da fatura. Voce paga a fatura depois via transferencia da sua conta bancaria.
                     </p>
                     <p className="mt-1 text-[10px] italic">
                       Para mudar: desmarque o checkbox "Pagamentos" ou marque "Recebimentos" na secao Direcao de uso.
@@ -704,7 +704,7 @@ export default function PaymentInstrumentsTab() {
                               {cashAccounts
                                 .filter((ca: any) => {
                                   if (ca.type === "CARTAO_CREDITO") return false;
-                                  // Cartao de recebimento (maquininha): restringe a TRANSITO
+                                  // Cartão de recebimento (maquininha): restringe a TRANSITO
                                   // — dinheiro so cai no banco apos a operadora liquidar (D+1/D+30).
                                   const isCardReceivable = selectedPM?.requiresBrand && formData.showInReceivables;
                                   if (isCardReceivable) return ca.type === "TRANSITO";
@@ -718,7 +718,7 @@ export default function PaymentInstrumentsTab() {
                             </select>
                             {selectedPM?.requiresBrand && formData.showInReceivables && (
                               <p className="mt-1 text-[10px] text-slate-500">
-                                Cartao de recebimento: conta fica em TRANSITO ate a operadora liquidar (D+1 debito, D+30 credito). A Baixa de Cartoes move do transito pro banco.
+                                Cartão de recebimento: conta fica em TRANSITO ate a operadora liquidar (D+1 debito, D+30 credito). A Baixa de Cartões move do transito pro banco.
                               </p>
                             )}
                           </>
@@ -856,7 +856,7 @@ export default function PaymentInstrumentsTab() {
                 </section>
               )}
 
-              {/* ═══ SECAO 5: Cartao de credito — ciclo de fatura ═══ */}
+              {/* ═══ SECAO 5: Cartão de credito — ciclo de fatura ═══ */}
               {selectedPM?.requiresBrand && (
                 <section>
                   <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">

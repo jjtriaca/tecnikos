@@ -163,7 +163,7 @@ function buildUserColumns(
     },
     {
       id: "code",
-      label: "Codigo",
+      label: "Código",
       sortable: true,
       sortKey: "code",
       render: (u) => <span className="font-mono text-xs text-slate-500">{u.code || "\u2014"}</span>,

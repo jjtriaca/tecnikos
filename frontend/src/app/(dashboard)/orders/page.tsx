@@ -664,11 +664,11 @@ export default function OrdersPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Ordens de Servico</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Ordens de Serviço</h1>
           <p className="text-sm text-slate-500">
             {activeTab === "lista"
               ? `${meta.total} ordem${meta.total !== 1 ? "s" : ""} encontrada${meta.total !== 1 ? "s" : ""}`
-              : "Visualizacao dos servicos agendados"}
+              : "Visualização dos serviços agendados"}
           </p>
         </div>
         <div className="flex items-center gap-2">

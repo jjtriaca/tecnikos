@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Criar Conta",
-  description: "Cadastre sua empresa no Tecnikos. Plataforma de gestao de servicos tecnicos em campo com ordens de servico, despacho e financeiro.",
+  description: "Cadastre sua empresa no Tecnikos. Plataforma de gestao de serviços tecnicos em campo com ordens de serviço, despacho e financeiro.",
   openGraph: {
     title: "Cadastre-se no Tecnikos",
-    description: "Crie sua conta e comece a gerenciar seus servicos tecnicos em minutos.",
+    description: "Crie sua conta e comece a gerenciar seus serviços tecnicos em minutos.",
     url: "https://tecnikos.com.br/signup",
   },
   alternates: {

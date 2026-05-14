@@ -44,7 +44,7 @@ export const TEMPLATES: WorkflowTemplate[] = [
     "bg-blue-500",
     [
       { type: "NOTIFY", name: "Despacho", icon: "\ud83d\udcac", config: { recipients: [
-        { type: "TECNICO", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, voce foi designado para a OS {titulo}. Cliente: {nome_cliente}. Endereco: {endereco}. Data: {data_agendamento}. Acesse o app para detalhes: {link_app}", includeLink: true },
+        { type: "TECNICO", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, voce foi designado para a OS {titulo}. Cliente: {nome_cliente}. Endereço: {endereco}. Data: {data_agendamento}. Acesse o app para detalhes: {link_app}", includeLink: true },
         { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, a {razao_social} informa que a instalacao ({titulo}) foi agendada para {data_agendamento}. O tecnico {tecnico} ira ate o local. Por favor, garanta o acesso ao equipamento." },
         { type: "FORNECEDOR", enabled: true, channel: "WHATSAPP", message: "Prezado {nome}, a {razao_social} (CNPJ {cnpj_empresa}) solicita a entrega dos materiais para a OS {titulo} no endereco {endereco} ate {data_agendamento}. Contato: {telefone_empresa}." },
       ] } },
@@ -55,29 +55,29 @@ export const TEMPLATES: WorkflowTemplate[] = [
       { type: "PHOTO", name: "Fotos Depois", icon: "\ud83d\udcf8", config: { minPhotos: 2, label: "Equipamento instalado e funcionando", photoType: "DEPOIS" } },
       { type: "SIGNATURE", name: "Assinatura Cliente", icon: "\u270d\ufe0f", config: { label: "Cliente confirma que a instalacao foi realizada e o equipamento esta funcionando" } },
       { type: "NOTIFY", name: "Encerramento", icon: "\ud83d\udcac", config: { recipients: [
-        { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, a instalacao ({titulo}) foi concluida pelo tecnico {tecnico}. A {razao_social} agradece a preferencia! Em caso de duvidas: {telefone_empresa}." },
-        { type: "GESTOR", enabled: true, channel: "WHATSAPP", message: "OS {titulo} concluida por {tecnico}. Cliente: {nome_cliente} ({endereco}). Fotos e assinatura registrados no sistema." },
+        { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, a instalacao ({titulo}) foi concluída pelo tecnico {tecnico}. A {razao_social} agradece a preferencia! Em caso de duvidas: {telefone_empresa}." },
+        { type: "GESTOR", enabled: true, channel: "WHATSAPP", message: "OS {titulo} concluída por {tecnico}. Cliente: {nome_cliente} ({endereco}). Fotos e assinatura registrados no sistema." },
       ] } },
     ]
   ),
   makeTemplate(
-    "Manutencao Preventiva",
+    "Manutenção Preventiva",
     "Inspecao detalhada, checklist tecnico e relatorio",
     "\ud83d\udee0\ufe0f",
     "bg-green-500",
     [
       { type: "NOTIFY", name: "Avisos", icon: "\ud83d\udcac", config: { recipients: [
-        { type: "TECNICO", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, manutencao preventiva agendada: {titulo}. Endereco: {endereco}. Data: {data_agendamento}. Verifique os materiais necessarios antes de sair. App: {link_app}", includeLink: true },
-        { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, a {razao_social} lembra que a manutencao preventiva ({titulo}) esta agendada para {data_agendamento}. Tecnico: {tecnico}. Por favor, garanta o acesso ao equipamento." },
+        { type: "TECNICO", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, manutencao preventiva agendada: {titulo}. Endereço: {endereco}. Data: {data_agendamento}. Verifique os materiais necessarios antes de sair. App: {link_app}", includeLink: true },
+        { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, a {razao_social} lembra que a manutencao preventiva ({titulo}) esta agendada para {data_agendamento}. Técnico: {tecnico}. Por favor, garanta o acesso ao equipamento." },
       ] } },
       { type: "GPS", name: "Chegada", icon: "\ud83d\udccd", config: { auto: true } },
       { type: "CHECKLIST", name: "Inspecao", icon: "\ud83d\udccb", config: { items: ["Inspecao visual externa", "Verificar nivel de oleo/fluido", "Checar filtros", "Verificar correias", "Medir temperatura", "Testar pressao", "Verificar conexoes eletricas", "Lubrificar partes moveis"] } },
-      { type: "NOTE", name: "Relatorio Tecnico", icon: "\ud83d\udcdd", config: { placeholder: "Condicoes encontradas em cada item, pecas substituidas, medicoes e recomendacoes para proxima manutencao...", required: true } },
+      { type: "NOTE", name: "Relatório Técnico", icon: "\ud83d\udcdd", config: { placeholder: "Condicoes encontradas em cada item, pecas substituidas, medicoes e recomendacoes para proxima manutencao...", required: true } },
       { type: "PHOTO", name: "Evidencias", icon: "\ud83d\udcf8", config: { minPhotos: 3, label: "Condicoes encontradas, pecas substituidas e estado final", photoType: "GERAL" } },
       { type: "SIGNATURE", name: "Assinatura Responsavel", icon: "\u270d\ufe0f", config: { label: "Responsavel confirma a realizacao da manutencao preventiva" } },
       { type: "NOTIFY", name: "Encerramento", icon: "\ud83d\udcac", config: { recipients: [
-        { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, a manutencao preventiva ({titulo}) foi concluida pela {razao_social}. Proximo atendimento conforme contrato. Obrigado pela confianca!" },
-        { type: "GESTOR", enabled: true, channel: "WHATSAPP", message: "Preventiva concluida: {titulo}. Tecnico: {tecnico}. Cliente: {nome_cliente}. Relatorio e fotos disponiveis no sistema." },
+        { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, a manutencao preventiva ({titulo}) foi concluída pela {razao_social}. Proximo atendimento conforme contrato. Obrigado pela confianca!" },
+        { type: "GESTOR", enabled: true, channel: "WHATSAPP", message: "Preventiva concluída: {titulo}. Técnico: {tecnico}. Cliente: {nome_cliente}. Relatório e fotos disponiveis no sistema." },
       ] } },
     ]
   ),
@@ -88,8 +88,8 @@ export const TEMPLATES: WorkflowTemplate[] = [
     "bg-amber-500",
     [
       { type: "NOTIFY", name: "Agendamento", icon: "\ud83d\udcac", config: { recipients: [
-        { type: "TECNICO", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, vistoria agendada: {titulo}. Endereco: {endereco}. Data: {data_agendamento}. Leve instrumentos de medicao. App: {link_app}", includeLink: true },
-        { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, a {razao_social} informa que a vistoria tecnica ({titulo}) esta agendada para {data_agendamento}. Tecnico: {tecnico}. Por favor, garanta o acesso ao local." },
+        { type: "TECNICO", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, vistoria agendada: {titulo}. Endereço: {endereco}. Data: {data_agendamento}. Leve instrumentos de medicao. App: {link_app}", includeLink: true },
+        { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, a {razao_social} informa que a vistoria tecnica ({titulo}) esta agendada para {data_agendamento}. Técnico: {tecnico}. Por favor, garanta o acesso ao local." },
       ] } },
       { type: "GPS", name: "Chegada", icon: "\ud83d\udccd", config: { auto: true } },
       { type: "PHOTO", name: "Panorama", icon: "\ud83d\udcf8", config: { minPhotos: 2, label: "Fotos panoramicas do local e acesso", photoType: "ANTES" } },
@@ -102,11 +102,11 @@ export const TEMPLATES: WorkflowTemplate[] = [
         { name: "Recomendacoes", type: "text", required: true },
         { name: "Prazo para intervencao (dias)", type: "number", required: false },
       ] } },
-      { type: "NOTE", name: "Parecer Tecnico", icon: "\ud83d\udcdd", config: { placeholder: "Parecer final: condicoes, riscos, acoes recomendadas com prioridade e prazos...", required: true } },
+      { type: "NOTE", name: "Parecer Técnico", icon: "\ud83d\udcdd", config: { placeholder: "Parecer final: condicoes, riscos, acoes recomendadas com prioridade e prazos...", required: true } },
       { type: "SIGNATURE", name: "Assinatura", icon: "\u270d\ufe0f", config: { label: "Responsavel pelo local atesta que acompanhou a vistoria" } },
       { type: "NOTIFY", name: "Laudo Pronto", icon: "\ud83d\udcac", config: { recipients: [
-        { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, a vistoria ({titulo}) foi concluida pela {razao_social}. O laudo tecnico sera encaminhado em breve. Duvidas: {telefone_empresa}." },
-        { type: "GESTOR", enabled: true, channel: "WHATSAPP", message: "Vistoria concluida: {titulo}. Tecnico: {tecnico}. Laudo e fotos no sistema. Verifique recomendacoes tecnicas." },
+        { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, a vistoria ({titulo}) foi concluída pela {razao_social}. O laudo tecnico sera encaminhado em breve. Duvidas: {telefone_empresa}." },
+        { type: "GESTOR", enabled: true, channel: "WHATSAPP", message: "Vistoria concluída: {titulo}. Técnico: {tecnico}. Laudo e fotos no sistema. Verifique recomendacoes tecnicas." },
       ] } },
     ]
   ),
@@ -117,31 +117,31 @@ export const TEMPLATES: WorkflowTemplate[] = [
     "bg-red-500",
     [
       { type: "NOTIFY", name: "Acionamento Urgente", icon: "\ud83d\udcac", config: { recipients: [
-        { type: "TECNICO", enabled: true, channel: "WHATSAPP", message: "URGENTE {nome}! Chamado emergencial: {titulo}. Endereco: {endereco}. Cliente: {nome_cliente}. Dirija-se ao local imediatamente. App: {link_app}", includeLink: true },
+        { type: "TECNICO", enabled: true, channel: "WHATSAPP", message: "URGENTE {nome}! Chamado emergencial: {titulo}. Endereço: {endereco}. Cliente: {nome_cliente}. Dirija-se ao local imediatamente. App: {link_app}", includeLink: true },
         { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, a {razao_social} recebeu seu chamado urgente ({titulo}). O tecnico {tecnico} foi acionado e esta indo ao local. Voce sera avisado quando ele estiver a caminho." },
-        { type: "GESTOR", enabled: true, channel: "WHATSAPP", message: "Chamado URGENTE aberto: {titulo}. Cliente: {nome_cliente} ({endereco}). Tecnico acionado: {tecnico}." },
+        { type: "GESTOR", enabled: true, channel: "WHATSAPP", message: "Chamado URGENTE aberto: {titulo}. Cliente: {nome_cliente} ({endereco}). Técnico acionado: {tecnico}." },
       ] } },
       { type: "GPS", name: "Chegada", icon: "\ud83d\udccd", config: { auto: true } },
       { type: "PHOTO", name: "Diagnostico", icon: "\ud83d\udcf8", config: { minPhotos: 2, label: "Problema encontrado e danos visiveis", photoType: "ANTES" } },
-      { type: "CHECKLIST", name: "Diagnostico Rapido", icon: "\ud83d\udccb", config: { items: ["Identificar causa raiz", "Verificar risco de seguranca", "Isolar area se necessario", "Verificar materiais disponiveis", "Executar reparo", "Testar funcionamento"] } },
+      { type: "CHECKLIST", name: "Diagnostico Rapido", icon: "\ud83d\udccb", config: { items: ["Identificar causa raiz", "Verificar risco de seguranca", "Isolar area se necessário", "Verificar materiais disponiveis", "Executar reparo", "Testar funcionamento"] } },
       { type: "PHOTO", name: "Resultado", icon: "\ud83d\udcf8", config: { minPhotos: 2, label: "Equipamento apos reparo, funcionando", photoType: "DEPOIS" } },
-      { type: "NOTE", name: "Relatorio", icon: "\ud83d\udcdd", config: { placeholder: "Causa do problema, procedimento realizado, pecas utilizadas e recomendacoes para evitar reincidencia...", required: true } },
+      { type: "NOTE", name: "Relatório", icon: "\ud83d\udcdd", config: { placeholder: "Causa do problema, procedimento realizado, pecas utilizadas e recomendacoes para evitar reincidencia...", required: true } },
       { type: "SIGNATURE", name: "Aceite Cliente", icon: "\u270d\ufe0f", config: { label: "Cliente confirma que o reparo foi realizado e o equipamento funciona" } },
       { type: "NOTIFY", name: "Encerramento", icon: "\ud83d\udcac", config: { recipients: [
-        { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, o reparo emergencial ({titulo}) foi concluido pelo tecnico {tecnico}. A {razao_social} agradece a confianca. Se o problema retornar, entre em contato: {telefone_empresa}." },
-        { type: "GESTOR", enabled: true, channel: "WHATSAPP", message: "Emergencia resolvida: {titulo}. Tecnico: {tecnico}. Cliente: {nome_cliente}. Relatorio no sistema. Avalie se necessita acompanhamento." },
+        { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, o reparo emergencial ({titulo}) foi concluído pelo tecnico {tecnico}. A {razao_social} agradece a confianca. Se o problema retornar, entre em contato: {telefone_empresa}." },
+        { type: "GESTOR", enabled: true, channel: "WHATSAPP", message: "Emergencia resolvida: {titulo}. Técnico: {tecnico}. Cliente: {nome_cliente}. Relatório no sistema. Avalie se necessita acompanhamento." },
         { type: "FORNECEDOR", enabled: true, channel: "WHATSAPP", message: "Prezado {nome}, informamos que a {razao_social} utilizou pecas/materiais no reparo emergencial da OS {titulo}. Favor enviar reposicao para o estoque. Contato: {telefone_empresa}." },
       ] } },
     ]
   ),
   makeTemplate(
-    "Onboarding Tecnico",
+    "Onboarding Técnico",
     "Boas-vindas com dados de acesso ao app",
     "\ud83d\udc4b",
     "bg-purple-500",
     [
       { type: "NOTIFY", name: "Boas-vindas", icon: "\ud83d\udcac", config: { recipients: [
-        { type: "TECNICO", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, tudo bem? Seja muito bem-vindo(a) a equipe da {razao_social}! Estamos felizes em contar com voce.\n\nPreparamos um app exclusivo para facilitar seu dia a dia. Por ele voce recebe suas ordens de servico, navega ate o endereco do cliente e registra tudo pelo celular.\n\nAcesse aqui: {link_app}\n\nUse o email que voce cadastrou para entrar. Se tiver qualquer duvida, fale com seu gestor — estamos aqui para te ajudar.\n\nBom trabalho e conte com a gente!" },
+        { type: "TECNICO", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, tudo bem? Seja muito bem-vindo(a) a equipe da {razao_social}! Estamos felizes em contar com voce.\n\nPreparamos um app exclusivo para facilitar seu dia a dia. Por ele voce recebe suas ordens de serviço, navega ate o endereco do cliente e registra tudo pelo celular.\n\nAcesse aqui: {link_app}\n\nUse o email que voce cadastrou para entrar. Se tiver qualquer duvida, fale com seu gestor — estamos aqui para te ajudar.\n\nBom trabalho e conte com a gente!" },
         { type: "GESTOR", enabled: true, channel: "WHATSAPP", message: "Novo tecnico cadastrado: {nome}. Credenciais de acesso enviadas via WhatsApp. Acompanhe o onboarding pelo sistema." },
       ] } },
     ]
@@ -153,8 +153,8 @@ export const TEMPLATES: WorkflowTemplate[] = [
     "bg-indigo-500",
     [
       { type: "NOTIFY", name: "Boas-vindas", icon: "\ud83d\udcac", config: { recipients: [
-        { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, a {razao_social} (CNPJ {cnpj_empresa}) agradece por escolher nossos servicos!\n\nPara solicitar atendimento ou tirar duvidas:\nWhatsApp: {telefone_empresa}\n\nContamos com equipe especializada para instalacoes, manutencoes e vistorias. Seu gestor de conta entrara em contato para alinhar os detalhes. Obrigado pela confianca!" },
-        { type: "GESTOR", enabled: true, channel: "WHATSAPP", message: "Novo cliente cadastrado: {nome}. Mensagem de boas-vindas enviada. Entre em contato para apresentar servicos e alinhar contrato." },
+        { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, a {razao_social} (CNPJ {cnpj_empresa}) agradece por escolher nossos serviços!\n\nPara solicitar atendimento ou tirar duvidas:\nWhatsApp: {telefone_empresa}\n\nContamos com equipe especializada para instalacoes, manutencoes e vistorias. Seu gestor de conta entrara em contato para alinhar os detalhes. Obrigado pela confianca!" },
+        { type: "GESTOR", enabled: true, channel: "WHATSAPP", message: "Novo cliente cadastrado: {nome}. Mensagem de boas-vindas enviada. Entre em contato para apresentar serviços e alinhar contrato." },
       ] } },
     ]
   ),
@@ -165,17 +165,17 @@ export const TEMPLATES: WorkflowTemplate[] = [
     "bg-teal-500",
     [
       { type: "NOTIFY", name: "Despacho", icon: "\ud83d\udcac", config: { recipients: [
-        { type: "TECNICO", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, novo atendimento: {titulo}. Cliente: {nome_cliente}. Endereco: {endereco}. Data: {data_agendamento}. Confira no app: {link_app}", includeLink: true },
-        { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, a {razao_social} informa que sua solicitacao ({titulo}) foi recebida. Tecnico designado: {tecnico}. Data prevista: {data_agendamento}. Voce sera avisado quando ele estiver a caminho." },
+        { type: "TECNICO", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, novo atendimento: {titulo}. Cliente: {nome_cliente}. Endereço: {endereco}. Data: {data_agendamento}. Confira no app: {link_app}", includeLink: true },
+        { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, a {razao_social} informa que sua solicitacao ({titulo}) foi recebida. Técnico designado: {tecnico}. Data prevista: {data_agendamento}. Voce sera avisado quando ele estiver a caminho." },
       ] } },
       { type: "GPS", name: "Chegada", icon: "\ud83d\udccd", config: { auto: true } },
-      { type: "CHECKLIST", name: "Procedimento", icon: "\u2611\ufe0f", config: { items: ["Apresentar-se ao cliente", "Confirmar servico solicitado", "Avaliar condicoes do local", "Executar servico", "Testar resultado", "Orientar cliente", "Limpar area"] } },
-      { type: "PHOTO", name: "Registro", icon: "\ud83d\udcf8", config: { minPhotos: 2, label: "Fotos antes e depois do servico", photoType: "GERAL" } },
-      { type: "NOTE", name: "Observacoes", icon: "\ud83d\udcdd", config: { placeholder: "Servico realizado, condicoes encontradas, materiais utilizados e recomendacoes...", required: true } },
-      { type: "SIGNATURE", name: "Assinatura Cliente", icon: "\u270d\ufe0f", config: { label: "Cliente confirma a realizacao do servico" } },
+      { type: "CHECKLIST", name: "Procedimento", icon: "\u2611\ufe0f", config: { items: ["Apresentar-se ao cliente", "Confirmar servi\u00e7o solicitado", "Avaliar condicoes do local", "Executar servi\u00e7o", "Testar resultado", "Orientar cliente", "Limpar area"] } },
+      { type: "PHOTO", name: "Registro", icon: "\ud83d\udcf8", config: { minPhotos: 2, label: "Fotos antes e depois do servi\u00e7o", photoType: "GERAL" } },
+      { type: "NOTE", name: "Observacoes", icon: "\ud83d\udcdd", config: { placeholder: "Servi\u00e7o realizado, condicoes encontradas, materiais utilizados e recomendacoes...", required: true } },
+      { type: "SIGNATURE", name: "Assinatura Cliente", icon: "\u270d\ufe0f", config: { label: "Cliente confirma a realizacao do servi\u00e7o" } },
       { type: "NOTIFY", name: "Encerramento", icon: "\ud83d\udcac", config: { recipients: [
-        { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, o atendimento ({titulo}) foi concluido pelo tecnico {tecnico}. A {razao_social} agradece a preferencia! Duvidas: {telefone_empresa}." },
-        { type: "GESTOR", enabled: true, channel: "WHATSAPP", message: "Atendimento concluido: {titulo}. Tecnico: {tecnico}. Cliente: {nome_cliente}. Fotos e assinatura no sistema." },
+        { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, o atendimento ({titulo}) foi concluído pelo tecnico {tecnico}. A {razao_social} agradece a preferencia! Duvidas: {telefone_empresa}." },
+        { type: "GESTOR", enabled: true, channel: "WHATSAPP", message: "Atendimento concluído: {titulo}. Técnico: {tecnico}. Cliente: {nome_cliente}. Fotos e assinatura no sistema." },
       ] } },
     ]
   ),
@@ -185,24 +185,24 @@ export const TEMPLATES: WorkflowTemplate[] = [
     "\ud83d\udce6",
     "bg-cyan-500",
     [
-      { type: "NOTIFY", name: "Confirmacao", icon: "\ud83d\udcac", config: { recipients: [
+      { type: "NOTIFY", name: "Confirmação", icon: "\ud83d\udcac", config: { recipients: [
         { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, a {razao_social} informa que a entrega do equipamento ({titulo}) esta agendada para {data_agendamento}. O tecnico {tecnico} fara instalacao, testes e treinamento. Garanta que o local esteja preparado." },
-        { type: "TECNICO", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, entrega agendada: {titulo}. Cliente: {nome_cliente}. Endereco: {endereco}. Data: {data_agendamento}. Verifique itens e manuais. App: {link_app}", includeLink: true },
+        { type: "TECNICO", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, entrega agendada: {titulo}. Cliente: {nome_cliente}. Endereço: {endereco}. Data: {data_agendamento}. Verifique itens e manuais. App: {link_app}", includeLink: true },
         { type: "FORNECEDOR", enabled: true, channel: "WHATSAPP", message: "Prezado {nome}, a {razao_social} confirma a entrega do equipamento ({titulo}) agendada para {data_agendamento} no endereco {endereco}. Favor garantir que o transporte esteja programado. Contato: {telefone_empresa}." },
       ] } },
       { type: "GPS", name: "Chegada", icon: "\ud83d\udccd", config: { auto: true } },
       { type: "CHECKLIST", name: "Checklist Entrega", icon: "\u2611\ufe0f", config: { items: ["Conferir equipamento e acessorios", "Verificar integridade", "Posicionar e instalar", "Conectar alimentacao", "Executar testes", "Calibrar parametros", "Entregar manuais", "Treinamento com operador", "Procedimentos de seguranca", "Registrar numero de serie"] } },
       { type: "PHOTO", name: "Equipamento Instalado", icon: "\ud83d\udcf8", config: { minPhotos: 3, label: "Equipamento instalado, funcionando e com placa de identificacao", photoType: "DEPOIS" } },
       { type: "FORM", name: "Dados Comissionamento", icon: "\ud83d\udccb", config: { fields: [
-        { name: "Numero de serie", type: "text", required: true },
+        { name: "Número de serie", type: "text", required: true },
         { name: "Voltagem", type: "select", required: true, options: ["110V", "220V", "380V", "Bivolt"] },
         { name: "Testes", type: "select", required: true, options: ["Todos aprovados", "Aprovado com ressalvas", "Reprovado"] },
         { name: "Treinamento com", type: "text", required: true },
       ] } },
-      { type: "SIGNATURE", name: "Termo de Aceite", icon: "\u270d\ufe0f", config: { label: "Cliente confirma recebimento em perfeitas condicoes, testes realizados e treinamento concluido" } },
+      { type: "SIGNATURE", name: "Termo de Aceite", icon: "\u270d\ufe0f", config: { label: "Cliente confirma recebimento em perfeitas condicoes, testes realizados e treinamento concluído" } },
       { type: "NOTIFY", name: "Encerramento", icon: "\ud83d\udcac", config: { recipients: [
-        { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, a entrega ({titulo}) foi concluida! Equipamento instalado e funcionando. A {razao_social} agradece. Duvidas sobre operacao, consulte o manual ou ligue: {telefone_empresa}." },
-        { type: "GESTOR", enabled: true, channel: "WHATSAPP", message: "Entrega concluida: {titulo}. Tecnico: {tecnico}. Cliente: {nome_cliente}. Equipamento testado, treinamento feito, termo assinado." },
+        { type: "CLIENTE", enabled: true, channel: "WHATSAPP", message: "Ola {nome}, a entrega ({titulo}) foi concluída! Equipamento instalado e funcionando. A {razao_social} agradece. Duvidas sobre operacao, consulte o manual ou ligue: {telefone_empresa}." },
+        { type: "GESTOR", enabled: true, channel: "WHATSAPP", message: "Entrega concluída: {titulo}. Técnico: {tecnico}. Cliente: {nome_cliente}. Equipamento testado, treinamento feito, termo assinado." },
       ] } },
     ]
   ),

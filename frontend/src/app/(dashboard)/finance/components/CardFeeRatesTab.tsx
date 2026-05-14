@@ -134,7 +134,7 @@ export default function CardFeeRatesTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-base font-semibold text-slate-800">Taxas de Cartao</h3>
+          <h3 className="text-base font-semibold text-slate-800">Taxas de Cartão</h3>
           <p className="text-xs text-slate-500 mt-0.5">
             Configure as taxas por bandeira, tipo (credito/debito) e faixa de parcelas.
           </p>

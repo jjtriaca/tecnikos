@@ -68,8 +68,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const appleTouchUrl = branding ? branding.logos.appleTouch : "/apple-touch-icon.png";
 
   return {
-    title: `Ordem de Servico — ${companyName}`,
-    description: `Ordem de servico — ${companyName}`,
+    title: `Ordem de Serviço — ${companyName}`,
+    description: `Ordem de serviço — ${companyName}`,
     icons: {
       icon: [{ url: faviconUrl, type: faviconUrl.endsWith(".svg") ? "image/svg+xml" : "image/png" }],
       apple: [{ url: appleTouchUrl, sizes: "180x180", type: "image/png" }],
@@ -78,8 +78,8 @@ export async function generateMetadata(): Promise<Metadata> {
       type: "website",
       locale: "pt_BR",
       siteName: companyName,
-      title: `Ordem de Servico — ${companyName}`,
-      description: `Ordem de servico emitida por ${companyName}`,
+      title: `Ordem de Serviço — ${companyName}`,
+      description: `Ordem de serviço emitida por ${companyName}`,
       images: [
         {
           url: ogImageUrl,
@@ -91,8 +91,8 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
-      title: `Ordem de Servico — ${companyName}`,
-      description: `Ordem de servico emitida por ${companyName}`,
+      title: `Ordem de Serviço — ${companyName}`,
+      description: `Ordem de serviço emitida por ${companyName}`,
       images: [ogImageUrl],
     },
   };

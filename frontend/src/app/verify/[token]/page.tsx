@@ -20,7 +20,7 @@ interface SessionData {
 }
 
 const STEPS = [
-  { key: "cnpjCard", label: "Cartao CNPJ", description: "PDF ou foto do Cartao CNPJ", accept: "image/*,application/pdf", capture: "environment" as const, icon: "doc" },
+  { key: "cnpjCard", label: "Cartão CNPJ", description: "PDF ou foto do Cartão CNPJ", accept: "image/*,application/pdf", capture: "environment" as const, icon: "doc" },
   { key: "docFront", label: "Documento (Frente)", description: "Frente do RG ou CNH aberta", accept: "image/*", capture: "environment" as const, icon: "id" },
   { key: "docBack", label: "Documento (Verso)", description: "Verso do RG ou CNH", accept: "image/*", capture: "environment" as const, icon: "id" },
   { key: "selfieClose", label: "Selfie 1", description: "Posicione o rosto dentro do retangulo", accept: "image/*", capture: "user" as const, icon: "face" },
@@ -262,7 +262,7 @@ export default function VerifyPage() {
               <li className="flex items-start gap-2"><span className="mt-0.5">&#x2022;</span><span>Fotos devem estar nitidas e sem reflexo</span></li>
               <li className="flex items-start gap-2"><span className="mt-0.5">&#x2022;</span><span>Documento inteiro deve estar visivel na foto</span></li>
               <li className="flex items-start gap-2"><span className="mt-0.5">&#x2022;</span><span>Selfies devem mostrar claramente o rosto</span></li>
-              <li className="flex items-start gap-2"><span className="mt-0.5">&#x2022;</span><span>Cartao CNPJ deve ser o documento atualizado da Receita Federal</span></li>
+              <li className="flex items-start gap-2"><span className="mt-0.5">&#x2022;</span><span>Cartão CNPJ deve ser o documento atualizado da Receita Federal</span></li>
             </ul>
           </div>
 

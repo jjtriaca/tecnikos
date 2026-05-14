@@ -68,7 +68,7 @@ export default function PoolPrintLayoutsListPage() {
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <Link href="/settings" className="text-xs text-slate-500 hover:text-slate-700">← Configuracoes</Link>
+          <Link href="/settings" className="text-xs text-slate-500 hover:text-slate-700">← Configurações</Link>
           <h1 className="text-2xl font-bold text-slate-900">Layouts de Impressao</h1>
           <p className="mt-1 text-sm text-slate-500">
             Page builder dos PDFs de orcamento. Cria paginas FIXED (HTML com placeholders) ou DYNAMIC (capa, lista de items, fotos, condicoes).

@@ -62,7 +62,7 @@ const STATUS_MAP: Record<TenantStatus, { label: string; color: string }> = {
 };
 
 const DOC_LABELS: Record<string, string> = {
-  cnpjCardUrl: "Cartao CNPJ",
+  cnpjCardUrl: "Cartão CNPJ",
   docFrontUrl: "Documento (Frente)",
   docBackUrl: "Documento (Verso)",
   selfieCloseUrl: "Selfie 1",
@@ -655,7 +655,7 @@ export default function TenantsPage() {
                             className="rounded-xl bg-red-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors flex items-center gap-2"
                           >
                             {verifyAction && <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
-                            Confirmar Rejeicao
+                            Confirmar Rejeição
                           </button>
                         </div>
                       </div>

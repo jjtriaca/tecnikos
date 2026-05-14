@@ -324,11 +324,11 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
                   {/* Card selection — only for card payments */}
                   {isCardPayment && (
                     <div>
-                      <label className="text-xs text-slate-600 font-medium">Cartao *</label>
+                      <label className="text-xs text-slate-600 font-medium">Cartão *</label>
                       {filteredCardRates.length === 0 ? (
                         <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-700 mt-1">
                           <p className="font-medium">Nenhuma taxa cadastrada para {cardType === "DEBITO" ? "debito" : "credito"}.</p>
-                          <p className="mt-0.5">Cadastre as taxas em Financeiro &gt; Cadastros &gt; Taxas de Cartao.</p>
+                          <p className="mt-0.5">Cadastre as taxas em Financeiro &gt; Cadastros &gt; Taxas de Cartão.</p>
                         </div>
                       ) : (
                         <select value={selectedCardRateId} onChange={e => setSelectedCardRateId(e.target.value)}
@@ -419,7 +419,7 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
               {/* No entries available */}
               {!recEntry && !payEntry && (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-center">
-                  <p className="text-xs text-slate-500">Nenhum lancamento disponivel para esta OS.</p>
+                  <p className="text-xs text-slate-500">Nenhum lancamento disponível para esta OS.</p>
                   <p className="text-[10px] text-slate-400 mt-1">A OS precisa ter cliente e/ou tecnico atribuido.</p>
                 </div>
               )}

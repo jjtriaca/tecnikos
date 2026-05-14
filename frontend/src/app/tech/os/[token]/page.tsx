@@ -71,7 +71,7 @@ export default function TechOsTokenPage({ params }: { params: Promise<{ token: s
           </h1>
           <p className="text-sm text-slate-500 mb-6">
             {isAlreadyAssigned
-              ? "Esta ordem de servico ja foi atribuida. Se for seu tecnico, abra o app para acessar."
+              ? "Esta ordem de serviço ja foi atribuida. Se for seu tecnico, abra o app para acessar."
               : error}
           </p>
           <button
@@ -82,7 +82,7 @@ export default function TechOsTokenPage({ params }: { params: Promise<{ token: s
             {recovering ? "Abrindo..." : "Abrir minhas OS"}
           </button>
           <p className="mt-3 text-xs text-slate-400">
-            Voce sera redirecionado para verificar suas ordens de servico
+            Voce sera redirecionado para verificar suas ordens de serviço
           </p>
         </div>
       </div>
@@ -93,7 +93,7 @@ export default function TechOsTokenPage({ params }: { params: Promise<{ token: s
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
         <div className="h-10 w-10 animate-spin rounded-full border-3 border-blue-400 border-t-transparent" />
-        <p className="text-sm text-blue-200">Abrindo ordem de servico...</p>
+        <p className="text-sm text-blue-200">Abrindo ordem de serviço...</p>
       </div>
     </div>
   );

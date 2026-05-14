@@ -251,7 +251,7 @@ export default function PaymentMethodsTab() {
             Nenhuma forma de pagamento cadastrada.
           </p>
           <p className="text-xs text-slate-400">
-            Clique em &quot;Criar Padrao&quot; para criar PIX, Cartao, Dinheiro, Boleto, Cheque e mais.
+            Clique em &quot;Criar Padrao&quot; para criar PIX, Cartão, Dinheiro, Boleto, Cheque e mais.
           </p>
         </div>
       ) : (
@@ -350,7 +350,7 @@ export default function PaymentMethodsTab() {
               {editingId ? "Editar Forma de Pagamento" : "Nova Forma de Pagamento"}
             </h3>
             <div className="space-y-4">
-              {/* Nome + Codigo */}
+              {/* Nome + Código */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Nome *</label>
@@ -358,13 +358,13 @@ export default function PaymentMethodsTab() {
                     type="text"
                     value={formData.name}
                     onChange={(e) => handleNameChange(e.target.value)}
-                    placeholder="Ex: Cartao Credito"
+                    placeholder="Ex: Cartão Credito"
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                     autoFocus
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Codigo *</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Código *</label>
                   <input
                     type="text"
                     value={formData.code}

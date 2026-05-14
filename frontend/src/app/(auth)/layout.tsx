@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Login",
-  description: "Acesse sua conta Tecnikos. Plataforma de gestao de servicos tecnicos em campo.",
+  description: "Acesse sua conta Tecnikos. Plataforma de gestao de serviços tecnicos em campo.",
   openGraph: {
     title: "Login — Tecnikos",
-    description: "Acesse sua conta para gerenciar seus servicos tecnicos.",
+    description: "Acesse sua conta para gerenciar seus serviços tecnicos.",
     url: "https://tecnikos.com.br/login",
   },
   alternates: {

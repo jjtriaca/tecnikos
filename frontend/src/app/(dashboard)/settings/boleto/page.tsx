@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/Toast";
 
 /* ===================================================================
-   BOLETO SETTINGS — Configuracao de emissao de boletos bancarios
+   BOLETO SETTINGS — Configuração de emissao de boletos bancarios
    =================================================================== */
 
 interface SupportedBank {

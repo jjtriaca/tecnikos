@@ -2,7 +2,7 @@ export default function TermsPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-12">
       <h1 className="text-2xl font-bold text-slate-800 mb-6">Termos de Uso — Tecnikos</h1>
-      <p className="text-xs text-slate-400 mb-8">Ultima atualizacao: 17 de marco de 2026</p>
+      <p className="text-xs text-slate-400 mb-8">Última atualizacao: 17 de marco de 2026</p>
 
       <div className="prose prose-slate prose-sm max-w-none space-y-6">
         <section>
@@ -15,10 +15,10 @@ export default function TermsPage() {
         </section>
 
         <section>
-          <h2 className="text-lg font-semibold text-slate-700">2. Descricao do Servico</h2>
+          <h2 className="text-lg font-semibold text-slate-700">2. Descricao do Serviço</h2>
           <p className="text-sm text-slate-600">
-            O Tecnikos e uma plataforma SaaS (Software as a Service) de gestao de servicos de campo
-            (Field Service Management), que permite o gerenciamento de ordens de servico, tecnicos,
+            O Tecnikos e uma plataforma SaaS (Software as a Service) de gestao de serviços de campo
+            (Field Service Management), que permite o gerenciamento de ordens de serviço, tecnicos,
             clientes, financeiro e demais operacoes relacionadas.
           </p>
         </section>
@@ -26,7 +26,7 @@ export default function TermsPage() {
         <section>
           <h2 className="text-lg font-semibold text-slate-700">3. Cadastro e Conta</h2>
           <p className="text-sm text-slate-600">
-            Para utilizar a Plataforma, e necessario criar uma conta com dados verdadeiros e completos.
+            Para utilizar a Plataforma, e necessário criar uma conta com dados verdadeiros e completos.
             Voce e responsavel por manter a confidencialidade de suas credenciais de acesso e por
             todas as atividades realizadas em sua conta.
           </p>
@@ -46,7 +46,7 @@ export default function TermsPage() {
           <p className="text-sm text-slate-600">
             Os dados inseridos na Plataforma sao de propriedade do cliente. A SLS Obras LTDA se
             compromete a proteger esses dados conforme a Lei Geral de Protecao de Dados (LGPD -
-            Lei 13.709/2018). Consulte nossa Politica de Privacidade para mais detalhes.
+            Lei 13.709/2018). Consulte nossa Política de Privacidade para mais detalhes.
           </p>
         </section>
 
@@ -61,7 +61,7 @@ export default function TermsPage() {
         <section>
           <h2 className="text-lg font-semibold text-slate-700">7. Disponibilidade</h2>
           <p className="text-sm text-slate-600">
-            A SLS Obras LTDA emprega esforcos razoaveis para manter a Plataforma disponivel,
+            A SLS Obras LTDA emprega esforcos razoaveis para manter a Plataforma disponível,
             mas nao garante disponibilidade ininterrupta. Manutencoes programadas serao comunicadas
             com antecedencia quando possivel.
           </p>
@@ -70,7 +70,7 @@ export default function TermsPage() {
         <section>
           <h2 className="text-lg font-semibold text-slate-700">8. Cancelamento</h2>
           <p className="text-sm text-slate-600">
-            O cliente pode cancelar sua assinatura a qualquer momento. Apos o cancelamento,
+            O cliente pode cancelar sua assinatura a qualquer momento. Após o cancelamento,
             os dados serao mantidos por 90 dias para eventual reativacao, apos os quais poderao
             ser permanentemente excluidos.
           </p>

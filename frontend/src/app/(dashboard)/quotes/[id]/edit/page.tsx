@@ -279,7 +279,7 @@ function EditQuotePage() {
     setSaving(true);
 
     try {
-      if (!title.trim()) { setError("Titulo e obrigatorio"); setSaving(false); return; }
+      if (!title.trim()) { setError("Titulo e obrigatório"); setSaving(false); return; }
       if (!selectedClient) { setError("Selecione um cliente"); setSaving(false); return; }
       const validItems = items.filter(i => i.description.trim());
       if (validItems.length === 0) { setError("Adicione pelo menos um item"); setSaving(false); return; }
@@ -690,7 +690,7 @@ function ItemEditor({ item, index, totalItems, onUpdate, onRemove, onMove, onSel
         </div>
         <select value={item.type} onChange={e => { onUpdate("type", e.target.value); onUpdate("productId", ""); onUpdate("serviceId", ""); }}
           className="rounded border border-slate-300 px-2 py-1 text-xs bg-white font-medium">
-          <option value="SERVICE">Servico</option>
+          <option value="SERVICE">Serviço</option>
           <option value="PRODUCT">Produto</option>
           <option value="LABOR">Mao de Obra</option>
         </select>
@@ -775,7 +775,7 @@ function ItemEditor({ item, index, totalItems, onUpdate, onRemove, onMove, onSel
           onClose={() => setShowProductLookup(false)} />
       )}
       {showServiceLookup && (
-        <SearchLookupModal open={true} title="Buscar Servico" placeholder="Nome ou codigo..." fetcher={serviceFetcher}
+        <SearchLookupModal open={true} title="Buscar Serviço" placeholder="Nome ou codigo..." fetcher={serviceFetcher}
           keyExtractor={(s: ServiceSummary) => s.id}
           renderItem={(s: ServiceSummary) => (<div className="flex items-center justify-between w-full"><div><div className="font-medium text-sm">{s.name}</div>{s.code && <div className="text-xs text-slate-500">{s.code}</div>}</div><span className="text-sm font-medium text-purple-700">{formatCurrency(s.priceCents)}</span></div>)}
           onSelect={(s: ServiceSummary) => { onSelectService(s); setShowServiceLookup(false); }}

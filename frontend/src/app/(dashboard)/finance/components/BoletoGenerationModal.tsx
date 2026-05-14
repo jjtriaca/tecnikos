@@ -80,7 +80,7 @@ export default function BoletoGenerationModal({ entry, onClose, onSuccess }: Pro
             <div className="p-3 bg-amber-50 border border-amber-200 rounded text-sm text-amber-700">
               Configure o modulo de boleto em{" "}
               <a href="/settings/boleto" className="underline font-medium">
-                Configuracoes &gt; Boleto Bancario
+                Configurações &gt; Boleto Bancario
               </a>{" "}
               antes de emitir boletos.
             </div>

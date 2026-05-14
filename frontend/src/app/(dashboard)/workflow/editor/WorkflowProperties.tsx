@@ -246,8 +246,8 @@ function FormFieldsEditor({ fields, onChange }: { fields: any[]; onChange: (fiel
               className="rounded border border-slate-200 px-2 py-1 text-xs outline-none"
             >
               <option value="text">Texto</option>
-              <option value="number">Numero</option>
-              <option value="select">Selecao</option>
+              <option value="number">Número</option>
+              <option value="select">Seleção</option>
             </select>
             <button onClick={() => onChange(fields.filter((_, idx) => idx !== i))} className="px-1 text-xs text-red-400 hover:text-red-600">x</button>
           </div>
@@ -366,9 +366,9 @@ export default function WorkflowProperties({ block, onChange }: Props) {
 
   // Default messages per recipient type
   const DEFAULT_MESSAGES: Record<string, string> = {
-    CLIENTE: "Ola {nome}, informamos que o servico {titulo} foi concluido com sucesso pelo tecnico {tecnico}. A {razao_social} agradece pela preferencia! Qualquer duvida, entre em contato.",
-    TECNICO: "Ola {nome}, tudo bem? A {razao_social} tem um novo servico para voce! OS: {titulo}. Cliente: {nome_cliente}. Endereco: {endereco}. Data: {data_agendamento}. Confira os detalhes no app: {link_app}",
-    FORNECEDOR: "Prezado {nome}, a {razao_social} solicita o fornecimento de materiais para a OS {titulo}. Endereco de entrega: {endereco}. Prazo: {data_agendamento}. Para duvidas, contate {empresa} pelo {telefone_empresa}.",
+    CLIENTE: "Ola {nome}, informamos que o serviço {titulo} foi concluído com sucesso pelo tecnico {tecnico}. A {razao_social} agradece pela preferencia! Qualquer duvida, entre em contato.",
+    TECNICO: "Ola {nome}, tudo bem? A {razao_social} tem um novo serviço para voce! OS: {titulo}. Cliente: {nome_cliente}. Endereço: {endereco}. Data: {data_agendamento}. Confira os detalhes no app: {link_app}",
+    FORNECEDOR: "Prezado {nome}, a {razao_social} solicita o fornecimento de materiais para a OS {titulo}. Endereço de entrega: {endereco}. Prazo: {data_agendamento}. Para duvidas, contate {empresa} pelo {telefone_empresa}.",
     GESTOR: "{tecnico} concluiu a OS {titulo} ({nome_cliente}, {endereco}). Verifique o relatorio e fotos no sistema.",
   };
 
@@ -458,7 +458,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
             <div className="flex items-center justify-between">
               <Select value={r.type} onChange={(v) => changeRecipientType(i, v)} options={[
                 { value: "CLIENTE", label: "Cliente" },
-                { value: "TECNICO", label: "Tecnico" },
+                { value: "TECNICO", label: "Técnico" },
                 { value: "FORNECEDOR", label: "Fornecedor" },
                 { value: "GESTOR", label: "Gestor" },
               ]} />
@@ -507,7 +507,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                     <div className="flex gap-3">
                       <label className="flex items-center gap-1.5 cursor-pointer">
                         <input type="radio" name={`accept-type-${i}`} checked={r.acceptanceType !== "contract"} onChange={() => updateRecipient(i, "acceptanceType", "simple")} className="h-3 w-3 text-blue-600" />
-                        <span className="text-[11px] text-slate-600">Confirmacao simples</span>
+                        <span className="text-[11px] text-slate-600">Confirmação simples</span>
                       </label>
                       <label className="flex items-center gap-1.5 cursor-pointer">
                         <input type="radio" name={`accept-type-${i}`} checked={r.acceptanceType === "contract"} onChange={() => updateRecipient(i, "acceptanceType", "contract")} className="h-3 w-3 text-blue-600" />
@@ -602,8 +602,8 @@ export default function WorkflowProperties({ block, onChange }: Props) {
             )}
             <Label>Tipo</Label>
             <Select value={cfg.photoType || "GERAL"} onChange={(v) => updateConfig("photoType", v)} options={[
-              { value: "ANTES", label: "Antes do servico" },
-              { value: "DEPOIS", label: "Depois do servico" },
+              { value: "ANTES", label: "Antes do serviço" },
+              { value: "DEPOIS", label: "Depois do serviço" },
               { value: "EVIDENCIA", label: "Evidencia" },
               { value: "GERAL", label: "Geral" },
             ]} />
@@ -1307,7 +1307,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
         {block.type === "RESCHEDULE" && (
           <>
             <div className="space-y-2">
-              <Checkbox checked={cfg.requireReason !== false} onChange={(v) => updateConfig("requireReason", v)} label="Motivo obrigatorio" />
+              <Checkbox checked={cfg.requireReason !== false} onChange={(v) => updateConfig("requireReason", v)} label="Motivo obrigatório" />
               <Checkbox checked={cfg.requireDate !== false} onChange={(v) => updateConfig("requireDate", v)} label="Data de reagendamento obrigatoria" />
             </div>
             <Label>Motivo padrao (pre-preenchido)</Label>

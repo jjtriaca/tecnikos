@@ -40,7 +40,7 @@ export interface StageConfig {
 
   autoActions: {
     notifyGestor:   { enabled: boolean; channel: string; message: string };
-    notifyTecnico:  { enabled: boolean; channel: string; message: string; includeLink: boolean };
+    notifyTécnico:  { enabled: boolean; channel: string; message: string; includeLink: boolean };
     notifyCliente:  { enabled: boolean; channel: string; message: string };
     financialEntry: {
       enabled: boolean;
@@ -54,7 +54,7 @@ export interface StageConfig {
       enabled: boolean;
       reviewChecklist: string[];                    // itens que o gestor confere antes de aprovar
       onApprove: {
-        notifyTecnico: { enabled: boolean; channel: string; message: string };
+        notifyTécnico: { enabled: boolean; channel: string; message: string };
         notifyCliente: { enabled: boolean; channel: string; message: string };
       };
       onApproveWithReservations: {
@@ -66,13 +66,13 @@ export interface StageConfig {
           value: number;                            // % ou valor fixo a reduzir
         };
         flagOS: boolean;                            // marca a OS com flag de qualidade
-        notifyTecnico: { enabled: boolean; channel: string; message: string };
+        notifyTécnico: { enabled: boolean; channel: string; message: string };
         notifyCliente: { enabled: boolean; channel: string; message: string };
       };
       onReject: {
         action: string;          // 'reopen_execution' | 'return_assigned' | 'notify_only'
         requireReason: boolean;
-        notifyTecnico: { enabled: boolean; channel: string; message: string };
+        notifyTécnico: { enabled: boolean; channel: string; message: string };
         notifyCliente: { enabled: boolean; channel: string; message: string };
       };
     };
@@ -202,12 +202,12 @@ export interface StageConfig {
         onPause: {
           gestor:  { enabled: boolean; channel: string; message: string };
           cliente: { enabled: boolean; channel: string; message: string };
-          tecnico: { enabled: boolean; channel: string; message: string };
+          técnico: { enabled: boolean; channel: string; message: string };
         };
         onResume: {
           gestor:  { enabled: boolean; channel: string; message: string };
           cliente: { enabled: boolean; channel: string; message: string };
-          tecnico: { enabled: boolean; channel: string; message: string };
+          técnico: { enabled: boolean; channel: string; message: string };
         };
       };
       /* ── Fotos: controladas via photoRequirements (on_pause / on_resume) ── */
@@ -270,7 +270,7 @@ export interface FinancialEntryConfig {
   fixedValue?: number;    // quando valueSource = 'fixed'
   percentOfOS?: number;   // quando valueSource = 'percent_os' (0-100)
   description: string;    // descrição do lançamento
-  autoCreate: boolean;    // criar automaticamente ou apenas sugerir
+  autoCreate: boolean;    // criar automáticamente ou apenas sugerir
 }
 
 export interface LinkPageBlock {
@@ -298,7 +298,7 @@ export interface ArrivalTimeOption {
 }
 
 export const QUESTION_ACTIONS = [
-  { value: 'accept',        label: 'Aceitar a OS automaticamente' },
+  { value: 'accept',        label: 'Aceitar a OS automáticamente' },
   { value: 'reject',        label: 'Descartar técnico e redistribuir' },
   { value: 'reschedule',    label: 'Agendar para depois (notifica gestor)' },
   { value: 'notify_gestor', label: 'Apenas notificar o gestor' },
@@ -416,39 +416,39 @@ CONTRATANTE: {razao_social}, nome fantasia {empresa}, inscrita no CNPJ sob n. {c
 
 CONTRATADO(A): {nome}, portador(a) do documento n. {documento}, doravante denominado(a) PRESTADOR(A).
 
-As partes acima qualificadas celebram o presente Contrato de Prestacao de Servicos Terceirizados, que se regera pelas clausulas e condicoes a seguir.
+As partes acima qualificadas celebram o presente Contrato de Prestacao de Serviços Terceirizados, que se regera pelas clausulas e condicoes a seguir.
 
 --- CLAUSULA 1 — OBJETO ---
 
-1.1. O presente contrato tem por objeto a prestacao de servicos tecnicos especializados pelo(a) PRESTADOR(A) em favor da CONTRATANTE, na qualidade de profissional autonomo terceirizado, sem vinculo empregaticio, conforme demandas encaminhadas por meio da plataforma Tecnikos.
+1.1. O presente contrato tem por objeto a prestacao de serviços técnicos especializados pelo(a) PRESTADOR(A) em favor da CONTRATANTE, na qualidade de profissional autonomo terceirizado, sem vinculo empregaticio, conforme demandas encaminhadas por meio da plataforma Tecnikos.
 
-1.2. Os servicos serao prestados conforme Ordens de Servico (OS) emitidas pela CONTRATANTE, contendo descricao, local, prazo e valor de cada atendimento.
+1.2. Os serviços serao prestados conforme Ordens de Serviço (OS) emitidas pela CONTRATANTE, contendo descricao, local, prazo e valor de cada atendimento.
 
 1.3. O(A) PRESTADOR(A) possui liberdade para aceitar ou recusar as OS oferecidas, sem penalidade por recusa, desde que comunique em tempo habil.
 
 --- CLAUSULA 2 — OBRIGACOES DO(A) PRESTADOR(A) ---
 
-2.1. Executar os servicos com diligencia, qualidade tecnica e dentro dos prazos definidos em cada OS.
+2.1. Executar os serviços com diligencia, qualidade técnica e dentro dos prazos definidos em cada OS.
 2.2. Comparecer aos locais de atendimento devidamente identificado(a), uniformizado(a) quando exigido, e portando ferramentas e EPIs adequados.
 2.3. Registrar na plataforma Tecnikos todas as etapas do atendimento conforme exigido no fluxo de trabalho: check-in, fotos, anotacoes, checklist, materiais utilizados e finalizacao.
-2.4. Manter sigilo absoluto sobre informacoes da CONTRATANTE, seus clientes, processos internos, dados tecnicos e comerciais, durante e apos a vigencia deste contrato.
+2.4. Manter sigilo absoluto sobre informacoes da CONTRATANTE, seus clientes, processos internos, dados técnicos e comerciais, durante e apos a vigencia deste contrato.
 2.5. Zelar pela boa imagem da CONTRATANTE perante clientes e terceiros durante os atendimentos.
-2.6. Comunicar imediatamente qualquer impedimento, atraso ou impossibilidade na execucao dos servicos.
+2.6. Comunicar imediatamente qualquer impedimento, atraso ou impossibilidade na execucao dos serviços.
 2.7. Manter seus dados cadastrais atualizados na plataforma, incluindo telefone, email e especializacoes.
-2.8. Arcar com todos os custos de deslocamento, alimentacao, ferramentas proprias e demais despesas inerentes a execucao dos servicos, salvo quando expressamente previsto na OS.
+2.8. Arcar com todos os custos de deslocamento, alimentacao, ferramentas proprias e demais despesas inerentes a execucao dos serviços, salvo quando expressamente previsto na OS.
 
 --- CLAUSULA 3 — OBRIGACOES DA CONTRATANTE ---
 
-3.1. Disponibilizar acesso a plataforma Tecnikos para recebimento e gestao das Ordens de Servico.
-3.2. Fornecer informacoes claras e completas sobre cada servico a ser executado.
+3.1. Disponibilizar acesso a plataforma Tecnikos para recebimento e gestao das Ordens de Serviço.
+3.2. Fornecer informacoes claras e completas sobre cada serviço a ser executado.
 3.3. Efetuar os pagamentos nos valores e prazos acordados, conforme definido em cada OS aprovada.
-3.4. Avaliar os servicos prestados de forma justa e transparente.
-3.5. Fornecer materiais e pecas necessarios quando previsto na OS.
+3.4. Avaliar os serviços prestados de forma justa e transparente.
+3.5. Fornecer materiais e pecas necessários quando previsto na OS.
 
 --- CLAUSULA 4 — REMUNERACAO E PAGAMENTO ---
 
-4.1. O(A) PRESTADOR(A) sera remunerado(a) conforme os valores definidos em cada Ordem de Servico aceita e concluida.
-4.2. O pagamento sera processado apos a conclusao do servico E aprovacao pelo gestor da CONTRATANTE.
+4.1. O(A) PRESTADOR(A) sera remunerado(a) conforme os valores definidos em cada Ordem de Serviço aceita e concluída.
+4.2. O pagamento sera processado apos a conclusao do serviço E aprovação pelo gestor da CONTRATANTE.
 4.3. Eventuais ajustes por retrabalho, atraso injustificado ou avaliacao insatisfatoria serao comunicados previamente e podera haver reducao proporcional nos valores.
 4.4. Os pagamentos serao realizados por meio de transferencia bancaria, PIX ou outro meio acordado entre as partes.
 4.5. O(A) PRESTADOR(A) e responsavel pela emissao de nota fiscal ou recibo quando aplicavel, conforme legislacao vigente.
@@ -466,26 +466,26 @@ As partes acima qualificadas celebram o presente Contrato de Prestacao de Servic
   b) Conduta inadequada, desrespeitosa ou antiética durante os atendimentos;
   c) Danos dolosos ou por negligencia grave aos bens da CONTRATANTE ou de seus clientes;
   d) Violacao de sigilo ou uso indevido de informacoes confidenciais;
-  e) Avaliacao media inferior a 3.0 (tres) estrelas em um periodo de 90 dias;
+  e) Avaliacao media inferior a 3.0 (tres) estrelas em um período de 90 dias;
   f) Inatividade superior a 90 (noventa) dias sem justificativa;
   g) Fraude ou adulteracao de registros na plataforma.
 
 --- CLAUSULA 7 — PROPRIEDADE INTELECTUAL E DADOS ---
 
-7.1. Todos os registros, fotos, relatorios e dados inseridos na plataforma Tecnikos durante a execucao dos servicos sao de propriedade da CONTRATANTE.
-7.2. O(A) PRESTADOR(A) nao podera utilizar, divulgar ou compartilhar dados de clientes da CONTRATANTE para qualquer finalidade alheia ao servico contratado.
+7.1. Todos os registros, fotos, relatorios e dados inseridos na plataforma Tecnikos durante a execucao dos serviços sao de propriedade da CONTRATANTE.
+7.2. O(A) PRESTADOR(A) nao podera utilizar, divulgar ou compartilhar dados de clientes da CONTRATANTE para qualquer finalidade alheia ao serviço contratado.
 7.3. O(A) PRESTADOR(A) autoriza o uso de suas avaliacoes e indicadores de desempenho pela CONTRATANTE para fins internos de gestao de qualidade.
 
 --- CLAUSULA 8 — RESPONSABILIDADE CIVIL ---
 
-8.1. O(A) PRESTADOR(A) assume total responsabilidade por danos causados a terceiros ou a bens do cliente durante a execucao dos servicos, quando comprovada sua culpa ou dolo.
-8.2. A CONTRATANTE nao se responsabiliza por acidentes, furtos ou perdas ocorridos durante o deslocamento ou execucao dos servicos pelo(a) PRESTADOR(A).
-8.3. O(A) PRESTADOR(A) devera manter seguro de responsabilidade civil profissional quando exigido pela natureza dos servicos.
+8.1. O(A) PRESTADOR(A) assume total responsabilidade por danos causados a terceiros ou a bens do cliente durante a execucao dos serviços, quando comprovada sua culpa ou dolo.
+8.2. A CONTRATANTE nao se responsabiliza por acidentes, furtos ou perdas ocorridos durante o deslocamento ou execucao dos serviços pelo(a) PRESTADOR(A).
+8.3. O(A) PRESTADOR(A) devera manter seguro de responsabilidade civil profissional quando exigido pela natureza dos serviços.
 
 --- CLAUSULA 9 — INEXISTENCIA DE VINCULO EMPREGATICIO ---
 
-9.1. As partes declaram expressamente que o presente contrato nao gera vinculo empregaticio, nos termos dos artigos 593 a 609 do Codigo Civil e art. 442-B da CLT (incluido pela Lei 13.467/2017).
-9.2. O(A) PRESTADOR(A) possui autonomia na execucao dos servicos, assumindo seus proprios riscos.
+9.1. As partes declaram expressamente que o presente contrato nao gera vinculo empregaticio, nos termos dos artigos 593 a 609 do Código Civil e art. 442-B da CLT (incluido pela Lei 13.467/2017).
+9.2. O(A) PRESTADOR(A) possui autonomia na execucao dos serviços, assumindo seus proprios riscos.
 9.3. O(A) PRESTADOR(A) e exclusivamente responsavel por suas obrigacoes fiscais, previdenciarias e trabalhistas, incluindo contribuicao ao INSS como contribuinte individual.
 
 --- CLAUSULA 10 — DISPOSICOES FINAIS ---
@@ -508,11 +508,11 @@ ESPECIALIZACAO: {especializacao}
 
 Pelo presente termo, o(a) prestador(a) acima identificado(a) declara estar ciente e de acordo com a atribuicao da nova especializacao indicada, assumindo os seguintes compromissos:
 
-1. Executar os servicos relacionados a esta especializacao com competencia, diligencia e qualidade tecnica.
-2. Manter-se atualizado(a) sobre as melhores praticas, normas tecnicas e procedimentos da area.
+1. Executar os serviços relacionados a esta especializacao com competencia, diligencia e qualidade técnica.
+2. Manter-se atualizado(a) sobre as melhores praticas, normas técnicas e procedimentos da area.
 3. Participar de treinamentos ou capacitacoes solicitados pela empresa, quando aplicavel.
-4. Declarar possuir conhecimento e habilidade tecnica para executar servicos desta especializacao.
-5. Comunicar a empresa caso necessite de capacitacao adicional antes de aceitar ordens de servico.
+4. Declarar possuir conhecimento e habilidade técnica para executar serviços desta especializacao.
+5. Comunicar a empresa caso necessite de capacitacao adicional antes de aceitar ordens de serviço.
 
 Este termo entra em vigor na data do aceite digital e permanece valido enquanto a especializacao estiver ativa no cadastro do(a) prestador(a). O aceite digital tem validade juridica conforme Lei 14.063/2020.
 
@@ -525,22 +525,22 @@ export function createDefaultOnboarding(): TechnicianOnboardingConfig {
       enabled: false,
       sendContractLink: false,
       channel: 'WHATSAPP',
-      contractName: 'Contrato de Prestacao de Servicos Tecnicos',
+      contractName: 'Contrato de Prestacao de Serviços Técnicos',
       contractContent: DEFAULT_CONTRACT_CONTENT,
       requireSignature: false,
       requireAcceptance: true,
       blockUntilAccepted: true,
       expirationDays: 7,
       expirationUnit: 'days',
-      notifyMessage: 'Ola {nome}! Voce foi cadastrado(a) como tecnico(a) na {empresa} ({razao_social}). Para formalizar sua participacao, preparamos um contrato de prestacao de servicos. Acesse o link abaixo para visualizar e aceitar o contrato.',
+      notifyMessage: 'Ola {nome}! Voce foi cadastrado(a) como técnico(a) na {empresa} ({razao_social}). Para formalizar sua participacao, preparamos um contrato de prestacao de serviços. Acesse o link abaixo para visualizar e aceitar o contrato.',
       sendWelcomeMessage: false,
       welcomeChannel: 'WHATSAPP',
-      welcomeMessage: 'Ola {nome}, seja bem-vindo(a) a equipe da {empresa} ({razao_social})! Voce foi cadastrado(a) como tecnico(a) em nosso sistema de gestao de servicos - Teknikos. A partir de agora voce recebera ordens de servico diretamente por aqui. Para confirmar seu ingresso, por favor responda esta mensagem com: "Sim, aceito fazer parte".',
+      welcomeMessage: 'Ola {nome}, seja bem-vindo(a) a equipe da {empresa} ({razao_social})! Voce foi cadastrado(a) como técnico(a) em nosso sistema de gestao de serviços - Teknikos. A partir de agora voce recebera ordens de serviço diretamente por aqui. Para confirmar seu ingresso, por favor responda esta mensagem com: "Sim, aceito fazer parte".',
       welcomeWaitForReply: true,
       welcomeConfirmVia: 'WHATSAPP',
-      welcomeReplyMessage: 'Perfeito {nome}! Sua participacao na equipe da {razao_social} esta confirmada. A partir de agora voce recebera ordens de servico pela plataforma. Qualquer duvida entre em contato pelo {telefone}. Bem-vindo(a)!',
+      welcomeReplyMessage: 'Perfeito {nome}! Sua participacao na equipe da {razao_social} esta confirmada. A partir de agora voce recebera ordens de serviço pela plataforma. Qualquer duvida entre em contato pelo {telefone}. Bem-vindo(a)!',
       welcomeDeclineActions: ['DEACTIVATE', 'NOTIFY_GESTOR'],
-      welcomeDeclineMessage: 'Atencao: o tecnico {nome} ({email}) recusou a participacao na equipe. Resposta recebida: "{resposta}". O cadastro foi mantido como inativo.',
+      welcomeDeclineMessage: 'Atencao: o técnico {nome} ({email}) recusou a participacao na equipe. Resposta recebida: "{resposta}". O cadastro foi mantido como inativo.',
       welcomePositiveKeywords: ['sim', 'aceito', 'confirmo', 'ok', 'pode ser', 'quero', 'topo', 'bora'],
       welcomeNegativeKeywords: ['nao', 'não', 'recuso', 'desisto', 'nao quero', 'não quero', 'cancela'],
     },
@@ -558,12 +558,12 @@ export function createDefaultOnboarding(): TechnicianOnboardingConfig {
       notifyMessage: 'Ola {nome}! A especializacao "{especializacao}" foi atribuida ao seu cadastro na {empresa} ({razao_social}). Para ativar esta especializacao, acesse o link abaixo e aceite o termo de responsabilidade.',
       sendWelcomeMessage: false,
       welcomeChannel: 'WHATSAPP',
-      welcomeMessage: 'Ola {nome}! Voce recebeu uma nova especializacao na {empresa}: *{especializacao}*. A partir de agora voce podera receber ordens de servico desta area. Para confirmar, responda esta mensagem com "Sim, confirmo".',
+      welcomeMessage: 'Ola {nome}! Voce recebeu uma nova especializacao na {empresa}: *{especializacao}*. A partir de agora voce podera receber ordens de serviço desta area. Para confirmar, responda esta mensagem com "Sim, confirmo".',
       welcomeWaitForReply: false,
       welcomeConfirmVia: 'WHATSAPP',
-      welcomeReplyMessage: 'Otimo {nome}! Sua especializacao em "{especializacao}" foi confirmada na {razao_social}. Voce ja pode receber ordens de servico desta area.',
+      welcomeReplyMessage: 'Otimo {nome}! Sua especializacao em "{especializacao}" foi confirmada na {razao_social}. Voce ja pode receber ordens de serviço desta area.',
       welcomeDeclineActions: ['NOTIFY_GESTOR'],
-      welcomeDeclineMessage: 'Atencao: o tecnico {nome} ({email}) recusou a especializacao "{especializacao}". Resposta recebida: "{resposta}".',
+      welcomeDeclineMessage: 'Atencao: o técnico {nome} ({email}) recusou a especializacao "{especializacao}". Resposta recebida: "{resposta}".',
       welcomePositiveKeywords: ['sim', 'aceito', 'confirmo', 'ok', 'pode ser', 'quero', 'topo', 'bora'],
       welcomeNegativeKeywords: ['nao', 'não', 'recuso', 'desisto', 'nao quero', 'não quero', 'cancela'],
     },
@@ -577,62 +577,62 @@ PRESTADORA: {razao_social}, nome fantasia {empresa}, inscrita no CNPJ sob n. {cn
 
 CLIENTE: {nome}, portador(a) do documento n. {documento}, doravante denominado(a) CONTRATANTE.
 
-As partes acima qualificadas celebram os presentes Termos de Prestacao de Servicos, regidos pelas clausulas a seguir.
+As partes acima qualificadas celebram os presentes Termos de Prestacao de Serviços, regidos pelas clausulas a seguir.
 
 --- CLAUSULA 1 — OBJETO ---
 
-1.1. A PRESTADORA se compromete a executar servicos tecnicos especializados conforme solicitacoes do CONTRATANTE, mediante Ordens de Servico (OS) abertas pela plataforma Tecnikos.
+1.1. A PRESTADORA se compromete a executar serviços técnicos especializados conforme solicitacoes do CONTRATANTE, mediante Ordens de Serviço (OS) abertas pela plataforma Tecnikos.
 
-1.2. Os servicos incluem, mas nao se limitam a: instalacao, manutencao preventiva e corretiva, reparo e assistencia tecnica de equipamentos e sistemas.
+1.2. Os serviços incluem, mas nao se limitam a: instalacao, manutenção preventiva e corretiva, reparo e assistencia técnica de equipamentos e sistemas.
 
 --- CLAUSULA 2 — SOLICITACAO E EXECUCAO ---
 
-2.1. O CONTRATANTE solicitara os servicos por meio da plataforma Tecnikos ou canais indicados pela PRESTADORA, descrevendo a necessidade, local e urgencia.
+2.1. O CONTRATANTE solicitara os serviços por meio da plataforma Tecnikos ou canais indicados pela PRESTADORA, descrevendo a necessidade, local e urgencia.
 
-2.2. A PRESTADORA designara profissional tecnico qualificado para cada atendimento, conforme disponibilidade e especializacao requerida.
+2.2. A PRESTADORA designara profissional técnico qualificado para cada atendimento, conforme disponibilidade e especializacao requerida.
 
-2.3. O CONTRATANTE devera garantir acesso ao local de execucao do servico, bem como informar sobre condicoes especiais (riscos, restricoes de acesso, animais, etc.).
+2.3. O CONTRATANTE devera garantir acesso ao local de execucao do serviço, bem como informar sobre condicoes especiais (riscos, restricoes de acesso, animais, etc.).
 
-2.4. O CONTRATANTE devera designar responsavel presente no local durante a execucao dos servicos, quando aplicavel.
+2.4. O CONTRATANTE devera designar responsavel presente no local durante a execucao dos serviços, quando aplicavel.
 
 --- CLAUSULA 3 — VALORES E PAGAMENTO ---
 
-3.1. Os valores serao definidos em cada Ordem de Servico, conforme tabela de precos vigente ou orcamento previo aprovado pelo CONTRATANTE.
+3.1. Os valores serao definidos em cada Ordem de Serviço, conforme tabela de precos vigente ou orcamento previo aprovado pelo CONTRATANTE.
 
 3.2. O pagamento devera ser realizado conforme condicoes estabelecidas na OS ou conforme acordo comercial vigente entre as partes.
 
 3.3. Em caso de atraso no pagamento, incidirao juros de 1% ao mes e multa de 2%, alem de correcao monetaria pelo IPCA.
 
-3.4. O cancelamento de servico agendado com menos de 24 horas de antecedencia podera gerar cobranca de taxa de deslocamento.
+3.4. O cancelamento de serviço agendado com menos de 24 horas de antecedencia podera gerar cobranca de taxa de deslocamento.
 
 --- CLAUSULA 4 — GARANTIA ---
 
-4.1. Os servicos executados possuem garantia de 90 (noventa) dias, contados a partir da conclusao e aprovacao pelo CONTRATANTE.
+4.1. Os serviços executados possuem garantia de 90 (noventa) dias, contados a partir da conclusao e aprovação pelo CONTRATANTE.
 
-4.2. A garantia cobre exclusivamente defeitos decorrentes da execucao do servico pela PRESTADORA.
+4.2. A garantia cobre exclusivamente defeitos decorrentes da execucao do serviço pela PRESTADORA.
 
 4.3. A garantia nao cobre danos causados por mau uso, negligencia, alteracoes nao autorizadas ou intervencao de terceiros.
 
 --- CLAUSULA 5 — OBRIGACOES DO CONTRATANTE ---
 
-5.1. Fornecer informacoes precisas e completas sobre o servico necessario.
+5.1. Fornecer informacoes precisas e completas sobre o serviço necessário.
 5.2. Garantir acesso seguro e adequado ao local de execucao.
 5.3. Efetuar os pagamentos nos prazos e valores acordados.
-5.4. Avaliar os servicos prestados pela plataforma Teknikos apos a conclusao.
-5.5. Comunicar eventuais problemas ou insatisfacoes em ate 48 horas apos a conclusao do servico.
+5.4. Avaliar os serviços prestados pela plataforma Teknikos apos a conclusao.
+5.5. Comunicar eventuais problemas ou insatisfacoes em ate 48 horas apos a conclusao do serviço.
 
 --- CLAUSULA 6 — OBRIGACOES DA PRESTADORA ---
 
-6.1. Executar os servicos com qualidade, diligencia e dentro dos prazos acordados.
+6.1. Executar os serviços com qualidade, diligencia e dentro dos prazos acordados.
 6.2. Designar profissionais qualificados e devidamente equipados.
-6.3. Manter sigilo sobre informacoes do CONTRATANTE obtidas durante a prestacao dos servicos.
-6.4. Fornecer relatorio de execucao com fotos e descricao dos servicos realizados.
+6.3. Manter sigilo sobre informacoes do CONTRATANTE obtidas durante a prestacao dos serviços.
+6.4. Fornecer relatorio de execucao com fotos e descricao dos serviços realizados.
 
 --- CLAUSULA 7 — VIGENCIA ---
 
 7.1. Estes termos tem vigencia por prazo indeterminado a partir do aceite digital.
 7.2. Qualquer das partes podera rescindir mediante comunicacao previa de 15 (quinze) dias.
-7.3. A rescisao nao exime o CONTRATANTE do pagamento de servicos ja executados ou em andamento.
+7.3. A rescisao nao exime o CONTRATANTE do pagamento de serviços ja executados ou em andamento.
 
 --- CLAUSULA 8 — DISPOSICOES FINAIS ---
 
@@ -684,7 +684,7 @@ As partes acima qualificadas celebram o presente Contrato de Fornecimento, que s
 
 --- CLAUSULA 1 — OBJETO ---
 
-1.1. O presente contrato tem por objeto o fornecimento de materiais, pecas, equipamentos e/ou servicos pelo(a) FORNECEDOR(A) em favor da CONTRATANTE, conforme pedidos de compra emitidos pela plataforma Tecnikos.
+1.1. O presente contrato tem por objeto o fornecimento de materiais, pecas, equipamentos e/ou serviços pelo(a) FORNECEDOR(A) em favor da CONTRATANTE, conforme pedidos de compra emitidos pela plataforma Tecnikos.
 
 1.2. Os pedidos serao formalizados por meio de Ordens de Compra (OC) contendo descricao dos itens, quantidades, valores unitarios, prazo de entrega e local de entrega.
 
@@ -692,7 +692,7 @@ As partes acima qualificadas celebram o presente Contrato de Fornecimento, que s
 
 --- CLAUSULA 2 — OBRIGACOES DO(A) FORNECEDOR(A) ---
 
-2.1. Fornecer materiais e pecas originais, de qualidade comprovada e em conformidade com as especificacoes tecnicas solicitadas.
+2.1. Fornecer materiais e pecas originais, de qualidade comprovada e em conformidade com as especificacoes técnicas solicitadas.
 2.2. Cumprir os prazos de entrega estipulados em cada Ordem de Compra.
 2.3. Emitir nota fiscal para cada fornecimento, conforme legislacao vigente.
 2.4. Garantir a procedencia e a qualidade dos produtos fornecidos, substituindo itens defeituosos sem custo adicional.
@@ -703,7 +703,7 @@ As partes acima qualificadas celebram o presente Contrato de Fornecimento, que s
 
 --- CLAUSULA 3 — OBRIGACOES DA CONTRATANTE ---
 
-3.1. Emitir pedidos de compra claros e detalhados, com especificacoes tecnicas adequadas.
+3.1. Emitir pedidos de compra claros e detalhados, com especificacoes técnicas adequadas.
 3.2. Efetuar os pagamentos nos prazos e valores acordados em cada Ordem de Compra.
 3.3. Conferir os materiais no ato do recebimento e comunicar divergencias em ate 48 horas.
 3.4. Fornecer previsao de demanda quando possivel, facilitando o planejamento do(a) FORNECEDOR(A).
@@ -769,20 +769,20 @@ export function createDefaultClientOnboarding(): ClientOnboardingConfig {
     enabled: false,
     sendContractLink: false,
     channel: 'WHATSAPP',
-    contractName: 'Termos de Prestacao de Servicos',
+    contractName: 'Termos de Prestacao de Serviços',
     contractContent: DEFAULT_CLIENT_CONTRACT,
     requireSignature: false,
     requireAcceptance: true,
     blockUntilAccepted: false,
     expirationDays: 30,
     expirationUnit: 'days',
-    notifyMessage: 'Ola {nome}! Voce foi cadastrado(a) como cliente da {empresa} ({razao_social}). Para formalizar nossa relacao, preparamos os termos de prestacao de servicos. Acesse o link abaixo para visualizar e aceitar os termos.',
+    notifyMessage: 'Ola {nome}! Voce foi cadastrado(a) como cliente da {empresa} ({razao_social}). Para formalizar nossa relacao, preparamos os termos de prestacao de serviços. Acesse o link abaixo para visualizar e aceitar os termos.',
     sendWelcomeMessage: false,
     welcomeChannel: 'WHATSAPP',
-    welcomeMessage: 'Ola {nome}, seja bem-vindo(a) como cliente da {empresa} ({razao_social})! A partir de agora voce podera solicitar servicos tecnicos pela nossa plataforma Teknikos. Estamos a disposicao para atende-lo(a) com qualidade e agilidade. Para confirmar seu cadastro, responda com "Sim, confirmo".',
+    welcomeMessage: 'Ola {nome}, seja bem-vindo(a) como cliente da {empresa} ({razao_social})! A partir de agora voce podera solicitar serviços técnicos pela nossa plataforma Teknikos. Estamos a disposicao para atende-lo(a) com qualidade e agilidade. Para confirmar seu cadastro, responda com "Sim, confirmo".',
     welcomeWaitForReply: true,
     welcomeConfirmVia: 'WHATSAPP',
-    welcomeReplyMessage: 'Perfeito {nome}! Seu cadastro como cliente da {razao_social} esta confirmado. A partir de agora voce podera solicitar servicos tecnicos pela plataforma. Qualquer duvida entre em contato pelo {telefone}. Seja bem-vindo(a)!',
+    welcomeReplyMessage: 'Perfeito {nome}! Seu cadastro como cliente da {razao_social} esta confirmado. A partir de agora voce podera solicitar serviços técnicos pela plataforma. Qualquer duvida entre em contato pelo {telefone}. Seja bem-vindo(a)!',
     welcomeDeclineActions: ['NOTIFY_GESTOR'],
     welcomeDeclineMessage: 'Atencao: o cliente {nome} ({email}) recusou o cadastro. Resposta recebida: "{resposta}". O cadastro foi mantido como pendente.',
     welcomePositiveKeywords: ['sim', 'aceito', 'confirmo', 'ok', 'pode ser', 'quero', 'topo', 'bora'],
@@ -980,40 +980,40 @@ export const NOTIFY_VARS = [
 /* ── Labels de ações (PT-BR) ──────────────────────────────── */
 
 export const TECH_ACTION_LABELS: Record<string, { label: string; icon: string; hint: string }> = {
-  step:      { label: 'Registrar atividade',      icon: '⚙️', hint: 'Dispara quando o tecnico interage nesta etapa. Ele registra uma atividade com foto, nota e/ou GPS opcionais.' },
-  photo:     { label: 'Tirar fotos obrigatorias',  icon: '📸', hint: 'O tecnico so consegue avancar nesta etapa apos enviar a quantidade minima de fotos configurada.' },
-  note:      { label: 'Escrever observacao',       icon: '📝', hint: 'Habilita campo de texto livre para o tecnico registrar observacoes nesta etapa.' },
-  gps:       { label: 'Capturar localizacao GPS',  icon: '📍', hint: 'Captura automaticamente as coordenadas GPS do tecnico quando ele entra nesta etapa. Registrado no historico da OS.' },
-  checklist: { label: 'Preencher checklist',       icon: '☑️', hint: 'Lista de verificacao obrigatoria — o tecnico deve marcar todos os itens antes de concluir esta etapa.' },
-  checklistToolsPpe:     { label: 'Checklist: Ferramentas e EPI',     icon: '🔧', hint: 'Tecnico confirma ferramentas e equipamentos de protecao antes de iniciar. Itens vem do cadastro do servico.' },
-  checklistMaterials:    { label: 'Checklist: Materiais',             icon: '📦', hint: 'Tecnico confirma materiais necessarios para o servico. Itens vem do cadastro do servico.' },
-  checklistInitialCheck: { label: 'Checklist: Verificacao Inicial',   icon: '📋', hint: 'Verificacoes de seguranca e condicoes do local antes de iniciar o servico.' },
+  step:      { label: 'Registrar atividade',      icon: '⚙️', hint: 'Dispara quando o técnico interage nesta etapa. Ele registra uma atividade com foto, nota e/ou GPS opcionais.' },
+  photo:     { label: 'Tirar fotos obrigatorias',  icon: '📸', hint: 'O técnico so consegue avancar nesta etapa apos enviar a quantidade minima de fotos configurada.' },
+  note:      { label: 'Escrever observacao',       icon: '📝', hint: 'Habilita campo de texto livre para o técnico registrar observacoes nesta etapa.' },
+  gps:       { label: 'Capturar localizacao GPS',  icon: '📍', hint: 'Captura automáticamente as coordenadas GPS do técnico quando ele entra nesta etapa. Registrado no historico da OS.' },
+  checklist: { label: 'Preencher checklist',       icon: '☑️', hint: 'Lista de verificacao obrigatoria — o técnico deve marcar todos os itens antes de concluir esta etapa.' },
+  checklistToolsPpe:     { label: 'Checklist: Ferramentas e EPI',     icon: '🔧', hint: 'Técnico confirma ferramentas e equipamentos de protecao antes de iniciar. Itens vem do cadastro do serviço.' },
+  checklistMaterials:    { label: 'Checklist: Materiais',             icon: '📦', hint: 'Técnico confirma materiais necessários para o serviço. Itens vem do cadastro do serviço.' },
+  checklistInitialCheck: { label: 'Checklist: Verificacao Inicial',   icon: '📋', hint: 'Verificacoes de seguranca e condicoes do local antes de iniciar o serviço.' },
   checklistFinalCheck:   { label: 'Checklist: Verificacao Final',     icon: '✅', hint: 'Checklist de finalizacao — limpeza, testes, assinatura do cliente.' },
-  checklistCustom:       { label: 'Checklist: Personalizado',        icon: '📝', hint: 'Checklist personalizado — itens definidos no cadastro do servico para verificacoes especificas.' },
-  form:      { label: 'Preencher formulario',      icon: '📋', hint: 'Campos personalizados (texto, numero, selecao) que o tecnico preenche nesta etapa. Voce define os campos.' },
-  signature:         { label: 'Coletar assinatura',            icon: '✍️', hint: 'O tecnico coleta assinatura digital do cliente ou responsavel no local. Registrada com timestamp e GPS.' },
-  question:          { label: 'Responder pergunta',            icon: '❓', hint: 'Exibe uma pergunta com opcoes ao tecnico. Cada resposta pode disparar uma acao automatica (aceitar, redistribuir, notificar).' },
-  photoRequirements: { label: 'Fotos por momento',             icon: '📷', hint: 'Cada grupo aparece na posicao do link conforme o momento escolhido (antes, durante, depois). O tecnico ve cada grupo na hora certa.' },
-  materials:         { label: 'Registrar materiais utilizados', icon: '🔩', hint: 'O tecnico informa pecas e materiais gastos no servico. Quantidade e custo podem alimentar o lancamento financeiro.' },
+  checklistCustom:       { label: 'Checklist: Personalizado',        icon: '📝', hint: 'Checklist personalizado — itens definidos no cadastro do serviço para verificacoes especificas.' },
+  form:      { label: 'Preencher formulario',      icon: '📋', hint: 'Campos personalizados (texto, numero, selecao) que o técnico preenche nesta etapa. Voce define os campos.' },
+  signature:         { label: 'Coletar assinatura',            icon: '✍️', hint: 'O técnico coleta assinatura digital do cliente ou responsavel no local. Registrada com timestamp e GPS.' },
+  question:          { label: 'Responder pergunta',            icon: '❓', hint: 'Exibe uma pergunta com opcoes ao técnico. Cada resposta pode disparar uma acao automática (aceitar, redistribuir, notificar).' },
+  photoRequirements: { label: 'Fotos por momento',             icon: '📷', hint: 'Cada grupo aparece na posicao do link conforme o momento escolhido (antes, durante, depois). O técnico ve cada grupo na hora certa.' },
+  materials:         { label: 'Registrar materiais utilizados', icon: '🔩', hint: 'O técnico informa pecas e materiais gastos no serviço. Quantidade e custo podem alimentar o lancamento financeiro.' },
 };
 
 export const AUTO_ACTION_LABELS: Record<string, { label: string; icon: string; hint: string }> = {
-  notifyGestor:   { label: 'Notificar gestor',                 icon: '👔', hint: 'Dispara quando a OS entra nesta etapa. O gestor recebe aviso automatico pelo canal configurado.' },
-  notifyTecnico:  { label: 'Notificar tecnico',                icon: '👷', hint: 'Dispara quando a OS entra nesta etapa. O tecnico recebe a mensagem pelo canal configurado.' },
+  notifyGestor:   { label: 'Notificar gestor',                 icon: '👔', hint: 'Dispara quando a OS entra nesta etapa. O gestor recebe aviso automático pelo canal configurado.' },
+  notifyTécnico:  { label: 'Notificar técnico',                icon: '👷', hint: 'Dispara quando a OS entra nesta etapa. O técnico recebe a mensagem pelo canal configurado.' },
   notifyCliente:  { label: 'Notificar cliente',                icon: '👤', hint: 'Dispara quando a OS entra nesta etapa. O cliente da OS recebe a mensagem pelo canal configurado.' },
-  financialEntry: { label: 'Lancar financeiro',                icon: '💰', hint: 'Gera lancamento financeiro (a receber, a pagar, comissao) automaticamente quando a OS chega nesta etapa.' },
+  financialEntry: { label: 'Lancar financeiro',                icon: '💰', hint: 'Gera lancamento financeiro (a receber, a pagar, comissao) automáticamente quando a OS chega nesta etapa.' },
   alert:          { label: 'Enviar alerta',                    icon: '🔔', hint: 'Cria notificacao visual no painel do gestor. Util para chamar atencao em etapas criticas.' },
   webhook:        { label: 'Webhook externo',                  icon: '🔗', hint: 'Envia os dados da OS para outro sistema via URL quando a OS entra nesta etapa (integracao com ERP, BI, etc.).' },
-  assignTech:     { label: 'Atribuir tecnico automaticamente', icon: '🎯', hint: 'Atribui um tecnico automaticamente por avaliacao, proximidade ou disponibilidade, sem intervencao do operador.' },
-  duplicateOS:    { label: 'Duplicar OS',                      icon: '📑', hint: 'Cria uma copia da OS automaticamente quando ela chega nesta etapa. A copia herda os dados da original.' },
-  scheduleConfig:    { label: 'Regime de agenda',                 icon: '📅', hint: 'Muda o despacho: o operador escolhe tecnico + data/hora na agenda. A OS pula Aberta/Ofertada e nasce como Atribuida.' },
-  techReviewScreen:  { label: 'Revisao de tecnicos',              icon: '👁️', hint: 'Antes de disparar as mensagens, exibe tela para o operador conferir e editar a lista de tecnicos selecionados.' },
-  gestorApproval: { label: 'Aprovacao do gestor',              icon: '👔', hint: 'A OS fica retida em Concluida ate o gestor revisar e aprovar. Sem isso, a OS e aprovada automaticamente.' },
+  assignTech:     { label: 'Atribuir técnico automáticamente', icon: '🎯', hint: 'Atribui um técnico automáticamente por avaliacao, proximidade ou disponibilidade, sem intervencao do operador.' },
+  duplicateOS:    { label: 'Duplicar OS',                      icon: '📑', hint: 'Cria uma copia da OS automáticamente quando ela chega nesta etapa. A copia herda os dados da original.' },
+  scheduleConfig:    { label: 'Regime de agenda',                 icon: '📅', hint: 'Muda o despacho: o operador escolhe técnico + data/hora na agenda. A OS pula Aberta/Ofertada e nasce como Atribuida.' },
+  techReviewScreen:  { label: 'Revisao de técnicos',              icon: '👁️', hint: 'Antes de disparar as mensagens, exibe tela para o operador conferir e editar a lista de técnicos selecionados.' },
+  gestorApproval: { label: 'Aprovação do gestor',              icon: '👔', hint: 'A OS fica retida em Concluida ate o gestor revisar e aprovar. Sem isso, a OS e aprovada automáticamente.' },
 };
 
 export const TIME_CONTROL_LABELS: Record<string, { label: string; icon: string; hint: string }> = {
   waitFor:        { label: 'Aguardar evento',                icon: '⏸️', hint: 'Retém a OS nesta etapa ate um evento externo ocorrer ou o tempo limite expirar. Util para integracoes.' },
-  executionTimer: { label: 'Cronometro de execucao',         icon: '⏲️', hint: 'Mede o tempo real de execucao. Pausas (se ativas) sao descontadas automaticamente do tempo total.' },
+  executionTimer: { label: 'Cronometro de execucao',         icon: '⏲️', hint: 'Mede o tempo real de execucao. Pausas (se ativas) sao descontadas automáticamente do tempo total.' },
 };
 
 /* ── Factory ───────────────────────────────────────────────── */
@@ -1064,7 +1064,7 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
     },
     autoActions: {
       notifyGestor:   { enabled: false, channel: 'whatsapp', message: 'OS {titulo} entrou na etapa {status}. Cliente: {cliente}.' },
-      notifyTecnico:  { enabled: false, channel: 'whatsapp', message: 'Você foi atribuído à OS {titulo}. Cliente: {cliente}, Endereço: {endereco}.', includeLink: false },
+      notifyTécnico:  { enabled: false, channel: 'whatsapp', message: 'Você foi atribuído à OS {titulo}. Cliente: {cliente}, Endereço: {endereco}.', includeLink: false },
       notifyCliente:  { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, sua OS {titulo} foi atualizada para {status}.' },
       financialEntry: { enabled: false, entries: [] },
       alert:          { enabled: false, message: 'OS {titulo} mudou para {status}. Cliente: {cliente}.', severity: 'info' },
@@ -1075,7 +1075,7 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
         enabled: false,
         reviewChecklist: ['Verificar fotos do serviço', 'Conferir checklist do técnico', 'Revisar materiais utilizados'],
         onApprove: {
-          notifyTecnico: { enabled: true,  channel: 'whatsapp', message: '✅ Seu serviço "{titulo}" foi aprovado pelo gestor!' },
+          notifyTécnico: { enabled: true,  channel: 'whatsapp', message: '✅ Seu serviço "{titulo}" foi aprovado pelo gestor!' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Seu serviço "{titulo}" foi finalizado com sucesso. Obrigado!' },
         },
         onApproveWithReservations: {
@@ -1083,13 +1083,13 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
           requireNote: true,
           commissionAdjustment: { enabled: false, type: 'reduce_percent', value: 10 },
           flagOS: true,
-          notifyTecnico: { enabled: true,  channel: 'whatsapp', message: '⚠️ Serviço "{titulo}" aprovado com ressalvas: {ressalvas}. Atenção para os próximos atendimentos.' },
+          notifyTécnico: { enabled: true,  channel: 'whatsapp', message: '⚠️ Serviço "{titulo}" aprovado com ressalvas: {ressalvas}. Atenção para os próximos atendimentos.' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, seu serviço {titulo} foi aprovado com ressalvas: {ressalvas}.' },
         },
         onReject: {
           action: 'reopen_execution',
           requireReason: true,
-          notifyTecnico: { enabled: true,  channel: 'whatsapp', message: '❌ Serviço "{titulo}" reprovado. Motivo: {motivo_rejeicao}. Retorne ao local para corrigir.' },
+          notifyTécnico: { enabled: true,  channel: 'whatsapp', message: '❌ Serviço "{titulo}" reprovado. Motivo: {motivo_rejeicao}. Retorne ao local para corrigir.' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, houve um problema com seu serviço {titulo}. Entraremos em contato.' },
         },
       },
@@ -1212,7 +1212,7 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
         notifyTechnician: {
           enabled: true,
           channel: 'whatsapp',
-          message: 'Ola {nome}, voce tem um servico agendado para {data_agendamento} — {titulo} ({cliente}). Endereco: {endereco}',
+          message: 'Ola {nome}, voce tem um serviço agendado para {data_agendamento} — {titulo} ({cliente}). Endereço: {endereco}',
           minutesBefore: 30,
         },
       },
@@ -1230,12 +1230,12 @@ function createEmptyStage(status: string, label: string, icon: string): StageCon
           onPause: {
             gestor:  { enabled: true,  channel: 'whatsapp', message: 'O técnico {tecnico} pausou a OS "{titulo}". Motivo: {motivo_pausa}. Pausas: {pausas}.' },
             cliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, seu serviço {titulo} foi pausado temporariamente. Motivo: {motivo_pausa}.' },
-            tecnico: { enabled: false, channel: 'whatsapp', message: 'Pausa registrada na OS {titulo}. Motivo: {motivo_pausa}. Tempo pausado: {tempo_pausado}.' },
+            técnico: { enabled: false, channel: 'whatsapp', message: 'Pausa registrada na OS {titulo}. Motivo: {motivo_pausa}. Tempo pausado: {tempo_pausado}.' },
           },
           onResume: {
             gestor:  { enabled: false, channel: 'whatsapp', message: 'O técnico {tecnico} retomou a OS "{titulo}". Tempo pausado: {tempo_pausado}.' },
             cliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, seu serviço {titulo} foi retomado.' },
-            tecnico: { enabled: false, channel: 'whatsapp', message: 'OS {titulo} retomada. Pausado por: {tempo_pausado}.' },
+            técnico: { enabled: false, channel: 'whatsapp', message: 'OS {titulo} retomada. Pausado por: {tempo_pausado}.' },
           },
         },
       },
@@ -1284,7 +1284,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
       // ATRIBUIDA
       const atrib = c.stages.find(s => s.status === 'ATRIBUIDA')!;
       atrib.enabled = true;
-      atrib.autoActions.notifyTecnico = { enabled: true, channel: 'whatsapp', message: 'Você foi atribuído à OS {titulo}. Endereço: {endereco}', includeLink: true };
+      atrib.autoActions.notifyTécnico = { enabled: true, channel: 'whatsapp', message: 'Você foi atribuído à OS {titulo}. Endereço: {endereco}', includeLink: true };
       // A_CAMINHO
       const caminho = c.stages.find(s => s.status === 'A_CAMINHO')!;
       caminho.enabled = true;
@@ -1314,12 +1314,12 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
           onPause: {
             gestor:  { enabled: true,  channel: 'whatsapp', message: 'O técnico {tecnico} pausou a OS "{titulo}". Motivo: {motivo_pausa}. Pausas: {pausas}.' },
             cliente: { enabled: false, channel: 'whatsapp',      message: 'Olá {cliente}, sua instalação {titulo} foi pausada. Motivo: {motivo_pausa}.' },
-            tecnico: { enabled: false, channel: 'whatsapp',     message: 'Pausa registrada na OS {titulo}. Motivo: {motivo_pausa}. Tempo pausado: {tempo_pausado}.' },
+            técnico: { enabled: false, channel: 'whatsapp',     message: 'Pausa registrada na OS {titulo}. Motivo: {motivo_pausa}. Tempo pausado: {tempo_pausado}.' },
           },
           onResume: {
             gestor:  { enabled: true,  channel: 'whatsapp', message: 'O técnico {tecnico} retomou a OS "{titulo}". Tempo pausado: {tempo_pausado}.' },
             cliente: { enabled: false, channel: 'whatsapp',      message: 'Olá {cliente}, sua instalação {titulo} foi retomada.' },
-            tecnico: { enabled: false, channel: 'whatsapp',     message: 'OS {titulo} retomada. Pausado por: {tempo_pausado}.' },
+            técnico: { enabled: false, channel: 'whatsapp',     message: 'OS {titulo} retomada. Pausado por: {tempo_pausado}.' },
           },
         },
       };
@@ -1336,7 +1336,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
         enabled: true,
         reviewChecklist: ['Verificar fotos antes/depois', 'Conferir checklist de instalação', 'Revisar materiais utilizados', 'Verificar assinatura do cliente'],
         onApprove: {
-          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '✅ Instalação "{titulo}" aprovada! Comissão: {comissao}' },
+          notifyTécnico: { enabled: true, channel: 'whatsapp', message: '✅ Instalação "{titulo}" aprovada! Comissão: {comissao}' },
           notifyCliente: { enabled: true, channel: 'whatsapp', message: 'Sua instalação "{titulo}" foi concluída e aprovada. Obrigado por escolher {empresa}!' },
         },
         onApproveWithReservations: {
@@ -1344,13 +1344,13 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
           requireNote: true,
           commissionAdjustment: { enabled: true, type: 'reduce_percent', value: 10 },
           flagOS: true,
-          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '⚠️ Instalação "{titulo}" aprovada com ressalvas: {ressalvas}. Comissão reduzida em 10%.' },
+          notifyTécnico: { enabled: true, channel: 'whatsapp', message: '⚠️ Instalação "{titulo}" aprovada com ressalvas: {ressalvas}. Comissão reduzida em 10%.' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, sua instalação {titulo} foi aprovada com ressalvas: {ressalvas}.' },
         },
         onReject: {
           action: 'reopen_execution',
           requireReason: true,
-          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '❌ Instalação "{titulo}" reprovada. Motivo: {motivo_rejeicao}. Retorne ao local para corrigir.' },
+          notifyTécnico: { enabled: true, channel: 'whatsapp', message: '❌ Instalação "{titulo}" reprovada. Motivo: {motivo_rejeicao}. Retorne ao local para corrigir.' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, houve um problema com sua instalação {titulo}. Entraremos em contato.' },
         },
       };
@@ -1373,7 +1373,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
       // ATRIBUIDA
       const atrib = c.stages.find(s => s.status === 'ATRIBUIDA')!;
       atrib.enabled = true;
-      atrib.autoActions.notifyTecnico = { enabled: true, channel: 'whatsapp', message: 'Nova manutenção: {titulo}. Local: {endereco}', includeLink: true };
+      atrib.autoActions.notifyTécnico = { enabled: true, channel: 'whatsapp', message: 'Nova manutenção: {titulo}. Local: {endereco}', includeLink: true };
       // A_CAMINHO
       const caminho = c.stages.find(s => s.status === 'A_CAMINHO')!;
       caminho.enabled = true;
@@ -1396,12 +1396,12 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
           onPause: {
             gestor:  { enabled: true,  channel: 'whatsapp', message: 'Técnico pausou manutenção "{titulo}". Motivo: {motivo_pausa}. Pausas: {pausas}.' },
             cliente: { enabled: false, channel: 'whatsapp',      message: 'Olá {cliente}, a manutenção {titulo} foi pausada. Motivo: {motivo_pausa}.' },
-            tecnico: { enabled: false, channel: 'whatsapp',     message: 'Pausa registrada na manutenção {titulo}. Motivo: {motivo_pausa}.' },
+            técnico: { enabled: false, channel: 'whatsapp',     message: 'Pausa registrada na manutenção {titulo}. Motivo: {motivo_pausa}.' },
           },
           onResume: {
             gestor:  { enabled: false, channel: 'whatsapp', message: 'Técnico retomou manutenção "{titulo}". Pausado por: {tempo_pausado}.' },
             cliente: { enabled: false, channel: 'whatsapp',      message: 'Olá {cliente}, a manutenção {titulo} foi retomada.' },
-            tecnico: { enabled: false, channel: 'whatsapp',     message: 'Manutenção {titulo} retomada. Pausado por: {tempo_pausado}.' },
+            técnico: { enabled: false, channel: 'whatsapp',     message: 'Manutenção {titulo} retomada. Pausado por: {tempo_pausado}.' },
           },
         },
       };
@@ -1417,7 +1417,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
         enabled: true,
         reviewChecklist: ['Verificar fotos do problema (antes)', 'Verificar foto do reparo (depois)', 'Conferir diagnóstico e materiais', 'Revisar custos'],
         onApprove: {
-          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '✅ Manutenção "{titulo}" aprovada!' },
+          notifyTécnico: { enabled: true, channel: 'whatsapp', message: '✅ Manutenção "{titulo}" aprovada!' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, a manutenção {titulo} foi concluída com sucesso.' },
         },
         onApproveWithReservations: {
@@ -1425,13 +1425,13 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
           requireNote: true,
           commissionAdjustment: { enabled: true, type: 'reduce_percent', value: 15 },
           flagOS: true,
-          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '⚠️ Manutenção "{titulo}" aprovada com ressalvas: {ressalvas}. Comissão reduzida em 15%.' },
+          notifyTécnico: { enabled: true, channel: 'whatsapp', message: '⚠️ Manutenção "{titulo}" aprovada com ressalvas: {ressalvas}. Comissão reduzida em 15%.' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, a manutenção {titulo} foi aprovada com ressalvas: {ressalvas}.' },
         },
         onReject: {
           action: 'reopen_execution',
           requireReason: true,
-          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '❌ Manutenção "{titulo}" reprovada. Motivo: {motivo_rejeicao}.' },
+          notifyTécnico: { enabled: true, channel: 'whatsapp', message: '❌ Manutenção "{titulo}" reprovada. Motivo: {motivo_rejeicao}.' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, houve um problema com a manutenção {titulo}. Entraremos em contato.' },
         },
       };
@@ -1455,7 +1455,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
       // ATRIBUIDA
       const atrib = c.stages.find(s => s.status === 'ATRIBUIDA')!;
       atrib.enabled = true;
-      atrib.autoActions.notifyTecnico = { enabled: true, channel: 'whatsapp', message: 'Vistoria agendada: {titulo}. Endereço: {endereco}', includeLink: true };
+      atrib.autoActions.notifyTécnico = { enabled: true, channel: 'whatsapp', message: 'Vistoria agendada: {titulo}. Endereço: {endereco}', includeLink: true };
       // A_CAMINHO
       const caminho = c.stages.find(s => s.status === 'A_CAMINHO')!;
       caminho.enabled = true;
@@ -1501,7 +1501,7 @@ export const WORKFLOW_PRESETS: WorkflowPreset[] = [
       // ATRIBUIDA
       const atrib = c.stages.find(s => s.status === 'ATRIBUIDA')!;
       atrib.enabled = true;
-      atrib.autoActions.notifyTecnico = { enabled: true, channel: 'whatsapp', message: '🚨 URGENTE: {titulo}. Comparecer imediatamente em {endereco}', includeLink: true };
+      atrib.autoActions.notifyTécnico = { enabled: true, channel: 'whatsapp', message: '🚨 URGENTE: {titulo}. Comparecer imediatamente em {endereco}', includeLink: true };
       atrib.timeControl.waitFor = { enabled: true, timeoutMinutes: 15, triggerConditions: ['os_assigned'], targetStatus: '', timeoutAction: 'continue' };
       // EM_EXECUCAO
       const exec = c.stages.find(s => s.status === 'EM_EXECUCAO')!;
@@ -1725,10 +1725,10 @@ export function compileToV2(config: WorkflowFormConfig): { version: 2; blocks: V
           next: null,
         });
       }
-      if (stage.autoActions.notifyTecnico.enabled) {
+      if (stage.autoActions.notifyTécnico.enabled) {
         stageBlocks.push({
           id: genId('notify'), type: 'NOTIFY', name: 'Notificar técnico', icon: '👷',
-          config: { recipients: [{ type: 'TECNICO', enabled: true, channel: stage.autoActions.notifyTecnico.channel, message: stage.autoActions.notifyTecnico.message, includeLink: stage.autoActions.notifyTecnico.includeLink }] },
+          config: { recipients: [{ type: 'TECNICO', enabled: true, channel: stage.autoActions.notifyTécnico.channel, message: stage.autoActions.notifyTécnico.message, includeLink: stage.autoActions.notifyTécnico.includeLink }] },
           next: null,
         });
       }
@@ -2223,7 +2223,7 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
             // Also populate rich messageDispatch
             stage.autoActions.messageDispatch.toGestor = { enabled: true, channel: r.channel || 'whatsapp', message: r.message || '' };
           } else if (r.type === 'TECNICO') {
-            stage.autoActions.notifyTecnico = { enabled: true, channel: r.channel || 'whatsapp', message: r.message || '', includeLink: !!r.includeLink };
+            stage.autoActions.notifyTécnico = { enabled: true, channel: r.channel || 'whatsapp', message: r.message || '', includeLink: !!r.includeLink };
             // Also populate rich messageDispatch with link config
             stage.autoActions.messageDispatch.toTechnicians.enabled = true;
             stage.autoActions.messageDispatch.toTechnicians.channel = r.channel || 'whatsapp';
@@ -2425,7 +2425,7 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
         notifyTechnician: cfg.notifyTechnician || {
           enabled: true,
           channel: 'whatsapp',
-          message: 'Ola {nome}, voce tem um servico agendado para {data_agendamento} — {titulo} ({cliente}). Endereco: {endereco}',
+          message: 'Ola {nome}, voce tem um serviço agendado para {data_agendamento} — {titulo} ({cliente}). Endereço: {endereco}',
           minutesBefore: 30,
         },
       };
@@ -2464,12 +2464,12 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
         onPause: {
           gestor:  { enabled: cfg.notifyGestorOnPause ?? true, channel: 'whatsapp', message: 'O técnico {tecnico} pausou a OS "{titulo}". Motivo: {motivo_pausa}. Pausas: {pausas}.' },
           cliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, seu serviço {titulo} foi pausado temporariamente. Motivo: {motivo_pausa}.' },
-          tecnico: { enabled: false, channel: 'whatsapp', message: 'Pausa registrada na OS {titulo}. Motivo: {motivo_pausa}. Tempo pausado: {tempo_pausado}.' },
+          técnico: { enabled: false, channel: 'whatsapp', message: 'Pausa registrada na OS {titulo}. Motivo: {motivo_pausa}. Tempo pausado: {tempo_pausado}.' },
         },
         onResume: {
           gestor:  { enabled: cfg.notifyGestorOnResume ?? false, channel: 'whatsapp', message: 'O técnico {tecnico} retomou a OS "{titulo}". Tempo pausado: {tempo_pausado}.' },
           cliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, seu serviço {titulo} foi retomado.' },
-          tecnico: { enabled: false, channel: 'whatsapp', message: 'OS {titulo} retomada. Pausado por: {tempo_pausado}.' },
+          técnico: { enabled: false, channel: 'whatsapp', message: 'OS {titulo} retomada. Pausado por: {tempo_pausado}.' },
         },
       };
       stage.timeControl.pauseSystem = {
@@ -2501,7 +2501,7 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
         enabled: true,
         reviewChecklist: cfg.reviewChecklist || [],
         onApprove: cfg.onApprove || {
-          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '✅ Seu serviço "{titulo}" foi aprovado pelo gestor!' },
+          notifyTécnico: { enabled: true, channel: 'whatsapp', message: '✅ Seu serviço "{titulo}" foi aprovado pelo gestor!' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, seu serviço {titulo} foi finalizado com sucesso. Obrigado!' },
         },
         onApproveWithReservations: cfg.onApproveWithReservations || {
@@ -2509,13 +2509,13 @@ function mapBlockToStage(block: any, stage: StageConfig, allStages?: StageConfig
           requireNote: true,
           commissionAdjustment: { enabled: false, type: 'reduce_percent', value: 10 },
           flagOS: true,
-          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '⚠️ Serviço "{titulo}" aprovado com ressalvas: {ressalvas}. Atenção para os próximos atendimentos.' },
+          notifyTécnico: { enabled: true, channel: 'whatsapp', message: '⚠️ Serviço "{titulo}" aprovado com ressalvas: {ressalvas}. Atenção para os próximos atendimentos.' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, seu serviço {titulo} foi aprovado com ressalvas: {ressalvas}.' },
         },
         onReject: cfg.onReject || {
           action: 'reopen_execution',
           requireReason: true,
-          notifyTecnico: { enabled: true, channel: 'whatsapp', message: '❌ Serviço "{titulo}" reprovado. Motivo: {motivo_rejeicao}. Retorne ao local para corrigir.' },
+          notifyTécnico: { enabled: true, channel: 'whatsapp', message: '❌ Serviço "{titulo}" reprovado. Motivo: {motivo_rejeicao}. Retorne ao local para corrigir.' },
           notifyCliente: { enabled: false, channel: 'whatsapp', message: 'Olá {cliente}, houve um problema com seu serviço {titulo}. Entraremos em contato.' },
         },
       };

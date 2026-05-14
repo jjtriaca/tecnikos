@@ -15,7 +15,7 @@ interface ConfirmModalProps {
   /** Mostra textarea obrigatoria para motivo (ex: cancelamento) */
   reasonRequired?: boolean;
   reasonPlaceholder?: string;
-  /** Numero minimo de caracteres para o motivo (default: 3) */
+  /** Número minimo de caracteres para o motivo (default: 3) */
   reasonMinLength?: number;
   /** Callback alternativo que recebe o motivo digitado */
   onConfirmWithReason?: (reason: string) => void;

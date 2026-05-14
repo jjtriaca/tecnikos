@@ -83,7 +83,7 @@ export default function PoolCatalogPage() {
   }
 
   async function remove(id: string) {
-    if (!confirm("Remover este item do catalogo Piscina?\n(Nao remove o produto/servico do cadastro principal.)")) return;
+    if (!confirm("Remover este item do catalogo Piscina?\n(Nao remove o produto/serviço do cadastro principal.)")) return;
     try {
       await api.del(`/pool-catalog-config/${id}`);
       toast("Removido", "success");
@@ -104,10 +104,10 @@ export default function PoolCatalogPage() {
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <Link href="/settings" className="text-xs text-slate-500 hover:text-slate-700">← Configuracoes</Link>
+          <Link href="/settings" className="text-xs text-slate-500 hover:text-slate-700">← Configurações</Link>
           <h1 className="text-2xl font-bold text-slate-900">Catalogo Piscina</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Vincula produtos e servicos do cadastro principal a secoes de piscina, com formulas de calculo automatico de quantidade.
+            Vincula produtos e serviços do cadastro principal a secoes de piscina, com formulas de calculo automático de quantidade.
           </p>
         </div>
         <button onClick={() => { setEditing(null); setShowAdd(true); }}
@@ -149,7 +149,7 @@ export default function PoolCatalogPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-xs text-slate-500">
-                    <th className="text-left px-4 py-2">Item (Produto/Servico)</th>
+                    <th className="text-left px-4 py-2">Item (Produto/Serviço)</th>
                     <th className="text-left px-4 py-2 w-44">Formula</th>
                     <th className="text-right px-4 py-2 w-32">Preco</th>
                     <th className="text-center px-4 py-2 w-20">Ativo</th>
@@ -168,7 +168,7 @@ export default function PoolCatalogPage() {
                         <td className="px-4 py-2">
                           <div className="font-medium text-slate-900">{itemName}</div>
                           <div className="text-xs text-slate-400">
-                            {c.product ? "Produto" : "Servico"} • {itemUnit}
+                            {c.product ? "Produto" : "Serviço"} • {itemUnit}
                             {c.poolCondition && (c.poolCondition as any)?.requires && (
                               <span className="ml-2 text-orange-600">requer: {((c.poolCondition as any).requires || []).join(", ")}</span>
                             )}
@@ -301,12 +301,12 @@ function CatalogForm({ editing, products, services, onClose, onSubmit }: {
               </button>
               <button type="button" onClick={() => setKind("service")}
                 className={`px-3 py-1.5 rounded text-sm ${kind === "service" ? "bg-cyan-600 text-white" : "bg-slate-100 text-slate-700"}`}>
-                Servico
+                Serviço
               </button>
             </div>
           )}
           <div className="relative">
-            <label className="block text-xs text-slate-600 mb-1">{kind === "product" ? "Produto *" : "Servico *"}</label>
+            <label className="block text-xs text-slate-600 mb-1">{kind === "product" ? "Produto *" : "Serviço *"}</label>
             <input
               type="text"
               value={search}
@@ -320,7 +320,7 @@ function CatalogForm({ editing, products, services, onClose, onSubmit }: {
               onBlur={() => setTimeout(() => setShowResults(false), 200)}
               required={!productId && !serviceId}
               disabled={!!editing}
-              placeholder={`Buscar ${kind === "product" ? "produto" : "servico"} por nome ou codigo...`}
+              placeholder={`Buscar ${kind === "product" ? "produto" : "serviço"} por nome ou codigo...`}
               className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-cyan-500 focus:ring-1 focus:ring-cyan-200 outline-none disabled:bg-slate-100"
             />
             {showResults && !editing && filtered.length > 0 && (
@@ -351,7 +351,7 @@ function CatalogForm({ editing, products, services, onClose, onSubmit }: {
             )}
             {showResults && !editing && search.length >= 1 && filtered.length === 0 && (
               <div className="absolute left-0 right-0 z-30 mt-1 rounded-lg border border-slate-200 bg-white shadow-lg p-3 text-sm text-slate-400">
-                Nenhum {kind === "product" ? "produto" : "servico"} encontrado
+                Nenhum {kind === "product" ? "produto" : "serviço"} encontrado
               </div>
             )}
           </div>

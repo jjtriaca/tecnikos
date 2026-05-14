@@ -29,7 +29,7 @@ interface Props {
  * Autocomplete de parceiros com criar-na-hora.
  * - Digite >= 2 chars: busca no /partners
  * - Sem resultado: oferece "+ Criar como novo: [nome]" que abre mini-form
- * - Selecao: chama onChange com o partner completo
+ * - Seleção: chama onChange com o partner completo
  *
  * Cria como CLIENTE PF por padrao se nao especificar partnerType.
  */
@@ -232,7 +232,7 @@ function CreatePartnerInlineModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) { toast("Nome obrigatorio", "error"); return; }
+    if (!name.trim()) { toast("Nome obrigatório", "error"); return; }
     setSaving(true);
     try {
       const payload: any = {

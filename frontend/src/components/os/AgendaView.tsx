@@ -209,7 +209,7 @@ export default function AgendaView() {
         {/* Filters */}
         <div className="flex items-center gap-3 mt-3 pt-3 border-t border-slate-100">
           <label className="flex items-center gap-1.5">
-            <span className="text-xs text-slate-500">Tecnico:</span>
+            <span className="text-xs text-slate-500">Técnico:</span>
             <select value={filterTechId} onChange={(e) => setFilterTechId(e.target.value)}
               className="text-sm rounded-lg border border-slate-300 px-2 py-1 bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none">
               <option value="">Todos</option>
@@ -307,7 +307,7 @@ export default function AgendaView() {
                               key={order.id}
                               href={`/orders/${order.id}`}
                               className={`${colors} border rounded-lg px-2 py-1.5 block hover:shadow-md transition-shadow cursor-pointer`}
-                              title={`${order.code} — ${order.title}\n${formatTime(start)}${order.estimatedDurationMinutes ? ` (${order.estimatedDurationMinutes}min)` : ""}\nTecnico: ${order.assignedPartner?.name || "—"}\nCliente: ${order.clientPartner?.name || "—"}\n${order.addressText || ""}`}
+                              title={`${order.code} — ${order.title}\n${formatTime(start)}${order.estimatedDurationMinutes ? ` (${order.estimatedDurationMinutes}min)` : ""}\nTécnico: ${order.assignedPartner?.name || "—"}\nCliente: ${order.clientPartner?.name || "—"}\n${order.addressText || ""}`}
                             >
                               {/* Time + Duration */}
                               <div className="flex items-center gap-1 text-[11px]">

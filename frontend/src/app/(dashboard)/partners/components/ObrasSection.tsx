@@ -283,7 +283,7 @@ export default function ObrasSection({ partnerId }: Props) {
               </div>
             </div>
 
-            {/* CEP + Logradouro + Numero */}
+            {/* CEP + Logradouro + Número */}
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div>
                 <label className="text-xs font-medium text-slate-600">CEP</label>
@@ -313,7 +313,7 @@ export default function ObrasSection({ partnerId }: Props) {
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-600">Numero *</label>
+                <label className="text-xs font-medium text-slate-600">Número *</label>
                 <input
                   value={form.addressNumber}
                   onChange={(e) => setForm((f) => ({ ...f, addressNumber: e.target.value }))}

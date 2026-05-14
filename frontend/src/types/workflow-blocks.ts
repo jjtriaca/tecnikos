@@ -213,7 +213,7 @@ export const BLOCK_CATALOG: CatalogEntry[] = [
   { type: 'PROXIMITY_TRIGGER', name: 'Proximidade (legado)', icon: '📡', description: 'Legado — use GPS em modo continuo. Rastreia GPS e dispara eventos ao entrar no raio do destino', category: 'ACTIONS', color: 'bg-rose-50', borderColor: 'border-rose-300', iconBg: 'bg-rose-500', textColor: 'text-rose-900' },
 
   // Communication
-  { type: 'NOTIFY', name: 'Notificar', icon: '💬', description: 'Enviar WhatsApp ou Email automatico', category: 'COMMUNICATION', color: 'bg-emerald-50', borderColor: 'border-emerald-300', iconBg: 'bg-emerald-500', textColor: 'text-emerald-900' },
+  { type: 'NOTIFY', name: 'Notificar', icon: '💬', description: 'Enviar WhatsApp ou Email automático', category: 'COMMUNICATION', color: 'bg-emerald-50', borderColor: 'border-emerald-300', iconBg: 'bg-emerald-500', textColor: 'text-emerald-900' },
   { type: 'APPROVAL', name: 'Aprovação', icon: '🔒', description: 'Trava fluxo até gestor aprovar', category: 'COMMUNICATION', color: 'bg-emerald-50', borderColor: 'border-emerald-300', iconBg: 'bg-emerald-500', textColor: 'text-emerald-900' },
   { type: 'ALERT', name: 'Alerta', icon: '🔔', description: 'Alerta para o gestor/dashboard', category: 'COMMUNICATION', color: 'bg-emerald-50', borderColor: 'border-emerald-300', iconBg: 'bg-emerald-500', textColor: 'text-emerald-900' },
 
@@ -273,31 +273,31 @@ export function createBlock(type: BlockType, overrides?: Partial<Block>): Block 
 
 export function getDefaultConfig(type: BlockType): Record<string, any> {
   switch (type) {
-    case 'STEP': return { requirePhoto: false, requireNote: false, requireGps: false, description: 'Executar o servico conforme especificado na ordem', confirmButton: { label: 'Confirmar etapa', color: 'blue', icon: '✅' } };
+    case 'STEP': return { requirePhoto: false, requireNote: false, requireGps: false, description: 'Executar o serviço conforme especificado na ordem', confirmButton: { label: 'Confirmar etapa', color: 'blue', icon: '✅' } };
     case 'PHOTO': return { minPhotos: 1, label: 'Registrar foto do local ou equipamento', photoType: 'GERAL', confirmButton: { label: 'Enviar fotos', color: 'green', icon: '📸' } };
-    case 'NOTE': return { placeholder: 'Descreva as condicoes encontradas, servicos realizados e observacoes relevantes...', required: true, confirmButton: { label: 'Enviar', color: 'blue', icon: '📝' } };
+    case 'NOTE': return { placeholder: 'Descreva as condicoes encontradas, serviços realizados e observacoes relevantes...', required: true, confirmButton: { label: 'Enviar', color: 'blue', icon: '📝' } };
     case 'GPS': return { highAccuracy: true, trackingMode: 'single', radiusMeters: 50, autoAdvanceOnProximity: true };
     case 'PROXIMITY_TRIGGER': return {
       radiusMeters: 50,
       trackingIntervalSeconds: 30,
       requireHighAccuracy: true,
       onEnterRadius: {
-        notifyCliente: { enabled: false, channel: 'WHATSAPP', message: 'Ola {cliente}, o tecnico {tecnico} esta chegando ao local! Previsao de chegada em poucos minutos.' },
-        notifyGestor: { enabled: false, channel: 'WHATSAPP', message: 'Tecnico {tecnico} esta proximo do local da OS {codigo} - {titulo}.' },
+        notifyCliente: { enabled: false, channel: 'WHATSAPP', message: 'Ola {cliente}, o técnico {tecnico} esta chegando ao local! Previsao de chegada em poucos minutos.' },
+        notifyGestor: { enabled: false, channel: 'WHATSAPP', message: 'Técnico {tecnico} esta proximo do local da OS {codigo} - {titulo}.' },
         autoChangeStatus: '',
-        alert: { enabled: false, message: 'Tecnico {tecnico} chegou na regiao da OS {codigo}' },
+        alert: { enabled: false, message: 'Técnico {tecnico} chegou na regiao da OS {codigo}' },
       },
     };
     case 'QUESTION': return { question: 'O equipamento esta funcionando corretamente?', options: ['Sim', 'Nao'], confirmButton: { label: 'Confirmar', color: 'blue', icon: '✅' } };
     case 'CHECKLIST': return { items: ['Verificar condicoes do local', 'Inspecionar equipamento', 'Testar funcionamento'], confirmButton: { label: 'Confirmar checklist', color: 'green', icon: '☑️' } };
-    case 'SIGNATURE': return { label: 'Assinatura do cliente confirmando a execucao do servico', confirmButton: { label: 'Enviar assinatura', color: 'blue', icon: '✍️' } };
+    case 'SIGNATURE': return { label: 'Assinatura do cliente confirmando a execucao do serviço', confirmButton: { label: 'Enviar assinatura', color: 'blue', icon: '✍️' } };
     case 'FORM': return { fields: [{ name: 'Condicao do equipamento', type: 'select', required: true, options: ['Bom', 'Regular', 'Ruim'] }, { name: 'Observacoes', type: 'text', required: false }], confirmButton: { label: 'Enviar formulario', color: 'green', icon: '📋' } };
-    case 'MATERIALS': return { label: 'Liste os materiais necessarios para o servico', notePlaceholder: 'Descreva o diagnostico e observacoes...', noteRequired: false, minItems: 1, confirmButton: { label: 'Enviar materiais', color: 'green', icon: '📦' } };
-    case 'CONDITION': return { conditionType: 'question', question: 'O servico foi concluido com sucesso?' };
+    case 'MATERIALS': return { label: 'Liste os materiais necessarios para o serviço', notePlaceholder: 'Descreva o diagnostico e observacoes...', noteRequired: false, minItems: 1, confirmButton: { label: 'Enviar materiais', color: 'green', icon: '📦' } };
+    case 'CONDITION': return { conditionType: 'question', question: 'O serviço foi concluído com sucesso?' };
     case 'ACTION_BUTTONS': return { title: '', buttons: [{ id: 'btn_0', label: 'Confirmar', color: 'green', icon: '✅' }] };
-    case 'NOTIFY': return { recipients: [{ type: 'CLIENTE', enabled: true, channel: 'WHATSAPP', message: 'Ola {nome}, informamos que o servico {titulo} foi concluido com sucesso pelo tecnico {tecnico}. A {razao_social} agradece pela preferencia! Qualquer duvida, entre em contato.' }] };
-    case 'APPROVAL': return { approverRole: 'ADMIN', message: 'Servico finalizado aguardando aprovacao do gestor para encerramento da OS.' };
-    case 'ALERT': return { message: 'Atencao: verificar pendencia na ordem de servico {titulo}.', severity: 'warning' };
+    case 'NOTIFY': return { recipients: [{ type: 'CLIENTE', enabled: true, channel: 'WHATSAPP', message: 'Ola {nome}, informamos que o serviço {titulo} foi concluído com sucesso pelo técnico {tecnico}. A {razao_social} agradece pela preferencia! Qualquer duvida, entre em contato.' }] };
+    case 'APPROVAL': return { approverRole: 'ADMIN', message: 'Serviço finalizado aguardando aprovação do gestor para encerramento da OS.' };
+    case 'ALERT': return { message: 'Atencao: verificar pendencia na ordem de serviço {titulo}.', severity: 'warning' };
     case 'DELAY': return { duration: 15, unit: 'minutes', minutes: 15 };
     case 'SLA': return { maxMinutes: 240, alertOnExceed: true };
     case 'STATUS': return { targetStatus: 'EM_EXECUCAO' };

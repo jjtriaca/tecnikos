@@ -161,7 +161,7 @@ export default function LivroEntradasPage() {
                 <tr className="text-left text-slate-500 border-b border-slate-200 bg-slate-50">
                   <th className="px-4 py-3 font-medium">#</th>
                   <th className="px-4 py-3 font-medium">Data</th>
-                  <th className="px-4 py-3 font-medium">Numero</th>
+                  <th className="px-4 py-3 font-medium">Número</th>
                   <th className="px-4 py-3 font-medium">Emitente</th>
                   <th className="px-4 py-3 font-medium">CNPJ</th>
                   <th className="px-4 py-3 font-medium">CFOP</th>

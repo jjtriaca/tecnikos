@@ -171,10 +171,10 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
   const [tomadorRazaoSocial, setTomadorRazaoSocial] = useState("");
   const [tomadorEmail, setTomadorEmail] = useState("");
   const [tomadorLogradouro, setTomadorLogradouro] = useState("");
-  const [tomadorNumero, setTomadorNumero] = useState("");
+  const [tomadorNúmero, setTomadorNúmero] = useState("");
   const [tomadorComplemento, setTomadorComplemento] = useState("");
   const [tomadorBairro, setTomadorBairro] = useState("");
-  const [tomadorCodigoMunicipio, setTomadorCodigoMunicipio] = useState("");
+  const [tomadorCódigoMunicipio, setTomadorCódigoMunicipio] = useState("");
   const [tomadorUf, setTomadorUf] = useState("");
   const [tomadorCep, setTomadorCep] = useState("");
   const [tomadorCaepf, setTomadorCaepf] = useState("");
@@ -257,10 +257,10 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
       setTomadorRazaoSocial(data.tomador.razaoSocial);
       setTomadorEmail(data.tomador.email);
       setTomadorLogradouro(data.tomador.logradouro);
-      setTomadorNumero(data.tomador.numero);
+      setTomadorNúmero(data.tomador.numero);
       setTomadorComplemento(data.tomador.complemento);
       setTomadorBairro(data.tomador.bairro);
-      setTomadorCodigoMunicipio(data.tomador.codigoMunicipio);
+      setTomadorCódigoMunicipio(data.tomador.codigoMunicipio);
       setTomadorUf(data.tomador.uf);
       setTomadorCep(data.tomador.cep);
       setTomadorCaepf(data.tomador.caepf || "");
@@ -404,13 +404,13 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
   // ═══════════════════════════════════════════
   async function handleEmit() {
     if (!preview) return;
-    if (!tomadorCnpjCpf) { toast("CPF/CNPJ do tomador e obrigatorio.", "error"); return; }
-    if (!discriminacao) { toast("Discriminacao do servico e obrigatoria.", "error"); return; }
-    if (!tomadorLogradouro) { toast("Endereco do tomador e obrigatorio.", "error"); return; }
-    if (!tomadorBairro) { toast("Bairro do tomador e obrigatorio.", "error"); return; }
+    if (!tomadorCnpjCpf) { toast("CPF/CNPJ do tomador e obrigatório.", "error"); return; }
+    if (!discriminacao) { toast("Discriminacao do serviço e obrigatoria.", "error"); return; }
+    if (!tomadorLogradouro) { toast("Endereço do tomador e obrigatório.", "error"); return; }
+    if (!tomadorBairro) { toast("Bairro do tomador e obrigatório.", "error"); return; }
     if (!tomadorUf) { toast("UF do tomador e obrigatoria.", "error"); return; }
-    if (!tomadorCep) { toast("CEP do tomador e obrigatorio.", "error"); return; }
-    if (!tomadorCodigoMunicipio) { toast("Codigo do municipio (IBGE) do tomador e obrigatorio.", "error"); return; }
+    if (!tomadorCep) { toast("CEP do tomador e obrigatório.", "error"); return; }
+    if (!tomadorCódigoMunicipio) { toast("Código do municipio (IBGE) do tomador e obrigatório.", "error"); return; }
     // Validacao de obra so aplica quando o user marcou tipoNota=OBRA. Em SERVICO
     // (padrao) o bloco de obra nem eh anexado, entao nao precisa exigir obra
     // mesmo quando o codigo eh 07.xx.
@@ -433,10 +433,10 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
         tomadorRazaoSocial,
         tomadorEmail,
         tomadorLogradouro,
-        tomadorNumero: tomadorNumero || "S/N",
+        tomadorNúmero: tomadorNúmero || "S/N",
         tomadorComplemento,
         tomadorBairro,
-        tomadorCodigoMunicipio,
+        tomadorCódigoMunicipio,
         tomadorUf,
         tomadorCep,
         ...(tomadorCaepf ? { tomadorCaepf } : {}),
@@ -727,7 +727,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                   {/* Pre-flight validation issues */}
                   {(preview as any).validationIssues?.length > 0 && (
                     <div className="rounded-lg bg-amber-50 border border-amber-300 px-4 py-3 mb-3">
-                      <p className="text-sm font-semibold text-amber-800 mb-2">Configuracao incompleta:</p>
+                      <p className="text-sm font-semibold text-amber-800 mb-2">Configuração incompleta:</p>
                       <ul className="space-y-1">
                         {(preview as any).validationIssues.map((issue: { field: string; message: string; link?: string }, i: number) => (
                           <li key={i} className="flex items-center gap-2 text-xs text-amber-700">
@@ -742,7 +742,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
 
                   {/* Valor */}
                   <div className="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-center justify-between">
-                    <span className="text-sm font-medium text-blue-800">Valor dos Servicos</span>
+                    <span className="text-sm font-medium text-blue-800">Valor dos Serviços</span>
                     <span className="text-lg font-bold text-blue-900">{formatCurrency(preview.servico.valorServicosCents)}</span>
                   </div>
 
@@ -803,24 +803,24 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                       </div>
                     </div>
 
-                    {/* Endereco do tomador */}
+                    {/* Endereço do tomador */}
                     <div className="mt-3 pt-3 border-t border-slate-100">
-                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Endereco</p>
-                      {(!tomadorLogradouro || !tomadorBairro || !tomadorUf || !tomadorCep || !tomadorCodigoMunicipio) && (
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Endereço</p>
+                      {(!tomadorLogradouro || !tomadorBairro || !tomadorUf || !tomadorCep || !tomadorCódigoMunicipio) && (
                         <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700 mb-2">
-                          Endereco incompleto — preencha todos os campos obrigatorios para emitir a NFS-e.
+                          Endereço incompleto — preencha todos os campos obrigatorios para emitir a NFS-e.
                         </div>
                       )}
                       <div className="grid grid-cols-6 gap-2">
                         <div className="col-span-4">
-                          <label className="block text-xs font-medium text-slate-600 mb-1">Endereco *</label>
+                          <label className="block text-xs font-medium text-slate-600 mb-1">Endereço *</label>
                           <input type="text" value={tomadorLogradouro} onChange={(e) => setTomadorLogradouro(e.target.value)}
                             onBlur={() => setTomadorLogradouro(toTitleCase(tomadorLogradouro))}
                             className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
                         </div>
                         <div className="col-span-2">
-                          <label className="block text-xs font-medium text-slate-600 mb-1">Numero</label>
-                          <input type="text" value={tomadorNumero} onChange={(e) => setTomadorNumero(e.target.value)} placeholder="S/N"
+                          <label className="block text-xs font-medium text-slate-600 mb-1">Número</label>
+                          <input type="text" value={tomadorNúmero} onChange={(e) => setTomadorNúmero(e.target.value)} placeholder="S/N"
                             className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
                         </div>
                         <div className="col-span-3">
@@ -847,7 +847,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                         </div>
                         <div className="col-span-3">
                           <label className="block text-xs font-medium text-slate-600 mb-1">Cod. Municipio IBGE *</label>
-                          <input type="text" value={tomadorCodigoMunicipio} onChange={(e) => setTomadorCodigoMunicipio(e.target.value)} placeholder="7 digitos"
+                          <input type="text" value={tomadorCódigoMunicipio} onChange={(e) => setTomadorCódigoMunicipio(e.target.value)} placeholder="7 digitos"
                             className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
                         </div>
                       </div>
@@ -871,9 +871,9 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                     </div>
                   )}
 
-                  {/* Servico (editavel) */}
+                  {/* Serviço (editavel) */}
                   <div className="rounded-lg border border-slate-200 p-4">
-                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Servico</h3>
+                    <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Serviço</h3>
 
                     {/* Toggle Tipo de Nota — SERVICO (default, instalacao/montagem) ou OBRA (construcao civil) */}
                     <div className="mb-4">
@@ -909,7 +909,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                       </p>
                     </div>
 
-                    {/* Servico (cTribNac selector) */}
+                    {/* Serviço (cTribNac selector) */}
                     <div className="mb-4">
                       <label className="block text-xs font-medium text-slate-600 mb-1">Serviço *</label>
                       {(preview.serviceCodes || []).length > 0 ? (
@@ -957,7 +957,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                     {/* NBS selector — shown when a service code is selected */}
                     {selectedServiceCodeId && (
                       <div className="mb-4" ref={nbsSearchRef}>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">Codigo NBS</label>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">Código NBS</label>
                         <div className="relative">
                           <input
                             type="text"
@@ -1198,7 +1198,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                   <div>
                     <p className="text-sm font-semibold text-green-800">NFS-e Autorizada com Sucesso!</p>
                     <div className="flex gap-4 mt-1 text-xs text-green-700">
-                      <span>Numero: <strong>{emissionData.nfseNumber || "N/A"}</strong></span>
+                      <span>Número: <strong>{emissionData.nfseNumber || "N/A"}</strong></span>
                       <span>Cod. Verificacao: <strong>{emissionData.codigoVerificacao || "N/A"}</strong></span>
                     </div>
                   </div>

@@ -184,7 +184,7 @@ export default function SettingsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   /** Show success toast for `ms` milliseconds, cancelling any previous timer */
-  function flashSuccess(msg = "Configuracoes salvas com sucesso!", ms = 3000) {
+  function flashSuccess(msg = "Configurações salvas com sucesso!", ms = 3000) {
     if (successTimerRef.current) clearTimeout(successTimerRef.current);
     setSuccessMsg(msg);
     successTimerRef.current = setTimeout(() => setSuccessMsg(null), ms);
@@ -451,7 +451,7 @@ export default function SettingsPage() {
     return (
       <div>
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Configuracoes</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Configurações</h1>
         </div>
         <div className="space-y-4">
           <div className="h-40 animate-pulse rounded-xl border border-slate-200 bg-slate-100" />
@@ -465,7 +465,7 @@ export default function SettingsPage() {
     return (
       <div>
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Configuracoes</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Configurações</h1>
         </div>
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-400">
           Erro ao carregar dados da empresa.
@@ -477,7 +477,7 @@ export default function SettingsPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Configuracoes</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Configurações</h1>
         <p className="text-sm text-slate-500">
           Configure os dados cadastrais da sua empresa.
         </p>
@@ -750,7 +750,7 @@ export default function SettingsPage() {
               value={form.im}
               onChange={(v) => setField("im", v)}
               disabled={!isAdmin}
-              placeholder="Numero"
+              placeholder="Número"
             />
           </div>
         </div>
@@ -782,14 +782,14 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* ── Endereco ── */}
+        {/* ── Endereço ── */}
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
             <svg className="h-4 w-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            Endereco
+            Endereço
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
@@ -809,7 +809,7 @@ export default function SettingsPage() {
               />
             </div>
             <Field
-              label="Endereco"
+              label="Endereço"
               value={form.addressStreet}
               onChange={(v) => setField("addressStreet", v)}
               onBlur={() => setForm((f) => ({ ...f, addressStreet: toTitleCase(f.addressStreet) }))}
@@ -818,7 +818,7 @@ export default function SettingsPage() {
               className="sm:col-span-2 lg:col-span-2"
             />
             <Field
-              label="Numero"
+              label="Número"
               value={form.addressNumber}
               onChange={(v) => setField("addressNumber", v)}
               disabled={!isAdmin}
@@ -948,13 +948,13 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* ── Avaliacao de Tecnicos ── */}
+        {/* ── Avaliacao de Técnicos ── */}
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
             <svg className="h-4 w-4 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
             </svg>
-            Avaliacao de Tecnicos
+            Avaliacao de Técnicos
           </h3>
           <p className="text-xs text-slate-500 mb-4">
             Configure os pesos da avaliacao e a nota minima para manter o tecnico ativo.
@@ -1015,19 +1015,19 @@ export default function SettingsPage() {
                 className={inputClass}
               />
               <p className="mt-1 text-xs text-slate-400">
-                Tecnicos abaixo dessa nota ficam em &quot;Em Treinamento&quot;
+                Técnicos abaixo dessa nota ficam em &quot;Em Treinamento&quot;
               </p>
             </div>
           </div>
         </div>
 
-        {/* ── Modulos Verticais (Piscina) ── */}
+        {/* ── Módulos Verticais (Piscina) ── */}
         <div className="rounded-xl border border-cyan-200 bg-gradient-to-r from-cyan-50 to-white p-6 shadow-sm">
           <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
             <svg className="h-4 w-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 12c2 0 3-1 4.5-1S10 12 12 12s3-1 4.5-1S19 12 21 12M3 18c2 0 3-1 4.5-1s2.5 1 4.5 1 3-1 4.5-1 2.5 1 4.5 1" />
             </svg>
-            Modulo Piscina (Beta)
+            Módulo Piscina (Beta)
           </h3>
           <p className="text-xs text-slate-500 mb-4">
             Vertical para piscineiros: orcamentos com calculos automaticos por area/perimetro/volume,
@@ -1043,7 +1043,7 @@ export default function SettingsPage() {
                   const next = !poolModuleActive;
                   await api.patch("/companies/pool-module", { poolModuleActive: next });
                   setPoolModuleActive(next);
-                  flashSuccess(next ? "Modulo Piscina ativado!" : "Modulo Piscina desativado.");
+                  flashSuccess(next ? "Módulo Piscina ativado!" : "Módulo Piscina desativado.");
                 } catch {
                   setError("Erro ao atualizar modulo Piscina");
                 } finally {
@@ -1069,7 +1069,7 @@ export default function SettingsPage() {
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
               <a href="/pool/catalog" className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700 hover:border-cyan-300 hover:bg-cyan-50 transition-colors">
                 <div className="font-medium">Catalogo Piscina</div>
-                <div className="text-xs text-slate-500">Vincular produtos/servicos a secoes</div>
+                <div className="text-xs text-slate-500">Vincular produtos/serviços a secoes</div>
               </a>
               <a href="/pool/templates" className="rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-700 hover:border-cyan-300 hover:bg-cyan-50 transition-colors">
                 <div className="font-medium">Templates de Etapas</div>
@@ -1213,7 +1213,7 @@ export default function SettingsPage() {
               </div>
               <div>
                 <h4 className="text-sm font-semibold text-slate-800">Fiscal (NFS-e)</h4>
-                <p className="text-xs text-slate-500">Emissao de notas fiscais de servico</p>
+                <p className="text-xs text-slate-500">Emissao de notas fiscais de serviço</p>
               </div>
             </div>
           </a>
@@ -1241,7 +1241,7 @@ export default function SettingsPage() {
               </div>
               <div>
                 <h4 className="text-sm font-semibold text-slate-800">Email SMTP</h4>
-                <p className="text-xs text-slate-500">Servidor de email para envio automatico</p>
+                <p className="text-xs text-slate-500">Servidor de email para envio automático</p>
               </div>
             </div>
           </a>
@@ -1259,7 +1259,7 @@ export default function SettingsPage() {
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
             <div>
-              <span className="text-xs font-medium text-slate-500">Versao</span>
+              <span className="text-xs font-medium text-slate-500">Versão</span>
               <p className="mt-0.5 text-lg font-bold text-blue-600">v{buildInfo.version}</p>
             </div>
             <div>
@@ -1275,7 +1275,7 @@ export default function SettingsPage() {
               </p>
             </div>
             <div>
-              <span className="text-xs font-medium text-slate-500">Ultima Atualizacao</span>
+              <span className="text-xs font-medium text-slate-500">Última Atualização</span>
               <p className="mt-0.5 text-sm font-medium text-slate-700">
                 {(() => {
                   try {
@@ -1294,13 +1294,13 @@ export default function SettingsPage() {
           <div className="flex items-center gap-3 flex-wrap">
             {hasNewVersion ? (
               <>
-                {/* Badge nova versao disponivel */}
+                {/* Badge nova versao disponível */}
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-xs font-semibold text-amber-700">
                   <span className="relative flex h-2 w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
                   </span>
-                  Nova versao disponivel!
+                  Nova versao disponível!
                 </span>
 
                 <button

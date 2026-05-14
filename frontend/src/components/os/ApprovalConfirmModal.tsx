@@ -443,7 +443,7 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 bg-slate-50 flex-shrink-0">
-          <h3 className="text-sm font-semibold text-slate-800">Confirmar Aprovacao</h3>
+          <h3 className="text-sm font-semibold text-slate-800">Confirmar Aprovação</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-lg">✕</button>
         </div>
 
@@ -485,7 +485,7 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
 
                 {noFinancial ? (
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
-                    <p className="text-xs text-slate-500">Nenhum lancamento (servico sem valor)</p>
+                    <p className="text-xs text-slate-500">Nenhum lancamento (serviço sem valor)</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -520,7 +520,7 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
                     "client",
                   )}
                   {renderContactSection(
-                    "Tecnico", preview.techContact?.name || null, preview.techContact?.partnerId,
+                    "Técnico", preview.techContact?.name || null, preview.techContact?.partnerId,
                     techEmailContacts, techWaContacts,
                     techSelEmailId, setTechSelEmailId, techSelWaId, setTechSelWaId,
                     techSendEmail, setTechSendEmail, techSendWa, setTechSendWa,
@@ -550,7 +550,7 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 transition-colors flex items-center gap-2">
             {submitting ? (
               <><div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />Aprovando...</>
-            ) : "Confirmar Aprovacao"}
+            ) : "Confirmar Aprovação"}
           </button>
         </div>
       </div>

@@ -319,7 +319,7 @@ export default function SignupAttemptsPage() {
               {/* Rejection reasons */}
               {selected.rejectionReasons.length > 0 && (
                 <div>
-                  <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold block mb-2">Motivos da Rejeicao</span>
+                  <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold block mb-2">Motivos da Rejeição</span>
                   <div className="space-y-1">
                     {selected.rejectionReasons.map((r, i) => (
                       <div key={i} className="flex items-start gap-2 text-sm text-red-700">

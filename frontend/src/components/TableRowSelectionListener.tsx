@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 /**
  * Listeners globais de UX (v1.10.08+):
- *  1. Selecao de linha em tabelas (click → data-row-selected="true")
+ *  1. Seleção de linha em tabelas (click → data-row-selected="true")
  *  2. Auto-select em inputs numericos ao receber foco (v1.10.10) —
  *     padrao do sistema: clicar em campo de valor seleciona o conteudo
  *     pra digitar substituir.

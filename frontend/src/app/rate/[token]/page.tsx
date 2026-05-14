@@ -187,7 +187,7 @@ export default function RateTokenPage() {
           Obrigado pela sua avaliacao!
         </h2>
         <p className="text-sm text-slate-500">
-          Voce ja avaliou este servico. Agradecemos seu feedback!
+          Voce ja avaliou este serviço. Agradecemos seu feedback!
         </p>
       </div>
     );
@@ -216,7 +216,7 @@ export default function RateTokenPage() {
           Avaliacao enviada com sucesso!
         </h2>
         <p className="text-sm text-slate-500">
-          Obrigado pelo seu feedback. Ele nos ajuda a melhorar nossos servicos.
+          Obrigado pelo seu feedback. Ele nos ajuda a melhorar nossos serviços.
         </p>
       </div>
     );
@@ -245,7 +245,7 @@ export default function RateTokenPage() {
           </svg>
         </div>
         <h1 className="text-xl font-bold text-slate-800 mb-1">
-          Avalie o servico
+          Avalie o serviço
         </h1>
         <p className="text-sm text-slate-500">
           Sua opiniao e muito importante para nos
@@ -256,7 +256,7 @@ export default function RateTokenPage() {
       <div className="mb-6 rounded-xl bg-slate-50 p-4">
         <div className="mb-2">
           <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-            Ordem de servico
+            Ordem de serviço
           </p>
           <p className="text-sm font-semibold text-slate-700">
             {data.serviceOrder.title}
@@ -264,7 +264,7 @@ export default function RateTokenPage() {
         </div>
         <div>
           <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">
-            Tecnico responsavel
+            Técnico responsavel
           </p>
           <p className="text-sm font-semibold text-slate-700">
             {data.partner.name}
@@ -277,7 +277,7 @@ export default function RateTokenPage() {
         {/* Stars */}
         <div className="mb-2 text-center">
           <p className="text-sm font-medium text-slate-600 mb-3">
-            Como voce avalia o servico?
+            Como voce avalia o serviço?
           </p>
           <div className="flex items-center justify-center gap-1">
             {[1, 2, 3, 4, 5].map((value) => (

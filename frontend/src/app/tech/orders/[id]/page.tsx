@@ -979,7 +979,7 @@ export default function TechOrderDetailPage() {
   if (!order) {
     return (
       <div className="py-16 text-center">
-        <p className="text-sm text-slate-400">Ordem de servico nao encontrada.</p>
+        <p className="text-sm text-slate-400">Ordem de serviço nao encontrada.</p>
         <button onClick={() => router.push("/tech/orders")} className="mt-3 text-sm font-medium text-blue-600">
           Voltar
         </button>
@@ -1085,7 +1085,7 @@ export default function TechOrderDetailPage() {
           {showSiteContact && order.contactPersonName && (
             <InfoRow icon="home" color="blue" label="Contato no local" value={order.contactPersonName} />
           )}
-          {showAddress && <InfoRow icon="location" color="blue" label="Endereco" value={order.addressText} />}
+          {showAddress && <InfoRow icon="location" color="blue" label="Endereço" value={order.addressText} />}
           {showValue && <InfoRow icon="money" color="green" label="Valor" value={formatCurrency(order.valueCents)} bold />}
           {showDeadline && (
             <InfoRow icon="clock" color={isOverdue ? "red" : "slate"} label="Prazo"

@@ -16,13 +16,13 @@ interface FieldDef {
 }
 
 const ALL_FIELDS: FieldDef[] = [
-  { key: "osCode", label: "Codigo da OS", icon: "\u{1F522}", defaultEnabled: true },
+  { key: "osCode", label: "Código da OS", icon: "\u{1F522}", defaultEnabled: true },
   { key: "status", label: "Status", icon: "\u{1F3F7}\uFE0F", defaultEnabled: true },
   { key: "description", label: "Descricao", icon: "\u{1F4DD}", defaultEnabled: true },
   { key: "client", label: "Nome do cliente", icon: "\u{1F464}", defaultEnabled: false },
   { key: "clientPhone", label: "Telefone do cliente", icon: "\u{1F4DE}", defaultEnabled: false },
   { key: "siteContact", label: "Contato no local", icon: "\u{1F3E0}", defaultEnabled: true },
-  { key: "address", label: "Endereco", icon: "\u{1F4CD}", defaultEnabled: true },
+  { key: "address", label: "Endereço", icon: "\u{1F4CD}", defaultEnabled: true },
   { key: "value", label: "Valor", icon: "\u{1F4B0}", defaultEnabled: true },
   { key: "deadline", label: "Prazo", icon: "\u{1F550}", defaultEnabled: true },
   { key: "commission", label: "Comissao do tecnico", icon: "\u{1F4B5}", defaultEnabled: false, editableLabel: true },

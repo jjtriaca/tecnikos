@@ -104,8 +104,8 @@ export default function AdminSettingsPage() {
 
   return (
     <div className="mx-auto max-w-4xl p-6">
-      <h1 className="text-2xl font-bold text-slate-900">Configuracoes do Sistema</h1>
-      <p className="mt-1 text-sm text-slate-500">Configuracoes globais do SaaS Tecnikos</p>
+      <h1 className="text-2xl font-bold text-slate-900">Configurações do Sistema</h1>
+      <p className="mt-1 text-sm text-slate-500">Configurações globais do SaaS Tecnikos</p>
 
       {loading ? (
         <div className="mt-8 text-center text-slate-400">Carregando...</div>

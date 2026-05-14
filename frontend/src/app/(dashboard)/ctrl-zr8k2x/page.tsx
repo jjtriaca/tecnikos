@@ -160,7 +160,7 @@ export default function SaasDashboardPage() {
   }
 
   const kpis = [
-    { label: "Total Empresas", value: metrics.totalTenants, color: "bg-blue-500", tooltip: "Numero total de empresas cadastradas na plataforma (incluindo inativas e canceladas)" },
+    { label: "Total Empresas", value: metrics.totalTenants, color: "bg-blue-500", tooltip: "Número total de empresas cadastradas na plataforma (incluindo inativas e canceladas)" },
     { label: "Ativas", value: metrics.activeTenants, color: "bg-green-500", tooltip: "Empresas com acesso ativo ao sistema — estao usando o Tecnikos agora" },
     { label: "Bloqueadas", value: metrics.blockedTenants, color: "bg-red-500", tooltip: "Empresas bloqueadas pelo admin (ex: inadimplencia, uso indevido)" },
     { label: "Canceladas", value: metrics.cancelledTenants, color: "bg-slate-400", tooltip: "Empresas que cancelaram a assinatura ou foram canceladas" },
@@ -213,7 +213,7 @@ export default function SaasDashboardPage() {
               <div className="flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-indigo-500" />
                 <span className="text-xs text-slate-500">IPs Unicos 24h</span>
-                <Tooltip text="Enderecos IP unicos que acessaram o sistema nas ultimas 24 horas (excluindo bots e servidor)." />
+                <Tooltip text="Endereços IP unicos que acessaram o sistema nas ultimas 24 horas (excluindo bots e servidor)." />
               </div>
               <p className="mt-1 text-2xl font-bold text-slate-900">{access24h.externalUniqueIps}</p>
               <p className="text-[10px] text-slate-400">{access24h.uniqueSessions} sessoes</p>
@@ -288,7 +288,7 @@ export default function SaasDashboardPage() {
                             <th className="pb-2 font-medium">ISP</th>
                             <th className="pb-2 font-medium">Acessos</th>
                             <th className="pb-2 font-medium">Eventos</th>
-                            <th className="pb-2 font-medium">Ultimo</th>
+                            <th className="pb-2 font-medium">Último</th>
                           </tr>
                         </thead>
                         <tbody>

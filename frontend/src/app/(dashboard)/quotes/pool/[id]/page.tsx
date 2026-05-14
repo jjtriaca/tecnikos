@@ -25,7 +25,7 @@ type BudgetItem = {
   id: string;
   poolSection: string;
   sortOrder: number;
-  cellRef: string | null; // Endereco estavel (L1, L2, ...) usado em formulas de outros items
+  cellRef: string | null; // Endereço estavel (L1, L2, ...) usado em formulas de outros items
   slotName: string | null; // Rotulo do papel da linha (ex: "Capa Termica", "Bomba Aquecimento")
   description: string;
   unit: string;
@@ -138,7 +138,7 @@ const SECTION_ORDER: string[] = [
 ];
 
 // Heuristica: item com serviceId vinculado OU unidade hora = SERVICO,
-// senao PRODUTO. Usado pra calcular Total Servicos vs Total Produtos por etapa.
+// senao PRODUTO. Usado pra calcular Total Serviços vs Total Produtos por etapa.
 function isServicoItem(item: BudgetItem): boolean {
   if (item.serviceId || item.service) return true;
   if (item.productId || item.product) return false;
@@ -505,7 +505,7 @@ export default function PoolBudgetDetailPage() {
           </div>
         </div>
 
-        {/* Versao colapsada: 1 linha compacta */}
+        {/* Versão colapsada: 1 linha compacta */}
         {headerCollapsed ? (
           <div className="mt-2 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 min-w-0">
@@ -523,7 +523,7 @@ export default function PoolBudgetDetailPage() {
           </div>
         ) : (
           <>
-            {/* Versao expandida: titulo + cards bonitos */}
+            {/* Versão expandida: titulo + cards bonitos */}
             <div className="mt-2 flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -728,7 +728,7 @@ export default function PoolBudgetDetailPage() {
                       <tr className="bg-slate-50 text-[10px] font-semibold uppercase text-slate-500 border-b border-slate-100">
                         <ResizableTh colKey="seq" width={colWidths.seq} setWidth={setColWidth}
                           className="text-left px-3 py-1.5"
-                          title="Sequencia atual + Endereco estavel da linha (LX) usado em formulas">Seq · Ref</ResizableTh>
+                          title="Sequencia atual + Endereço estavel da linha (LX) usado em formulas">Seq · Ref</ResizableTh>
                         <ResizableTh colKey="item" width={colWidths.item} setWidth={setColWidth}
                           className="text-left px-3 py-1.5">Item</ResizableTh>
                         <ResizableTh colKey="desc" width={colWidths.desc} setWidth={setColWidth}
@@ -773,7 +773,7 @@ export default function PoolBudgetDetailPage() {
                         <td />
                       </tr>
                       <tr className="text-xs">
-                        <td colSpan={6} className="px-3 py-1.5 text-right text-slate-600 uppercase font-medium tracking-wide">Total Servicos</td>
+                        <td colSpan={6} className="px-3 py-1.5 text-right text-slate-600 uppercase font-medium tracking-wide">Total Serviços</td>
                         <td className="px-3 py-1.5 text-right tabular-nums text-slate-700">{fmtCurrency(totServicos)}</td>
                         <td />
                       </tr>
@@ -840,7 +840,7 @@ export default function PoolBudgetDetailPage() {
           confirmAction === "delete" ? "Excluir orcamento" : ""
         }
         message={
-          confirmAction === "approve" ? "Apos aprovado, uma obra sera criada automaticamente. Confirma?" :
+          confirmAction === "approve" ? "Após aprovado, uma obra sera criada automaticamente. Confirma?" :
           confirmAction === "reject" ? "Informe o motivo da rejeicao." :
           confirmAction === "cancel" ? "Cancela este orcamento? Informe o motivo." :
           confirmAction === "delete" ? "Esta acao nao pode ser desfeita." : ""
@@ -937,7 +937,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         <span className="text-slate-700 font-semibold">{seq ?? ""}</span>
         {item.cellRef && (
           <span className="ml-1 text-[10px] font-bold text-amber-900 bg-amber-200 border border-amber-400 rounded px-1.5 py-0.5"
-            title="Endereco da linha (use em formulas: qty(LX), total(LX))">{item.cellRef}</span>
+            title="Endereço da linha (use em formulas: qty(LX), total(LX))">{item.cellRef}</span>
         )}
       </td>
       <td className="px-3 py-1.5">
@@ -991,7 +991,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             <div className="inline-flex items-center gap-1">
               <button type="button" onClick={() => setShowFormula(true)}
                 className={"text-[10px] font-bold px-1 rounded border " + (item.formulaExpr ? "border-cyan-500 bg-cyan-50 text-cyan-700" : "border-slate-200 text-slate-400 hover:text-cyan-600 hover:border-cyan-300")}
-                title={item.formulaExpr ? `Editar formula (atual: ${item.formulaExpr})` : "Configurar formula automatica"}
+                title={item.formulaExpr ? `Editar formula (atual: ${item.formulaExpr})` : "Configurar formula automática"}
               >fx</button>
               <button type="button" onClick={() => setShowAutoSelect(true)}
                 className={"text-[10px] font-bold px-1 rounded border " + (item.autoSelectRule ? "border-violet-500 bg-violet-50 text-violet-700" : "border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300")}
@@ -1799,7 +1799,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
       sectionsList.push({ idx: i, name: String(s?.name || `Section ${i}`), area, volume });
     });
   }
-  // Especificacoes tecnicas do produto/servico vinculado (Json livre — pesoKg, consumoKgM2, vazaoM3h, ...)
+  // Especificacoes tecnicas do produto/serviço vinculado (Json livre — pesoKg, consumoKgM2, vazaoM3h, ...)
   const productSpecsList: Array<{ key: string; value: number }> = [];
   if (productSpecs && typeof productSpecs === 'object') {
     for (const [k, v] of Object.entries(productSpecs)) {
@@ -1900,7 +1900,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
             {/* Header */}
             <div className="flex items-start justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-cyan-50 to-violet-50">
               <div>
-                <h3 className="text-lg font-bold text-slate-900">Formula automatica de quantidade</h3>
+                <h3 className="text-lg font-bold text-slate-900">Formula automática de quantidade</h3>
                 {itemDescription && (
                   <p className="text-xs text-slate-600 mt-0.5">
                     Linha: <span className="font-medium text-slate-800">{itemDescription}</span>
@@ -2181,7 +2181,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
 
 
 // ─────────────────────────────────────────────────────────
-// AutoSelectModal — configura regra de auto-selecao do produto/servico baseada
+// AutoSelectModal — configura regra de auto-selecao do produto/serviço baseada
 // em variaveis da piscina + technicalSpecs do candidato. Mesmo padrao visual do
 // FormulaModal: cards/accordions, preview avaliado, sintaxe inline no fim.
 // ─────────────────────────────────────────────────────────
@@ -2394,7 +2394,7 @@ function AutoSelectModal({
       priceCents: c.product?.salePriceCents ?? c.service?.priceCents ?? 0,
       specs: ((c.product?.technicalSpecs ?? c.service?.technicalSpecs) || {}) as Record<string, any>,
       type: c.product ? 'product' : 'service' as 'product' | 'service',
-      kind: c.product ? 'Produto' : 'Servico',
+      kind: c.product ? 'Produto' : 'Serviço',
     }));
     const filtered1 = items.filter((c) => {
       if (filterCategoria.trim() && String(c.specs.categoriaPlanilha || '').toLowerCase() !== filterCategoria.trim().toLowerCase()) return false;
@@ -2753,7 +2753,7 @@ function SaveAsTemplateModal({ budgetId, itemsCount, currentTemplateId, onClose,
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (mode === "new" && !name.trim()) { toast("Nome obrigatorio", "error"); return; }
+    if (mode === "new" && !name.trim()) { toast("Nome obrigatório", "error"); return; }
     if (mode === "update" && !updateTemplateId) { toast("Selecione um modelo pra atualizar", "error"); return; }
     if (mode === "update" && !confirm(`Sobrescrever o modelo "${selectedTemplate?.name}" com o estado atual deste orcamento? Os ${itemsCount} items + defaults atuais vao SUBSTITUIR o conteudo do modelo.`)) return;
     setSaving(true);
@@ -2996,8 +2996,8 @@ function EditBudgetHeaderModal({ budget, onClose, onSaved }: {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim()) { toast("Titulo obrigatorio", "error"); return; }
-    if (!clientPartnerId) { toast("Cliente obrigatorio", "error"); return; }
+    if (!title.trim()) { toast("Titulo obrigatório", "error"); return; }
+    if (!clientPartnerId) { toast("Cliente obrigatório", "error"); return; }
     setSaving(true);
     try {
       const newDimensions = {

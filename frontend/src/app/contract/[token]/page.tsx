@@ -107,7 +107,7 @@ export default function ContractTokenPage() {
       <div className="flex items-center justify-center min-h-[50vh]">
         <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 text-center max-w-md w-full">
           <div className="text-4xl mb-4">⚠️</div>
-          <h1 className="text-lg font-bold text-slate-800 mb-2">Contrato Indisponivel</h1>
+          <h1 className="text-lg font-bold text-slate-800 mb-2">Contrato Indisponível</h1>
           <p className="text-sm text-slate-500">{error}</p>
         </div>
       </div>

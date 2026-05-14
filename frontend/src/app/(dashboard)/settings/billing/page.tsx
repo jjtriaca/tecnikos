@@ -291,7 +291,7 @@ export default function BillingPage() {
               <p className="text-xs text-slate-400">/{billing.billingCycle === "ANNUAL" ? "ano" : "mes"}</p>
               {billing.isPromo && billing.planPriceCents && billing.planPriceCents !== Math.round((billing.valueBrl || 0) * 100) && (
                 <p className="text-[10px] text-slate-400 mt-0.5">
-                  Apos promocao: {formatCurrency(billing.planPriceCents)}/mes
+                  Após promocao: {formatCurrency(billing.planPriceCents)}/mes
                 </p>
               )}
             </div>
@@ -448,7 +448,7 @@ export default function BillingPage() {
                 <div className="flex items-end justify-between mt-4">
                   <div>
                     {addOn.osQuantity > 0 && (
-                      <><p className="text-2xl font-bold text-slate-900">+{addOn.osQuantity}</p><p className="text-xs text-slate-500">ordens de servico</p></>
+                      <><p className="text-2xl font-bold text-slate-900">+{addOn.osQuantity}</p><p className="text-xs text-slate-500">ordens de serviço</p></>
                     )}
                     {addOn.userQuantity > 0 && (
                       <><p className="text-2xl font-bold text-slate-900">+{addOn.userQuantity}</p><p className="text-xs text-slate-500">{addOn.userQuantity === 1 ? "usuario gestor" : "usuarios gestores"}</p></>
@@ -483,7 +483,7 @@ export default function BillingPage() {
 
       {addOns.length === 0 && upgradePlans.length === 0 && downgradePlans.length === 0 && (
         <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-          <p className="text-sm text-slate-500">Nenhum pacote adicional ou opcao de plano disponivel no momento.</p>
+          <p className="text-sm text-slate-500">Nenhum pacote adicional ou opcao de plano disponível no momento.</p>
         </div>
       )}
     </div>

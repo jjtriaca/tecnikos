@@ -162,7 +162,7 @@ export default function DemoPage() {
   const handleEnRoute = () => {
     setStep("en_route");
     addGestor(`O tecnico ${OS_DATA.tecnico} esta a caminho. OS: "${OS_DATA.titulo}"`);
-    addCliente(`O tecnico esta a caminho para o servico "${OS_DATA.titulo}". Endereco: ${OS_DATA.endereco}`);
+    addCliente(`O tecnico esta a caminho para o serviço "${OS_DATA.titulo}". Endereço: ${OS_DATA.endereco}`);
   };
 
   const handleArrived = () => {
@@ -188,7 +188,7 @@ export default function DemoPage() {
     stopTimer();
     setStep("paused");
     addGestor(`O tecnico ${OS_DATA.tecnico} pausou a OS "${OS_DATA.titulo}". Motivo: ${reasonLabel}. Pausas: ${pauseCount + 1}.`);
-    addCliente(`O servico "${OS_DATA.titulo}" foi temporariamente pausado. Motivo: ${reasonLabel}. O tecnico retomara em breve.`);
+    addCliente(`O serviço "${OS_DATA.titulo}" foi temporariamente pausado. Motivo: ${reasonLabel}. O tecnico retomara em breve.`);
   };
 
   const handleResume = () => {
@@ -196,14 +196,14 @@ export default function DemoPage() {
     startTimer();
     setTimeout(() => setStep("executing"), 500);
     addGestor(`O tecnico ${OS_DATA.tecnico} retomou a OS "${OS_DATA.titulo}". Tempo pausado: ${timer}.`);
-    addCliente(`O servico "${OS_DATA.titulo}" foi retomado pelo tecnico.`);
+    addCliente(`O serviço "${OS_DATA.titulo}" foi retomado pelo tecnico.`);
   };
 
   const handleComplete = () => {
     stopTimer();
     setStep("completed");
-    addGestor(`OS "${OS_DATA.titulo}" foi concluida pelo tecnico ${OS_DATA.tecnico}. Tempo total: ${timer}. Pausas: ${pauseCount}.`);
-    addCliente(`Seu servico "${OS_DATA.titulo}" foi concluido com sucesso! Obrigado por escolher ${OS_DATA.empresa}.`);
+    addGestor(`OS "${OS_DATA.titulo}" foi concluída pelo tecnico ${OS_DATA.tecnico}. Tempo total: ${timer}. Pausas: ${pauseCount}.`);
+    addCliente(`Seu serviço "${OS_DATA.titulo}" foi concluído com sucesso! Obrigado por escolher ${OS_DATA.empresa}.`);
   };
 
   const handleReset = () => {
@@ -225,12 +225,12 @@ export default function DemoPage() {
             <div className="text-center">
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2 text-3xl">🔧</div>
               <h2 className="text-lg font-bold text-slate-800">Nova Proposta de OS</h2>
-              <p className="text-xs text-slate-500">Voce recebeu uma oferta de servico</p>
+              <p className="text-xs text-slate-500">Voce recebeu uma oferta de serviço</p>
             </div>
             <div className="bg-blue-50 rounded-xl p-3 space-y-2">
               <div className="flex justify-between"><span className="text-xs text-slate-500">Titulo:</span><span className="text-xs font-bold">{OS_DATA.titulo}</span></div>
               <div className="flex justify-between"><span className="text-xs text-slate-500">Cliente:</span><span className="text-xs">{OS_DATA.cliente}</span></div>
-              <div className="flex justify-between"><span className="text-xs text-slate-500">Endereco:</span><span className="text-xs text-right max-w-[60%]">{OS_DATA.endereco}</span></div>
+              <div className="flex justify-between"><span className="text-xs text-slate-500">Endereço:</span><span className="text-xs text-right max-w-[60%]">{OS_DATA.endereco}</span></div>
               <div className="flex justify-between"><span className="text-xs text-slate-500">Valor:</span><span className="text-xs font-bold text-green-700">{OS_DATA.valor}</span></div>
               <div className="flex justify-between"><span className="text-xs text-slate-500">Comissao:</span><span className="text-xs font-bold text-blue-700">{OS_DATA.comissao}</span></div>
             </div>
@@ -323,7 +323,7 @@ export default function DemoPage() {
                 ⏸️ Pausar Atendimento
               </button>
               <button onClick={handleComplete} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold text-sm hover:bg-green-700 transition flex items-center justify-center gap-2">
-                ✅ Concluir Servico
+                ✅ Concluir Serviço
               </button>
             </div>
           </div>
@@ -396,7 +396,7 @@ export default function DemoPage() {
         return (
           <div className="p-4 pt-8 space-y-4 text-center">
             <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto text-4xl">🎉</div>
-            <h2 className="text-xl font-bold text-green-800">Servico Concluido!</h2>
+            <h2 className="text-xl font-bold text-green-800">Serviço Concluido!</h2>
             <p className="text-xs text-slate-500">{OS_DATA.titulo}</p>
             <div className="bg-green-50 rounded-xl p-4 space-y-2">
               <div className="flex justify-between text-xs"><span className="text-slate-500">Tempo total:</span><span className="font-bold font-mono">{timer}</span></div>
@@ -407,7 +407,7 @@ export default function DemoPage() {
               <p className="text-xs text-blue-800 font-bold mb-2">💰 Lancamentos financeiros criados:</p>
               <div className="space-y-1 text-left">
                 <div className="flex justify-between text-xs"><span>💰 Contas a Receber</span><span className="font-bold">{OS_DATA.valor}</span></div>
-                <div className="flex justify-between text-xs"><span>👷 Comissao Tecnico</span><span className="font-bold">{OS_DATA.comissao}</span></div>
+                <div className="flex justify-between text-xs"><span>👷 Comissao Técnico</span><span className="font-bold">{OS_DATA.comissao}</span></div>
               </div>
             </div>
             <p className="text-xs text-slate-400">Aguardando aprovacao do gestor...</p>
@@ -423,7 +423,7 @@ export default function DemoPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Demo - Fluxo Completo de Atendimento</h1>
-            <p className="text-sm text-slate-500">Simulacao com 3 telas: Tecnico (mobile) | Gestor (WhatsApp) | Cliente (WhatsApp)</p>
+            <p className="text-sm text-slate-500">Simulacao com 3 telas: Técnico (mobile) | Gestor (WhatsApp) | Cliente (WhatsApp)</p>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-xs bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-bold">
@@ -461,11 +461,11 @@ export default function DemoPage() {
 
       {/* 3 Screens */}
       <div className="max-w-7xl mx-auto grid grid-cols-3 gap-6">
-        {/* Tecnico Mobile */}
+        {/* Técnico Mobile */}
         <div>
           <h3 className="text-sm font-bold text-slate-700 text-center mb-3 flex items-center justify-center gap-2">
             <span className="w-6 h-6 bg-teal-500 rounded-full text-white text-xs flex items-center justify-center">📱</span>
-            Celular do Tecnico
+            Celular do Técnico
           </h3>
           <PhoneFrame>{renderTechScreen()}</PhoneFrame>
         </div>

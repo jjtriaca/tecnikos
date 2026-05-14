@@ -271,7 +271,7 @@ export default function AddOnsAdminPage() {
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                  placeholder="100 ordens de servico adicionais por mes"
+                  placeholder="100 ordens de serviço adicionais por mes"
                 />
               </div>
 
@@ -300,7 +300,7 @@ export default function AddOnsAdminPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Tecnicos extras</label>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Técnicos extras</label>
                     <input
                       type="number" min={0}
                       value={form.technicianQuantity}
@@ -356,7 +356,7 @@ export default function AddOnsAdminPage() {
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
                   />
                   <p className="text-[10px] text-slate-400 mt-0.5">
-                    Ultima posicao: {Math.max(0, ...addOns.map(a => a.sortOrder))} — use {Math.max(0, ...addOns.map(a => a.sortOrder)) + 1} para exibir por ultimo
+                    Última posicao: {Math.max(0, ...addOns.map(a => a.sortOrder))} — use {Math.max(0, ...addOns.map(a => a.sortOrder)) + 1} para exibir por ultimo
                   </p>
                 </div>
               </div>

@@ -29,7 +29,7 @@ const ACCOUNT_TYPE_LABEL: Record<string, string> = {
   CAIXA: "Caixa",
   BANCO: "Banco",
   TRANSITO: "Transito",
-  CARTAO_CREDITO: "Cartao",
+  CARTAO_CREDITO: "Cartão",
 };
 
 const BANK_ACCOUNT_TYPE_LABEL: Record<string, string> = {
@@ -599,7 +599,7 @@ function AccountsSection() {
                 <>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Codigo do Banco</label>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Código do Banco</label>
                       <input
                         type="text"
                         value={formData.bankCode}
@@ -631,7 +631,7 @@ function AccountsSection() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Numero da Conta</label>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Número da Conta</label>
                       <input
                         type="text"
                         value={formData.accountNumber}

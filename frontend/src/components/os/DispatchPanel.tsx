@@ -355,7 +355,7 @@ function FloatingCard({ d, position, zIndex, organizing, onFocus, onMove }: Floa
               <svg className="h-3 w-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
-              <span className="text-[11px] text-slate-700 font-medium">{d.technicianName || "Tecnico"}</span>
+              <span className="text-[11px] text-slate-700 font-medium">{d.technicianName || "Técnico"}</span>
               {d.technicianPhone && <span className="text-[10px] text-slate-400">{d.technicianPhone}</span>}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
@@ -520,7 +520,7 @@ function GpsSection({ d }: { d: DispatchState }) {
             <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
-          Endereco sem coordenadas
+          Endereço sem coordenadas
         </div>
       </div>
     );
@@ -704,7 +704,7 @@ function MinimizedTray({ dispatches, onClick, config, onConfigChange }: {
           onPointerDown={(e) => e.stopPropagation()}
           onPointerUp={(e) => e.stopPropagation()}
           className="shrink-0 p-0.5 rounded hover:bg-white/20 transition-colors"
-          title="Configuracoes do painel"
+          title="Configurações do painel"
         >
           <svg className="h-3 w-3 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.573-1.066z" />

@@ -374,7 +374,7 @@ const SEFAZ_COLUMNS: ColumnDefinition<SefazDocument>[] = [
   },
   {
     id: "numero",
-    label: "Numero",
+    label: "Número",
     sortable: true,
     sortKey: "nfeKey",
     render: (doc) => {
@@ -523,7 +523,7 @@ const STEPS = [
   { num: 2, label: "Fornecedor" },
   { num: 3, label: "Produtos" },
   { num: 4, label: "Financeiro" },
-  { num: 5, label: "Confirmacao" },
+  { num: 5, label: "Confirmação" },
 ];
 
 function StepIndicator({ current }: { current: number }) {
@@ -893,7 +893,7 @@ export default function NfePage() {
     try {
       await api.put("/nfe/sefaz/config", { autoFetchEnabled: enabled });
       setSefazConfig((prev) => prev ? { ...prev, autoFetchEnabled: enabled } : prev);
-      toast(enabled ? "Busca automatica ativada." : "Busca automatica desativada.", "success");
+      toast(enabled ? "Busca automática ativada." : "Busca automática desativada.", "success");
     } catch (err: any) {
       toast(err?.message || "Erro ao atualizar configuracao.", "error");
     }
@@ -952,7 +952,7 @@ export default function NfePage() {
     setRevertingDocId(doc.id);
     try {
       await api.post(`/nfe/imports/${doc.nfeImportId}/revert`);
-      toast("Importacao revertida com sucesso.", "success");
+      toast("Importação revertida com sucesso.", "success");
       loadSefazDocs();
       loadImports();
     } catch (err: any) {
@@ -983,10 +983,10 @@ export default function NfePage() {
       if (justificativa) body.justificativa = justificativa;
       await api.post(`/nfe/sefaz/documents/${docId}/manifest`, body);
       const labels: Record<string, string> = {
-        ciencia: "Ciencia da Operacao",
-        confirmacao: "Confirmacao da Operacao",
-        desconhecimento: "Desconhecimento da Operacao",
-        nao_realizada: "Operacao Nao Realizada",
+        ciencia: "Ciencia da Operação",
+        confirmacao: "Confirmação da Operação",
+        desconhecimento: "Desconhecimento da Operação",
+        nao_realizada: "Operação Nao Realizada",
       };
       toast(`Manifesto "${labels[tipo] || tipo}" realizado com sucesso!`, "success");
       loadSefazDocs();
@@ -1001,7 +1001,7 @@ export default function NfePage() {
     try {
       await api.put("/nfe/sefaz/config", { autoManifestCiencia: enabled });
       setSefazConfig((prev) => prev ? { ...prev, autoManifestCiencia: enabled } : prev);
-      toast(enabled ? "Manifesto automatico ativado." : "Manifesto automatico desativado.", "success");
+      toast(enabled ? "Manifesto automático ativado." : "Manifesto automático desativado.", "success");
     } catch (err: any) {
       toast(err?.message || "Erro ao atualizar configuracao.", "error");
     }
@@ -1013,7 +1013,7 @@ export default function NfePage() {
     setXmlContent("");
     try {
       const res = await api.get<SefazDocument>(`/nfe/sefaz/documents/${docId}`);
-      setXmlContent(res.xmlContent || "XML nao disponivel.");
+      setXmlContent(res.xmlContent || "XML nao disponível.");
     } catch (err: any) {
       setXmlContent("Erro ao carregar XML.");
       toast(err?.message || "Erro ao carregar XML.", "error");
@@ -1367,7 +1367,7 @@ export default function NfePage() {
                     ? "bg-green-50 text-green-700 border-green-200"
                     : "bg-amber-50 text-amber-700 border-amber-200"
                 }`}>
-                  {sefazConfig.environment === "PRODUCTION" ? "Producao" : "Homologacao"}
+                  {sefazConfig.environment === "PRODUCTION" ? "Produção" : "Homologacao"}
                 </span>
                 <button
                   onClick={() => setConfigModalOpen(true)}
@@ -1402,13 +1402,13 @@ export default function NfePage() {
 
               {/* NSU */}
               <div>
-                <p className="text-xs text-slate-500">Ultimo NSU</p>
+                <p className="text-xs text-slate-500">Último NSU</p>
                 <p className="text-sm font-medium text-slate-900">{sefazConfig.lastNsu || "0"}</p>
               </div>
 
               {/* Last fetch */}
               <div>
-                <p className="text-xs text-slate-500">Ultima Busca</p>
+                <p className="text-xs text-slate-500">Última Busca</p>
                 <div className="flex items-center gap-1.5">
                   <p className="text-sm font-medium text-slate-900">
                     {sefazConfig.lastFetchAt
@@ -1433,9 +1433,9 @@ export default function NfePage() {
                     />
                     <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600" />
                   </div>
-                  <span className="text-sm text-slate-700">Busca automatica</span>
+                  <span className="text-sm text-slate-700">Busca automática</span>
                 </label>
-                <label className="flex items-center gap-2.5 cursor-pointer" title="Manifestar automaticamente Ciencia da Operacao para novas resNFe">
+                <label className="flex items-center gap-2.5 cursor-pointer" title="Manifestar automaticamente Ciencia da Operação para novas resNFe">
                   <div className="relative">
                     <input
                       type="checkbox"
@@ -1445,7 +1445,7 @@ export default function NfePage() {
                     />
                     <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-cyan-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-600" />
                   </div>
-                  <span className="text-sm text-slate-700">Manifesto automatico</span>
+                  <span className="text-sm text-slate-700">Manifesto automático</span>
                 </label>
               </div>
               <button
@@ -1559,7 +1559,7 @@ export default function NfePage() {
                   {pendentes.length} nota{pendentes.length > 1 ? "s" : ""} aguardando confirmacao da operacao
                 </p>
                 <p className="text-xs text-amber-800 mt-0.5">
-                  Essas notas chegaram como resumo (resNFe). O XML completo so e liberado apos voce manifestar <strong>Confirmacao</strong>, <strong>Desconhecimento</strong> ou <strong>Nao Realizada</strong>. Sem isso, nao e possivel importar a nota.
+                  Essas notas chegaram como resumo (resNFe). O XML completo so e liberado apos voce manifestar <strong>Confirmação</strong>, <strong>Desconhecimento</strong> ou <strong>Nao Realizada</strong>. Sem isso, nao e possivel importar a nota.
                 </p>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {pendentes.slice(0, 5).map((d) => {
@@ -1608,7 +1608,7 @@ export default function NfePage() {
             {/* Last refresh indicator */}
             <div className="flex items-center justify-end">
               <p className="text-xs text-slate-400">
-                Ultima atualizacao: {formatTime(lastRefresh.toISOString())}
+                Última atualizacao: {formatTime(lastRefresh.toISOString())}
               </p>
             </div>
 
@@ -1669,12 +1669,12 @@ export default function NfePage() {
                                 items={[
                                   canImport && { label: "Importar", onClick: () => handleImportDoc(doc.id), variant: "success", disabled: isBusy },
                                   canIgnore && { label: "Ignorar", onClick: () => handleIgnoreDoc(doc.id), variant: "default", disabled: isBusy },
-                                  canInitialManifest && { label: "Ciencia da Operacao", onClick: () => handleManifestDoc(doc.id, "ciencia"), variant: "info", disabled: isBusy, divider: true },
-                                  canInitialManifest && { label: "Confirmacao da Operacao", onClick: () => handleManifestDoc(doc.id, "confirmacao"), variant: "success", disabled: isBusy },
-                                  canInitialManifest && { label: "Desconhecimento da Operacao", onClick: () => handleManifestDoc(doc.id, "desconhecimento"), variant: "warning", disabled: isBusy },
+                                  canInitialManifest && { label: "Ciencia da Operação", onClick: () => handleManifestDoc(doc.id, "ciencia"), variant: "info", disabled: isBusy, divider: true },
+                                  canInitialManifest && { label: "Confirmação da Operação", onClick: () => handleManifestDoc(doc.id, "confirmacao"), variant: "success", disabled: isBusy },
+                                  canInitialManifest && { label: "Desconhecimento da Operação", onClick: () => handleManifestDoc(doc.id, "desconhecimento"), variant: "warning", disabled: isBusy },
                                   canInitialManifest && { label: "Nao Realizada", onClick: promptNaoRealizada, variant: "danger", disabled: isBusy },
-                                  canFollowUpManifest && { label: "Confirmacao da Operacao", onClick: () => handleManifestDoc(doc.id, "confirmacao"), variant: "success", disabled: isBusy, divider: true },
-                                  canFollowUpManifest && { label: "Desconhecimento da Operacao", onClick: () => handleManifestDoc(doc.id, "desconhecimento"), variant: "warning", disabled: isBusy },
+                                  canFollowUpManifest && { label: "Confirmação da Operação", onClick: () => handleManifestDoc(doc.id, "confirmacao"), variant: "success", disabled: isBusy, divider: true },
+                                  canFollowUpManifest && { label: "Desconhecimento da Operação", onClick: () => handleManifestDoc(doc.id, "desconhecimento"), variant: "warning", disabled: isBusy },
                                   canFollowUpManifest && { label: "Nao Realizada", onClick: promptNaoRealizada, variant: "danger", disabled: isBusy },
                                   canRevert && { label: "Reverter", onClick: () => handleRevertSefazDoc(doc), variant: "danger", disabled: isBusy, divider: true },
                                   hasFile && { label: "Baixar XML", onClick: () => handleDownloadFile(doc.id, "xml"), variant: "purple", divider: true },
@@ -1711,7 +1711,7 @@ export default function NfePage() {
       if (!confirm("Tem certeza que deseja reverter esta importacao? Todos os lancamentos financeiros e produtos criados serao apagados.")) return;
       try {
         await api.post(`/nfe/imports/${impId}/revert`);
-        toast("Importacao revertida com sucesso.", "success");
+        toast("Importação revertida com sucesso.", "success");
         loadImports();
       } catch (err: any) {
         toast(err?.response?.data?.message || "Erro ao reverter importacao.", "error");
@@ -1800,7 +1800,7 @@ export default function NfePage() {
               onReset={uploadTp.resetFilters}
               search={uploadTp.search}
               onSearchChange={uploadTp.setSearch}
-              searchPlaceholder="Numero, chave, fornecedor..."
+              searchPlaceholder="Número, chave, fornecedor..."
             />
           </div>
           <button
@@ -1995,11 +1995,11 @@ export default function NfePage() {
                     onChange={(e) => setCertEnvironment(e.target.value as "PRODUCTION" | "HOMOLOGATION")}
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
-                    <option value="PRODUCTION">Producao</option>
+                    <option value="PRODUCTION">Produção</option>
                     <option value="HOMOLOGATION">Homologacao</option>
                   </select>
                   <p className="text-xs text-slate-400 mt-1">
-                    Use &ldquo;Homologacao&rdquo; para testes. Selecione &ldquo;Producao&rdquo; para notas reais.
+                    Use &ldquo;Homologacao&rdquo; para testes. Selecione &ldquo;Produção&rdquo; para notas reais.
                   </p>
                 </div>
               </div>
@@ -2417,7 +2417,7 @@ export default function NfePage() {
                           <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-56">Acao</th>
                           <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-40">Finalidade</th>
                           <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-10">#</th>
-                          <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600">Codigo</th>
+                          <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600">Código</th>
                           <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600">Descricao</th>
                           <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-16">NCM</th>
                           <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-14">CFOP</th>
@@ -2820,10 +2820,10 @@ export default function NfePage() {
                 </div>
               )}
 
-              {/* ── Step 5: Confirmacao ───────────────────── */}
+              {/* ── Step 5: Confirmação ───────────────────── */}
               {step === 5 && nfeData && (
                 <div>
-                  <h3 className="text-base font-semibold text-slate-800 mb-4">Confirmacao</h3>
+                  <h3 className="text-base font-semibold text-slate-800 mb-4">Confirmação</h3>
 
                   <div className="space-y-4">
                     {/* Supplier summary */}
@@ -2914,7 +2914,7 @@ export default function NfePage() {
                         <div>
                           <p className="text-sm font-medium text-amber-800">Atencao</p>
                           <p className="text-xs text-amber-700 mt-1">
-                            Ao confirmar, serao criados automaticamente: parceiro (se necessario), produtos novos
+                            Ao confirmar, serao criados automaticamente: parceiro (se necessário), produtos novos
                             {createFinancialEntry ? ", equivalencias e um lancamento A Pagar." : " e equivalencias."}
                           </p>
                         </div>
@@ -2945,7 +2945,7 @@ export default function NfePage() {
                           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                           </svg>
-                          Confirmar Importacao
+                          Confirmar Importação
                         </>
                       )}
                     </button>

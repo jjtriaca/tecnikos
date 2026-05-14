@@ -388,7 +388,7 @@ function QuickCreateEntryModal({
     }
   }
 
-  /** Conciliacao com um entry ja existente (botao "Usar este" na lista de duplicados) */
+  /** Conciliação com um entry ja existente (botao "Usar este" na lista de duplicados) */
   async function handleMatchExisting(existingEntryId: string) {
     if (!line) return;
     setSaving(true);
@@ -1025,7 +1025,7 @@ function ConciliationModal({
 
     // Auto-deteccao de diferenca:
     // - Nao-cartao: diff > 0 → juros/multa; diff < 0 → descontos
-    // - Cartao: divergencia da taxa implicita > taxa configurada + 5pp → descontos
+    // - Cartão: divergencia da taxa implicita > taxa configurada + 5pp → descontos
     //   (taxa unica auto so e segura quando bate com a config; alem disso eh aluguel/etc)
     if (entry && line) {
       const entryAmount = entry.netCents ?? entry.grossCents ?? 0;
@@ -1279,7 +1279,7 @@ function ConciliationModal({
             <h3 className="text-base font-semibold text-slate-800">Conciliar Transacao</h3>
             {isCard && (
               <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-200">
-                Cartao
+                Cartão
               </span>
             )}
           </div>
@@ -1302,7 +1302,7 @@ function ConciliationModal({
             return (
               <div className="mb-4 rounded-lg border border-purple-200 bg-purple-50/50 p-3">
                 <div className="flex items-center gap-2 mb-2 flex-wrap">
-                  <p className="text-xs font-semibold text-purple-800">Detalhamento Cartao</p>
+                  <p className="text-xs font-semibold text-purple-800">Detalhamento Cartão</p>
                   {detectedBrand && (
                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">
                       {detectedBrand} {detectedType}
@@ -1368,7 +1368,7 @@ function ConciliationModal({
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-medium text-slate-500 mb-1">Taxa do Cartao</label>
+                    <label className="block text-[10px] font-medium text-slate-500 mb-1">Taxa do Cartão</label>
                     <input
                       type="text"
                       value={(taxCents / 100).toFixed(2).replace(".", ",")}
@@ -2420,7 +2420,7 @@ function CardInvoiceMatchModal({
         {/* Filtros */}
         <div className="px-5 py-3 border-b border-slate-200 space-y-3">
           <div>
-            <label className="block text-[11px] font-medium text-slate-600 mb-1.5">Cartoes que compoem a fatura</label>
+            <label className="block text-[11px] font-medium text-slate-600 mb-1.5">Cartões que compoem a fatura</label>
             {instruments.length === 0 ? (
               <p className="text-xs text-slate-400 italic">Nenhum cartao de credito cadastrado.</p>
             ) : (
@@ -2807,7 +2807,7 @@ function CardInvoiceMatchModal({
                 <p className="text-xs font-medium text-slate-700">Este lancamento e encargo (juros, IOF, anuidade, taxa)</p>
                 <p className="text-[11px] text-slate-500 mt-0.5">
                   Marcar quando for taxa do banco aplicada na fatura, nao compra de cartao especifico.
-                  Cartao fica opcional (juros vinculados a 1 cartao) ou vazio (encargo da fatura toda).
+                  Cartão fica opcional (juros vinculados a 1 cartao) ou vazio (encargo da fatura toda).
                 </p>
               </div>
             </label>
@@ -2852,7 +2852,7 @@ function CardInvoiceMatchModal({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
-                Cartao {newEntryForm.isInvoiceCharge ? <span className="text-slate-400 font-normal">(opcional — vazio = encargo da fatura toda)</span> : "*"}
+                Cartão {newEntryForm.isInvoiceCharge ? <span className="text-slate-400 font-normal">(opcional — vazio = encargo da fatura toda)</span> : "*"}
               </label>
               <select
                 value={newEntryForm.paymentInstrumentId}
@@ -3124,7 +3124,7 @@ function MultipleMatchModal({
       toast("Descrição obrigatória.", "error");
       return;
     }
-    // partnerId e obrigatorio no backend — pega do primeiro entry selecionado com parceiro
+    // partnerId e obrigatório no backend — pega do primeiro entry selecionado com parceiro
     const partnerId = selected.find((e) => e.partner?.id)?.partner?.id;
     if (!partnerId) {
       toast("Selecione ao menos 1 lançamento com parceiro antes de criar ajuste.", "error");
@@ -3737,7 +3737,7 @@ function ImportSection() {
         },
       );
       toast(
-        `Importacao concluida! ${result.lineCount} transacao(es) importada(s)${result.skippedDuplicates > 0 ? `, ${result.skippedDuplicates} duplicada(s) ignorada(s)` : ""}.`,
+        `Importação concluída! ${result.lineCount} transacao(es) importada(s)${result.skippedDuplicates > 0 ? `, ${result.skippedDuplicates} duplicada(s) ignorada(s)` : ""}.`,
         "success",
       );
       // Trigger reload of imports list by re-rendering
@@ -3906,7 +3906,7 @@ function StatementsSection() {
                             )}
                           </div>
                           <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
-                            {s.lastFileName && <span className="truncate max-w-[300px]">Ultimo arquivo: {s.lastFileName}</span>}
+                            {s.lastFileName && <span className="truncate max-w-[300px]">Último arquivo: {s.lastFileName}</span>}
                             {s.lastImportAt && <span>{formatDateTime(s.lastImportAt)}</span>}
                             {s.lastImportByName && <span>por {s.lastImportByName}</span>}
                           </div>
@@ -4126,7 +4126,7 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
     setUnmatchLoading(true);
     try {
       await api.post(`/finance/reconciliation/lines/${unmatchLine.id}/unmatch`);
-      toast("Conciliacao desfeita. Saldos revertidos.", "success");
+      toast("Conciliação desfeita. Saldos revertidos.", "success");
       setUnmatchLine(null);
       await refreshAll();
     } catch {
@@ -4353,7 +4353,7 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
             <div className="px-5 py-4 border-b border-slate-200">
-              <h3 className="text-base font-semibold text-amber-700">Desfazer Conciliacao</h3>
+              <h3 className="text-base font-semibold text-amber-700">Desfazer Conciliação</h3>
               <p className="text-xs text-slate-500 mt-1">Tem certeza que deseja desfazer a conciliacao desta transacao?</p>
             </div>
             <div className="px-5 py-3">

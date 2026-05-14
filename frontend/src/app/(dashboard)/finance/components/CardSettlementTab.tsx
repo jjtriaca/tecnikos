@@ -895,7 +895,7 @@ export default function CardSettlementTab() {
         {showFeeRates && (
           <div className="mt-3 rounded-xl border border-slate-200 bg-white shadow-sm p-5">
             <div className="flex items-center justify-between mb-4">
-              <h4 className="text-sm font-semibold text-slate-800">Taxas de Cartao</h4>
+              <h4 className="text-sm font-semibold text-slate-800">Taxas de Cartão</h4>
               <button
                 onClick={openNewFeeForm}
                 className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition-colors"
@@ -1271,7 +1271,7 @@ export default function CardSettlementTab() {
           />
           <div className="relative mx-4 w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl animate-scale-in max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-slate-900 mb-4">
-              Baixar Cartao
+              Baixar Cartão
             </h3>
 
             {/* Info */}

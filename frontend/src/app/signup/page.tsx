@@ -65,7 +65,7 @@ interface VerificationStatus {
 }
 
 const DOC_STEPS = [
-  { key: "cnpjCard", label: "Cartao CNPJ", accept: "image/*,application/pdf", capture: "environment" as const },
+  { key: "cnpjCard", label: "Cartão CNPJ", accept: "image/*,application/pdf", capture: "environment" as const },
   { key: "docFront", label: "Documento (Frente)", accept: "image/*", capture: "environment" as const },
   { key: "docBack", label: "Documento (Verso)", accept: "image/*", capture: "environment" as const },
   { key: "selfieClose", label: "Selfie 1", accept: "image/*", capture: "user" as const },
@@ -718,7 +718,7 @@ function SignupPage() {
 
             {/* Promo code */}
             <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4">
-              <label className="text-xs font-medium text-slate-600 mb-2 block">Codigo promocional ou voucher</label>
+              <label className="text-xs font-medium text-slate-600 mb-2 block">Código promocional ou voucher</label>
               <div className="flex gap-2">
                 <input className="h-9 flex-1 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500 uppercase"
                   value={promoCode} onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); setPromoValid(null); }}
@@ -789,7 +789,7 @@ function SignupPage() {
                   <span className="h-10 rounded-r-lg border border-l-0 border-slate-200 bg-slate-50 px-3 text-xs text-slate-400 leading-10 whitespace-nowrap">.tecnikos.com.br</span>
                 </div>
                 {slugChecking && <p className="text-xs text-slate-400 mt-1">Verificando...</p>}
-                {slugAvailable === true && <p className="text-xs text-green-600 mt-1">Disponivel!</p>}
+                {slugAvailable === true && <p className="text-xs text-green-600 mt-1">Disponível!</p>}
                 {slugAvailable === false && <p className="text-xs text-red-500 mt-1">Ja em uso. Tente outro.</p>}
               </div>
 
@@ -842,7 +842,7 @@ function SignupPage() {
                     )}
                     {cnpjData.logradouro && (
                       <div className="sm:col-span-2">
-                        <span className="text-[10px] text-slate-400 uppercase">Endereco</span>
+                        <span className="text-[10px] text-slate-400 uppercase">Endereço</span>
                         <p className="text-sm text-slate-700">
                           {cnpjData.logradouro}{cnpjData.numero ? `, ${cnpjData.numero}` : ""}
                           {cnpjData.bairro ? ` — ${cnpjData.bairro}` : ""}
@@ -936,7 +936,7 @@ function SignupPage() {
                         { label: "8+ caracteres", ok: password.length >= 8 },
                         { label: "Letra maiuscula", ok: /[A-Z]/.test(password) },
                         { label: "Letra minuscula", ok: /[a-z]/.test(password) },
-                        { label: "Numero", ok: /\d/.test(password) },
+                        { label: "Número", ok: /\d/.test(password) },
                         { label: "Caractere especial", ok: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password) },
                       ].map((rule) => (
                         <div key={rule.label} className="flex items-center gap-1">
@@ -972,7 +972,7 @@ function SignupPage() {
                   </a>{" "}
                   e a{" "}
                   <a href="/privacy" target="_blank" className="text-blue-600 hover:text-blue-700 underline">
-                    Politica de Privacidade
+                    Política de Privacidade
                   </a>{" "}
                   do Tecnikos.
                 </span>
@@ -1014,12 +1014,12 @@ function SignupPage() {
         {step === 3 && (
           <div>
             <h1 className="text-2xl font-bold text-slate-900 text-center mb-2">
-              {cnpjPdfUploaded ? "Verificacao de documentos" : "Cartao CNPJ"}
+              {cnpjPdfUploaded ? "Verificacao de documentos" : "Cartão CNPJ"}
             </h1>
             <p className="text-sm text-slate-500 text-center mb-6">
               {cnpjPdfUploaded
                 ? "Complete a verificacao enviando os documentos restantes"
-                : "Envie o Cartao CNPJ da empresa para validar seu cadastro"}
+                : "Envie o Cartão CNPJ da empresa para validar seu cadastro"}
             </p>
 
             {/* ── CNPJ Card Upload (mandatory) ── */}
@@ -1057,9 +1057,9 @@ function SignupPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m6.75 12-3-3m0 0-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                         </svg>
                       </div>
-                      <p className="text-sm font-semibold text-slate-800 mb-1">Cartao CNPJ</p>
+                      <p className="text-sm font-semibold text-slate-800 mb-1">Cartão CNPJ</p>
                       <p className="text-xs text-slate-500 mb-3">
-                        Clique ou arraste o arquivo PDF ou imagem do Cartao CNPJ
+                        Clique ou arraste o arquivo PDF ou imagem do Cartão CNPJ
                       </p>
                       <div className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors">
                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -1072,7 +1072,7 @@ function SignupPage() {
                   )}
                 </div>
                 <p className="text-[10px] text-slate-400 text-center mt-3">
-                  Voce pode obter o Cartao CNPJ em <a href="https://solucoes.receita.fazenda.gov.br/servicos/cnpjreva/cnpjreva_solicitacao.asp" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">receita.fazenda.gov.br</a>
+                  Voce pode obter o Cartão CNPJ em <a href="https://solucoes.receita.fazenda.gov.br/servicos/cnpjreva/cnpjreva_solicitacao.asp" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">receita.fazenda.gov.br</a>
                 </p>
               </div>
             )}
@@ -1087,7 +1087,7 @@ function SignupPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
                     </svg>
                   </div>
-                  <span className="text-sm font-medium text-green-800">Cartao CNPJ enviado</span>
+                  <span className="text-sm font-medium text-green-800">Cartão CNPJ enviado</span>
                 </div>
 
                 {/* QR Code for remaining documents */}

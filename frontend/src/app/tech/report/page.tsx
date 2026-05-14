@@ -69,7 +69,7 @@ export default function TechReportPage() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <h1 className="text-lg font-bold text-slate-800">Meus Servicos</h1>
+        <h1 className="text-lg font-bold text-slate-800">Meus Serviços</h1>
       </div>
 
       {/* Filters */}
@@ -88,7 +88,7 @@ export default function TechReportPage() {
         </div>
         <button onClick={handleGenerate} disabled={loading}
           className="w-full py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold disabled:opacity-50 active:scale-[0.98] transition-all">
-          {loading ? "Gerando..." : "Gerar Relatorio"}
+          {loading ? "Gerando..." : "Gerar Relatório"}
         </button>
       </div>
 

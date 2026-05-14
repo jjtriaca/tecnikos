@@ -295,7 +295,7 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
           <div className="max-w-2xl space-y-3">
             {/* OS triggers */}
             <div>
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Ordens de Servico</p>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Ordens de Serviço</p>
               <div className="flex flex-wrap gap-1.5">
                 {osTriggers.map(t => (
                   <button

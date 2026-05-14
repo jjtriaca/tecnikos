@@ -67,7 +67,7 @@ export default function FinancialReportModal({ open, defaultType, onClose }: Fin
       const blob = await res.blob();
       const disposition = res.headers.get("Content-Disposition") || "";
       const filenameMatch = disposition.match(/filename="?([^"]+)"?/);
-      const filename = filenameMatch?.[1] || "Relatorio_Financeiro.pdf";
+      const filename = filenameMatch?.[1] || "Relatório_Financeiro.pdf";
 
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -77,11 +77,11 @@ export default function FinancialReportModal({ open, defaultType, onClose }: Fin
       a.click();
       document.body.removeChild(a);
 
-      toast("Relatorio gerado com sucesso!", "success");
+      toast("Relatório gerado com sucesso!", "success");
 
       setTimeout(() => {
         const openFile = window.confirm(
-          "Relatorio PDF gerado com sucesso!\n\nDeseja abrir o arquivo?"
+          "Relatório PDF gerado com sucesso!\n\nDeseja abrir o arquivo?"
         );
         if (openFile) {
           window.open(url, "_blank");
@@ -103,7 +103,7 @@ export default function FinancialReportModal({ open, defaultType, onClose }: Fin
       <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-          <h3 className="text-lg font-semibold text-slate-900">Gerar Relatorio Financeiro</h3>
+          <h3 className="text-lg font-semibold text-slate-900">Gerar Relatório Financeiro</h3>
           <button
             onClick={onClose}
             className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"

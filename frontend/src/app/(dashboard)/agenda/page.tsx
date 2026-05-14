@@ -11,7 +11,7 @@ export default function AgendaRedirect() {
   }, [router]);
   return (
     <div className="flex items-center justify-center py-20 text-sm text-slate-400">
-      Redirecionando para Ordens de Servico...
+      Redirecionando para Ordens de Serviço...
     </div>
   );
 }

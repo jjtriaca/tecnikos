@@ -311,7 +311,7 @@ export default function InvoicesPage() {
               : "border-transparent text-slate-500 hover:text-slate-700"
           }`}
         >
-          Configuracao Fiscal
+          Configuração Fiscal
         </button>
       </div>
 
@@ -460,7 +460,7 @@ export default function InvoicesPage() {
               <div className="rounded-xl border border-slate-200 bg-white p-5">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-800">Emissao Automatica</h3>
+                    <h3 className="text-sm font-semibold text-slate-800">Emissao Automática</h3>
                     <p className="text-xs text-slate-500 mt-1">
                       Emitir nota fiscal automaticamente ao confirmar pagamento de assinatura
                     </p>
@@ -483,13 +483,13 @@ export default function InvoicesPage() {
 
               {/* Municipal Service */}
               <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
-                <h3 className="text-sm font-semibold text-slate-800">Servico Municipal</h3>
+                <h3 className="text-sm font-semibold text-slate-800">Serviço Municipal</h3>
                 <p className="text-xs text-slate-500">
-                  Dados do servico municipal para emissao de NFS-e (obrigatorio para emissao via prefeitura)
+                  Dados do serviço municipal para emissao de NFS-e (obrigatorio para emissao via prefeitura)
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Codigo do Servico</label>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Código do Serviço</label>
                     <input
                       className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
                       value={config.municipalServiceCode || ""}
@@ -498,7 +498,7 @@ export default function InvoicesPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1">ID Servico (Asaas)</label>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">ID Serviço (Asaas)</label>
                     <input
                       className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
                       value={config.municipalServiceId || ""}
@@ -508,7 +508,7 @@ export default function InvoicesPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Nome do Servico</label>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">Nome do Serviço</label>
                   <input
                     className="h-9 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
                     value={config.municipalServiceName || ""}
@@ -569,7 +569,7 @@ export default function InvoicesPage() {
               <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
                 <h3 className="text-sm font-semibold text-slate-800">Template de Descricao</h3>
                 <p className="text-xs text-slate-500">
-                  Descricao padrao do servico na nota fiscal. Variaveis: {"{empresa}"}, {"{plano}"}, {"{periodo}"}
+                  Descricao padrao do serviço na nota fiscal. Variaveis: {"{empresa}"}, {"{plano}"}, {"{periodo}"}
                 </p>
                 <textarea
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 resize-none h-20"
@@ -598,7 +598,7 @@ export default function InvoicesPage() {
                   className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
                 >
                   {configSaving && <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
-                  Salvar Configuracao
+                  Salvar Configuração
                 </button>
                 {configSaved && (
                   <span className="text-sm text-green-600 flex items-center gap-1">
@@ -703,7 +703,7 @@ export default function InvoicesPage() {
 
               {/* Description (optional override) */}
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Descricao do Servico</label>
+                <label className="mb-1 block text-xs font-medium text-slate-600">Descricao do Serviço</label>
                 <textarea
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 resize-none h-16"
                   value={issueDescription}

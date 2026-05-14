@@ -8,7 +8,7 @@ const RULES = [
   { label: "8 caracteres", test: (v: string) => v.length >= 8 },
   { label: "Letra maiuscula", test: (v: string) => /[A-Z]/.test(v) },
   { label: "Letra minuscula", test: (v: string) => /[a-z]/.test(v) },
-  { label: "Numero", test: (v: string) => /\d/.test(v) },
+  { label: "Número", test: (v: string) => /\d/.test(v) },
   {
     label: "Caractere especial",
     test: (v: string) => /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(v),
@@ -174,7 +174,7 @@ export default function ResetPasswordPage() {
               <img src="/logo-icon.svg" alt="Tecnikos" className="h-10 w-10" />
               <div>
                 <div className="text-base font-bold text-slate-900">Tecnikos</div>
-                <div className="text-[11px] text-slate-400">Gestao de Servicos Tecnicos</div>
+                <div className="text-[11px] text-slate-400">Gestão de Serviços Técnicos</div>
               </div>
             </div>
 

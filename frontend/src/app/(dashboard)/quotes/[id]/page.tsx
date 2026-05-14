@@ -94,7 +94,7 @@ const STATUS_MAP: Record<string, { label: string; color: string }> = {
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  SERVICE: "Servico",
+  SERVICE: "Serviço",
   PRODUCT: "Produto",
   LABOR: "Mao de Obra",
 };
@@ -432,7 +432,7 @@ export default function QuoteDetailPage() {
           {/* Parent quote */}
           {quote.parentQuote && (
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="text-sm font-semibold text-slate-600 mb-2">Versao anterior</h3>
+              <h3 className="text-sm font-semibold text-slate-600 mb-2">Versão anterior</h3>
               <Link href={`/quotes/${quote.parentQuote.id}`} className="text-sm text-blue-600 hover:underline">
                 {quote.parentQuote.code || quote.parentQuote.id.slice(0, 8)}
               </Link>
@@ -645,7 +645,7 @@ export default function QuoteDetailPage() {
 
       <ConfirmModal
         open={showCreateOsModal}
-        title="Gerar Ordem de Servico"
+        title="Gerar Ordem de Serviço"
         message={`Deseja criar uma nova OS a partir do orcamento aprovado "${quote.title}" (${formatCurrency(quote.totalCents)})?`}
         confirmLabel="Criar OS"
         variant="default"

@@ -64,7 +64,7 @@ export default function BoletoDetailModal({ boleto, onClose, onRefresh }: Props)
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `boleto-${boleto.nossoNumero}.pdf`;
+      a.download = `boleto-${boleto.nossoNúmero}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -137,8 +137,8 @@ export default function BoletoDetailModal({ boleto, onClose, onRefresh }: Props)
               <div className="font-medium">{formatDate(boleto.dueDate)}</div>
             </div>
             <div>
-              <div className="text-xs text-slate-500">Nosso Numero</div>
-              <div className="font-mono text-xs">{boleto.nossoNumero}</div>
+              <div className="text-xs text-slate-500">Nosso Número</div>
+              <div className="font-mono text-xs">{boleto.nossoNúmero}</div>
             </div>
             {boleto.paidAmountCents && (
               <div>
@@ -173,19 +173,19 @@ export default function BoletoDetailModal({ boleto, onClose, onRefresh }: Props)
             </div>
           )}
 
-          {/* Codigo de barras */}
+          {/* Código de barras */}
           {boleto.codigoBarras && (
             <div>
-              <div className="text-xs text-slate-500 mb-1">Codigo de Barras</div>
+              <div className="text-xs text-slate-500 mb-1">Código de Barras</div>
               <div className="flex items-center gap-2">
                 <code className="flex-1 text-xs font-mono bg-slate-50 p-2 rounded border break-all">
                   {boleto.codigoBarras}
                 </code>
                 <button
-                  onClick={() => copyToClipboard(boleto.codigoBarras!, "Codigo de barras")}
+                  onClick={() => copyToClipboard(boleto.codigoBarras!, "Código de barras")}
                   className="px-2 py-1 text-xs bg-slate-100 hover:bg-slate-200 rounded"
                 >
-                  {copied === "Codigo de barras" ? "Copiado!" : "Copiar"}
+                  {copied === "Código de barras" ? "Copiado!" : "Copiar"}
                 </button>
               </div>
             </div>

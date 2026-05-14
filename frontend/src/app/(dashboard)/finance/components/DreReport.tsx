@@ -171,7 +171,7 @@ export default function DreReport() {
           <div className="text-center mb-4">
             <h2 className="text-lg font-bold text-slate-900">Demonstrativo de Resultado (DRE)</h2>
             <p className="text-xs text-slate-500">
-              Periodo: {new Date(data.period.dateFrom).toLocaleDateString("pt-BR")} a{" "}
+              Período: {new Date(data.period.dateFrom).toLocaleDateString("pt-BR")} a{" "}
               {new Date(data.period.dateTo).toLocaleDateString("pt-BR")}
             </p>
           </div>

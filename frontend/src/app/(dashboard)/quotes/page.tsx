@@ -502,7 +502,7 @@ export default function QuotesPage() {
                   : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700"
               }`}
             >
-              Servicos
+              Serviços
             </button>
             <button
               type="button"

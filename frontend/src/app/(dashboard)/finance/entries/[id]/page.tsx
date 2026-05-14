@@ -9,7 +9,7 @@
  *
  * Como funciona:
  *  - Backend `/finance/entries/:id/detail` retorna `entry` sem select projection
- *    (campo a campo, automatico) + relacoes (NFe, NFS-e, Boleto, OS, etc).
+ *    (campo a campo, automático) + relacoes (NFe, NFS-e, Boleto, OS, etc).
  *  - Esta tela tem secoes nomeadas pros campos importantes (Geral, Pagamento, etc).
  *  - A secao "Outros dados do banco" no final usa Object.entries(entry) e mostra
  *    QUALQUER campo NAO listado em KNOWN_FIELDS_RENDERED como fallback.
@@ -22,7 +22,7 @@
  *    anti-bug de descoberta de campos novos.
  *
  * NUNCA remover:
- *  - A secao "Outros dados do banco" (fallback automatico).
+ *  - A secao "Outros dados do banco" (fallback automático).
  *  - O log de comentarios PADRAO TECNIKOS — orientam IA em futuras sessoes.
  *  - O cruzamento com NfeImport (botao "Baixar DANFE") — eh o ponto unico de
  *    acesso ao PDF da NFe vinculada a um lancamento.
@@ -62,11 +62,11 @@ const KNOWN_FIELDS_RENDERED = new Set<string>([
   // Parcelas
   "installmentCount", "interestType", "interestRateMonthly",
   "penaltyPercent", "penaltyFixedCents",
-  // Renegociacao
+  // Renegociação
   "parentEntryId", "renegotiatedAt", "renegotiatedToId",
   // NFS-e
   "nfseStatus", "nfseEmissionId",
-  // Conciliacao
+  // Conciliação
   "invoiceMatchLineId",
   // Estorno
   "refundPairEntryId", "isRefundEntry",
@@ -281,7 +281,7 @@ export default function FinanceEntryDetailPage() {
       {/* Geral */}
       <Section title="Geral">
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <Field label="Codigo">{entry.code}</Field>
+          <Field label="Código">{entry.code}</Field>
           <Field label="Tipo">{typeLabel}</Field>
           <Field label="Status">{statusCfg.label}</Field>
           <Field label="Parceiro">
@@ -339,7 +339,7 @@ export default function FinanceEntryDetailPage() {
           <Field label="Conta">{entry.cashAccountRef?.name || "—"}</Field>
           {/* Cardholder so faz sentido pra RECEIVABLE recebido via cartao */}
           {entry.type === "RECEIVABLE" && entry.receivedCardLast4 && (
-            <Field label="Cartao do cliente">••••{entry.receivedCardLast4} {entry.cardBrand || ""}</Field>
+            <Field label="Cartão do cliente">••••{entry.receivedCardLast4} {entry.cardBrand || ""}</Field>
           )}
           {/* Ciclo de fatura so pra credito de cartao */}
           {entry.paymentInstrumentRef?.billingClosingDay && (
@@ -347,7 +347,7 @@ export default function FinanceEntryDetailPage() {
           )}
           {/* Auto-pago so quando relevante (entry foi auto-marcada paga por configuracao do instrumento) */}
           {entry.autoMarkedPaid && (
-            <Field label="Pagamento automatico">Sim — debitado direto no instrumento</Field>
+            <Field label="Pagamento automático">Sim — debitado direto no instrumento</Field>
           )}
           {entry.checkNumber && (
             <>
@@ -471,7 +471,7 @@ export default function FinanceEntryDetailPage() {
               <div key={link.id} className="mb-4 pb-4 border-b border-slate-100 last:border-b-0 last:pb-0 last:mb-0">
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold text-slate-700">NFS-e recebida (servico tomado)</p>
+                    <p className="text-xs font-semibold text-slate-700">NFS-e recebida (serviço tomado)</p>
                     <p className="text-xs text-slate-500 mt-1">
                       N° {ne.numero || "—"} · {ne.prestadorRazaoSocial || "—"}
                       {ne.prestadorCnpjCpf && <span className="text-slate-400 ml-1">({ne.prestadorCnpjCpf})</span>}
@@ -493,7 +493,7 @@ export default function FinanceEntryDetailPage() {
                   </a>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                  <div><span className="text-slate-500">Valor servicos:</span> {formatCurrency(ne.valorServicosCents)}</div>
+                  <div><span className="text-slate-500">Valor serviços:</span> {formatCurrency(ne.valorServicosCents)}</div>
                   {ne.valorIssCents != null && (
                     <div><span className="text-slate-500">ISS:</span> {formatCurrency(ne.valorIssCents)} {ne.issRetido && <span className="text-amber-700">(retido)</span>}</div>
                   )}
@@ -512,7 +512,7 @@ export default function FinanceEntryDetailPage() {
                 </div>
                 {ne.discriminacao && (
                   <div className="mt-3 pt-3 border-t border-slate-100">
-                    <p className="text-[11px] font-medium text-slate-500 uppercase mb-1">Discriminacao do servico</p>
+                    <p className="text-[11px] font-medium text-slate-500 uppercase mb-1">Discriminacao do serviço</p>
                     <p className="text-sm text-slate-700 whitespace-pre-wrap">{ne.discriminacao}</p>
                   </div>
                 )}
@@ -554,9 +554,9 @@ export default function FinanceEntryDetailPage() {
         </Section>
       )}
 
-      {/* Renegociacao */}
+      {/* Renegociação */}
       {(entry.parentEntry || (entry.childEntries && entry.childEntries.length > 0) || entry.renegotiatedTo) && (
-        <Section title="Renegociacao">
+        <Section title="Renegociação">
           {entry.parentEntry && (
             <div className="mb-3">
               <p className="text-[11px] font-medium text-slate-500 uppercase">Entry original</p>
@@ -606,9 +606,9 @@ export default function FinanceEntryDetailPage() {
         </Section>
       )}
 
-      {/* Conciliacao */}
+      {/* Conciliação */}
       {(isReconciled || entry.invoiceMatchLine || matchedLine) && (
-        <Section title="Conciliacao bancaria">
+        <Section title="Conciliação bancaria">
           {entry.invoiceMatchLine && (
             <div className="mb-3">
               <p className="text-[11px] font-medium text-slate-500 uppercase">Vinculada a fatura de cartao (N-pra-1)</p>
@@ -630,7 +630,7 @@ export default function FinanceEntryDetailPage() {
         </Section>
       )}
 
-      {/* Outros dados do banco — fallback automatico (NUNCA REMOVER) */}
+      {/* Outros dados do banco — fallback automático (NUNCA REMOVER) */}
       {otherFields.length > 0 && (
         <Section title="Outros dados do banco">
           <p className="text-[11px] text-slate-400 italic mb-3">

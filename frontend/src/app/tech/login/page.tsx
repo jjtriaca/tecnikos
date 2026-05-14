@@ -57,7 +57,7 @@ export default function TechLoginPage() {
       await loginWithOtp(rawPhone(), code);
       // loginWithOtp redirects to /tech/orders on success
     } catch (err: any) {
-      setError(err.message || "Codigo invalido");
+      setError(err.message || "Código invalido");
       setStep("otp_sent");
     } finally {
       setLoading(false);
@@ -77,7 +77,7 @@ export default function TechLoginPage() {
             <img src="/logo-icon.svg" alt="Tecnikos" className="h-9 w-9" />
             <div>
               <div className="text-sm font-bold text-slate-900">Tecnikos</div>
-              <div className="text-[10px] text-slate-400">Portal do Tecnico</div>
+              <div className="text-[10px] text-slate-400">Portal do Técnico</div>
             </div>
           </div>
 
@@ -141,13 +141,13 @@ export default function TechLoginPage() {
                 </div>
               </div>
 
-              <h1 className="text-lg font-bold text-slate-900 text-center">Codigo enviado</h1>
+              <h1 className="text-lg font-bold text-slate-900 text-center">Código enviado</h1>
               <p className="mt-2 text-sm text-slate-500 text-center leading-relaxed">
                 Enviamos um codigo de 6 digitos para o WhatsApp do numero <strong className="text-slate-700">{phone}</strong>.
               </p>
 
               <div className="mt-5">
-                <label className="block text-xs font-medium text-slate-600 mb-1.5">Codigo</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">Código</label>
                 <input
                   type="text"
                   inputMode="numeric"

@@ -42,7 +42,7 @@ const DYNAMIC_LABEL: Record<string, string> = {
 const PLACEHOLDERS = [
   { key: "{clientName}", label: "Nome do cliente" },
   { key: "{clientDocument}", label: "CPF/CNPJ do cliente" },
-  { key: "{budgetCode}", label: "Codigo do orcamento" },
+  { key: "{budgetCode}", label: "Código do orcamento" },
   { key: "{budgetTitle}", label: "Titulo do orcamento" },
   { key: "{budgetTotal}", label: "Valor total" },
   { key: "{poolLength}", label: "Comprimento (m)" },
@@ -352,7 +352,7 @@ function PageEditor({ editing, onClose, onSubmit }: {
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-slate-600 mb-1">Configuracao (JSON)</label>
+                <label className="block text-xs text-slate-600 mb-1">Configuração (JSON)</label>
                 <textarea value={pageConfig} onChange={(e) => setPageConfig(e.target.value)} rows={6}
                   className="w-full rounded border border-slate-300 px-3 py-2 text-sm font-mono"
                   placeholder='{"sections": ["CONSTRUCAO"], "showImages": true}' />

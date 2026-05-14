@@ -411,7 +411,7 @@ export default function PartnerForm({
               <div>
                 <label className="block text-[11px] font-medium text-slate-500 mb-1">Inscricao Estadual (IE)</label>
                 <div className="flex gap-2">
-                  <input placeholder="Numero da IE" value={form.ie} onChange={(e) => setForm((f) => ({ ...f, ie: maskIE(e.target.value, f.state) }))} className={inputClass + " flex-1"} />
+                  <input placeholder="Número da IE" value={form.ie} onChange={(e) => setForm((f) => ({ ...f, ie: maskIE(e.target.value, f.state) }))} className={inputClass + " flex-1"} />
                   <button
                     type="button"
                     onClick={() => setSefazModalOpen(true)}
@@ -455,11 +455,11 @@ export default function PartnerForm({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] font-medium text-slate-500 mb-1">Inscricao Estadual (IE)</label>
-                <input placeholder="Numero da IE" value={form.ie} onChange={(e) => setForm((f) => ({ ...f, ie: maskIE(e.target.value, f.state) }))} className={inputClass + " w-full"} />
+                <input placeholder="Número da IE" value={form.ie} onChange={(e) => setForm((f) => ({ ...f, ie: maskIE(e.target.value, f.state) }))} className={inputClass + " w-full"} />
               </div>
               <div>
                 <label className="block text-[11px] font-medium text-slate-500 mb-1">Inscricao Municipal (IM)</label>
-                <input placeholder="Numero da IM" value={form.im} onChange={(e) => setForm((f) => ({ ...f, im: e.target.value }))} className={inputClass + " w-full"} />
+                <input placeholder="Número da IM" value={form.im} onChange={(e) => setForm((f) => ({ ...f, im: e.target.value }))} className={inputClass + " w-full"} />
               </div>
             </div>
           </div>
@@ -499,7 +499,7 @@ export default function PartnerForm({
                 <input placeholder="Rua, Av, Rod..." value={form.addressStreet} onChange={(e) => setForm((f) => ({ ...f, addressStreet: e.target.value }))} onBlur={() => setForm((f) => ({ ...f, addressStreet: toTitleCase(f.addressStreet) }))} className={inputClass + " w-full"} />
               </div>
               <div>
-                <label className="block text-[11px] font-medium text-slate-500 mb-1">Numero</label>
+                <label className="block text-[11px] font-medium text-slate-500 mb-1">Número</label>
                 <input placeholder="S/N" value={form.addressNumber} onChange={(e) => setForm((f) => ({ ...f, addressNumber: e.target.value }))} className={inputClass + " w-full"} />
               </div>
             </div>

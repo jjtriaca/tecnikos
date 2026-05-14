@@ -281,7 +281,7 @@ function NewQuotePage() {
     setLoading(true);
 
     try {
-      if (!title.trim()) { setError("Titulo e obrigatorio"); setLoading(false); return; }
+      if (!title.trim()) { setError("Titulo e obrigatório"); setLoading(false); return; }
       if (!selectedClient) { setError("Selecione um cliente"); setLoading(false); return; }
 
       const validItems = items.filter(i => i.description.trim());
@@ -415,7 +415,7 @@ function NewQuotePage() {
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 onBlur={() => setTitle(t => toTitleCase(t))}
-                placeholder="Ex: Manutencao preventiva - Ar condicionado"
+                placeholder="Ex: Manutenção preventiva - Ar condicionado"
                 className={inputClass}
                 required
               />
@@ -445,8 +445,8 @@ function NewQuotePage() {
             <LookupField<ServiceOrderSummary>
               label="OS Vinculada"
               placeholder="Opcional - buscar OS..."
-              modalTitle="Vincular a Ordem de Servico"
-              modalPlaceholder="Codigo ou titulo da OS..."
+              modalTitle="Vincular a Ordem de Serviço"
+              modalPlaceholder="Código ou titulo da OS..."
               value={selectedOS}
               onChange={setSelectedOS}
               fetcher={osFetcher}
@@ -880,7 +880,7 @@ function QuoteItemEditor({
           }}
           className="rounded border border-slate-300 px-2 py-1 text-xs bg-white font-medium"
         >
-          <option value="SERVICE">Servico</option>
+          <option value="SERVICE">Serviço</option>
           <option value="PRODUCT">Produto</option>
           <option value="LABOR">Mao de Obra</option>
         </select>
@@ -1053,8 +1053,8 @@ function QuoteItemEditor({
       {/* Service Lookup Modal */}
       {showServiceLookup && (
         <SearchLookupModalInline
-          title="Buscar Servico"
-          placeholder="Nome ou codigo do servico..."
+          title="Buscar Serviço"
+          placeholder="Nome ou codigo do serviço..."
           fetcher={serviceFetcher}
           keyExtractor={(s: ServiceSummary) => s.id}
           renderItem={(s: ServiceSummary) => (

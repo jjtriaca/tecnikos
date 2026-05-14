@@ -84,7 +84,7 @@ export default function WhatsAppSettingsPage() {
       setTestResult(result);
       if (result.success) {
         setSuccess(
-          `Conexao OK! Numero: ${result.phoneNumber} (${result.displayName})`
+          `Conexao OK! Número: ${result.phoneNumber} (${result.displayName})`
         );
         setTimeout(() => setSuccess(null), 8000);
       } else {
@@ -212,7 +212,7 @@ export default function WhatsAppSettingsPage() {
               href="/settings"
               className="text-sm text-slate-400 hover:text-slate-600 transition-colors"
             >
-              Configuracoes
+              Configurações
             </Link>
             <span className="text-slate-300">/</span>
             <span className="text-sm text-slate-700 font-medium">
@@ -357,7 +357,7 @@ export default function WhatsAppSettingsPage() {
               >
                 {testResult.success ? (
                   <>
-                    <span className="font-semibold">Conexao OK!</span> Numero:{" "}
+                    <span className="font-semibold">Conexao OK!</span> Número:{" "}
                     {testResult.phoneNumber} ({testResult.displayName})
                   </>
                 ) : (
@@ -477,7 +477,7 @@ export default function WhatsAppSettingsPage() {
                 d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
               />
             </svg>
-            Configuracao do Webhook
+            Configuração do Webhook
           </h3>
           <p className="text-xs text-slate-600 mb-4">
             Configure estes dados no{" "}
@@ -735,7 +735,7 @@ export default function WhatsAppSettingsPage() {
               5
             </span>
             <p>
-              Apos conectar, copie a{" "}
+              Após conectar, copie a{" "}
               <strong>Callback URL</strong> e o{" "}
               <strong>Verify Token</strong> para o webhook no painel da Meta.
             </p>

@@ -120,7 +120,7 @@ function buildProductColumns(): ColumnDefinition<Product>[] {
     },
     {
       id: "code",
-      label: "Codigo",
+      label: "Código",
       sortable: true,
       render: (p) => (
         <span className="text-sm font-medium text-slate-900">
@@ -586,7 +586,7 @@ export default function ProductsPage() {
   async function handleAddEquivalent() {
     if (!editingProduct) return;
     if (!equivForm.supplierCode.trim()) {
-      toast("Codigo do fornecedor e obrigatorio.", "error");
+      toast("Código do fornecedor e obrigatório.", "error");
       return;
     }
     try {
@@ -875,7 +875,7 @@ export default function ProductsPage() {
               {modalTab === "geral" && (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   <div>
-                    <label className={labelClass}>Codigo de Barras</label>
+                    <label className={labelClass}>Código de Barras</label>
                     <input
                       type="text"
                       value={form.barcode}
@@ -972,7 +972,7 @@ export default function ProductsPage() {
                       value={form.category}
                       onChange={(e) => setField("category", e.target.value)}
                       onBlur={() => setField("category", toTitleCase(form.category || ""))}
-                      placeholder="Ex: Eletrico, Hidraulico..."
+                      placeholder="Ex: Elétrico, Hidráulico..."
                       className={inputClass}
                     />
                   </div>
@@ -1160,7 +1160,7 @@ export default function ProductsPage() {
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                           {editingProduct.lastPurchasePriceCents != null && (
                             <div>
-                              <span className="text-xs text-slate-500">Ultimo Preco de Compra</span>
+                              <span className="text-xs text-slate-500">Último Preco de Compra</span>
                               <p className="text-sm font-semibold text-slate-900">
                                 {formatCurrency(editingProduct.lastPurchasePriceCents)}
                               </p>
@@ -1216,7 +1216,7 @@ export default function ProductsPage() {
                         </div>
                         <div>
                           <label className={labelClass}>
-                            Codigo <span className="text-red-500">*</span>
+                            Código <span className="text-red-500">*</span>
                           </label>
                           <input
                             type="text"
@@ -1224,7 +1224,7 @@ export default function ProductsPage() {
                             onChange={(e) =>
                               setEquivForm({ ...equivForm, supplierCode: e.target.value })
                             }
-                            placeholder="Codigo no fornecedor"
+                            placeholder="Código no fornecedor"
                             className={inputClass}
                           />
                         </div>
@@ -1244,7 +1244,7 @@ export default function ProductsPage() {
                           />
                         </div>
                         <div>
-                          <label className={labelClass}>Ultimo Preco (R$)</label>
+                          <label className={labelClass}>Último Preco (R$)</label>
                           <input
                             type="text"
                             inputMode="decimal"
@@ -1295,16 +1295,16 @@ export default function ProductsPage() {
                               Fornecedor
                             </th>
                             <th className="py-2.5 px-4 text-left text-xs font-semibold uppercase text-slate-600">
-                              Codigo
+                              Código
                             </th>
                             <th className="py-2.5 px-4 text-left text-xs font-semibold uppercase text-slate-600">
                               Descricao
                             </th>
                             <th className="py-2.5 px-4 text-right text-xs font-semibold uppercase text-slate-600">
-                              Ultimo Preco
+                              Último Preco
                             </th>
                             <th className="py-2.5 px-4 text-right text-xs font-semibold uppercase text-slate-600">
-                              Ultima Compra
+                              Última Compra
                             </th>
                             <th className="py-2.5 px-4 text-right text-xs font-semibold uppercase text-slate-600 w-[60px]">
                               &nbsp;
