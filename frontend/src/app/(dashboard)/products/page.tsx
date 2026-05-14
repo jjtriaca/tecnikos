@@ -63,7 +63,7 @@ function computeMargin(costCents: number, salePriceCents: number): number | null
 
 /* ── Modal Tab type ───────────────────────────────────── */
 
-type ModalTab = "geral" | "impostos" | "margem" | "equivalentes" | "estoque";
+type ModalTab = "geral" | "impostos" | "margem" | "equivalentes" | "estoque" | "piscina";
 
 const MODAL_TABS: { id: ModalTab; label: string }[] = [
   { id: "geral", label: "Geral" },
@@ -71,6 +71,7 @@ const MODAL_TABS: { id: ModalTab; label: string }[] = [
   { id: "margem", label: "Margem" },
   { id: "equivalentes", label: "Equivalentes" },
   { id: "estoque", label: "Estoque" },
+  { id: "piscina", label: "🌊 Piscina" },
 ];
 
 /* ── Filter definitions ───────────────────────────────── */
@@ -260,6 +261,14 @@ interface ProductForm {
   maxStock: string;
   location: string;
   status: string;
+  // Specs tecnicas (Modulo Piscina) — strings pra inputs, viram numero no payload
+  specVazaoM3h: string;       // m³/h (filtros, bombas)
+  specTuboEntradaMm: string;  // mm (todos equipamentos hidraulicos — chave do auto-select de tubos)
+  specKcalHMin: string;       // kcal/h minimo (aquecedores)
+  specKcalHMax: string;       // kcal/h maximo (aquecedores)
+  specPotenciaCv: string;     // CV (motores)
+  specVoltagem: string;       // V (eletricos)
+  specAmperagem: string;      // A (eletricos)
 }
 
 const EMPTY_FORM: ProductForm = {
@@ -289,6 +298,13 @@ const EMPTY_FORM: ProductForm = {
   maxStock: "",
   location: "",
   status: "ATIVO",
+  specVazaoM3h: "",
+  specTuboEntradaMm: "",
+  specKcalHMin: "",
+  specKcalHMax: "",
+  specPotenciaCv: "",
+  specVoltagem: "",
+  specAmperagem: "",
 };
 
 function productToForm(p: Product): ProductForm {
@@ -319,10 +335,46 @@ function productToForm(p: Product): ProductForm {
     maxStock: p.maxStock != null ? String(p.maxStock) : "",
     location: p.location || "",
     status: p.status,
+    specVazaoM3h: numericSpecToStr(p.technicalSpecs?.vazaoM3h),
+    specTuboEntradaMm: numericSpecToStr(p.technicalSpecs?.tuboEntradaMm),
+    specKcalHMin: numericSpecToStr(p.technicalSpecs?.kcalHMin),
+    specKcalHMax: numericSpecToStr(p.technicalSpecs?.kcalHMax),
+    specPotenciaCv: numericSpecToStr(p.technicalSpecs?.potenciaCv),
+    specVoltagem: numericSpecToStr(p.technicalSpecs?.voltagem),
+    specAmperagem: numericSpecToStr(p.technicalSpecs?.amperagem),
   };
 }
 
-function formToPayload(f: ProductForm) {
+function numericSpecToStr(v: unknown): string {
+  if (v == null) return "";
+  const n = Number(v);
+  return Number.isFinite(n) ? String(n) : "";
+}
+
+// Monta o objeto technicalSpecs a partir dos campos do form. Preserva chaves
+// existentes (ex: campos seedados da planilha que nao temos no form ainda — eficiencia,
+// bifTrifConta, etc) — so atualiza as que aparecem como inputs.
+function buildTechnicalSpecs(f: ProductForm, existing?: Record<string, any>): Record<string, any> {
+  const merged: Record<string, any> = { ...(existing || {}) };
+  const setOrUnset = (key: string, raw: string) => {
+    if (raw.trim() === "") {
+      delete merged[key];
+    } else {
+      const n = parseFloat(raw.replace(",", "."));
+      if (Number.isFinite(n)) merged[key] = n;
+    }
+  };
+  setOrUnset("vazaoM3h", f.specVazaoM3h);
+  setOrUnset("tuboEntradaMm", f.specTuboEntradaMm);
+  setOrUnset("kcalHMin", f.specKcalHMin);
+  setOrUnset("kcalHMax", f.specKcalHMax);
+  setOrUnset("potenciaCv", f.specPotenciaCv);
+  setOrUnset("voltagem", f.specVoltagem);
+  setOrUnset("amperagem", f.specAmperagem);
+  return merged;
+}
+
+function formToPayload(f: ProductForm, existingSpecs?: Record<string, any>) {
   return {
     code: f.code || undefined,
     barcode: f.barcode || undefined,
@@ -350,6 +402,10 @@ function formToPayload(f: ProductForm) {
     maxStock: f.maxStock ? parseInt(f.maxStock, 10) : undefined,
     location: f.location || undefined,
     status: f.status,
+    // Inclui technicalSpecs no payload. Preserva chaves existentes que nao
+    // tem input no form (eficiencia, bifTrifConta, multiplicador, etc seedadas
+    // da planilha) — so atualiza as chaves expostas como inputs.
+    technicalSpecs: buildTechnicalSpecs(f, existingSpecs),
   };
 }
 
@@ -564,7 +620,7 @@ export default function ProductsPage() {
     }
     setSaving(true);
     try {
-      const payload = formToPayload(form);
+      const payload = formToPayload(form, editingProduct?.technicalSpecs);
       if (editingProduct) {
         await api.patch(`/products/${editingProduct.id}`, payload);
         toast("Produto atualizado com sucesso!", "success");
@@ -1451,6 +1507,119 @@ export default function ProductsPage() {
                       >
                         {adjustingStock ? "Ajustando..." : "Confirmar Ajuste"}
                       </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Tab: Piscina (specs tecnicas) ────────── */}
+              {modalTab === "piscina" && (
+                <div className="space-y-5">
+                  <div className="rounded-xl border border-cyan-200 bg-cyan-50/50 p-4">
+                    <p className="text-xs text-slate-700">
+                      Especificacoes tecnicas usadas pelo <strong>auto-selecao do produto</strong> no orcamento de piscina.
+                      Preencha apenas os campos relevantes pro tipo de produto (filtro, bomba, aquecedor, kit SPA, cascata, etc).
+                      Campos em branco nao sao usados.
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-5">
+                    <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">
+                      🚿 Hidraulico — Filtros, Bombas, Aquecedores, SPA, Cascata
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className={labelClass}>Vazao (m³/h)</label>
+                        <input
+                          type="number" step="0.1"
+                          value={form.specVazaoM3h}
+                          onChange={(e) => setField("specVazaoM3h", e.target.value)}
+                          placeholder="Ex: 9"
+                          className={inputClass}
+                        />
+                        <p className="mt-1 text-[11px] text-slate-600">
+                          Vazao do equipamento. Usada pra calcular tempo de filtragem da piscina.
+                        </p>
+                      </div>
+                      <div>
+                        <label className={labelClass}>Tubo de entrada (mm)</label>
+                        <input
+                          type="number" step="1"
+                          value={form.specTuboEntradaMm}
+                          onChange={(e) => setField("specTuboEntradaMm", e.target.value)}
+                          placeholder="Ex: 50, 60, 75"
+                          className={inputClass}
+                        />
+                        <p className="mt-1 text-[11px] text-slate-600">
+                          Diametro da conexao hidraulica. Auto-selecao de tubos usa esse campo pra escolher o tubo correto.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-5">
+                    <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">
+                      🔥 Aquecimento — Bombas de calor, Solar, Trocadores
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className={labelClass}>Kcal/h minimo</label>
+                        <input
+                          type="number" step="100"
+                          value={form.specKcalHMin}
+                          onChange={(e) => setField("specKcalHMin", e.target.value)}
+                          placeholder="Ex: 8000"
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Kcal/h maximo</label>
+                        <input
+                          type="number" step="100"
+                          value={form.specKcalHMax}
+                          onChange={(e) => setField("specKcalHMax", e.target.value)}
+                          placeholder="Ex: 20000"
+                          className={inputClass}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-5">
+                    <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">
+                      ⚡ Eletrico — Bombas, Motores, Equipamentos
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className={labelClass}>Potencia (CV)</label>
+                        <input
+                          type="number" step="0.1"
+                          value={form.specPotenciaCv}
+                          onChange={(e) => setField("specPotenciaCv", e.target.value)}
+                          placeholder="Ex: 0.75"
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Voltagem (V)</label>
+                        <input
+                          type="number" step="1"
+                          value={form.specVoltagem}
+                          onChange={(e) => setField("specVoltagem", e.target.value)}
+                          placeholder="Ex: 220"
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Amperagem (A)</label>
+                        <input
+                          type="number" step="0.1"
+                          value={form.specAmperagem}
+                          onChange={(e) => setField("specAmperagem", e.target.value)}
+                          placeholder="Ex: 5.1"
+                          className={inputClass}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>

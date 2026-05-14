@@ -31,6 +31,11 @@ export interface Product {
   maxStock?: number;
   location?: string;
   status: string;
+  // Specs tecnicas livres em JSON (modulo Piscina). Chaves comuns:
+  // vazaoM3h, tuboEntradaMm, kcalHMin, kcalHMax, potenciaCv, voltagem,
+  // amperagem, bifTrif, potenciaWatts, eficiencia, multiplicador.
+  // Usadas pelo auto-selecao de produto (auto-select.helper.ts).
+  technicalSpecs?: Record<string, any>;
   createdAt: string;
   updatedAt: string;
   equivalents?: ProductEquivalent[];
