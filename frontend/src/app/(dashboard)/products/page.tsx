@@ -133,8 +133,11 @@ function buildProductColumns(): ColumnDefinition<Product>[] {
       id: "description",
       label: "Descricao",
       sortable: true,
+      // Padrao Tecnikos: descricao ocupa todo o espaco disponivel da coluna.
+      // Se nao couber, trunca proporcional + tooltip 'title' mostra completa no hover.
+      // NUNCA usar max-w fixo (forca truncar antes da hora).
       render: (p) => (
-        <span className="text-sm text-slate-900 truncate block max-w-[220px]">
+        <span className="text-sm text-slate-900 truncate block w-full" title={p.description}>
           {p.description}
         </span>
       ),
