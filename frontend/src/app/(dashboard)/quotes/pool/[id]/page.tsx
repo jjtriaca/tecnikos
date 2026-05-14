@@ -1011,8 +1011,10 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             {item.indicatorLabel && (
               <span className={
                 "text-[9px] font-medium px-1.5 py-0.5 rounded border " +
-                (item.indicatorColor === 'green' ? "bg-green-50 border-green-300 text-green-800" :
+                (item.indicatorColor === 'emerald' ? "bg-emerald-50 border-emerald-400 text-emerald-800" :
+                 item.indicatorColor === 'green' ? "bg-green-50 border-green-300 text-green-800" :
                  item.indicatorColor === 'yellow' ? "bg-yellow-50 border-yellow-300 text-yellow-800" :
+                 item.indicatorColor === 'orange' ? "bg-orange-50 border-orange-300 text-orange-800" :
                  item.indicatorColor === 'red' ? "bg-red-50 border-red-300 text-red-800" :
                  "bg-slate-50 border-slate-300 text-slate-700")}
                 title={item.autoSelectRule?.indicator?.label
@@ -2196,6 +2198,29 @@ const ORDER_BY_PRESETS: Array<{ value: string; label: string }> = [
 // Templates completos de auto-selecao — clique em 1 e popula filterCategoria+where+orderBy+indicator
 const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: string; rule: AutoSelectRule }> = [
   {
+    icon: '🌊',
+    label: 'Filtro de piscina por volume (cicla em 6h)',
+    description: 'Conjunto Filtrante cuja vazao cicla todo o volume em max 6h. Indicador 5 niveis: Excelente (<=3h), Otimo (<=4h), Bom (<=6h), Regular (<=8h), Pessimo (>8h)',
+    rule: {
+      filterCategoria: null,
+      filterDescription: 'Conjunto Filtrante',
+      where: 'vazaoM3h >= volume / 6',
+      orderBy: 'priceCents asc',
+      indicator: {
+        label: 'Tempo de filtragem',
+        expr: 'volume / vazaoM3h',
+        unit: 'h',
+        levels: [
+          { max: 3, label: 'Excelente', color: 'emerald' },
+          { max: 4, label: 'Otimo', color: 'green' },
+          { max: 6, label: 'Bom', color: 'yellow' },
+          { max: 8, label: 'Regular', color: 'orange' },
+          { max: 999, label: 'Pessimo', color: 'red' },
+        ],
+      },
+    },
+  },
+  {
     icon: '⚡',
     label: 'Disjuntor geral por amperagem total',
     description: 'Soma amperagem de todas as linhas eletricas × 1.25 (fator de potencia)',
@@ -2485,8 +2510,10 @@ function AutoSelectModal({
                     <span className="text-slate-500 ml-2">R$ {(preview.selected.priceCents / 100).toFixed(2)}</span>
                     {indicatorPreview && (
                       <span className={"ml-2 text-[10px] font-medium px-2 py-0.5 rounded border " +
-                        (indicatorPreview.color === 'green' ? "bg-green-50 border-green-300 text-green-800" :
+                        (indicatorPreview.color === 'emerald' ? "bg-emerald-50 border-emerald-400 text-emerald-800" :
+                         indicatorPreview.color === 'green' ? "bg-green-50 border-green-300 text-green-800" :
                          indicatorPreview.color === 'yellow' ? "bg-yellow-50 border-yellow-300 text-yellow-800" :
+                         indicatorPreview.color === 'orange' ? "bg-orange-50 border-orange-300 text-orange-800" :
                          indicatorPreview.color === 'red' ? "bg-red-50 border-red-300 text-red-800" :
                          "bg-slate-50 border-slate-300 text-slate-700")}>
                         {indLabel}: {indicatorPreview.value.toFixed(2)}{indUnit} → {indicatorPreview.label}
