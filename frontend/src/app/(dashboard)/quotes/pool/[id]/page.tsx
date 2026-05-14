@@ -2656,7 +2656,12 @@ function AutoSelectModal({
                         setIndLabel(t.rule.indicator.label);
                         setIndExpr(t.rule.indicator.expr);
                         setIndUnit(t.rule.indicator.unit || '');
-                        setIndLevels(t.rule.indicator.levels);
+                        // Clone profundo dos levels — array do template eh shared, sem clone qualquer
+                        // edicao via UI no state mutaria o template tambem (causa visual estranho ao trocar templates).
+                        setIndLevels(t.rule.indicator.levels.map((l) => ({ ...l })));
+                      } else {
+                        // Template sem indicator desativa o anterior pra UI ficar consistente com a regra aplicada
+                        setHasIndicator(false);
                       }
                     }} className="text-left rounded border border-violet-300 bg-white hover:border-violet-500 hover:bg-violet-50 px-3 py-2 transition">
                       <div className="text-sm font-semibold text-violet-900">{t.icon} {t.label}</div>

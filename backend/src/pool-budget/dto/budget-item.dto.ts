@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PoolSection } from '@prisma/client';
-import { IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsNumber, IsObject, IsOptional, IsString, Min, ValidateIf } from 'class-validator';
 
 export class CreateBudgetItemDto {
   @ApiPropertyOptional({ description: 'CatalogConfig de origem' })
@@ -67,8 +67,13 @@ export class CreateBudgetItemDto {
   @IsString()
   formulaExpr?: string;
 
+  // autoSelectRule e JSON livre no schema Prisma — aceita {filter, where, orderBy, indicator}
+  // sem precisar atualizar o DTO toda vez que mudar a forma. @IsObject() eh ESSENCIAL:
+  // sem ele, o ValidationPipe global (whitelist: true) STRIPA o campo silenciosamente.
+  // Mesmo bug do incidente v1.10.51 com poolDimensions.
   @ApiPropertyOptional({ description: 'Regra de auto-selecao do produto/servico (filter, where, orderBy, indicator)' })
   @IsOptional()
+  @IsObject()
   autoSelectRule?: Record<string, any>;
 }
 
@@ -132,7 +137,11 @@ export class UpdateBudgetItemDto {
   @IsString()
   serviceId?: string | null;
 
+  // @IsObject() essencial pra ValidationPipe nao stripar o campo (v1.10.51 gotcha).
+  // @ValidateIf permite passar null pra limpar a regra (sem o decorator, @IsObject rejeita null).
   @ApiPropertyOptional({ description: 'Regra de auto-selecao. null = remove regra.', nullable: true })
   @IsOptional()
+  @ValidateIf((_o, v) => v !== null)
+  @IsObject()
   autoSelectRule?: Record<string, any> | null;
 }
