@@ -1132,6 +1132,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             total: x.totalCents / 100,
             unitPrice: x.unitPriceCents / 100,
           }))}
+        siblingVars={siblingVars}
         onClose={() => setShowFormula(false)}
         onSave={(expr) => { setShowFormula(false); onUpdate({ formulaExpr: expr }); }}
         onClear={() => { setShowFormula(false); onUpdate({ formulaExpr: "" }); }}
@@ -1767,6 +1768,8 @@ const FORMULA_RECIPES_PISCINA: FormulaRecipe[] = [
   { label: "Escavacao (m³)", expr: "escavacao", hint: "Volume de terra removida" },
   // ── Diarias ──
   { label: "Diaria por dia de obra", expr: "dias", hint: "Quantidade = nº de dias da obra (auto)" },
+  // ── Tempo de montagem do equipamento da etapa (sibling) ──
+  { label: "⏱ Tempo de montagem do equipamento (h)", expr: "siblingTempoMontagemH", hint: "Le tempoMontagemH (horas) do cadastro do equipamento principal da mesma etapa (filtro, aquecedor, kit cascata/SPA). Use em linhas de servico de montagem/instalacao." },
   // ── Produto vinculado (technicalSpecs do cadastro) ──
   { label: "Sacos por consumo (parede+fundo) — CIMA", expr: "ceil(consumoKgM2 * areaParedeEFundo / pesoKg)", hint: "Argamassa, cimentcola, cimento, impermeabilizante: aplica em paredes + fundo (areaParedeEFundo). Ceil = sempre completa o saco." },
   { label: "Sacos por consumo (parede+fundo) — NORMAL", expr: "round(consumoKgM2 * areaParedeEFundo / pesoKg)", hint: "Igual a anterior, arredondamento normal (50.4→50, 50.5→51)" },
@@ -1787,7 +1790,7 @@ const FORMULA_FN_HELP: Record<typeof FORMULA_FUNCTIONS[number], string> = {
 
 type OtherItemForModal = { cellRef: string; description: string; poolSection: string; qty: number; total: number; unitPrice: number };
 
-function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDescription, itemUnit, itemCellRef, productSpecs, productName, otherItems, onClose, onSave, onClear }: {
+function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDescription, itemUnit, itemCellRef, productSpecs, productName, otherItems, siblingVars, onClose, onSave, onClear }: {
   initialExpr: string;
   dimensions: any;
   environmentParams?: any;
@@ -1798,6 +1801,10 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
   productSpecs?: Record<string, unknown> | null;
   productName?: string | null;
   otherItems?: OtherItemForModal[];
+  // v1.11.09: vars 'sibling*' calculadas dos outros items da mesma etapa
+  // (mesmo padrao do AutoSelectModal/CatalogPickModal). Permite formulas como
+  // 'siblingTempoMontagemH' pra calcular qty a partir do equipamento da etapa.
+  siblingVars?: Record<string, number>;
   onClose: () => void;
   onSave: (expr: string) => void;
   onClear: () => void;
@@ -1848,6 +1855,9 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
     vento: ventoNum,
     capa: capaNum,
     construcao: construcaoNum,
+    // Merge das sibling vars (technicalSpecs dos outros items da mesma poolSection).
+    // Permite formulas como 'siblingTempoMontagemH', 'siblingVazaoM3h', etc.
+    ...(siblingVars || {}),
   };
   // Variaveis individuais por section (areaSec1, volumeSec1, areaSec2, ...).
   // Auto-deriva area/volume de length×width×depth quando section so tem dimensoes.
