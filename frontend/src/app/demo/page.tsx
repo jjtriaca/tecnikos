@@ -410,7 +410,7 @@ export default function DemoPage() {
                 <div className="flex justify-between text-xs"><span>👷 Comissao Técnico</span><span className="font-bold">{OS_DATA.comissao}</span></div>
               </div>
             </div>
-            <p className="text-xs text-slate-400">Aguardando aprovacao do gestor...</p>
+            <p className="text-xs text-slate-600">Aguardando aprovacao do gestor...</p>
           </div>
         );
     }
@@ -495,7 +495,7 @@ export default function DemoPage() {
 
       {/* Footer */}
       <div className="max-w-7xl mx-auto mt-6 text-center">
-        <p className="text-[10px] text-slate-400">
+        <p className="text-[10px] text-slate-600">
           FieldService v1.00.43 &quot;Ajustes de Pausas + Financeiro&quot; — Demonstracao interativa do fluxo de atendimento
         </p>
       </div>

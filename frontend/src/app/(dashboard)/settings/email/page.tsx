@@ -289,7 +289,7 @@ export default function EmailSettingsPage() {
           <div className="flex items-center gap-2 mb-1">
             <Link
               href="/settings"
-              className="text-sm text-slate-400 hover:text-slate-600 transition-colors"
+              className="text-sm text-slate-600 hover:text-slate-600 transition-colors"
             >
               Configurações
             </Link>
@@ -362,14 +362,14 @@ export default function EmailSettingsPage() {
         </div>
 
         {isConnected && config?.connectedAt && (
-          <div className="text-xs text-slate-400 mt-1">
+          <div className="text-xs text-slate-600 mt-1">
             Conectado em:{" "}
             {new Date(config.connectedAt).toLocaleString("pt-BR")}
           </div>
         )}
 
         {isConnected && config?.smtpHost && (
-          <div className="text-xs text-slate-400 mt-1">
+          <div className="text-xs text-slate-600 mt-1">
             Servidor:{" "}
             <code className="font-mono text-xs">
               {config.smtpHost}:{config.smtpPort}
@@ -459,7 +459,7 @@ export default function EmailSettingsPage() {
                 className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors font-mono"
               />
               {isConnected && config?.hasPassword && (
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-xs text-slate-600 mt-1">
                   Deixe em branco para manter a senha atual
                 </p>
               )}
@@ -649,7 +649,7 @@ export default function EmailSettingsPage() {
                   <div className="text-sm font-medium text-slate-700">
                     {preset.name}
                   </div>
-                  <div className="text-xs text-slate-400">
+                  <div className="text-xs text-slate-600">
                     {preset.host}:{preset.port}
                   </div>
                 </div>

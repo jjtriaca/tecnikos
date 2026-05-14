@@ -81,9 +81,9 @@ export default function PoolPrintLayoutsListPage() {
       </div>
 
       {loading ? (
-        <div className="py-16 text-center text-slate-400">Carregando...</div>
+        <div className="py-16 text-center text-slate-600">Carregando...</div>
       ) : layouts.length === 0 ? (
-        <div className="py-16 text-center text-slate-400 rounded-xl border border-dashed border-slate-300 bg-white">
+        <div className="py-16 text-center text-slate-600 rounded-xl border border-dashed border-slate-300 bg-white">
           Nenhum layout ainda. Crie o primeiro pra ter o PDF do orcamento personalizado.
         </div>
       ) : (

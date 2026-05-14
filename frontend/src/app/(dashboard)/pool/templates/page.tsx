@@ -96,9 +96,9 @@ export default function PoolTemplatesPage() {
       </div>
 
       {loading ? (
-        <div className="py-16 text-center text-slate-400">Carregando...</div>
+        <div className="py-16 text-center text-slate-600">Carregando...</div>
       ) : templates.length === 0 ? (
-        <div className="py-16 text-center text-slate-400 rounded-xl border border-dashed border-slate-300 bg-white">
+        <div className="py-16 text-center text-slate-600 rounded-xl border border-dashed border-slate-300 bg-white">
           Nenhum template ainda. Crie um pra acelerar a criacao de orcamentos.
         </div>
       ) : (
@@ -274,7 +274,7 @@ function TemplateForm({ editing, catalog, onClose, onSubmit }: {
                       </button>
                     </div>
                     {items.length === 0 ? (
-                      <div className="text-xs text-slate-400">
+                      <div className="text-xs text-slate-600">
                         Sem items no catalogo desta secao. <Link href="/pool/catalog" className="text-cyan-600 hover:underline">Adicionar</Link>
                       </div>
                     ) : (
@@ -287,7 +287,7 @@ function TemplateForm({ editing, catalog, onClose, onSubmit }: {
                                 onChange={() => toggleItem(secIdx, c.id)} />
                               <div className="flex-1 text-sm text-slate-800">
                                 {c.product?.description || c.service?.name || "(sem nome)"}
-                                <span className="ml-2 text-[10px] text-slate-400">
+                                <span className="ml-2 text-[10px] text-slate-600">
                                   {c.product ? "Produto" : "Serviço"}
                                 </span>
                               </div>

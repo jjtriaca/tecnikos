@@ -118,7 +118,7 @@ function OverdueAgingSection() {
     return (
       <div>
         <h3 className="text-sm font-semibold text-slate-700 mb-3">Inadimplência por Faixa</h3>
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-400">
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-600">
           Erro ao carregar dados de inadimplência.
         </div>
       </div>
@@ -348,7 +348,7 @@ function CollectionRulesSection() {
         </div>
       ) : rules.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
-          <p className="text-sm text-slate-400">Nenhuma regra de cobranca criada ainda.</p>
+          <p className="text-sm text-slate-600">Nenhuma regra de cobranca criada ainda.</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -383,11 +383,11 @@ function CollectionRulesSection() {
                       ? "No dia do vencimento"
                       : `${rule.daysAfterDue} dia${rule.daysAfterDue !== 1 ? "s" : ""} apos vencimento`}
                     {rule.sortOrder > 0 && (
-                      <span className="ml-2 text-slate-400">Ordem: {rule.sortOrder}</span>
+                      <span className="ml-2 text-slate-600">Ordem: {rule.sortOrder}</span>
                     )}
                   </p>
                   {rule.messageTemplate && (
-                    <p className="mt-1 text-xs text-slate-400 truncate max-w-md">
+                    <p className="mt-1 text-xs text-slate-600 truncate max-w-md">
                       Template: {rule.messageTemplate}
                     </p>
                   )}
@@ -467,7 +467,7 @@ function CollectionRulesSection() {
                     onChange={(e) => setFormData({ ...formData, daysAfterDue: e.target.value })}
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                   />
-                  <p className="mt-0.5 text-xs text-slate-400">
+                  <p className="mt-0.5 text-xs text-slate-600">
                     Negativo = antes do vencimento
                   </p>
                 </div>
@@ -501,7 +501,7 @@ function CollectionRulesSection() {
                   placeholder="Ex: Ola {{partner_name}}, o valor de {{amount}} venceu em {{due_date}} ({{days_overdue}} dias atras)."
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none"
                 />
-                <p className="mt-0.5 text-xs text-slate-400">
+                <p className="mt-0.5 text-xs text-slate-600">
                   {"Variaveis: {{partner_name}}, {{amount}}, {{due_date}}, {{days_overdue}}"}
                 </p>
               </div>
@@ -659,7 +659,7 @@ function ExecutionHistorySection() {
             Limpar filtros
           </button>
         )}
-        <span className="text-xs text-slate-400 ml-auto">
+        <span className="text-xs text-slate-600 ml-auto">
           {meta.total} registro{meta.total !== 1 ? "s" : ""}
         </span>
       </div>
@@ -673,7 +673,7 @@ function ExecutionHistorySection() {
         </div>
       ) : executions.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-600">
             {dateFrom || dateTo
               ? "Nenhuma execucao encontrada no periodo selecionado."
               : "Nenhuma execucao registrada ainda."}

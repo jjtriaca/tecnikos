@@ -130,7 +130,7 @@ export default function TemplateGallery({ open, onClose, onApply }: Props) {
             </div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-slate-400 text-sm">Nenhum template encontrado nesta categoria.</p>
+              <p className="text-slate-600 text-sm">Nenhum template encontrado nesta categoria.</p>
             </div>
           ) : (
             Object.entries(grouped).map(([category, items]) => {
@@ -141,7 +141,7 @@ export default function TemplateGallery({ open, onClose, onApply }: Props) {
                     <span className={`px-2.5 py-1 text-xs font-medium rounded-full border ${cfg.color}`}>
                       {cfg.icon} {cfg.label}
                     </span>
-                    <span className="text-xs text-slate-400">{items.length} template{items.length > 1 ? 's' : ''}</span>
+                    <span className="text-xs text-slate-600">{items.length} template{items.length > 1 ? 's' : ''}</span>
                   </div>
                   <div className="grid gap-3">
                     {items.map((tpl) => (
@@ -161,7 +161,7 @@ export default function TemplateGallery({ open, onClose, onApply }: Props) {
                           {tpl.description && (
                             <p className="text-xs text-slate-500">{tpl.description}</p>
                           )}
-                          <div className="mt-2 text-[10px] text-slate-400">
+                          <div className="mt-2 text-[10px] text-slate-600">
                             {tpl.actions.length} ação{tpl.actions.length > 1 ? 'ões' : ''}
                           </div>
                         </div>

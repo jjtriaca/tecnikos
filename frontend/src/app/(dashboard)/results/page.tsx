@@ -140,7 +140,7 @@ function DashboardContent({
   if (!data) {
     return (
       <div className="flex items-center justify-center py-20">
-        <p className="text-sm text-slate-400">Erro ao carregar dados.</p>
+        <p className="text-sm text-slate-600">Erro ao carregar dados.</p>
       </div>
     );
   }

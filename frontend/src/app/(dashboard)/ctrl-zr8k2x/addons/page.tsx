@@ -211,7 +211,7 @@ export default function AddOnsAdminPage() {
                 ))}
               </div>
 
-              <p className="text-xl font-bold text-blue-600 mb-3">{formatCurrency(a.priceCents)}<span className="text-xs font-normal text-slate-400">/avulso</span></p>
+              <p className="text-xl font-bold text-blue-600 mb-3">{formatCurrency(a.priceCents)}<span className="text-xs font-normal text-slate-600">/avulso</span></p>
 
               <div className="flex gap-2">
                 <button onClick={() => openEdit(a)} className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">
@@ -344,7 +344,7 @@ export default function AddOnsAdminPage() {
                     required
                   />
                   {form.priceDisplay && (
-                    <p className="text-[10px] text-slate-400 mt-0.5">{formatCurrency(displayToCents(form.priceDisplay))}</p>
+                    <p className="text-[10px] text-slate-600 mt-0.5">{formatCurrency(displayToCents(form.priceDisplay))}</p>
                   )}
                 </div>
                 <div>
@@ -355,13 +355,13 @@ export default function AddOnsAdminPage() {
                     onChange={(e) => setForm({ ...form, sortOrder: parseInt(e.target.value) || 0 })}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 outline-none"
                   />
-                  <p className="text-[10px] text-slate-400 mt-0.5">
+                  <p className="text-[10px] text-slate-600 mt-0.5">
                     Última posicao: {Math.max(0, ...addOns.map(a => a.sortOrder))} — use {Math.max(0, ...addOns.map(a => a.sortOrder)) + 1} para exibir por ultimo
                   </p>
                 </div>
               </div>
 
-              <p className="text-xs text-slate-400">O pacote vale para o ciclo de cobranca vigente. O cliente pode optar por nao renovar.</p>
+              <p className="text-xs text-slate-600">O pacote vale para o ciclo de cobranca vigente. O cliente pode optar por nao renovar.</p>
             </div>
 
             <div className="flex gap-2 mt-5">

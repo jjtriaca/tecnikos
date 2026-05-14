@@ -122,7 +122,7 @@ function buildColumns(): ColumnDefinition<NfseEmission>[] {
         <div className="min-w-0">
           <p className="text-sm text-slate-800 truncate">{row.tomadorRazaoSocial || "—"}</p>
           {row.tomadorCnpjCpf && (
-            <p className="text-xs text-slate-400 truncate">{row.tomadorCnpjCpf}</p>
+            <p className="text-xs text-slate-600 truncate">{row.tomadorCnpjCpf}</p>
           )}
         </div>
       ),
@@ -427,7 +427,7 @@ export default function NfseSaidaPage() {
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1">
-          <Link href="/nfe" className="text-sm text-slate-400 hover:text-slate-600 transition-colors">
+          <Link href="/nfe" className="text-sm text-slate-600 hover:text-slate-800 transition-colors">
             NFe
           </Link>
           <span className="text-slate-300">/</span>
@@ -615,13 +615,13 @@ export default function NfseSaidaPage() {
               <div>
                 <p className="text-xs font-medium text-slate-500 mb-1">Tomador</p>
                 <p className="text-slate-800">{emission.tomadorRazaoSocial || "—"}</p>
-                <p className="text-xs text-slate-400">{emission.tomadorCnpjCpf}</p>
-                {emission.tomadorEmail && <p className="text-xs text-slate-400">{emission.tomadorEmail}</p>}
+                <p className="text-xs text-slate-600">{emission.tomadorCnpjCpf}</p>
+                {emission.tomadorEmail && <p className="text-xs text-slate-600">{emission.tomadorEmail}</p>}
               </div>
               <div>
                 <p className="text-xs font-medium text-slate-500 mb-1">Tributacao</p>
                 <p className="text-slate-800">ISS: {emission.aliquotaIss ? `${emission.aliquotaIss}%` : "—"}</p>
-                <p className="text-xs text-slate-400">Item LC: {emission.itemListaServico || "—"}</p>
+                <p className="text-xs text-slate-600">Item LC: {emission.itemListaServico || "—"}</p>
               </div>
               {emission.codigoVerificacao && (
                 <div>
@@ -673,7 +673,7 @@ export default function NfseSaidaPage() {
             <h3 className="text-lg font-bold text-red-600 mb-1">Cancelar NFS-e {cancelModal.nfseNumber}</h3>
             <p className="text-xs text-slate-500 mb-4">O cancelamento sera enviado a prefeitura. Esta acao nao pode ser desfeita.</p>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Justificativa * <span className="text-slate-400">(minimo 15 caracteres)</span></label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Justificativa * <span className="text-slate-600">(minimo 15 caracteres)</span></label>
               <textarea
                 value={cancelJustificativa}
                 onChange={(e) => setCancelJustificativa(e.target.value)}

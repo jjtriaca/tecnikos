@@ -81,7 +81,7 @@ export default function TechOsTokenPage({ params }: { params: Promise<{ token: s
           >
             {recovering ? "Abrindo..." : "Abrir minhas OS"}
           </button>
-          <p className="mt-3 text-xs text-slate-400">
+          <p className="mt-3 text-xs text-slate-600">
             Voce sera redirecionado para verificar suas ordens de serviço
           </p>
         </div>

@@ -29,7 +29,7 @@ function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange
       </div>
       <div className="flex-1 min-w-0">
         <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">{label}</span>
-        {hint && <p className="text-xs text-slate-400 mt-0.5">{hint}</p>}
+        {hint && <p className="text-xs text-slate-600 mt-0.5">{hint}</p>}
       </div>
     </label>
   );
@@ -188,7 +188,7 @@ export default function SupplierOnboardingSection({ config, onChange }: Props) {
           <span className="text-lg">🏭</span>
           <div className="min-w-0">
             <h3 className="text-sm font-bold text-slate-800">Onboarding de Fornecedor</h3>
-            <p className="text-xs text-slate-400">Contrato de fornecimento e boas-vindas para novos fornecedores</p>
+            <p className="text-xs text-slate-600">Contrato de fornecimento e boas-vindas para novos fornecedores</p>
           </div>
           {config.enabled && (
             <>
@@ -198,7 +198,7 @@ export default function SupplierOnboardingSection({ config, onChange }: Props) {
                 </span>
               )}
               {!expanded && (config.sendContractLink || config.sendWelcomeMessage) && (
-                <span className="text-[10px] text-slate-400 hidden sm:inline">&mdash; clique para expandir</span>
+                <span className="text-[10px] text-slate-600 hidden sm:inline">&mdash; clique para expandir</span>
               )}
             </>
           )}
@@ -307,7 +307,7 @@ export default function SupplierOnboardingSection({ config, onChange }: Props) {
                   className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-amber-500 focus:ring-1 focus:ring-amber-200 outline-none resize-y"
                 />
                 <div className="flex flex-wrap gap-1 mt-1">
-                  <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
+                  <span className="text-[10px] text-slate-600 mr-1 self-center">Variaveis:</span>
                   {SUPPLIER_CONTRACT_VARIABLES.map((v) => (
                     <button
                       key={v}
@@ -334,7 +334,7 @@ export default function SupplierOnboardingSection({ config, onChange }: Props) {
                   className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-amber-500 focus:ring-1 focus:ring-amber-200 outline-none resize-y"
                 />
                 <div className="flex flex-wrap gap-1 mt-1">
-                  <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
+                  <span className="text-[10px] text-slate-600 mr-1 self-center">Variaveis:</span>
                   {SUPPLIER_WELCOME_VARIABLES.map((v) => (
                     <button
                       key={v}
@@ -446,7 +446,7 @@ export default function SupplierOnboardingSection({ config, onChange }: Props) {
                   className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-green-500 focus:ring-1 focus:ring-green-200 outline-none resize-y"
                 />
                 <div className="flex flex-wrap gap-1 mt-1">
-                  <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
+                  <span className="text-[10px] text-slate-600 mr-1 self-center">Variaveis:</span>
                   {SUPPLIER_WELCOME_VARIABLES.map((v) => (
                     <button
                       key={v}
@@ -503,7 +503,7 @@ export default function SupplierOnboardingSection({ config, onChange }: Props) {
                           className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-green-500 focus:ring-1 focus:ring-green-200 outline-none resize-y"
                         />
                         <div className="flex flex-wrap gap-1">
-                          <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
+                          <span className="text-[10px] text-slate-600 mr-1 self-center">Variaveis:</span>
                           {['{nome}', '{empresa}', '{razao_social}', '{data}'].map((v) => (
                             <button
                               key={v}
@@ -591,7 +591,7 @@ export default function SupplierOnboardingSection({ config, onChange }: Props) {
                             className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-red-500 focus:ring-1 focus:ring-red-200 outline-none resize-y"
                           />
                           <div className="flex flex-wrap gap-1">
-                            <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
+                            <span className="text-[10px] text-slate-600 mr-1 self-center">Variaveis:</span>
                             {['{nome}', '{empresa}', '{resposta}'].map((v) => (
                               <button
                                 key={v}

@@ -724,7 +724,7 @@ export default function ProductsPage() {
         </div>
       ) : products.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-600">
             {tp.search || Object.keys(tp.filters).length > 0
               ? "Nenhum produto encontrado com os filtros selecionados."
               : "Nenhum produto cadastrado ainda."}
@@ -838,7 +838,7 @@ export default function ProductsPage() {
               </h2>
               <button
                 onClick={closeModal}
-                className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                className="rounded-lg p-1.5 text-slate-600 hover:text-slate-600 hover:bg-slate-100 transition-colors"
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -1186,7 +1186,7 @@ export default function ProductsPage() {
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-semibold text-slate-700">
                       Produtos Equivalentes
-                      <span className="ml-2 text-xs font-normal text-slate-400">
+                      <span className="ml-2 text-xs font-normal text-slate-600">
                         {equivalents.length} cadastrado{equivalents.length !== 1 ? "s" : ""}
                       </span>
                     </h4>
@@ -1282,7 +1282,7 @@ export default function ProductsPage() {
                     </div>
                   ) : equivalents.length === 0 ? (
                     <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center">
-                      <p className="text-sm text-slate-400">
+                      <p className="text-sm text-slate-600">
                         Nenhum equivalente cadastrado para este produto.
                       </p>
                     </div>
@@ -1335,7 +1335,7 @@ export default function ProductsPage() {
                               <td className="py-2.5 px-4 text-right">
                                 <button
                                   onClick={() => handleRemoveEquivalent(eq.id)}
-                                  className="rounded p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                  className="rounded p-1 text-slate-600 hover:text-red-600 hover:bg-red-50 transition-colors"
                                   title="Remover"
                                 >
                                   <svg
@@ -1428,7 +1428,7 @@ export default function ProductsPage() {
                           placeholder="Ex: +10 ou -5"
                           className={inputClass}
                         />
-                        <p className="mt-1 text-[11px] text-slate-400">
+                        <p className="mt-1 text-[11px] text-slate-600">
                           Positivo para entrada, negativo para saida
                         </p>
                       </div>

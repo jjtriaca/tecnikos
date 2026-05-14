@@ -385,7 +385,7 @@ export default function FiscalSettingsPage() {
       {/* Breadcrumb */}
       <div className="mb-6">
         <div className="flex items-center gap-2 mb-1">
-          <Link href="/settings" className="text-sm text-slate-400 hover:text-slate-600 transition-colors">
+          <Link href="/settings" className="text-sm text-slate-600 hover:text-slate-600 transition-colors">
             Configurações
           </Link>
           <span className="text-slate-300">/</span>
@@ -418,7 +418,7 @@ export default function FiscalSettingsPage() {
             </div>
             <div>
               <h3 className="text-sm font-semibold text-slate-700">Módulo Fiscal (NFS-e)</h3>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-600">
                 {fiscalEnabled
                   ? "Habilitado — emissao de notas fiscais ativa"
                   : "Desabilitado — nenhuma funcionalidade fiscal visivel no sistema"}
@@ -484,7 +484,7 @@ export default function FiscalSettingsPage() {
               readOnly
               className={inputClass + " bg-slate-50 text-slate-500 cursor-not-allowed"}
             />
-            <p className="text-xs text-slate-400 mt-1">Definido automaticamente pelo regime</p>
+            <p className="text-xs text-slate-600 mt-1">Definido automaticamente pelo regime</p>
           </div>
           <div>
             <label className={labelClass}>Perfil EFD (SPED)</label>
@@ -497,7 +497,7 @@ export default function FiscalSettingsPage() {
               <option value="B">B — Intermediario</option>
               <option value="C">C — Simplificado</option>
             </select>
-            <p className="text-xs text-slate-400 mt-1">Determina nivel de detalhamento no SPED Fiscal</p>
+            <p className="text-xs text-slate-600 mt-1">Determina nivel de detalhamento no SPED Fiscal</p>
           </div>
           <div>
             <label className={labelClass}>CNAE Principal</label>
@@ -519,7 +519,7 @@ export default function FiscalSettingsPage() {
               placeholder="Se aplicavel"
               className={inputClass}
             />
-            <p className="text-xs text-slate-400 mt-1">Apenas para empresas na Zona Franca de Manaus</p>
+            <p className="text-xs text-slate-600 mt-1">Apenas para empresas na Zona Franca de Manaus</p>
           </div>
         </div>
       </div>
@@ -529,7 +529,7 @@ export default function FiscalSettingsPage() {
         <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
           <svg className="w-4 h-4 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
           Contabilista Responsavel
-          <span className="text-xs font-normal text-slate-400 ml-1">(obrigatorio para SPED)</span>
+          <span className="text-xs font-normal text-slate-600 ml-1">(obrigatorio para SPED)</span>
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
@@ -688,7 +688,7 @@ export default function FiscalSettingsPage() {
               <option value="MUNICIPAL">Municipal (ABRASF) — /v2/nfse</option>
               <option value="NACIONAL">Nacional (SPED) — /v2/nfsen</option>
             </select>
-            <p className="text-xs text-slate-400 mt-1">Verifique qual layout seu municipio usa em focusnfe.com.br</p>
+            <p className="text-xs text-slate-600 mt-1">Verifique qual layout seu municipio usa em focusnfe.com.br</p>
           </div>
           <div className="flex items-end">
             <button
@@ -858,10 +858,10 @@ export default function FiscalSettingsPage() {
             + Novo Serviço
           </button>
         </div>
-        <p className="text-xs text-slate-400 mb-4">Cadastre os serviços que sua empresa esta apta a prestar. Ao emitir NFS-e, voce selecionara o serviço adequado.</p>
+        <p className="text-xs text-slate-600 mb-4">Cadastre os serviços que sua empresa esta apta a prestar. Ao emitir NFS-e, voce selecionara o serviço adequado.</p>
 
         {serviceCodes.length === 0 && !showCodeForm && (
-          <div className="text-center py-8 text-slate-400 text-sm">
+          <div className="text-center py-8 text-slate-600 text-sm">
             Nenhum serviço cadastrado. Clique em &quot;+ Novo Serviço&quot; para adicionar.
           </div>
         )}
@@ -936,7 +936,7 @@ export default function FiscalSettingsPage() {
                     placeholder="Digite o codigo, nome do serviço ou item LC 116..."
                     className={inputClass + " pr-8"}
                   />
-                  <svg className="absolute right-2.5 top-2.5 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                  <svg className="absolute right-2.5 top-2.5 w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                   {showCodeDropdown && codeSearch.length >= 2 && (
                     <div className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto bg-white border border-slate-300 rounded-lg shadow-lg">
                       {(() => {
@@ -945,7 +945,7 @@ export default function FiscalSettingsPage() {
                         const filtered = (ctribnacRef as { c: string; i: string; d: string }[]).filter(
                           (r) => r.c.includes(q) || norm(r.d).includes(q) || r.i.includes(q)
                         ).slice(0, 30);
-                        if (filtered.length === 0) return <div className="px-3 py-2 text-xs text-slate-400">Nenhum resultado</div>;
+                        if (filtered.length === 0) return <div className="px-3 py-2 text-xs text-slate-600">Nenhum resultado</div>;
                         return filtered.map((r) => (
                           <button
                             key={r.c}
@@ -964,7 +964,7 @@ export default function FiscalSettingsPage() {
                             className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 border-b border-slate-100 last:border-0"
                           >
                             <span className="font-mono font-semibold text-blue-700">{r.c}</span>
-                            <span className="text-slate-400 ml-1">(LC {r.i})</span>
+                            <span className="text-slate-600 ml-1">(LC {r.i})</span>
                             <span className="text-slate-600 ml-2">{r.d}</span>
                           </button>
                         ));
@@ -1047,7 +1047,7 @@ export default function FiscalSettingsPage() {
           </div>
           <div className="md:col-span-1">
             <label className={labelClass}>&nbsp;</label>
-            <p className="text-xs text-slate-400 py-2">
+            <p className="text-xs text-slate-600 py-2">
               O numero RPS e incrementado automaticamente a cada emissao.
             </p>
           </div>
@@ -1061,7 +1061,7 @@ export default function FiscalSettingsPage() {
             placeholder="Descricao que aparece na NFS-e. Variaveis: {titulo_os}, {descricao_os}, {tecnico}"
             className={inputClass + " resize-none"}
           />
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-600 mt-1">
             Variaveis disponiveis: {"{titulo_os}"}, {"{descricao_os}"}, {"{tecnico}"}
           </p>
         </div>
@@ -1083,7 +1083,7 @@ export default function FiscalSettingsPage() {
             />
             <div>
               <span className="font-medium">Auto-emitir NFS-e ao criar lancamento a receber</span>
-              <p className="text-xs text-slate-400">Quando um lancamento financeiro do tipo &quot;A Receber&quot; for criado, emitir a NFS-e automaticamente</p>
+              <p className="text-xs text-slate-600">Quando um lancamento financeiro do tipo &quot;A Receber&quot; for criado, emitir a NFS-e automaticamente</p>
             </div>
           </label>
 
@@ -1096,7 +1096,7 @@ export default function FiscalSettingsPage() {
             />
             <div>
               <span className="font-medium">Perguntar ao finalizar OS</span>
-              <p className="text-xs text-slate-400">Ao concluir uma OS, perguntar se deseja emitir a NFS-e</p>
+              <p className="text-xs text-slate-600">Ao concluir uma OS, perguntar se deseja emitir a NFS-e</p>
             </div>
           </label>
 
@@ -1109,7 +1109,7 @@ export default function FiscalSettingsPage() {
             />
             <div>
               <span className="font-medium">Enviar email ao tomador</span>
-              <p className="text-xs text-slate-400">Envia automaticamente o DANFSe por email ao tomador</p>
+              <p className="text-xs text-slate-600">Envia automaticamente o DANFSe por email ao tomador</p>
             </div>
           </label>
 
@@ -1122,7 +1122,7 @@ export default function FiscalSettingsPage() {
             />
             <div>
               <span className="font-medium">Enviar NFS-e por WhatsApp ao tomador</span>
-              <p className="text-xs text-slate-400">Após emissao autorizada, envia dados da NFS-e e PDF via WhatsApp</p>
+              <p className="text-xs text-slate-600">Após emissao autorizada, envia dados da NFS-e e PDF via WhatsApp</p>
             </div>
           </label>
 
@@ -1137,7 +1137,7 @@ export default function FiscalSettingsPage() {
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-600 mt-1">
               Controla o que acontece ao tentar dar baixa em uma conta a receber sem nota fiscal emitida
             </p>
           </div>

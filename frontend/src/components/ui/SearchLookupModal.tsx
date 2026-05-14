@@ -155,7 +155,7 @@ export default function SearchLookupModal<T>({
           <h3 className="text-base font-semibold text-slate-900">{title}</h3>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+            className="rounded-lg p-1 text-slate-600 hover:bg-slate-100 hover:text-slate-600 transition-colors"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -167,7 +167,7 @@ export default function SearchLookupModal<T>({
         <div className="border-b border-slate-200 px-5 py-3">
           <div className="relative">
             <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"
+              className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -207,7 +207,7 @@ export default function SearchLookupModal<T>({
               <svg className="mx-auto mb-2 h-8 w-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-slate-600">
                 {debouncedSearch ? "Nenhum resultado encontrado." : "Digite para buscar..."}
               </p>
             </div>
@@ -234,7 +234,7 @@ export default function SearchLookupModal<T>({
         {/* Footer: total + pagination */}
         {meta && meta.total > 0 && (
           <div className="flex items-center justify-between border-t border-slate-200 px-5 py-3">
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-slate-600">
               {meta.total} resultado{meta.total !== 1 ? "s" : ""}
             </span>
             {meta.totalPages > 1 && (

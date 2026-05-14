@@ -157,11 +157,11 @@ export default function ContractTokenPage() {
             Obrigado, <strong>{data.partner.name}</strong>. Seu aceite foi registrado com sucesso.
           </p>
           {data.blockUntilAccepted && (
-            <p className="text-xs text-slate-400 mt-3">
+            <p className="text-xs text-slate-600 mt-3">
               Seu cadastro sera ativado automaticamente.
             </p>
           )}
-          <p className="text-xs text-slate-400 mt-4">
+          <p className="text-xs text-slate-600 mt-4">
             Voce pode fechar esta pagina.
           </p>
         </div>
@@ -190,7 +190,7 @@ export default function ContractTokenPage() {
             />
           )}
           <h1 className="text-white text-lg font-bold">{companyName}</h1>
-          <p className="text-slate-300 text-xs mt-1">Contrato para Aceite</p>
+          <p className="text-slate-600 text-xs mt-1">Contrato para Aceite</p>
         </div>
 
         <div className="p-6 space-y-4">
@@ -198,7 +198,7 @@ export default function ContractTokenPage() {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-base font-bold text-slate-800">{data.contractName}</h2>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-600 mt-0.5">
                 Para: <strong>{data.partner.name}</strong>
               </p>
             </div>
@@ -232,7 +232,7 @@ export default function ContractTokenPage() {
           )}
 
           {/* Expiration notice */}
-          <p className="text-xs text-slate-400 text-center">
+          <p className="text-xs text-slate-600 text-center">
             Este contrato expira em <strong>{expiresDate}</strong>
           </p>
 
@@ -267,7 +267,7 @@ export default function ContractTokenPage() {
             </button>
           </div>
 
-          <p className="text-[10px] text-slate-400 text-center">
+          <p className="text-[10px] text-slate-600 text-center">
             Ao clicar em &quot;Aceitar Contrato&quot;, voce concorda com os termos acima.
             Seu IP, data de aceite{data.requireSignature ? " e assinatura digital" : ""} serao registrados.
           </p>

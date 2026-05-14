@@ -89,7 +89,7 @@ export default function PoolPaymentTermsPage() {
             </thead>
             <tbody>
               {items.length === 0 ? (
-                <tr><td colSpan={5} className="text-center text-sm text-slate-400 py-8">Nenhuma forma cadastrada</td></tr>
+                <tr><td colSpan={5} className="text-center text-sm text-slate-600 py-8">Nenhuma forma cadastrada</td></tr>
               ) : items.map((t) => (
                 <tr key={t.id} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50">
                   <td className="px-4 py-2.5 font-medium text-slate-900">{t.name}</td>

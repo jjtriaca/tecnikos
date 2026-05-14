@@ -342,7 +342,7 @@ export default function BoletoSettingsPage() {
                   />
                 )}
 
-                {field.helpText && <p className="text-xs text-slate-400 mt-1">{field.helpText}</p>}
+                {field.helpText && <p className="text-xs text-slate-600 mt-1">{field.helpText}</p>}
               </div>
             ))}
           </div>
@@ -535,7 +535,7 @@ export default function BoletoSettingsPage() {
             />
             <span className="text-sm text-slate-700">Registrar boleto automaticamente ao criar lançamento a receber</span>
           </label>
-          <p className="text-xs text-slate-400 ml-6 mt-1">
+          <p className="text-xs text-slate-600 ml-6 mt-1">
             Quando ativado, boletos serão gerados e registrados no banco automaticamente para cada parcela de lançamentos RECEIVABLE.
           </p>
         </section>

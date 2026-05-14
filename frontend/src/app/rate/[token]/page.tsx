@@ -130,7 +130,7 @@ export default function RateTokenPage() {
     return (
       <div className="w-full text-center">
         <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-[3px] border-blue-600 border-t-transparent" />
-        <p className="text-sm text-slate-400">Carregando...</p>
+        <p className="text-sm text-slate-600">Carregando...</p>
       </div>
     );
   }
@@ -307,7 +307,7 @@ export default function RateTokenPage() {
             className="mb-1.5 block text-sm font-medium text-slate-600"
           >
             Comentario{" "}
-            <span className="font-normal text-slate-400">(opcional)</span>
+            <span className="font-normal text-slate-600">(opcional)</span>
           </label>
           <textarea
             id="comment"
@@ -318,7 +318,7 @@ export default function RateTokenPage() {
             maxLength={500}
             className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 placeholder-slate-300 outline-none transition-colors focus:border-blue-400 focus:ring-2 focus:ring-blue-100 resize-none"
           />
-          <p className="mt-1 text-right text-[11px] text-slate-300">
+          <p className="mt-1 text-right text-[11px] text-slate-600">
             {comment.length}/500
           </p>
         </div>
@@ -347,7 +347,7 @@ export default function RateTokenPage() {
         </button>
 
         {score === 0 && (
-          <p className="mt-2 text-center text-xs text-slate-400">
+          <p className="mt-2 text-center text-xs text-slate-600">
             Selecione uma nota para continuar
           </p>
         )}

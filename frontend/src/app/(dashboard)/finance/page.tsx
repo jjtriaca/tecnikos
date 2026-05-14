@@ -768,17 +768,17 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
               <div>
                 <p className="text-[11px] text-slate-500">Pendente</p>
                 <p className="text-lg font-bold text-amber-700">{formatCurrency(r.pendingCents + r.confirmedCents)}</p>
-                <p className="text-[10px] text-slate-400">{r.pendingCount + r.confirmedCount} entrada{(r.pendingCount + r.confirmedCount) !== 1 ? "s" : ""}</p>
+                <p className="text-[10px] text-slate-600">{r.pendingCount + r.confirmedCount} entrada{(r.pendingCount + r.confirmedCount) !== 1 ? "s" : ""}</p>
               </div>
               <div>
                 <p className="text-[11px] text-slate-500">Recebido</p>
                 <p className="text-lg font-bold text-green-700">{formatCurrency(r.paidCents)}</p>
-                <p className="text-[10px] text-slate-400">{r.paidCount} entrada{r.paidCount !== 1 ? "s" : ""}</p>
+                <p className="text-[10px] text-slate-600">{r.paidCount} entrada{r.paidCount !== 1 ? "s" : ""}</p>
               </div>
               <div>
                 <p className="text-[11px] text-slate-500">Ag. Confirmação</p>
                 <p className="text-lg font-bold text-slate-700">{r.pendingCount}</p>
-                <p className="text-[10px] text-slate-400">pendentes</p>
+                <p className="text-[10px] text-slate-600">pendentes</p>
               </div>
             </div>
           </div>
@@ -788,17 +788,17 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
               <div>
                 <p className="text-[11px] text-slate-500">Pendente</p>
                 <p className="text-lg font-bold text-amber-700">{formatCurrency(p.pendingCents + p.confirmedCents)}</p>
-                <p className="text-[10px] text-slate-400">{p.pendingCount + p.confirmedCount} entrada{(p.pendingCount + p.confirmedCount) !== 1 ? "s" : ""}</p>
+                <p className="text-[10px] text-slate-600">{p.pendingCount + p.confirmedCount} entrada{(p.pendingCount + p.confirmedCount) !== 1 ? "s" : ""}</p>
               </div>
               <div>
                 <p className="text-[11px] text-slate-500">Pago</p>
                 <p className="text-lg font-bold text-blue-700">{formatCurrency(p.paidCents)}</p>
-                <p className="text-[10px] text-slate-400">{p.paidCount} entrada{p.paidCount !== 1 ? "s" : ""}</p>
+                <p className="text-[10px] text-slate-600">{p.paidCount} entrada{p.paidCount !== 1 ? "s" : ""}</p>
               </div>
               <div>
                 <p className="text-[11px] text-slate-500">Ag. Confirmação</p>
                 <p className="text-lg font-bold text-slate-700">{p.pendingCount}</p>
-                <p className="text-[10px] text-slate-400">pendentes</p>
+                <p className="text-[10px] text-slate-600">pendentes</p>
               </div>
             </div>
           </div>
@@ -819,7 +819,7 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
           <div className="rounded-lg border border-green-200 bg-green-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
             <span className="text-[11px] font-medium text-green-700">Saldo Total</span>
             <p className={`mt-0.5 text-lg font-bold ${total >= 0 ? "text-green-900" : "text-red-700"}`}>{formatCurrency(total)}</p>
-            <p className="text-[10px] text-slate-400">{active.length} conta{active.length !== 1 ? "s" : ""} ativa{active.length !== 1 ? "s" : ""}</p>
+            <p className="text-[10px] text-slate-600">{active.length} conta{active.length !== 1 ? "s" : ""} ativa{active.length !== 1 ? "s" : ""}</p>
           </div>
         )});
         for (const a of active.filter((a: any) => a.type === "CAIXA")) {
@@ -827,7 +827,7 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
               <span className="text-[11px] font-medium text-amber-700">💰 {a.name}</span>
               <p className={`mt-0.5 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-amber-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
-              <p className="text-[10px] text-slate-400">Caixa</p>
+              <p className="text-[10px] text-slate-600">Caixa</p>
             </div>
           )});
         }
@@ -836,7 +836,7 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
             <div className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
               <span className="text-[11px] font-medium text-blue-700">🏦 {a.name}</span>
               <p className={`mt-0.5 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-blue-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
-              <p className="text-[10px] text-slate-400">Banco</p>
+              <p className="text-[10px] text-slate-600">Banco</p>
             </div>
           )});
         }
@@ -845,7 +845,7 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
             <div className="rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
               <span className="text-[11px] font-medium text-purple-700">{a.name}</span>
               <p className={`mt-0.5 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-purple-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
-              <p className="text-[10px] text-slate-400">Conta de passagem</p>
+              <p className="text-[10px] text-slate-600">Conta de passagem</p>
             </div>
           )});
         }
@@ -856,7 +856,7 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
             <div className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
               <span className="text-[11px] font-medium text-rose-700">&#128179; {a.name}</span>
               <p className={`mt-0.5 text-lg font-bold ${hasDebt ? "text-rose-900" : "text-slate-500"}`}>{formatCurrency(debt)}</p>
-              <p className="text-[10px] text-slate-400">{hasDebt ? "Em aberto" : "Fatura quitada"}</p>
+              <p className="text-[10px] text-slate-600">{hasDebt ? "Em aberto" : "Fatura quitada"}</p>
             </div>
           )});
         }
@@ -977,10 +977,10 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
                 className="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50">
                 {stmtLoading ? "..." : "Filtrar"}
               </button>
-              <span className="text-[10px] text-slate-400 ml-auto">{rows.length} movimento{rows.length !== 1 ? "s" : ""}</span>
+              <span className="text-[10px] text-slate-600 ml-auto">{rows.length} movimento{rows.length !== 1 ? "s" : ""}</span>
             </div>
             {rows.length === 0 ? (
-              <div className="text-center py-6 text-xs text-slate-400">Nenhum movimento no período selecionado.</div>
+              <div className="text-center py-6 text-xs text-slate-600">Nenhum movimento no período selecionado.</div>
             ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -1001,7 +1001,7 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
                     <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-100 transition-colors">
                       <td className="px-3 py-2 text-xs text-slate-600 whitespace-nowrap">{formatDate(row.date)}</td>
                       <td className="px-3 py-2 text-xs text-slate-800 max-w-[200px] truncate">
-                        {row.code && <span className="text-slate-400 mr-1">{row.code}</span>}
+                        {row.code && <span className="text-slate-600 mr-1">{row.code}</span>}
                         {row.description}
                       </td>
                       <td className="px-3 py-2 text-xs text-slate-600 max-w-[140px] truncate">{row.partnerName || "—"}</td>
@@ -1524,7 +1524,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-700">
           {typeLabel}
-          <span className="ml-2 text-xs font-normal text-slate-400">
+          <span className="ml-2 text-xs font-normal text-slate-600">
             {meta.total} registro{meta.total !== 1 ? "s" : ""}
           </span>
         </h3>
@@ -1566,7 +1566,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
         </div>
       ) : entries.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-600">
             {tp.search || Object.keys(tp.filters).length > 0
               ? "Nenhuma entrada encontrada com os filtros selecionados."
               : `Nenhuma entrada ${typeLabel.toLowerCase()} criada ainda.`}
@@ -1747,7 +1747,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
           </button>
           <button
             onClick={() => setSelectedIds(new Set())}
-            className="text-xs text-slate-400 hover:text-white transition-colors"
+            className="text-xs text-slate-600 hover:text-white transition-colors"
           >
             Limpar
           </button>
@@ -2041,16 +2041,16 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                   <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
                     <div className="flex gap-4">
                       <div>
-                        <span className="text-[10px] text-slate-400">Instrumento</span>
+                        <span className="text-[10px] text-slate-600">Instrumento</span>
                         <p className="font-medium text-slate-700">{inst.name}{inst.cardLast4 ? ` •••• ${inst.cardLast4}` : ""}</p>
                       </div>
                       <div>
-                        <span className="text-[10px] text-slate-400">Tipo</span>
+                        <span className="text-[10px] text-slate-600">Tipo</span>
                         <p className="font-medium text-slate-700">{methodLabel}</p>
                       </div>
                       {inst.cashAccount && (
                         <div>
-                          <span className="text-[10px] text-slate-400">Conta</span>
+                          <span className="text-[10px] text-slate-600">Conta</span>
                           <p className="font-medium text-slate-700">{inst.cashAccount.name}</p>
                         </div>
                       )}
@@ -2069,15 +2069,15 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
                   <div className="flex gap-4">
                     <div>
-                      <span className="text-[10px] text-slate-400">Bandeira</span>
+                      <span className="text-[10px] text-slate-600">Bandeira</span>
                       <p className="font-medium text-slate-700">{selectedCardRate.brand}</p>
                     </div>
                     <div>
-                      <span className="text-[10px] text-slate-400">Taxa</span>
+                      <span className="text-[10px] text-slate-600">Taxa</span>
                       <p className="font-medium text-slate-700">{selectedCardRate.feePercent.toFixed(2)}%</p>
                     </div>
                     <div>
-                      <span className="text-[10px] text-slate-400">Recebimento</span>
+                      <span className="text-[10px] text-slate-600">Recebimento</span>
                       <p className="font-medium text-slate-700">{selectedCardRate.receivingDays} dias</p>
                     </div>
                   </div>
@@ -2240,7 +2240,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                       </option>
                     ))}
                   </select>
-                  <p className="mt-0.5 text-[10px] text-slate-400">Selecione o instrumento especifico para conciliacao</p>
+                  <p className="mt-0.5 text-[10px] text-slate-600">Selecione o instrumento especifico para conciliacao</p>
                 </div>
               )}
             </div>
@@ -2297,7 +2297,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                 renderItem={(p) => (
                   <div>
                     <div className="font-medium text-slate-900">{p.name}</div>
-                    <div className="flex gap-3 text-xs text-slate-400 mt-0.5">
+                    <div className="flex gap-3 text-xs text-slate-600 mt-0.5">
                       {p.document && <span>{p.document}</span>}
                       {p.phone && <span>{p.phone}</span>}
                     </div>
@@ -2333,7 +2333,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Valor (R$) *</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">R$</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-600">R$</span>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -2426,7 +2426,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                 return (
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">
-                      Data da compra <span className="text-slate-400 font-normal">(cartão de crédito)</span>
+                      Data da compra <span className="text-slate-600 font-normal">(cartão de crédito)</span>
                     </label>
                     <input
                       type="date"
@@ -2730,7 +2730,7 @@ function EntryActions({
   }
 
   if (loading) {
-    return <span className="text-xs text-slate-400 animate-pulse">Processando...</span>;
+    return <span className="text-xs text-slate-600 animate-pulse">Processando...</span>;
   }
 
   const payLabel = type === "RECEIVABLE" ? "Receber" : "Pagar";
@@ -2932,7 +2932,7 @@ function InstallmentsOverviewTab() {
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-700">
           Lançamentos com Parcelas
-          <span className="ml-2 text-xs font-normal text-slate-400">
+          <span className="ml-2 text-xs font-normal text-slate-600">
             {entries.length} lançamento{entries.length !== 1 ? "s" : ""}
           </span>
         </h3>
@@ -2961,7 +2961,7 @@ function InstallmentsOverviewTab() {
         </div>
       ) : filteredEntries.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-600">
             {filter !== "all" ? "Nenhum lançamento encontrado com este filtro." : "Nenhum lançamento com parcelas ainda."}
           </p>
         </div>
@@ -2989,19 +2989,19 @@ function InstallmentsOverviewTab() {
                           Vencida
                         </span>
                       )}
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-slate-600">
                         {e.type === "RECEIVABLE" ? "📥 A Receber" : "📤 A Pagar"}
                       </span>
                     </div>
                     <div className="flex items-center gap-4 mt-1">
                       {e.partner && <span className="text-xs text-slate-500">{e.partner.name}</span>}
-                      <span className="text-xs text-slate-400">{e.installmentCount}x parcelas</span>
-                      {e.dueDate && <span className="text-xs text-slate-400">Venc: {formatDate(e.dueDate)}</span>}
+                      <span className="text-xs text-slate-600">{e.installmentCount}x parcelas</span>
+                      {e.dueDate && <span className="text-xs text-slate-600">Venc: {formatDate(e.dueDate)}</span>}
                     </div>
                   </div>
                   <div className="text-right ml-4">
                     <p className="text-lg font-bold text-slate-900">{formatCurrency(e.netCents)}</p>
-                    <p className="text-xs text-slate-400">Clique para ver parcelas</p>
+                    <p className="text-xs text-slate-600">Clique para ver parcelas</p>
                   </div>
                 </div>
               </div>

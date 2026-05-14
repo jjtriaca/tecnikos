@@ -178,7 +178,7 @@ export default function AuditLogDrawer({ entityType, entityId, open, colSpan }: 
               ))}
             </div>
           ) : logs.length === 0 ? (
-            <p className="text-xs text-slate-400">Nenhum registro encontrado.</p>
+            <p className="text-xs text-slate-600">Nenhum registro encontrado.</p>
           ) : (
             <div className="space-y-1.5">
               {logs.map((log) => (
@@ -189,7 +189,7 @@ export default function AuditLogDrawer({ entityType, entityId, open, colSpan }: 
                     {log.actorName && (
                       <span className="text-slate-500"> &mdash; {log.actorName}</span>
                     )}
-                    <span className="ml-2 text-slate-400">{relativeTime(log.createdAt)}</span>
+                    <span className="ml-2 text-slate-600">{relativeTime(log.createdAt)}</span>
                   </div>
                 </div>
               ))}

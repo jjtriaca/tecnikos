@@ -194,7 +194,7 @@ export default function ServicosTomadosPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
                       </td>
-                      <td className="px-4 py-2.5 text-slate-400">{idx + 1}</td>
+                      <td className="px-4 py-2.5 text-slate-600">{idx + 1}</td>
                       <td className="px-4 py-2.5 text-slate-700">{fmtDate(it.dataEmissao)}</td>
                       <td className="px-4 py-2.5 font-medium text-slate-700">{it.numero || "—"}</td>
                       <td className="px-4 py-2.5 text-slate-700 max-w-[200px] truncate">{it.prestadorRazaoSocial || "—"}</td>

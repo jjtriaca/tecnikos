@@ -363,11 +363,11 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
                   <input type="radio" name={`${radioName}email`} checked={selEmailId === c.id}
                     onChange={() => setSelEmailId(c.id)} className="text-blue-600" />
                   <span className="text-slate-700">{c.value}</span>
-                  {c.label && <span className="text-slate-400">({c.label})</span>}
+                  {c.label && <span className="text-slate-600">({c.label})</span>}
                 </label>
               ))}
               {emailContacts.length === 0 && !showNewEmail && (
-                <p className="text-xs text-slate-400">Nenhum email cadastrado</p>
+                <p className="text-xs text-slate-600">Nenhum email cadastrado</p>
               )}
               {!showNewEmail ? (
                 <button type="button" onClick={() => setShowNewEmailFn(true)}
@@ -403,11 +403,11 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
                   <input type="radio" name={`${radioName}wa`} checked={selWaId === c.id}
                     onChange={() => setSelWaId(c.id)} className="text-green-600" />
                   <span className="text-slate-700">{c.value}</span>
-                  {c.label && <span className="text-slate-400">({c.label})</span>}
+                  {c.label && <span className="text-slate-600">({c.label})</span>}
                 </label>
               ))}
               {waContacts.length === 0 && !showNewWa && (
-                <p className="text-xs text-slate-400">Nenhum WhatsApp cadastrado</p>
+                <p className="text-xs text-slate-600">Nenhum WhatsApp cadastrado</p>
               )}
               {!showNewWa ? (
                 <button type="button" onClick={() => setShowNewWaFn(true)}
@@ -468,7 +468,7 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
           {loading && (
             <div className="text-center py-4">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent mx-auto" />
-              <p className="text-xs text-slate-400 mt-2">Calculando...</p>
+              <p className="text-xs text-slate-600 mt-2">Calculando...</p>
             </div>
           )}
 

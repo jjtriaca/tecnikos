@@ -109,7 +109,7 @@ export default function NotificationsPage() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-slate-700">🔔 Notificações Push</h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-600 mt-0.5">
                 Receba alertas no navegador mesmo com o Tecnikos fechado
               </p>
             </div>
@@ -148,7 +148,7 @@ export default function NotificationsPage() {
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-200 border-t-indigo-600" />
         </div>
       ) : notifications.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-400">
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-600">
           <svg className="mx-auto mb-3 h-12 w-12 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
           </svg>
@@ -176,12 +176,12 @@ export default function NotificationsPage() {
                       {TYPE_LABELS[n.type] || n.type}
                     </span>
                     {n.recipientPhone && (
-                      <span className="text-slate-400">
+                      <span className="text-slate-600">
                         → {n.recipientPhone}
                       </span>
                     )}
                     {n.recipientEmail && (
-                      <span className="text-slate-400">
+                      <span className="text-slate-600">
                         → {n.recipientEmail}
                       </span>
                     )}
@@ -194,7 +194,7 @@ export default function NotificationsPage() {
                   )}
                 </div>
                 <div className="flex flex-col items-end gap-1.5 shrink-0">
-                  <span className="text-xs text-slate-400">
+                  <span className="text-xs text-slate-600">
                     {formatDate(n.sentAt || n.createdAt)}
                   </span>
                   <span

@@ -267,10 +267,10 @@ export default function WorkflowPage() {
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     {/* Drag handle */}
-                    <span className="text-slate-300 group-hover:text-slate-400 shrink-0 select-none" title="Arraste para reordenar">&#x2807;</span>
+                    <span className="text-slate-600 group-hover:text-slate-600 shrink-0 select-none" title="Arraste para reordenar">&#x2807;</span>
                     <div className="flex-1 min-w-0">
                       <h3 className={`text-sm font-bold truncate ${wf.isActive ? "text-slate-800" : "text-slate-400"}`}>{wf.name}</h3>
-                      <p className="text-xs text-slate-400 mt-0.5">
+                      <p className="text-xs text-slate-600 mt-0.5">
                         Criado em {new Date(wf.createdAt).toLocaleDateString("pt-BR")}
                       </p>
                     </div>

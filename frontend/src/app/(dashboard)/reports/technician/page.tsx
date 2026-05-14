@@ -219,15 +219,15 @@ export default function TechnicianReportPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 text-center">
               <p className="text-sm font-semibold text-slate-700">{fmtTime(s?.totalTravelMinutes || 0)}</p>
-              <p className="text-[10px] text-slate-400">Deslocamento</p>
+              <p className="text-[10px] text-slate-600">Deslocamento</p>
             </div>
             <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 text-center">
               <p className="text-sm font-semibold text-slate-700">{fmtTime((s?.totalNetMinutes || 0) - (s?.totalTravelMinutes || 0))}</p>
-              <p className="text-[10px] text-slate-400">Execucao</p>
+              <p className="text-[10px] text-slate-600">Execucao</p>
             </div>
             <div className="rounded-lg border border-slate-100 bg-slate-50 p-3 text-center">
               <p className="text-sm font-semibold text-slate-700">{fmtTime(s?.totalPauseMinutes || 0)}</p>
-              <p className="text-[10px] text-slate-400">Pausas</p>
+              <p className="text-[10px] text-slate-600">Pausas</p>
             </div>
             <div className="rounded-lg border border-amber-100 bg-amber-50 p-3 text-center">
               <p className="text-sm font-semibold text-amber-700">{fmtTime(s?.totalOvertimeMinutes || 0)}</p>
@@ -283,7 +283,7 @@ export default function TechnicianReportPage() {
                 </thead>
                 <tbody>
                   {report.rows.length === 0 ? (
-                    <tr><td colSpan={11} className="px-3 py-6 text-center text-slate-400">Nenhuma OS encontrada no periodo</td></tr>
+                    <tr><td colSpan={11} className="px-3 py-6 text-center text-slate-600">Nenhuma OS encontrada no periodo</td></tr>
                   ) : report.rows.map((r) => (
                     <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-100">
                       <td className="px-3 py-2 text-xs font-mono text-slate-600">{r.code}</td>
@@ -294,7 +294,7 @@ export default function TechnicianReportPage() {
                       <td className="px-3 py-2 text-center text-xs text-slate-500">{fmtHour(r.startedAt)}</td>
                       <td className="px-3 py-2 text-center text-xs text-slate-500">{fmtHour(r.completedAt)}</td>
                       <td className="px-3 py-2 text-center text-xs font-medium text-slate-700">{fmtTime(r.netMinutes)}</td>
-                      <td className="px-3 py-2 text-center text-xs text-slate-400">
+                      <td className="px-3 py-2 text-center text-xs text-slate-600">
                         {r.pauseMinutes > 0 ? fmtTime(r.pauseMinutes) : "—"}
                       </td>
                       <td className="px-3 py-2 text-center text-xs text-amber-600">

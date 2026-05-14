@@ -218,7 +218,7 @@ function makePartnerColumns(
       render: (p) => (
         <div>
           <div className="font-medium text-slate-900">{p.name}</div>
-          {p.tradeName && <div className="text-xs text-slate-400">{p.tradeName}</div>}
+          {p.tradeName && <div className="text-xs text-slate-600">{p.tradeName}</div>}
         </div>
       ),
     },
@@ -265,13 +265,13 @@ function makePartnerColumns(
                 </span>
               ))}
               {(p.specializations || []).length > 3 && (
-                <span className="text-xs text-slate-400">+{p.specializations.length - 3}</span>
+                <span className="text-xs text-slate-600">+{p.specializations.length - 3}</span>
               )}
             </div>
             {renderStars(p.rating)}
           </div>
         ) : (
-          <span className="text-xs text-slate-400">{"\u2014"}</span>
+          <span className="text-xs text-slate-600">{"\u2014"}</span>
         ),
     },
     {

@@ -30,7 +30,7 @@ function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange
       </div>
       <div className="flex-1 min-w-0">
         <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">{label}</span>
-        {hint && <p className="text-xs text-slate-400 mt-0.5">{hint}</p>}
+        {hint && <p className="text-xs text-slate-600 mt-0.5">{hint}</p>}
       </div>
     </label>
   );
@@ -240,7 +240,7 @@ function TriggerSection({
                 className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none resize-y"
               />
               <div className="flex flex-wrap gap-1 mt-1">
-                <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
+                <span className="text-[10px] text-slate-600 mr-1 self-center">Variaveis:</span>
                 {CONTRACT_VARIABLES.map((v) => (
                   <button
                     key={v}
@@ -267,7 +267,7 @@ function TriggerSection({
                 className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none resize-y"
               />
               <div className="flex flex-wrap gap-1 mt-1">
-                <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
+                <span className="text-[10px] text-slate-600 mr-1 self-center">Variaveis:</span>
                 {WELCOME_VARIABLES.map((v) => (
                   <button
                     key={v}
@@ -379,7 +379,7 @@ function TriggerSection({
                 className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none resize-y"
               />
               <div className="flex flex-wrap gap-1 mt-1">
-                <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
+                <span className="text-[10px] text-slate-600 mr-1 self-center">Variaveis:</span>
                 {WELCOME_VARIABLES.map((v) => (
                   <button
                     key={v}
@@ -436,7 +436,7 @@ function TriggerSection({
                         className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-green-500 focus:ring-1 focus:ring-green-200 outline-none resize-y"
                       />
                       <div className="flex flex-wrap gap-1">
-                        <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
+                        <span className="text-[10px] text-slate-600 mr-1 self-center">Variaveis:</span>
                         {['{nome}', '{empresa}', '{razao_social}', '{especializacao}', '{data}'].map((v) => (
                           <button
                             key={v}
@@ -524,7 +524,7 @@ function TriggerSection({
                           className="text-sm rounded border border-slate-300 px-2 py-1.5 focus:border-red-500 focus:ring-1 focus:ring-red-200 outline-none resize-y"
                         />
                         <div className="flex flex-wrap gap-1">
-                          <span className="text-[10px] text-slate-400 mr-1 self-center">Variaveis:</span>
+                          <span className="text-[10px] text-slate-600 mr-1 self-center">Variaveis:</span>
                           {['{nome}', '{empresa}', '{especializacao}', '{resposta}'].map((v) => (
                             <button
                               key={v}
@@ -652,7 +652,7 @@ export default function TechnicianOnboardingSection({ config, onChange, triggerI
           <span className="text-lg">{headerIcon}</span>
           <div className="min-w-0">
             <h3 className="text-sm font-bold text-slate-800">{headerTitle}</h3>
-            <p className="text-xs text-slate-400">{headerSubtitle}</p>
+            <p className="text-xs text-slate-600">{headerSubtitle}</p>
           </div>
           {config.enabled && enabledCount > 0 && (
             <span className="ml-2 shrink-0 inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">
@@ -660,7 +660,7 @@ export default function TechnicianOnboardingSection({ config, onChange, triggerI
             </span>
           )}
           {config.enabled && !expanded && enabledCount > 0 && (
-            <span className="text-[10px] text-slate-400 hidden sm:inline">&mdash; clique para expandir</span>
+            <span className="text-[10px] text-slate-600 hidden sm:inline">&mdash; clique para expandir</span>
           )}
         </div>
         {/* Right side — toggle */}

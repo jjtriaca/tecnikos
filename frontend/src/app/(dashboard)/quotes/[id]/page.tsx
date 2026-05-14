@@ -465,7 +465,7 @@ export default function QuoteDetailPage() {
                 <tbody>
                   {[...quote.items].sort((a, b) => a.sortOrder - b.sortOrder).map((item, idx) => (
                     <tr key={item.id} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50"}>
-                      <td className="px-4 py-2.5 text-slate-400 text-xs">{idx + 1}</td>
+                      <td className="px-4 py-2.5 text-slate-600 text-xs">{idx + 1}</td>
                       <td className="px-4 py-2.5">
                         <div className="font-medium text-slate-800">{item.description}</div>
                         {item.product?.code && <div className="text-xs text-slate-500">{item.product.code}</div>}

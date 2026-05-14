@@ -73,10 +73,10 @@ export default function CollapsibleSection({
         onClick={toggle}
         className="w-full flex items-center gap-2 group cursor-pointer"
       >
-        {icon && <span className="text-slate-400 flex-shrink-0">{icon}</span>}
+        {icon && <span className="text-slate-600 flex-shrink-0">{icon}</span>}
         <span className="text-sm font-semibold text-slate-700 flex-shrink-0">{title}</span>
         {subtitle && (
-          <span className="text-xs text-slate-400 font-normal flex-shrink-0">{subtitle}</span>
+          <span className="text-xs text-slate-600 font-normal flex-shrink-0">{subtitle}</span>
         )}
         {/* Summary — fills remaining space */}
         {!isOpen && summary && (

@@ -138,10 +138,10 @@ export default function PrivacyPage() {
         </div>
 
         <div className="mt-10 pt-6 border-t border-slate-200 text-center">
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-600">
             Tecnikos &mdash; Gestão de Serviços Técnicos
           </p>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-600 mt-1">
             SLS Obras LTDA &mdash; CNPJ: 47.226.599/0001-40
           </p>
         </div>

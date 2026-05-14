@@ -559,7 +559,7 @@ export default function OrderDetailPage() {
               );
               if (hasPaid) {
                 return (
-                  <span className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-400 cursor-not-allowed"
+                  <span className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-600 cursor-not-allowed"
                     title="Estorne os recebimentos para liberar a edição">
                     Editar
                   </span>
@@ -619,7 +619,7 @@ export default function OrderDetailPage() {
                   {order.lat.toFixed(6)}, {order.lng.toFixed(6)}
                 </span>
               ) : (
-                <span className="text-xs italic text-slate-400">Não definida</span>
+                <span className="text-xs italic text-slate-600">Não definida</span>
               )}
               <div className="flex items-center gap-2 mt-1.5">
                 <button
@@ -735,7 +735,7 @@ export default function OrderDetailPage() {
             </div>
           </div>
         ) : (
-          <p className="text-sm text-slate-400">Nenhum técnico atribuído.</p>
+          <p className="text-sm text-slate-600">Nenhum técnico atribuído.</p>
         )}
       </div>
 
@@ -819,7 +819,7 @@ export default function OrderDetailPage() {
               <div className="h-6 w-6 animate-spin rounded-full border-3 border-blue-600 border-t-transparent" />
             </div>
           ) : eligiblePartners.length === 0 ? (
-            <p className="text-sm text-slate-400">Nenhum técnico elegível encontrado.</p>
+            <p className="text-sm text-slate-600">Nenhum técnico elegível encontrado.</p>
           ) : (
             <>
               <div className="space-y-3 mb-4">
@@ -855,7 +855,7 @@ export default function OrderDetailPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium text-slate-900 truncate">{tech.name}</p>
-                        <span className="text-xs text-slate-400">{tech.phone}</span>
+                        <span className="text-xs text-slate-600">{tech.phone}</span>
                       </div>
 
                       {/* Specializations */}
@@ -894,7 +894,7 @@ export default function OrderDetailPage() {
                           {tech.rating.toFixed(1)}
                         </span>
                       </div>
-                      <span className="text-[11px] text-slate-400">
+                      <span className="text-[11px] text-slate-600">
                         {tech.totalOrders} OS{tech.totalOrders !== 1 ? "s" : ""}
                       </span>
                     </div>
@@ -1033,13 +1033,13 @@ export default function OrderDetailPage() {
                       )}
                     </span>
                     {/* Time */}
-                    <span className="w-24 flex-shrink-0 text-[10px] text-slate-400 text-right whitespace-nowrap">
+                    <span className="w-24 flex-shrink-0 text-[10px] text-slate-600 text-right whitespace-nowrap">
                       {step.completed && step.completedAt
                         ? new Date(step.completedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
                         : idx === wfn.completedSteps ? "aguardando" : ""}
                     </span>
                     {/* GPS */}
-                    <span className="w-32 flex-shrink-0 text-[9px] text-slate-400 text-right hidden md:block truncate">
+                    <span className="w-32 flex-shrink-0 text-[9px] text-slate-600 text-right hidden md:block truncate">
                       {gps && `📍 ${gps}`}
                     </span>
                   </div>
@@ -1116,7 +1116,7 @@ export default function OrderDetailPage() {
                           Aprovada
                         </span>
                         <span className="flex-1 min-w-0">{renderStars(gestorEval.score)}</span>
-                        <span className="w-24 flex-shrink-0 text-[10px] text-slate-400 text-right whitespace-nowrap">
+                        <span className="w-24 flex-shrink-0 text-[10px] text-slate-600 text-right whitespace-nowrap">
                           {new Date(ev.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                         </span>
                         <span className="w-32 flex-shrink-0 hidden md:block" />
@@ -1144,10 +1144,10 @@ export default function OrderDetailPage() {
                           </span>
                         ) : p.blockName || ""}
                       </span>
-                      <span className="w-24 flex-shrink-0 text-[10px] text-slate-400 text-right whitespace-nowrap">
+                      <span className="w-24 flex-shrink-0 text-[10px] text-slate-600 text-right whitespace-nowrap">
                         {new Date(ev.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                       </span>
-                      <span className="w-32 flex-shrink-0 text-[9px] text-slate-400 text-right hidden md:block truncate">
+                      <span className="w-32 flex-shrink-0 text-[9px] text-slate-600 text-right hidden md:block truncate">
                         {p.gps ? `📍 ${Number(p.gps.lat).toFixed(4)}, ${Number(p.gps.lng).toFixed(4)}` : ""}
                       </span>
                     </div>
@@ -1166,7 +1166,7 @@ export default function OrderDetailPage() {
                         Aval. Gestor
                       </span>
                       <span className="flex-1 min-w-0">{renderStars(gestorEval.score)}</span>
-                      <span className="w-24 flex-shrink-0 text-[10px] text-slate-400 text-right whitespace-nowrap">
+                      <span className="w-24 flex-shrink-0 text-[10px] text-slate-600 text-right whitespace-nowrap">
                         {new Date(gestorEval.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                       </span>
                       <span className="w-32 flex-shrink-0 hidden md:block" />
@@ -1195,10 +1195,10 @@ export default function OrderDetailPage() {
                       <span className="flex-1 min-w-0 text-[10px] text-slate-500">
                         <span className={`font-medium ${ds.color}`}>{ds.label}</span>
                         {evalNotif.recipientPhone && (
-                          <span className="ml-1.5 text-slate-400">→ {evalNotif.recipientPhone}</span>
+                          <span className="ml-1.5 text-slate-600">→ {evalNotif.recipientPhone}</span>
                         )}
                       </span>
-                      <span className="w-24 flex-shrink-0 text-[10px] text-slate-400 text-right whitespace-nowrap">
+                      <span className="w-24 flex-shrink-0 text-[10px] text-slate-600 text-right whitespace-nowrap">
                         {evalNotif.sentAt ? new Date(evalNotif.sentAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
                       </span>
                       <span className="w-32 flex-shrink-0 hidden md:block" />
@@ -1216,7 +1216,7 @@ export default function OrderDetailPage() {
                         Nota Cliente
                       </span>
                       <span className="flex-1 min-w-0">{renderStars(clientEval.score)}</span>
-                      <span className="w-24 flex-shrink-0 text-[10px] text-slate-400 text-right whitespace-nowrap">
+                      <span className="w-24 flex-shrink-0 text-[10px] text-slate-600 text-right whitespace-nowrap">
                         {new Date(clientEval.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                       </span>
                       <span className="w-32 flex-shrink-0 hidden md:block" />
@@ -1232,7 +1232,7 @@ export default function OrderDetailPage() {
                 // Show "Aguardando avaliação" if notification was sent but no evaluation yet
                 timelineRows.push(
                   <div key="eval-waiting" className="ml-6 pl-2 pb-1 border-b border-slate-50">
-                    <p className="text-[10px] text-slate-400 italic">Aguardando avaliação do cliente...</p>
+                    <p className="text-[10px] text-slate-600 italic">Aguardando avaliação do cliente...</p>
                   </div>,
                 );
               }
@@ -1244,10 +1244,10 @@ export default function OrderDetailPage() {
         );
       })() : order.workflowTemplateId ? (
         <div className="rounded-xl border border-slate-200 bg-white p-4 mb-6 text-center">
-          <p className="text-sm text-slate-400">Carregando fluxo...</p>
+          <p className="text-sm text-slate-600">Carregando fluxo...</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 mb-6 text-center text-sm text-slate-400">
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-4 mb-6 text-center text-sm text-slate-600">
           Sem fluxo de atendimento.
         </div>
       )}
@@ -1283,19 +1283,19 @@ export default function OrderDetailPage() {
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <div className="text-center">
                 <p className="text-sm font-semibold text-slate-700">{fmtMs(travelMs)}</p>
-                <p className="text-[10px] text-slate-400">Deslocamento</p>
+                <p className="text-[10px] text-slate-600">Deslocamento</p>
               </div>
               <div className="text-center">
                 <p className="text-sm font-semibold text-slate-700">{fmtMs(execMs)}</p>
-                <p className="text-[10px] text-slate-400">Execucao</p>
+                <p className="text-[10px] text-slate-600">Execucao</p>
               </div>
               <div className="text-center">
                 <p className="text-sm font-semibold text-slate-700">{fmtMs(pausedMs)}</p>
-                <p className="text-[10px] text-slate-400">Pausas{order.pauseCount ? ` (${order.pauseCount}x)` : ""}</p>
+                <p className="text-[10px] text-slate-600">Pausas{order.pauseCount ? ` (${order.pauseCount}x)` : ""}</p>
               </div>
               <div className="text-center">
                 <p className="text-sm font-semibold text-slate-700">{fmtMs(totalMs)}</p>
-                <p className="text-[10px] text-slate-400">Total bruto</p>
+                <p className="text-[10px] text-slate-600">Total bruto</p>
               </div>
               <div className="text-center">
                 <p className="text-sm font-bold text-blue-600">{fmtMs(netMs)}</p>
@@ -1363,7 +1363,7 @@ export default function OrderDetailPage() {
                             </div>
                           )}
                           {/* Stats bar */}
-                          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-400">
+                          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-600">
                             <span>{checked}/{total} itens</span>
                             {r.mode === "ITEM_BY_ITEM" && <span>Item a item</span>}
                             {r.mode === "FULL" && <span>Lista completa</span>}
@@ -1379,7 +1379,7 @@ export default function OrderDetailPage() {
                           )}
                           {/* Geolocation */}
                           {r.geolocation && (
-                            <p className="text-[10px] text-slate-400 mt-1">
+                            <p className="text-[10px] text-slate-600 mt-1">
                               📍 {(r.geolocation as any).lat?.toFixed(4)}, {(r.geolocation as any).lng?.toFixed(4)}
                             </p>
                           )}
@@ -1447,7 +1447,7 @@ export default function OrderDetailPage() {
           );
 
           if (!hasAny) {
-            return <p className="text-sm text-slate-400">Nenhuma foto registrada.</p>;
+            return <p className="text-sm text-slate-600">Nenhuma foto registrada.</p>;
           }
 
           return (

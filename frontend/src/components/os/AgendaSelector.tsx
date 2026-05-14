@@ -261,7 +261,7 @@ export default function AgendaSelector({
 
       {/* Weekly grid */}
       {loading ? (
-        <div className="flex items-center justify-center py-8 text-sm text-slate-400">
+        <div className="flex items-center justify-center py-8 text-sm text-slate-600">
           <svg className="h-4 w-4 animate-spin mr-2" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -269,7 +269,7 @@ export default function AgendaSelector({
           Carregando agenda...
         </div>
       ) : technicians.length === 0 ? (
-        <div className="text-center py-6 text-sm text-slate-400">
+        <div className="text-center py-6 text-sm text-slate-600">
           Nenhum tecnico cadastrado. Cadastre tecnicos para usar o agendamento.
         </div>
       ) : (
@@ -285,7 +285,7 @@ export default function AgendaSelector({
                   return (
                     <th key={i} className={`py-1.5 px-1 text-center font-medium min-w-[80px] ${
                       isToday ? "text-teal-700 bg-teal-100/60 rounded-t" :
-                      isWorkDay ? "text-slate-600" : "text-slate-300"
+                      isWorkDay ? "text-slate-600" : "text-slate-500"
                     }`}>
                       <div>{DAY_LABELS[dayNum]}</div>
                       <div className="text-[10px] font-normal">{formatDate(day)}</div>
@@ -419,7 +419,7 @@ export default function AgendaSelector({
           </div>
         )}
 
-        <p className="text-[10px] text-slate-400">
+        <p className="text-[10px] text-slate-600">
           Clique em uma celula na grade para selecionar tecnico e data, ou preencha os campos acima.
           A OS sera criada como &quot;Atribuida&quot; diretamente.
         </p>

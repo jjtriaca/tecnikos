@@ -201,7 +201,7 @@ export default function VerifyPage() {
               </div>
               <span className="text-base font-bold text-slate-900">Tecnikos</span>
             </div>
-            <span className="text-xs text-slate-400">{session.tenantName}</span>
+            <span className="text-xs text-slate-600">{session.tenantName}</span>
           </div>
         </header>
 
@@ -288,7 +288,7 @@ export default function VerifyPage() {
               </span>
             )}
           </button>
-          <p className="text-[10px] text-slate-400 text-center mt-3">Uma nova sessao sera criada para voce reenviar todos os documentos.</p>
+          <p className="text-[10px] text-slate-600 text-center mt-3">Uma nova sessao sera criada para voce reenviar todos os documentos.</p>
         </div>
       </div>
     );
@@ -323,7 +323,7 @@ export default function VerifyPage() {
           </div>
           <h1 className="text-lg font-bold text-slate-900 mb-2">Documentos enviados!</h1>
           <p className="text-sm text-slate-500 mb-4">Todos os documentos foram enviados com sucesso. Voce pode fechar esta pagina.</p>
-          <p className="text-xs text-slate-400">A equipe do Tecnikos ira analisar seus documentos e ativar sua conta em breve.</p>
+          <p className="text-xs text-slate-600">A equipe do Tecnikos ira analisar seus documentos e ativar sua conta em breve.</p>
         </div>
       </div>
     );
@@ -344,7 +344,7 @@ export default function VerifyPage() {
             </div>
             <span className="text-base font-bold text-slate-900">Tecnikos</span>
           </div>
-          <span className="text-xs text-slate-400">{session.tenantName}</span>
+          <span className="text-xs text-slate-600">{session.tenantName}</span>
         </div>
       </header>
 
@@ -358,7 +358,7 @@ export default function VerifyPage() {
           ))}
         </div>
 
-        <p className="text-xs text-slate-400 text-center mb-2">
+        <p className="text-xs text-slate-600 text-center mb-2">
           Passo {currentStep + 1} de {STEPS.length}
         </p>
 
@@ -396,7 +396,7 @@ export default function VerifyPage() {
                     </svg>
                     Abrir camera
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-3">{step.description}</p>
+                  <p className="text-[10px] text-slate-600 mt-3">{step.description}</p>
                 </>
               ) : (
                 <>
@@ -405,7 +405,7 @@ export default function VerifyPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
                   </svg>
                   <p className="text-sm font-medium text-slate-700">Tirar foto ou selecionar arquivo</p>
-                  <p className="text-[10px] text-slate-400 mt-1">{step.description}</p>
+                  <p className="text-[10px] text-slate-600 mt-1">{step.description}</p>
                 </>
               )}
             </button>
@@ -421,7 +421,7 @@ export default function VerifyPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                 </svg>
                 <p className="text-sm text-slate-700 font-medium">{selectedFile?.name}</p>
-                <p className="text-xs text-slate-400 mt-1">PDF selecionado</p>
+                <p className="text-xs text-slate-600 mt-1">PDF selecionado</p>
               </div>
             ) : (
               <img src={preview} alt="Preview" className="w-full rounded-2xl border border-slate-200 max-h-80 object-contain bg-slate-50" />
@@ -479,7 +479,7 @@ export default function VerifyPage() {
                 {uploaded && !isCurrent && (
                   <button
                     onClick={() => { setCurrentStep(i); clearSelection(); }}
-                    className="ml-auto text-[10px] text-slate-400 hover:text-blue-500"
+                    className="ml-auto text-[10px] text-slate-600 hover:text-blue-500"
                   >
                     Reenviar
                   </button>

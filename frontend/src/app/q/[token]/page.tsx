@@ -274,7 +274,7 @@ export default function PublicQuotePage() {
                   <tr key={idx} className="border-b border-slate-100">
                     <td className="py-3">
                       <div className="font-medium text-slate-800">{item.description}</div>
-                      <div className="text-xs text-slate-400">
+                      <div className="text-xs text-slate-600">
                         {TYPE_LABELS[item.type] || item.type}
                         {item.discountPercent ? ` | ${item.discountPercent}% desc.` : ""}
                       </div>
@@ -451,7 +451,7 @@ export default function PublicQuotePage() {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-8 text-xs text-slate-400">
+        <div className="text-center mt-8 text-xs text-slate-600">
           Powered by Tecnikos
         </div>
       </div>

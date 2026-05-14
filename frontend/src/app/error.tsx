@@ -101,7 +101,7 @@ export default function Error({
           </a>
         </div>
         {error.digest && (
-          <p className="text-xs text-slate-400 mt-4">
+          <p className="text-xs text-slate-600 mt-4">
             Código: {error.digest}
           </p>
         )}

@@ -418,7 +418,7 @@ export default function SystemConfigPage() {
                 <div key={field.key} className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-100 transition-colors">
                   <div className="flex-1 min-w-0 pr-4">
                     <p className="text-sm font-medium text-slate-700">{field.label}</p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">{field.description}</p>
+                    <p className="text-[11px] text-slate-600 mt-0.5">{field.description}</p>
                   </div>
 
                   {field.type === "toggle" ? (
@@ -470,7 +470,7 @@ export default function SystemConfigPage() {
             ) : "Salvar Alteracoes"}
           </button>
         ) : <div />}
-        <p className="text-[11px] text-slate-400">
+        <p className="text-[11px] text-slate-600">
           Estas configuracoes afetam o comportamento do sistema para toda a empresa.
         </p>
       </div>
@@ -533,7 +533,7 @@ function PdfLayoutSection({ value, onChange }: { value: number; onChange: (v: nu
                 <p className={`text-sm font-medium ${value === layout.id ? "text-blue-700" : "text-slate-700"}`}>
                   {layout.name}
                 </p>
-                <p className="text-[11px] text-slate-400 mt-0.5">{layout.desc}</p>
+                <p className="text-[11px] text-slate-600 mt-0.5">{layout.desc}</p>
               </div>
             </div>
             <button
@@ -686,7 +686,7 @@ function NfseTemplateSection({ value, onChange }: { value: string; onChange: (v:
 
         {value && (
           <div className="rounded-lg bg-slate-50 border border-slate-200 p-3">
-            <p className="text-[10px] font-medium text-slate-400 mb-1">Pre-visualizacao (com dados de exemplo):</p>
+            <p className="text-[10px] font-medium text-slate-600 mb-1">Pre-visualizacao (com dados de exemplo):</p>
             <p className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">
               {value
                 .replace(/\{nome_cliente\}/g, "Maria Fernanda da Silva")

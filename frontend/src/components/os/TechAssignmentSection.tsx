@@ -159,7 +159,7 @@ export default function TechAssignmentSection({
               <span className="text-sm text-slate-700">{opt.label}</span>
             </label>
             {opt.description && mode === opt.value && (
-              <p className="text-xs ml-6 text-slate-400">
+              <p className="text-xs ml-6 text-slate-600">
                 {opt.description}
               </p>
             )}

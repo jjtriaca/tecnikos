@@ -279,7 +279,7 @@ export default function BillingPage() {
                 </div>
               ) : null}
               {billing.billingCycle && (
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-600 mt-0.5">
                   Ciclo: {billing.billingCycle === "ANNUAL" ? "Anual" : "Mensal"}
                 </p>
               )}
@@ -288,9 +288,9 @@ export default function BillingPage() {
               <p className="text-2xl font-bold text-blue-600">
                 {billing.valueBrl != null ? `R$ ${billing.valueBrl.toFixed(2).replace(".", ",")}` : "\u2014"}
               </p>
-              <p className="text-xs text-slate-400">/{billing.billingCycle === "ANNUAL" ? "ano" : "mes"}</p>
+              <p className="text-xs text-slate-600">/{billing.billingCycle === "ANNUAL" ? "ano" : "mes"}</p>
               {billing.isPromo && billing.planPriceCents && billing.planPriceCents !== Math.round((billing.valueBrl || 0) * 100) && (
-                <p className="text-[10px] text-slate-400 mt-0.5">
+                <p className="text-[10px] text-slate-600 mt-0.5">
                   Após promocao: {formatCurrency(billing.planPriceCents)}/mes
                 </p>
               )}
@@ -354,7 +354,7 @@ export default function BillingPage() {
             />
           </div>
           <div className="flex items-center justify-between mt-2">
-            <div className="flex gap-3 text-[11px] text-slate-400">
+            <div className="flex gap-3 text-[11px] text-slate-600">
               {usage.osCount !== undefined && (
                 <span>{usage.osCount} OS</span>
               )}
@@ -362,7 +362,7 @@ export default function BillingPage() {
                 <span>+ {usage.avulsaNfseCount} NFS-e avulsas</span>
               )}
             </div>
-            <span className="text-[11px] text-slate-400">
+            <span className="text-[11px] text-slate-600">
               {usage.daysLeft} dias restantes
             </span>
           </div>
@@ -465,7 +465,7 @@ export default function BillingPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-lg font-bold text-blue-600">{formatCurrency(addOn.priceCents)}</p>
-                    <p className="text-[10px] text-slate-400">pagamento unico</p>
+                    <p className="text-[10px] text-slate-600">pagamento unico</p>
                   </div>
                 </div>
                 <button
@@ -549,9 +549,9 @@ function PlanCard({
       {/* Price */}
       <div className="mb-4">
         <p className={`text-2xl font-bold ${priceColor}`}>{formatCurrency(plan.priceCents)}</p>
-        <p className="text-[10px] text-slate-400">/mes</p>
+        <p className="text-[10px] text-slate-600">/mes</p>
         {plan.priceYearlyCents != null && plan.priceYearlyCents > 0 && (
-          <p className="text-[10px] text-slate-400">
+          <p className="text-[10px] text-slate-600">
             ou {formatCurrency(plan.priceYearlyCents)}/ano ({Math.round((1 - plan.priceYearlyCents / (plan.priceCents * 12)) * 100)}% desconto)
           </p>
         )}

@@ -164,7 +164,7 @@ export default function MultiLookupField<T>({
               />
             )}
             {values.length === 0 && disabled && (
-              <span className="px-1 text-slate-400 text-sm">{placeholder}</span>
+              <span className="px-1 text-slate-600 text-sm">{placeholder}</span>
             )}
           </div>
 
@@ -173,7 +173,7 @@ export default function MultiLookupField<T>({
             <button
               type="button"
               onClick={() => setModalOpen(true)}
-              className="shrink-0 rounded p-1 text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+              className="shrink-0 rounded p-1 text-slate-600 hover:bg-blue-50 hover:text-blue-600 transition-colors"
               title="Buscar avancado"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -186,9 +186,9 @@ export default function MultiLookupField<T>({
         {/* Inline dropdown */}
         {showDropdown && (
           <div className="absolute z-50 mt-1 w-full max-h-52 overflow-y-auto bg-white border border-slate-300 rounded-lg shadow-lg">
-            {searching && <div className="px-3 py-2 text-xs text-slate-400">Buscando...</div>}
+            {searching && <div className="px-3 py-2 text-xs text-slate-600">Buscando...</div>}
             {!searching && suggestions.length === 0 && inputValue.length >= 2 && (
-              <div className="px-3 py-2 text-xs text-slate-400">Nenhum resultado</div>
+              <div className="px-3 py-2 text-xs text-slate-600">Nenhum resultado</div>
             )}
             {suggestions.map((item) => {
               const key = keyExtractor(item);

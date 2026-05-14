@@ -104,7 +104,7 @@ function buildColumns(): ColumnDefinition<NfseEntrada>[] {
     { id: "issRetido", label: "Retido", sortable: false, render: (r) => (
       r.issRetido
         ? <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-medium text-amber-700">Retido</span>
-        : <span className="text-xs text-slate-400">Nao</span>
+        : <span className="text-xs text-slate-600">Nao</span>
     )},
     { id: "layout", label: "Origem", sortable: false, render: (r) => {
       if (r.focusSource) {
@@ -543,11 +543,11 @@ export default function NfseEntradaPage() {
           </div>
         ) : (
           <div className="flex items-center gap-3">
-            <a href="/settings/billing?filter=nfse" className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-400 flex items-center gap-2 hover:bg-slate-100 transition-colors shrink-0">
+            <a href="/settings/billing?filter=nfse" className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-600 flex items-center gap-2 hover:bg-slate-100 transition-colors shrink-0">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
               Baixar NFS-e
             </a>
-            <p className="text-[11px] text-slate-400 max-w-lg leading-relaxed">
+            <p className="text-[11px] text-slate-600 max-w-lg leading-relaxed">
               A importacao manual de XML e gratuita e ilimitada. A baixa automática traz praticidade e organizacao, permitindo visualizar todas as notas de serviço emitidas contra sua empresa. Para usar, adquira um pacote de importacoes. Diferente da NFe (disponivel na Receita Federal), a consulta de NFS-e depende de integracao com cada prefeitura — algumas ainda nao estao integradas, entao nem todas as notas aparecerao aqui.
             </p>
           </div>
@@ -576,7 +576,7 @@ export default function NfseEntradaPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
                 </svg>
                 <p className="text-sm font-medium text-slate-700 mb-1">Arraste o XML aqui ou clique para selecionar</p>
-                <p className="text-xs text-slate-400">XML de NFS-e (ABRASF 2.04 ou Nacional)</p>
+                <p className="text-xs text-slate-600">XML de NFS-e (ABRASF 2.04 ou Nacional)</p>
               </>
             )}
           </div>
@@ -676,7 +676,7 @@ export default function NfseEntradaPage() {
           <div className="text-center py-16">
             <svg className="w-12 h-12 text-slate-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
             <p className="text-sm text-slate-500">Nenhuma NFS-e de entrada encontrada</p>
-            <p className="text-xs text-slate-400 mt-1">Importe um XML ou registre manualmente</p>
+            <p className="text-xs text-slate-600 mt-1">Importe um XML ou registre manualmente</p>
           </div>
         ) : (
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-auto" style={{ maxHeight: "calc(100vh - 340px)" }}>
@@ -871,7 +871,7 @@ export default function NfseEntradaPage() {
                                   {partnerResults.map((p) => (
                                     <button key={p.id} onClick={(e) => { e.preventDefault(); setSupplierAction({ action: "LINK", partnerId: p.id }); setPartnerSearch(p.name); setPartnerResults([]); }} className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-blue-50 transition-colors">
                                       <span className="font-medium text-slate-900">{p.name}</span>
-                                      <span className="text-xs text-slate-400">{fmtDoc(p.document)}</span>
+                                      <span className="text-xs text-slate-600">{fmtDoc(p.document)}</span>
                                     </button>
                                   ))}
                                 </div>
@@ -955,7 +955,7 @@ export default function NfseEntradaPage() {
                                   {le.serviceOrder && <span className="text-[10px] bg-blue-100 text-blue-700 rounded px-1.5 py-0.5">OS: {le.serviceOrder.title}</span>}
                                 </div>
                                 <p className="text-sm text-slate-700 truncate">{le.description}</p>
-                                <div className="flex gap-3 text-xs text-slate-400 mt-0.5">
+                                <div className="flex gap-3 text-xs text-slate-600 mt-0.5">
                                   <span className="font-semibold text-slate-600">{fmt(le.netCents)}</span>
                                   {le.dueDate && <span>Venc: {new Date(le.dueDate).toLocaleDateString("pt-BR")}</span>}
                                   {le.financialAccount && <span>{le.financialAccount.code} - {le.financialAccount.name}</span>}

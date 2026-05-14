@@ -289,7 +289,7 @@ export default function PartnersPage() {
               ))}
             </div>
           ) : partners.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-400">
+            <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-600">
               {tp.search || Object.keys(tp.filters).length > 0
                 ? "Nenhum parceiro encontrado para esses filtros."
                 : "Nenhum parceiro cadastrado. Clique em + Novo Parceiro para começar."}

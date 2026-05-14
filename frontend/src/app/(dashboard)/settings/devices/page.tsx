@@ -124,7 +124,7 @@ export default function DevicesPage() {
                     </span>
                   )}
                 </div>
-                <div className="text-xs text-slate-400 mt-1 flex items-center gap-3">
+                <div className="text-xs text-slate-600 mt-1 flex items-center gap-3">
                   {session.ip && <span>IP: {session.ip}</span>}
                   <span>Ativa {timeAgo(session.lastActivityAt)}</span>
                   <span>

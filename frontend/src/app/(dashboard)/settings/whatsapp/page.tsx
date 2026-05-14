@@ -210,7 +210,7 @@ export default function WhatsAppSettingsPage() {
           <div className="flex items-center gap-2 mb-1">
             <Link
               href="/settings"
-              className="text-sm text-slate-400 hover:text-slate-600 transition-colors"
+              className="text-sm text-slate-600 hover:text-slate-600 transition-colors"
             >
               Configurações
             </Link>
@@ -279,7 +279,7 @@ export default function WhatsAppSettingsPage() {
         </div>
 
         {isConnected && config?.connectedAt && (
-          <div className="text-xs text-slate-400 mt-1">
+          <div className="text-xs text-slate-600 mt-1">
             Conectado em:{" "}
             {new Date(config.connectedAt).toLocaleString("pt-BR")}
           </div>
@@ -306,7 +306,7 @@ export default function WhatsAppSettingsPage() {
                 placeholder="Ex: 123456789012345"
                 className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
               />
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-slate-600 mt-1">
                 Encontre no painel da Meta: WhatsApp &rarr; API Setup &rarr;
                 Phone Number ID
               </p>
@@ -323,7 +323,7 @@ export default function WhatsAppSettingsPage() {
                 placeholder="Cole seu access token aqui"
                 className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors font-mono"
               />
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-slate-600 mt-1">
                 Gere um token permanente no painel da Meta: Business Settings
                 &rarr; System Users &rarr; Generate Token
               </p>
@@ -332,7 +332,7 @@ export default function WhatsAppSettingsPage() {
             {/* App ID */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                App ID <span className="text-slate-400 font-normal">(opcional)</span>
+                App ID <span className="text-slate-600 font-normal">(opcional)</span>
               </label>
               <input
                 type="text"
@@ -341,7 +341,7 @@ export default function WhatsAppSettingsPage() {
                 placeholder="Ex: 950743807617295"
                 className="w-full rounded-lg border border-slate-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
               />
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-slate-600 mt-1">
                 ID do App Meta. Necessario para sincronizar a logo da empresa como foto do perfil WhatsApp.
               </p>
             </div>

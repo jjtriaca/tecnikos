@@ -136,7 +136,7 @@ function LiveBlockAction({ block, onAdvance }: { block: BlockDef; onAdvance: (an
           {c.requirePhoto && (
             <div className="rounded-xl border-2 border-dashed border-slate-300 py-6 text-center">
               <span className="text-2xl">📸</span>
-              <p className="text-xs text-slate-400 mt-1">Tirar foto</p>
+              <p className="text-xs text-slate-600 mt-1">Tirar foto</p>
             </div>
           )}
           {c.requireNote && (
@@ -162,7 +162,7 @@ function LiveBlockAction({ block, onAdvance }: { block: BlockDef; onAdvance: (an
           <p className="text-sm text-slate-600">{c.label || "Registrar foto"}</p>
           <div className="rounded-xl border-2 border-dashed border-slate-300 py-8 text-center">
             <span className="text-3xl">📸</span>
-            <p className="text-xs text-slate-400 mt-2">Tirar foto{c.minPhotos > 1 ? ` (min ${c.minPhotos})` : ""}</p>
+            <p className="text-xs text-slate-600 mt-2">Tirar foto{c.minPhotos > 1 ? ` (min ${c.minPhotos})` : ""}</p>
           </div>
           <button onClick={() => onAdvance()} className="w-full rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 py-4 text-base font-bold text-white shadow-lg active:scale-[0.98] transition-all">
             📸 Enviar
@@ -246,7 +246,7 @@ function LiveBlockAction({ block, onAdvance }: { block: BlockDef; onAdvance: (an
           <p className="text-sm text-slate-600">{c.label || "Assinatura digital"}</p>
           <div className="rounded-xl border-2 border-dashed border-slate-300 py-10 text-center bg-white">
             <span className="text-3xl">✍️</span>
-            <p className="text-xs text-slate-400 mt-2">Toque para assinar</p>
+            <p className="text-xs text-slate-600 mt-2">Toque para assinar</p>
           </div>
           <button onClick={() => onAdvance()} className="w-full rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 py-4 text-base font-bold text-white shadow-lg active:scale-[0.98] transition-all">
             ✍️ Confirmar Assinatura
@@ -473,7 +473,7 @@ export default function TechPreviewPage() {
           <div key={key} className="flex gap-2 mt-2">
             {[1, 2].map(i => (
               <div key={i} className="h-14 w-14 rounded-lg bg-slate-100 flex items-center justify-center">
-                <span className="text-lg text-slate-400">📷</span>
+                <span className="text-lg text-slate-600">📷</span>
               </div>
             ))}
           </div>
@@ -554,7 +554,7 @@ export default function TechPreviewPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                   Fluxo: {workflowName}
-                  <span className="ml-auto text-xs font-normal text-slate-400">{iCompleted}/{iTotal}</span>
+                  <span className="ml-auto text-xs font-normal text-slate-600">{iCompleted}/{iTotal}</span>
                 </h3>
                 <div className="h-2 rounded-full bg-slate-100 mb-4 overflow-hidden">
                   <div className="h-full rounded-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-500"
@@ -599,7 +599,7 @@ export default function TechPreviewPage() {
           <svg className="h-6 w-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
           </svg>
-          <span className="text-[10px] text-slate-400">Perfil</span>
+          <span className="text-[10px] text-slate-600">Perfil</span>
         </div>
       </nav>
     </div>

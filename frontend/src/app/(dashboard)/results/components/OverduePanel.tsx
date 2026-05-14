@@ -69,7 +69,7 @@ export default function OverduePanel({ data }: OverduePanelProps) {
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs text-slate-600">{BUCKET_LABELS[key] || key}</span>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-slate-400">{bucket.count} títulos</span>
+                  <span className="text-[10px] text-slate-600">{bucket.count} títulos</span>
                   <span className="text-xs font-semibold text-slate-800 tabular-nums">
                     {formatCurrency(bucket.totalCents)}
                   </span>

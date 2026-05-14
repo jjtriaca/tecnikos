@@ -150,7 +150,7 @@ export default function LandingContent() {
             </span>
           </h1>
 
-          <p className="text-lg sm:text-xl text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed">
+          <p className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto mb-10 leading-relaxed">
             Ordens de serviço, despacho, financeiro e automacao em uma unica plataforma
             para empresas de serviços tecnicos em campo.
           </p>
@@ -187,14 +187,14 @@ export default function LandingContent() {
               <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
                 Seja um dos primeiros
               </h2>
-              <p className="text-slate-300 max-w-2xl mx-auto leading-relaxed mb-2">
+              <p className="text-slate-600 max-w-2xl mx-auto leading-relaxed mb-2">
                 Estamos selecionando <strong className="text-white">5 empresas pioneiras</strong> de segmentos distintos
                 para nos ajudar a aprimorar o Tecnikos com uso real. Em troca, oferecemos acesso completo
                 a plataforma por um valor simbolico nos primeiros meses.
               </p>
               <div className="flex items-center justify-center gap-3 mt-4">
                 <span className="text-4xl font-bold text-amber-400">R$ 15</span>
-                <span className="text-slate-400 text-sm text-left">/mes por<br />6 meses</span>
+                <span className="text-slate-600 text-sm text-left">/mes por<br />6 meses</span>
               </div>
               <p className="text-xs text-slate-500 mt-2">Após os 6 meses, o plano passa para o valor normal vigente</p>
             </div>
@@ -354,7 +354,7 @@ export default function LandingContent() {
                     <div className="mb-6">
                       <div className="flex items-baseline gap-1">
                         <span className={`text-4xl font-bold ${isPopular ? "text-white" : "text-slate-900"}`}>{formatBRL(displayPrice)}</span>
-                        <span className={`text-sm ${isPopular ? "text-blue-200" : "text-slate-400"}`}>/mes</span>
+                        <span className={`text-sm ${isPopular ? "text-blue-200" : "text-slate-600"}`}>/mes</span>
                       </div>
                       {showYearly && savings > 0 && (
                         <div className={`mt-1 text-xs ${isPopular ? "text-blue-200" : "text-green-600"}`}>
@@ -390,7 +390,7 @@ export default function LandingContent() {
 
             {/* Voucher hint */}
             <div className="text-center mt-8">
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-slate-600">
                 Possui um codigo de acesso?{" "}
                 <Link href="/signup" className="text-blue-600 font-medium hover:underline">Use seu voucher aqui</Link>
               </p>
@@ -409,12 +409,12 @@ export default function LandingContent() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z" />
                 </svg>
               </div>
-              <span className="text-sm font-semibold text-slate-300">Tecnikos</span>
+              <span className="text-sm font-semibold text-slate-600">Tecnikos</span>
             </div>
             <div className="text-center sm:text-right">
               <p className="text-xs text-slate-500">SLS Obras LTDA — CNPJ: 47.226.599/0001-40</p>
               <div className="flex items-center justify-center sm:justify-end gap-4 mt-1">
-                <Link href="/privacy" className="text-xs text-slate-600 hover:text-slate-400 transition-colors">Política de Privacidade</Link>
+                <Link href="/privacy" className="text-xs text-slate-600 hover:text-slate-600 transition-colors">Política de Privacidade</Link>
               </div>
             </div>
           </div>

@@ -337,7 +337,7 @@ export default function NewPoolBudgetPage() {
                 placeholder="Quem pediu o orcamento (default: nome do cliente)"
                 className={inputClass}
               />
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1 text-xs text-slate-600">
                 Aparece na capa do orcamento. Pode ser diferente do cliente (ex: arquiteto, decorador).
               </p>
             </div>
@@ -350,7 +350,7 @@ export default function NewPoolBudgetPage() {
                 placeholder="Ex: Piscina 8x4 alvenaria - Andreia Santana"
                 className={inputClass}
               />
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1 text-xs text-slate-600">
                 Sugerido automaticamente quando seleciona cliente — voce pode editar.
               </p>
             </div>
@@ -432,7 +432,7 @@ export default function NewPoolBudgetPage() {
                   const m = sectionMetrics(s);
                   return (
                     <tr key={idx} className="border-t border-slate-100">
-                      <td className="px-3 py-2 text-xs text-slate-400 font-mono">{idx + 1}</td>
+                      <td className="px-3 py-2 text-xs text-slate-600 font-mono">{idx + 1}</td>
                       <td className="px-3 py-2">
                         <input type="text" value={s.name}
                           onChange={(e) => updateSection(idx, "name", e.target.value)}
@@ -487,7 +487,7 @@ export default function NewPoolBudgetPage() {
               Perimetro total (somatorio): <strong className="text-slate-700 tabular-nums">{totals.perimeter.toFixed(2)} m</strong>
             </span>
           </div>
-          <p className="mt-2 text-xs text-slate-400">
+          <p className="mt-2 text-xs text-slate-600">
             Use multiplas linhas pra piscinas irregulares ou com niveis diferentes (ex: parte rasa + parte funda).
           </p>
 
@@ -501,7 +501,7 @@ export default function NewPoolBudgetPage() {
                 onChange={(e) => setForm({ ...form, comprimentoTotal: parseFloat(e.target.value) || 0 })}
                 placeholder={`auto: ${bbCompr.toFixed(2)}`}
                 className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
-              <p className="mt-1 text-xs text-slate-400">Bounding box (formato externo)</p>
+              <p className="mt-1 text-xs text-slate-600">Bounding box (formato externo)</p>
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -511,7 +511,7 @@ export default function NewPoolBudgetPage() {
                 onChange={(e) => setForm({ ...form, larguraTotal: parseFloat(e.target.value) || 0 })}
                 placeholder={`auto: ${bbLarg.toFixed(2)}`}
                 className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
-              <p className="mt-1 text-xs text-slate-400">Bounding box (formato externo)</p>
+              <p className="mt-1 text-xs text-slate-600">Bounding box (formato externo)</p>
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -521,7 +521,7 @@ export default function NewPoolBudgetPage() {
                 onChange={(e) => setForm({ ...form, cantos: parseFloat(e.target.value) || 0 })}
                 placeholder={`auto: ${cantosVal.toFixed(2)}`}
                 className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
-              <p className="mt-1 text-xs text-slate-400">Cantoneiras internas (m/l)</p>
+              <p className="mt-1 text-xs text-slate-600">Cantoneiras internas (m/l)</p>
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -531,7 +531,7 @@ export default function NewPoolBudgetPage() {
                 onChange={(e) => setForm({ ...form, perimetroExternoBorda: parseFloat(e.target.value) || 0 })}
                 placeholder={`auto: ${cantosVal.toFixed(2)}`}
                 className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
-              <p className="mt-1 text-xs text-slate-400">Borda corrida externa (m/l)</p>
+              <p className="mt-1 text-xs text-slate-600">Borda corrida externa (m/l)</p>
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -541,7 +541,7 @@ export default function NewPoolBudgetPage() {
                 onChange={(e) => setForm({ ...form, perimetroParedesInternas: parseFloat(e.target.value) || 0 })}
                 placeholder={`auto: ${cantosVal.toFixed(2)}`}
                 className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
-              <p className="mt-1 text-xs text-slate-400">Paredes internas linear (m/l)</p>
+              <p className="mt-1 text-xs text-slate-600">Paredes internas linear (m/l)</p>
             </div>
           </div>
 
@@ -582,7 +582,7 @@ export default function NewPoolBudgetPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
-                Radier (m³) <span className="text-slate-400 font-normal">— auto</span>
+                Radier (m³) <span className="text-slate-600 font-normal">— auto</span>
               </label>
               <input type="text" readOnly value={`${radierM3.toFixed(2)} m³`}
                 title="Calculado automaticamente: Radier m² × Espessura"
@@ -598,7 +598,7 @@ export default function NewPoolBudgetPage() {
                 className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
             </div>
           </div>
-          <p className="mt-1.5 text-[11px] text-slate-400">
+          <p className="mt-1.5 text-[11px] text-slate-600">
             Sugestoes baseadas nas dimensoes — substitua pelos valores reais do projeto. Radier m³ recalcula automaticamente quando voce muda Radier m² ou Espessura.
           </p>
 

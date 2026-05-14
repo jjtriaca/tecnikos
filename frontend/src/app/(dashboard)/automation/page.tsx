@@ -1387,7 +1387,7 @@ function AutomationCard({ rule, onEdit, onDelete, onToggle, onSimulate, onTimeli
             <span className={`px-2 py-1 rounded ${CATEGORY_COLORS.TRIGGER.bg} ${CATEGORY_COLORS.TRIGGER.text} font-medium`}>
               ⚡ {triggerSummary}
             </span>
-            <span className="text-slate-400">→</span>
+            <span className="text-slate-600">→</span>
             <span className={`px-2 py-1 rounded ${CATEGORY_COLORS.ACTION.bg} ${CATEGORY_COLORS.ACTION.text} font-medium`}>
               🎯 {actionSummary}
             </span>

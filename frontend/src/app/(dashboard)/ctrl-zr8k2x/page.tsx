@@ -205,7 +205,7 @@ export default function SaasDashboardPage() {
                 <Tooltip text="Total de eventos registrados nas ultimas 24 horas (pageviews, cliques, signups). Inclui internos e externos." />
               </div>
               <p className="mt-1 text-2xl font-bold text-slate-900">{access24h.externalEvents}</p>
-              <p className="text-[10px] text-slate-400">{access24h.totalEvents} total ({access24h.internalEvents} internos)</p>
+              <p className="text-[10px] text-slate-600">{access24h.totalEvents} total ({access24h.internalEvents} internos)</p>
             </div>
 
             {/* Unique IPs 24h */}
@@ -216,7 +216,7 @@ export default function SaasDashboardPage() {
                 <Tooltip text="Endereços IP unicos que acessaram o sistema nas ultimas 24 horas (excluindo bots e servidor)." />
               </div>
               <p className="mt-1 text-2xl font-bold text-slate-900">{access24h.externalUniqueIps}</p>
-              <p className="text-[10px] text-slate-400">{access24h.uniqueSessions} sessoes</p>
+              <p className="text-[10px] text-slate-600">{access24h.uniqueSessions} sessoes</p>
             </div>
 
             {/* Brazil accesses */}
@@ -325,7 +325,7 @@ export default function SaasDashboardPage() {
                 <div className="flex items-center gap-2">
                   <span className="text-sm">🇧🇷</span>
                   <h3 className="text-sm font-semibold text-slate-700">Acessos do Brasil (24h)</h3>
-                  <span className="text-[10px] text-slate-400">Top 10 IPs</span>
+                  <span className="text-[10px] text-slate-600">Top 10 IPs</span>
                 </div>
                 <svg className={`w-4 h-4 text-slate-400 transition-transform ${showBrazil ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
@@ -351,9 +351,9 @@ export default function SaasDashboardPage() {
                             <td className="py-1.5 font-mono text-slate-600">{b.ip}</td>
                             <td className="py-1.5 text-slate-600">{b.city || "—"}</td>
                             <td className="py-1.5 text-slate-500">{b.region || "—"}</td>
-                            <td className="py-1.5 text-slate-400 max-w-[150px] truncate" title={b.isp}>{b.isp || "—"}</td>
+                            <td className="py-1.5 text-slate-600 max-w-[150px] truncate" title={b.isp}>{b.isp || "—"}</td>
                             <td className="py-1.5 font-bold text-slate-700">{b.accessCount}</td>
-                            <td className="py-1.5 text-slate-400">{b.events.join(", ")}</td>
+                            <td className="py-1.5 text-slate-600">{b.events.join(", ")}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -417,7 +417,7 @@ export default function SaasDashboardPage() {
               Analytics (ultimos {analytics.period} dias)
               <Tooltip text="Todas as metricas abaixo sao dos ultimos 30 dias. Acessos de bots (Google, Bing, etc) e do servidor sao filtrados automaticamente." />
             </h2>
-            <p className="text-xs text-slate-400 mb-4">Dados de visitantes, signup e conversao</p>
+            <p className="text-xs text-slate-600 mb-4">Dados de visitantes, signup e conversao</p>
           </div>
 
           {/* Internal vs External Alert */}
@@ -455,7 +455,7 @@ export default function SaasDashboardPage() {
                 <Tooltip text="Sessoes unicas de visitantes reais (excluindo bots e acessos internos). Cada visitante tem um ID anonimo no browser." />
               </div>
               <p className="text-2xl font-bold text-slate-900">{analytics.externalSessions || analytics.uniqueVisitors}</p>
-              <p className="text-[10px] text-slate-400">{analytics.externalPageviews || analytics.landingViews} pageviews reais</p>
+              <p className="text-[10px] text-slate-600">{analytics.externalPageviews || analytics.landingViews} pageviews reais</p>
               {access24h && (
                 <p className="text-[10px] text-blue-500 mt-0.5">24h: {access24h.externalSessions24h} sessoes · {access24h.externalPageviews24h} pageviews</p>
               )}
@@ -534,7 +534,7 @@ export default function SaasDashboardPage() {
                 <Tooltip text="Pageviews diarios na landing page (inclui todos os acessos). Cada barra representa um dia." />
               </div>
               {analytics.dailyViews.length === 0 ? (
-                <p className="text-xs text-slate-400">Sem dados no periodo.</p>
+                <p className="text-xs text-slate-600">Sem dados no periodo.</p>
               ) : (
                 <div className="flex items-end gap-1 h-32">
                   {analytics.dailyViews.map((d) => {
@@ -542,10 +542,10 @@ export default function SaasDashboardPage() {
                     const dateStr = new Date(d.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
                     return (
                       <div key={d.date} className="flex-1 flex flex-col items-center gap-1" title={`${dateStr}: ${d.count} pageviews`}>
-                        <span className="text-[9px] text-slate-400">{d.count}</span>
+                        <span className="text-[9px] text-slate-600">{d.count}</span>
                         <div className="w-full bg-blue-500 rounded-t transition-all hover:bg-blue-600"
                           style={{ height: `${Math.max(h, 3)}%` }} />
-                        <span className="text-[8px] text-slate-400 rotate-[-45deg] origin-top-left whitespace-nowrap">{dateStr}</span>
+                        <span className="text-[8px] text-slate-600 rotate-[-45deg] origin-top-left whitespace-nowrap">{dateStr}</span>
                       </div>
                     );
                   })}
@@ -569,7 +569,7 @@ export default function SaasDashboardPage() {
                     <div className={`h-2.5 w-2.5 rounded-full ${d.color}`} />
                     <span className="text-xs text-slate-600 flex-1">{d.label}</span>
                     <span className="text-xs font-bold text-slate-700">{d.value}</span>
-                    <span className="text-[10px] text-slate-400 w-10 text-right">{Math.round((d.value / deviceTotal) * 100)}%</span>
+                    <span className="text-[10px] text-slate-600 w-10 text-right">{Math.round((d.value / deviceTotal) * 100)}%</span>
                   </div>
                 ))}
               </div>
@@ -657,7 +657,7 @@ export default function SaasDashboardPage() {
                                 {ip.isInternal ? "Interno" : "Visitante"}
                               </span>
                             </td>
-                            <td className="py-1.5 text-slate-400 max-w-[300px] truncate" title={ip.lastUa}>
+                            <td className="py-1.5 text-slate-600 max-w-[300px] truncate" title={ip.lastUa}>
                               {ip.lastUa || "—"}
                             </td>
                           </tr>
@@ -679,7 +679,7 @@ export default function SaasDashboardPage() {
           <Tooltip text="Quantas empresas ativas estao em cada plano. Mostra o valor mensal de cada plano." />
         </div>
         {metrics.planDistribution.length === 0 ? (
-          <p className="text-sm text-slate-400">Nenhum plano cadastrado ainda.</p>
+          <p className="text-sm text-slate-600">Nenhum plano cadastrado ainda.</p>
         ) : (
           <div className="space-y-3">
             {metrics.planDistribution.map((plan) => {
@@ -710,22 +710,22 @@ export default function SaasDashboardPage() {
         <button onClick={() => router.push("/ctrl-zr8k2x/tenants")}
           className="rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-100">
           <div className="text-sm font-semibold text-slate-700">Gerenciar Empresas</div>
-          <p className="mt-1 text-xs text-slate-400">Ver, ativar, bloquear empresas</p>
+          <p className="mt-1 text-xs text-slate-600">Ver, ativar, bloquear empresas</p>
         </button>
         <button onClick={() => router.push("/ctrl-zr8k2x/invoices")}
           className="rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-100">
           <div className="text-sm font-semibold text-slate-700">Notas Fiscais</div>
-          <p className="mt-1 text-xs text-slate-400">Emitir e gerenciar NFS-e</p>
+          <p className="mt-1 text-xs text-slate-600">Emitir e gerenciar NFS-e</p>
         </button>
         <button onClick={() => router.push("/ctrl-zr8k2x/promotions")}
           className="rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-100">
           <div className="text-sm font-semibold text-slate-700">Promocoes</div>
-          <p className="mt-1 text-xs text-slate-400">Configurar descontos e codigos</p>
+          <p className="mt-1 text-xs text-slate-600">Configurar descontos e codigos</p>
         </button>
         <button onClick={() => router.push("/ctrl-zr8k2x/signup-attempts")}
           className="rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:bg-slate-100">
           <div className="text-sm font-semibold text-slate-700">Tentativas de Cadastro</div>
-          <p className="mt-1 text-xs text-slate-400">Revisar rejeicoes e feedback</p>
+          <p className="mt-1 text-xs text-slate-600">Revisar rejeicoes e feedback</p>
         </button>
       </div>
     </div>

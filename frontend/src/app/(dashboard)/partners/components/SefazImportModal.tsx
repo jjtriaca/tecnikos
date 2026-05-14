@@ -201,7 +201,7 @@ export default function SefazImportModal({
           )}
 
           {!result && !error && !loading && (
-            <div className="text-center py-8 text-sm text-slate-400">
+            <div className="text-center py-8 text-sm text-slate-600">
               Preencha os filtros e clique em Importar para consultar os dados na SEFAZ.
             </div>
           )}
@@ -209,7 +209,7 @@ export default function SefazImportModal({
 
         {/* Footer */}
         <div className="border-t border-slate-200 px-5 py-3">
-          <p className="text-[11px] text-slate-400 mb-3">
+          <p className="text-[11px] text-slate-600 mb-3">
             A SEFAZ não garante a integridade dos dados disponibilizados por este serviço. Verifique as informações antes de confirmar.
           </p>
           <div className="flex justify-end gap-2">

@@ -129,7 +129,7 @@ export default function SignupAttemptsPage() {
             {s.label}
           </button>
         ))}
-        <span className="ml-auto text-xs text-slate-400 self-center">{total} resultado{total !== 1 ? "s" : ""}</span>
+        <span className="ml-auto text-xs text-slate-600 self-center">{total} resultado{total !== 1 ? "s" : ""}</span>
       </div>
 
       {/* List */}
@@ -139,7 +139,7 @@ export default function SignupAttemptsPage() {
         </div>
       ) : items.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-sm text-slate-400">Nenhuma tentativa encontrada.</p>
+          <p className="text-sm text-slate-600">Nenhuma tentativa encontrada.</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -168,8 +168,8 @@ export default function SignupAttemptsPage() {
                   </div>
                   <div className="flex items-center gap-3 mt-1">
                     {attempt.cnpj && <span className="text-xs text-slate-500">{attempt.cnpj}</span>}
-                    {attempt.responsibleName && <span className="text-xs text-slate-400">{attempt.responsibleName}</span>}
-                    {attempt.planName && <span className="text-xs text-slate-400">{attempt.planName}</span>}
+                    {attempt.responsibleName && <span className="text-xs text-slate-600">{attempt.responsibleName}</span>}
+                    {attempt.planName && <span className="text-xs text-slate-600">{attempt.planName}</span>}
                   </div>
                   {attempt.lastError && !attempt.completedAt && (
                     <p className="text-[10px] text-red-500 mt-1 truncate max-w-md">Erro: {attempt.lastError}</p>
@@ -180,7 +180,7 @@ export default function SignupAttemptsPage() {
                         <span key={i} className="px-2 py-0.5 rounded bg-red-50 text-red-600 text-[10px]">{r}</span>
                       ))}
                       {attempt.rejectionReasons.length > 3 && (
-                        <span className="text-[10px] text-slate-400">+{attempt.rejectionReasons.length - 3}</span>
+                        <span className="text-[10px] text-slate-600">+{attempt.rejectionReasons.length - 3}</span>
                       )}
                     </div>
                   )}
@@ -188,7 +188,7 @@ export default function SignupAttemptsPage() {
                     <p className="text-xs text-slate-500 mt-1 truncate max-w-md italic">"{attempt.criticism}"</p>
                   )}
                 </div>
-                <span className="text-[10px] text-slate-400 flex-shrink-0 ml-3">{timeAgo(attempt.createdAt)}</span>
+                <span className="text-[10px] text-slate-600 flex-shrink-0 ml-3">{timeAgo(attempt.createdAt)}</span>
               </div>
             </button>
           ))}
@@ -213,7 +213,7 @@ export default function SignupAttemptsPage() {
             <div className="sticky top-0 bg-white border-b border-slate-200 p-5 flex items-center justify-between rounded-t-2xl">
               <div>
                 <h2 className="text-lg font-bold text-slate-900">{selected.companyName || selected.slug || "Tentativa"}</h2>
-                <p className="text-xs text-slate-400">{new Date(selected.createdAt).toLocaleString("pt-BR")}</p>
+                <p className="text-xs text-slate-600">{new Date(selected.createdAt).toLocaleString("pt-BR")}</p>
               </div>
               <button onClick={() => setSelected(null)} className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -270,7 +270,7 @@ export default function SignupAttemptsPage() {
                     {selected.completedAt ? "Cadastro concluído" : `Parou em: ${STEP_NAMES[selected.lastStep] || "?"} (Step ${selected.lastStep})`}
                   </span>
                 </div>
-                <div className="flex items-center gap-4 text-[10px] text-slate-400">
+                <div className="flex items-center gap-4 text-[10px] text-slate-600">
                   {[1, 2, 3, 4, 5].map((s) => (
                     <span key={s} className="text-center" style={{ minWidth: 32 }}>{STEP_NAMES[s]}</span>
                   ))}
@@ -310,9 +310,9 @@ export default function SignupAttemptsPage() {
               <div className="rounded-lg bg-slate-50 p-3">
                 <span className="text-[10px] uppercase tracking-wider text-slate-400 font-semibold block mb-2">Responsavel</span>
                 <div className="grid grid-cols-3 gap-3 text-sm">
-                  <div><span className="text-xs text-slate-400">Nome</span><p className="text-slate-900">{selected.responsibleName || "-"}</p></div>
-                  <div><span className="text-xs text-slate-400">Email</span><p className="text-slate-900">{selected.responsibleEmail || "-"}</p></div>
-                  <div><span className="text-xs text-slate-400">Telefone</span><p className="text-slate-900">{selected.responsiblePhone || "-"}</p></div>
+                  <div><span className="text-xs text-slate-600">Nome</span><p className="text-slate-900">{selected.responsibleName || "-"}</p></div>
+                  <div><span className="text-xs text-slate-600">Email</span><p className="text-slate-900">{selected.responsibleEmail || "-"}</p></div>
+                  <div><span className="text-xs text-slate-600">Telefone</span><p className="text-slate-900">{selected.responsiblePhone || "-"}</p></div>
                 </div>
               </div>
 
@@ -369,25 +369,25 @@ export default function SignupAttemptsPage() {
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     {selected.referrer && (
                       <div className="col-span-2">
-                        <span className="text-slate-400">Referrer:</span>{" "}
+                        <span className="text-slate-600">Referrer:</span>{" "}
                         <span className="text-slate-700">{selected.referrer}</span>
                       </div>
                     )}
                     {selected.utmSource && (
-                      <div><span className="text-slate-400">Fonte:</span> <span className="text-slate-700 font-medium">{selected.utmSource}</span></div>
+                      <div><span className="text-slate-600">Fonte:</span> <span className="text-slate-700 font-medium">{selected.utmSource}</span></div>
                     )}
                     {selected.utmMedium && (
-                      <div><span className="text-slate-400">Midia:</span> <span className="text-slate-700">{selected.utmMedium}</span></div>
+                      <div><span className="text-slate-600">Midia:</span> <span className="text-slate-700">{selected.utmMedium}</span></div>
                     )}
                     {selected.utmCampaign && (
-                      <div><span className="text-slate-400">Campanha:</span> <span className="text-slate-700">{selected.utmCampaign}</span></div>
+                      <div><span className="text-slate-600">Campanha:</span> <span className="text-slate-700">{selected.utmCampaign}</span></div>
                     )}
                     {selected.utmTerm && (
-                      <div><span className="text-slate-400">Termo:</span> <span className="text-slate-700">{selected.utmTerm}</span></div>
+                      <div><span className="text-slate-600">Termo:</span> <span className="text-slate-700">{selected.utmTerm}</span></div>
                     )}
                     {selected.landingPage && (
                       <div className="col-span-2">
-                        <span className="text-slate-400">Landing:</span>{" "}
+                        <span className="text-slate-600">Landing:</span>{" "}
                         <span className="text-slate-700 break-all">{selected.landingPage}</span>
                       </div>
                     )}
@@ -401,7 +401,7 @@ export default function SignupAttemptsPage() {
               )}
 
               {/* IP / User Agent */}
-              <div className="grid grid-cols-2 gap-4 text-xs text-slate-400">
+              <div className="grid grid-cols-2 gap-4 text-xs text-slate-600">
                 <div>IP: {selected.ipAddress || "-"}</div>
                 <div className="truncate" title={selected.userAgent || ""}>UA: {selected.userAgent || "-"}</div>
               </div>

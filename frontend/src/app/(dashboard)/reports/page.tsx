@@ -317,7 +317,7 @@ export default function ReportsPage() {
           {tab === 2 && techs && (
             <div>
               {techs.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-400">
+                <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-600">
                   Nenhum técnico cadastrado.
                 </div>
               ) : (
@@ -338,10 +338,10 @@ export default function ReportsPage() {
                     <tbody>
                       {techs.map((t, idx) => (
                         <tr key={t.id} className="border-b border-slate-100 hover:bg-slate-100">
-                          <td className="py-3 px-4 text-slate-400">{idx + 1}</td>
+                          <td className="py-3 px-4 text-slate-600">{idx + 1}</td>
                           <td className="py-3 px-4">
                             <p className="font-medium text-slate-800">{t.name}</p>
-                            <p className="text-xs text-slate-400">{t.status === "ATIVO" ? "Ativo" : "Inativo"}</p>
+                            <p className="text-xs text-slate-600">{t.status === "ATIVO" ? "Ativo" : "Inativo"}</p>
                           </td>
                           <td className="py-3 px-4 text-right">
                             <span className="text-yellow-500">★</span> {t.rating.toFixed(1)}

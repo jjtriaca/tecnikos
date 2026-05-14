@@ -168,7 +168,7 @@ export default function TechOrdersPage() {
       ) : groups.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16">
           <div className="text-5xl mb-4 opacity-30">📋</div>
-          <p className="text-sm text-slate-400">Nenhuma OS atribuída a você.</p>
+          <p className="text-sm text-slate-600">Nenhuma OS atribuída a você.</p>
         </div>
       ) : (
         <div className="space-y-6">
@@ -223,7 +223,7 @@ export default function TechOrdersPage() {
                             Atrasada
                           </span>
                         )}
-                        <span className="text-[10px] text-slate-400 ml-auto">
+                        <span className="text-[10px] text-slate-600 ml-auto">
                           Prazo: {new Date(order.deadlineAt).toLocaleDateString("pt-BR")}
                         </span>
                       </div>

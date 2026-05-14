@@ -467,7 +467,7 @@ function EditQuotePage() {
               {showProductValue && <div className="flex items-center gap-2 text-sm">
                 <span className="text-slate-600">Valor produtos:</span>
                 <div className="relative">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">R$</span>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-600">R$</span>
                   <input type="text" value={productValue}
                     onChange={e => setProductValue(e.target.value.replace(/[^\d,]/g, ""))}
                     placeholder="0,00"
@@ -679,7 +679,7 @@ function ItemEditor({ item, index, totalItems, onUpdate, onRemove, onMove, onSel
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-xs font-bold text-slate-400 w-6">#{index + 1}</span>
+        <span className="text-xs font-bold text-slate-600 w-6">#{index + 1}</span>
         <div className="flex flex-col gap-0.5">
           <button type="button" onClick={() => onMove("up")} disabled={index === 0} className="text-slate-400 hover:text-slate-600 disabled:opacity-30">
             <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" /></svg>
@@ -723,8 +723,8 @@ function ItemEditor({ item, index, totalItems, onUpdate, onRemove, onMove, onSel
             className="rounded border border-slate-300 px-2 py-1.5 text-sm w-full outline-none focus:border-blue-500" />
           {acShow && (
             <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto bg-white border border-slate-300 rounded-lg shadow-lg">
-              {acLoading && <div className="px-3 py-2 text-xs text-slate-400">Buscando...</div>}
-              {!acLoading && acSuggestions.length === 0 && <div className="px-3 py-2 text-xs text-slate-400">Nenhum resultado</div>}
+              {acLoading && <div className="px-3 py-2 text-xs text-slate-600">Buscando...</div>}
+              {!acLoading && acSuggestions.length === 0 && <div className="px-3 py-2 text-xs text-slate-600">Nenhum resultado</div>}
               {acSuggestions.map((s) => (
                 <button key={s.id} type="button" onClick={() => handleAcSelect(s)}
                   className="w-full text-left px-3 py-2 text-sm text-slate-900 hover:bg-blue-50 border-b border-slate-100 last:border-0">

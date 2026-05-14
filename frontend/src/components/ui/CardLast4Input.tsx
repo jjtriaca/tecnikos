@@ -69,7 +69,7 @@ export default function CardLast4Input({
           <span className="text-[10px] text-amber-600">Digite 4 dígitos</span>
         )}
       </div>
-      {hint && <p className="text-[10px] text-slate-400 mt-1">{hint}</p>}
+      {hint && <p className="text-[10px] text-slate-600 mt-1">{hint}</p>}
     </div>
   );
 }

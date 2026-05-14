@@ -124,7 +124,7 @@ export default function PartnerCombobox({
           <button
             type="button"
             onClick={clear}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500 text-sm"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600 hover:text-red-500 text-sm"
             title="Limpar selecao"
           >
             ✕
@@ -135,7 +135,7 @@ export default function PartnerCombobox({
       {open && !disabled && query.length >= 2 && (
         <div className="absolute left-0 right-0 z-30 mt-1 rounded-lg border border-slate-200 bg-white shadow-lg max-h-72 overflow-y-auto">
           {searching ? (
-            <div className="px-3 py-2 text-xs text-slate-400">Buscando...</div>
+            <div className="px-3 py-2 text-xs text-slate-600">Buscando...</div>
           ) : results.length > 0 ? (
             <>
               {results.map((p) => (

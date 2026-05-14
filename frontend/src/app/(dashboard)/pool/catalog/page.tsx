@@ -134,9 +134,9 @@ export default function PoolCatalogPage() {
       </div>
 
       {loading ? (
-        <div className="py-16 text-center text-slate-400">Carregando...</div>
+        <div className="py-16 text-center text-slate-600">Carregando...</div>
       ) : filtered.length === 0 ? (
-        <div className="py-16 text-center text-slate-400 rounded-xl border border-dashed border-slate-300 bg-white">
+        <div className="py-16 text-center text-slate-600 rounded-xl border border-dashed border-slate-300 bg-white">
           Nenhum item no catalogo Piscina. Clique em &quot;Adicionar item&quot; pra comecar.
         </div>
       ) : (
@@ -167,7 +167,7 @@ export default function PoolCatalogPage() {
                       <tr key={c.id} className="border-t border-slate-100 hover:bg-slate-50">
                         <td className="px-4 py-2">
                           <div className="font-medium text-slate-900">{itemName}</div>
-                          <div className="text-xs text-slate-400">
+                          <div className="text-xs text-slate-600">
                             {c.product ? "Produto" : "Serviço"} • {itemUnit}
                             {c.poolCondition && (c.poolCondition as any)?.requires && (
                               <span className="ml-2 text-orange-600">requer: {((c.poolCondition as any).requires || []).join(", ")}</span>
@@ -177,7 +177,7 @@ export default function PoolCatalogPage() {
                         <td className="px-4 py-2 text-xs text-slate-600">{formulaLabel}</td>
                         <td className="px-4 py-2 text-right text-slate-700">{fmtCurrency(itemPrice)}</td>
                         <td className="px-4 py-2 text-center">
-                          {c.isActive ? <span className="text-green-600">●</span> : <span className="text-slate-400">○</span>}
+                          {c.isActive ? <span className="text-green-600">●</span> : <span className="text-slate-600">○</span>}
                         </td>
                         <td className="px-4 py-2 text-right">
                           <button onClick={() => { setEditing(c); setShowAdd(true); }} className="text-xs text-cyan-600 hover:text-cyan-800 mr-2">
@@ -350,7 +350,7 @@ function CatalogForm({ editing, products, services, onClose, onSubmit }: {
               </div>
             )}
             {showResults && !editing && search.length >= 1 && filtered.length === 0 && (
-              <div className="absolute left-0 right-0 z-30 mt-1 rounded-lg border border-slate-200 bg-white shadow-lg p-3 text-sm text-slate-400">
+              <div className="absolute left-0 right-0 z-30 mt-1 rounded-lg border border-slate-200 bg-white shadow-lg p-3 text-sm text-slate-600">
                 Nenhum {kind === "product" ? "produto" : "serviço"} encontrado
               </div>
             )}

@@ -176,22 +176,22 @@ export default function FiscalDashboardPage() {
         <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
           <p className="text-xs text-slate-500 uppercase tracking-wider">NFe Entrada</p>
           <p className="text-2xl font-bold text-slate-800 mt-1">{ap.totalNfeEntrada}</p>
-          <p className="text-xs text-slate-400">notas no periodo</p>
+          <p className="text-xs text-slate-600">notas no periodo</p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
           <p className="text-xs text-slate-500 uppercase tracking-wider">NFS-e Entrada</p>
           <p className="text-2xl font-bold text-slate-800 mt-1">{ap.totalNfseEntrada}</p>
-          <p className="text-xs text-slate-400">serviços tomados</p>
+          <p className="text-xs text-slate-600">serviços tomados</p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
           <p className="text-xs text-slate-500 uppercase tracking-wider">NFS-e Saida</p>
           <p className="text-2xl font-bold text-slate-800 mt-1">{ap.totalNfseSaida}</p>
-          <p className="text-xs text-slate-400">notas emitidas</p>
+          <p className="text-xs text-slate-600">notas emitidas</p>
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
           <p className="text-xs text-slate-500 uppercase tracking-wider">Total Entradas</p>
           <p className="text-2xl font-bold text-green-600 mt-1">{fmtCents(ap.totalEntradaCents)}</p>
-          <p className="text-xs text-slate-400">NFe + NFS-e</p>
+          <p className="text-xs text-slate-600">NFe + NFS-e</p>
         </div>
       </div>
 

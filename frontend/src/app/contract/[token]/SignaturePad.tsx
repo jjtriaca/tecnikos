@@ -146,14 +146,14 @@ export default function SignaturePad({ onSignatureChange, width = 500, height = 
         {/* Placeholder text */}
         {!hasSignature && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <p className="text-sm text-slate-300 select-none">
+            <p className="text-sm text-slate-600 select-none">
               Assine aqui com o dedo ou mouse
             </p>
           </div>
         )}
       </div>
 
-      <p className="text-[10px] text-slate-400 text-center">
+      <p className="text-[10px] text-slate-600 text-center">
         Desenhe sua assinatura no campo acima. Ela sera registrada digitalmente como prova de aceite.
       </p>
     </div>

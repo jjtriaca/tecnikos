@@ -118,11 +118,11 @@ export default function TechReportPage() {
           <div className="grid grid-cols-3 gap-2 mb-4">
             <div className="rounded-lg bg-slate-50 p-2 text-center">
               <p className="text-xs font-semibold text-slate-700">{fmtTime(s?.totalTravelMinutes || 0)}</p>
-              <p className="text-[9px] text-slate-400">Desloc.</p>
+              <p className="text-[9px] text-slate-600">Desloc.</p>
             </div>
             <div className="rounded-lg bg-slate-50 p-2 text-center">
               <p className="text-xs font-semibold text-slate-700">{fmtTime(s?.totalPauseMinutes || 0)}</p>
-              <p className="text-[9px] text-slate-400">Pausas</p>
+              <p className="text-[9px] text-slate-600">Pausas</p>
             </div>
             <div className="rounded-lg bg-amber-50 p-2 text-center">
               <p className="text-xs font-semibold text-amber-700">{fmtTime(s?.totalOvertimeMinutes || 0)}</p>
@@ -132,14 +132,14 @@ export default function TechReportPage() {
 
           {/* OS list (card-based for mobile) */}
           {report.rows.length === 0 ? (
-            <div className="text-center py-8 text-sm text-slate-400">Nenhuma OS no periodo</div>
+            <div className="text-center py-8 text-sm text-slate-600">Nenhuma OS no periodo</div>
           ) : (
             <div className="space-y-2">
               {report.rows.map(r => (
                 <div key={r.id} className="rounded-xl border border-slate-200 bg-white p-3">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-mono text-slate-400">{r.code}</span>
-                    <span className="text-[10px] text-slate-400">{fmtDate(r.completedAt)}</span>
+                    <span className="text-[10px] font-mono text-slate-600">{r.code}</span>
+                    <span className="text-[10px] text-slate-600">{fmtDate(r.completedAt)}</span>
                   </div>
                   <p className="text-sm font-medium text-slate-800 truncate mb-1">{r.title}</p>
                   <p className="text-[10px] text-slate-500 truncate mb-2">{r.serviceName}</p>
@@ -150,7 +150,7 @@ export default function TechReportPage() {
                     <span className="ml-auto font-semibold text-blue-600">{fmtTime(r.netMinutes)}</span>
                   </div>
                   {r.pauseMinutes > 0 && (
-                    <p className="text-[9px] text-slate-400 mt-1">Pausas: {fmtTime(r.pauseMinutes)}</p>
+                    <p className="text-[9px] text-slate-600 mt-1">Pausas: {fmtTime(r.pauseMinutes)}</p>
                   )}
                 </div>
               ))}

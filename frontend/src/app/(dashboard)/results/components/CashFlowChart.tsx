@@ -74,7 +74,7 @@ export default function CashFlowChart({ data }: CashFlowChartProps) {
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm h-full flex flex-col">
         <h3 className="text-sm font-semibold text-slate-800 mb-4">Fluxo de Caixa</h3>
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-sm text-slate-400">Sem movimentações no período</p>
+          <p className="text-sm text-slate-600">Sem movimentações no período</p>
         </div>
       </div>
     );

@@ -127,7 +127,7 @@ export default function DreReport() {
             </div>
           )}
           {section.groups.length === 0 && (section.uncategorizedCents ?? 0) === 0 && (
-            <div className="py-2 px-3 text-xs text-slate-400 text-center">Nenhum lancamento no periodo</div>
+            <div className="py-2 px-3 text-xs text-slate-600 text-center">Nenhum lancamento no periodo</div>
           )}
         </div>
       </div>
@@ -227,7 +227,7 @@ export default function DreReport() {
                 </div>
                 {data.paymentBreakdown.byMethod.map((item) => (
                   <div key={item.code} className="grid grid-cols-5 gap-2 py-1.5 px-3 text-xs text-slate-700">
-                    <span className="col-span-2 font-medium">{item.name} <span className="text-slate-400">({item.count})</span></span>
+                    <span className="col-span-2 font-medium">{item.name} <span className="text-slate-600">({item.count})</span></span>
                     <span className="text-right text-green-700">{fmt(item.receivableCents)}</span>
                     <span className="text-right text-red-700">{fmt(item.payableCents)}</span>
                     <span className={`text-right font-medium ${item.netCents >= 0 ? "text-green-700" : "text-red-700"}`}>{fmt(item.netCents)}</span>
@@ -242,7 +242,7 @@ export default function DreReport() {
                   </div>
                 )}
                 {data.paymentBreakdown.byMethod.length === 0 && data.paymentBreakdown.noMethodCents.count === 0 && (
-                  <div className="py-2 px-3 text-xs text-slate-400 text-center">Nenhum dado no periodo</div>
+                  <div className="py-2 px-3 text-xs text-slate-600 text-center">Nenhum dado no periodo</div>
                 )}
               </div>
             </div>
@@ -265,7 +265,7 @@ export default function DreReport() {
                 </div>
                 {data.paymentBreakdown.byInstrument.map((item) => (
                   <div key={item.id} className="grid grid-cols-6 gap-2 py-1.5 px-3 text-xs text-slate-700">
-                    <span className="col-span-2 font-medium">{item.name} <span className="text-slate-400">({item.count})</span></span>
+                    <span className="col-span-2 font-medium">{item.name} <span className="text-slate-600">({item.count})</span></span>
                     <span className="text-slate-500">{item.methodName}</span>
                     <span className="text-right text-green-700">{fmt(item.receivableCents)}</span>
                     <span className="text-right text-red-700">{fmt(item.payableCents)}</span>
@@ -273,7 +273,7 @@ export default function DreReport() {
                   </div>
                 ))}
                 {data.paymentBreakdown.byInstrument.length === 0 && (
-                  <div className="py-2 px-3 text-xs text-slate-400 text-center">
+                  <div className="py-2 px-3 text-xs text-slate-600 text-center">
                     Nenhum instrumento associado no periodo. Cadastre instrumentos na aba &quot;Instrumentos&quot;.
                   </div>
                 )}
@@ -281,7 +281,7 @@ export default function DreReport() {
             </div>
           )}
 
-          <p className="text-[10px] text-slate-400 text-right mt-2">
+          <p className="text-[10px] text-slate-600 text-right mt-2">
             Gerado em {new Date(data.generatedAt).toLocaleString("pt-BR")}
           </p>
         </div>

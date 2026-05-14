@@ -155,8 +155,8 @@ export default function PoolPrintLayoutEditorPage() {
     setDraggingId(null);
   }
 
-  if (loading) return <div className="p-6 text-slate-400">Carregando...</div>;
-  if (!layout) return <div className="p-6 text-slate-400">Layout nao encontrado.</div>;
+  if (loading) return <div className="p-6 text-slate-600">Carregando...</div>;
+  if (!layout) return <div className="p-6 text-slate-600">Layout nao encontrado.</div>;
 
   return (
     <div className="space-y-4 p-6">
@@ -198,7 +198,7 @@ export default function PoolPrintLayoutEditorPage() {
 
       {/* Pages list */}
       {layout.pages.length === 0 ? (
-        <div className="py-16 text-center text-slate-400 rounded-xl border border-dashed border-slate-300 bg-white">
+        <div className="py-16 text-center text-slate-600 rounded-xl border border-dashed border-slate-300 bg-white">
           Nenhuma pagina ainda. Adicione pelo menos uma capa pra comecar.
         </div>
       ) : (
@@ -215,7 +215,7 @@ export default function PoolPrintLayoutEditorPage() {
             >
               <div className="flex items-start gap-4">
                 <div className="flex flex-col items-center justify-center bg-slate-100 rounded-lg w-12 h-12 flex-shrink-0">
-                  <div className="text-xs text-slate-400">PAG.</div>
+                  <div className="text-xs text-slate-600">PAG.</div>
                   <div className="text-lg font-bold text-slate-700">{idx + 1}</div>
                 </div>
                 <div className="flex-1">
@@ -374,7 +374,7 @@ function PageEditor({ editing, onClose, onSubmit }: {
                           onClick={() => insertPlaceholder(ph.key)}
                           className="text-left text-xs px-2 py-1 rounded hover:bg-slate-100">
                           <span className="font-mono text-cyan-600">{ph.key}</span>
-                          <span className="text-slate-400 ml-2">{ph.label}</span>
+                          <span className="text-slate-600 ml-2">{ph.label}</span>
                         </button>
                       ))}
                     </div>

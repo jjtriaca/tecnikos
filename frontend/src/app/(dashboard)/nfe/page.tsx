@@ -265,7 +265,7 @@ const SITUACAO_CONFIG: Record<number, { label: string; classes: string }> = {
 };
 
 function SituacaoBadge({ situacao }: { situacao: string | number | null }) {
-  if (situacao == null) return <span className="text-slate-400 text-xs">{"\u2014"}</span>;
+  if (situacao == null) return <span className="text-slate-600 text-xs">{"\u2014"}</span>;
   const cfg = SITUACAO_CONFIG[situacao] || { label: `${situacao}`, classes: "bg-slate-50 text-slate-500 border-slate-200" };
   return (
     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cfg.classes}`}>
@@ -380,7 +380,7 @@ const SEFAZ_COLUMNS: ColumnDefinition<SefazDocument>[] = [
     render: (doc) => {
       // Extrai o nNF da chave NFe (posicoes 25-33, 9 digitos) e remove leading zeros
       if (!doc.nfeKey || doc.nfeKey.length < 34) {
-        return <span className="font-mono text-xs text-slate-400">\u2014</span>;
+        return <span className="font-mono text-xs text-slate-600">\u2014</span>;
       }
       const nNF = doc.nfeKey.substring(25, 34).replace(/^0+/, "") || "0";
       return <span className="font-mono text-sm font-semibold text-slate-700" title={`NSU: ${doc.nsu}`}>{nNF}</span>;
@@ -410,7 +410,7 @@ const SEFAZ_COLUMNS: ColumnDefinition<SefazDocument>[] = [
         <p className="text-xs text-slate-900 font-medium leading-tight" title={doc.emitterName || ""}>
           {doc.emitterName || "\u2014"}
         </p>
-        <p className="text-xs text-slate-400">{formatCnpj(doc.emitterCnpj)}</p>
+        <p className="text-xs text-slate-600">{formatCnpj(doc.emitterCnpj)}</p>
       </div>
     ),
   },
@@ -1501,7 +1501,7 @@ export default function NfePage() {
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                     autoFocus
                   />
-                  <p className="mt-1 text-[11px] text-slate-400">
+                  <p className="mt-1 text-[11px] text-slate-600">
                     {keyLookupInput.replace(/\D/g, "").length} / 44 dígitos
                   </p>
                 </div>
@@ -1599,7 +1599,7 @@ export default function NfePage() {
             <svg className="mx-auto h-12 w-12 text-slate-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
             </svg>
-            <p className="text-slate-400 text-sm">
+            <p className="text-slate-600 text-sm">
               Nenhum documento SEFAZ encontrado. Configure o certificado e clique em &ldquo;Buscar Agora&rdquo;.
             </p>
           </div>
@@ -1607,7 +1607,7 @@ export default function NfePage() {
           <>
             {/* Last refresh indicator */}
             <div className="flex items-center justify-end">
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-600">
                 Última atualizacao: {formatTime(lastRefresh.toISOString())}
               </p>
             </div>
@@ -1826,7 +1826,7 @@ export default function NfePage() {
             <svg className="mx-auto h-12 w-12 text-slate-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
             </svg>
-            <p className="text-slate-400 text-sm">
+            <p className="text-slate-600 text-sm">
               Nenhuma importacao encontrada. Clique em &ldquo;Importar XML&rdquo; para comecar.
             </p>
           </div>
@@ -1888,7 +1888,7 @@ export default function NfePage() {
                                   Reverter
                                 </button>
                               ) : (
-                                <span className="text-slate-400 text-xs">{"\u2014"}</span>
+                                <span className="text-slate-600 text-xs">{"\u2014"}</span>
                               )}
                             </td>
                           );
@@ -1948,7 +1948,7 @@ export default function NfePage() {
             {/* Close button */}
             <button
               onClick={() => { setConfigModalOpen(false); setCertFile(null); setCertPassword(""); }}
-              className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors z-10"
+              className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-600 transition-colors z-10"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1971,7 +1971,7 @@ export default function NfePage() {
                     onChange={(e) => setCertFile(e.target.files?.[0] || null)}
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-1 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
-                  <p className="text-xs text-slate-400 mt-1">Formatos aceitos: .pfx, .p12</p>
+                  <p className="text-xs text-slate-600 mt-1">Formatos aceitos: .pfx, .p12</p>
                 </div>
 
                 {/* Password */}
@@ -1998,7 +1998,7 @@ export default function NfePage() {
                     <option value="PRODUCTION">Produção</option>
                     <option value="HOMOLOGATION">Homologacao</option>
                   </select>
-                  <p className="text-xs text-slate-400 mt-1">
+                  <p className="text-xs text-slate-600 mt-1">
                     Use &ldquo;Homologacao&rdquo; para testes. Selecione &ldquo;Produção&rdquo; para notas reais.
                   </p>
                 </div>
@@ -2041,7 +2041,7 @@ export default function NfePage() {
             {/* Close button */}
             <button
               onClick={() => { setXmlModalOpen(false); setXmlContent(""); }}
-              className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors z-10"
+              className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-600 transition-colors z-10"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -2077,7 +2077,7 @@ export default function NfePage() {
             {/* Close button */}
             <button
               onClick={closeWizard}
-              className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors z-10"
+              className="absolute right-4 top-4 rounded-lg p-1.5 text-slate-600 hover:bg-slate-100 hover:text-slate-600 transition-colors z-10"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -2123,7 +2123,7 @@ export default function NfePage() {
                             <p className="text-sm font-medium text-slate-700 mb-1">
                               Arraste o arquivo XML aqui ou clique para selecionar
                             </p>
-                            <p className="text-xs text-slate-400">Somente arquivos .xml da NFe</p>
+                            <p className="text-xs text-slate-600">Somente arquivos .xml da NFe</p>
                           </>
                         )}
                       </div>
@@ -2182,55 +2182,55 @@ export default function NfePage() {
                           <div className="grid grid-cols-3 sm:grid-cols-5 gap-x-4 gap-y-2">
                             {nfeData.icmsCents != null && nfeData.icmsCents > 0 && (
                               <div>
-                                <p className="text-[10px] text-slate-400">ICMS</p>
+                                <p className="text-[10px] text-slate-600">ICMS</p>
                                 <p className="text-xs font-medium text-slate-700">{formatCurrency(nfeData.icmsCents)}</p>
                               </div>
                             )}
                             {nfeData.icmsStCents != null && nfeData.icmsStCents > 0 && (
                               <div>
-                                <p className="text-[10px] text-slate-400">ICMS ST</p>
+                                <p className="text-[10px] text-slate-600">ICMS ST</p>
                                 <p className="text-xs font-medium text-slate-700">{formatCurrency(nfeData.icmsStCents)}</p>
                               </div>
                             )}
                             {nfeData.ipiCents != null && nfeData.ipiCents > 0 && (
                               <div>
-                                <p className="text-[10px] text-slate-400">IPI</p>
+                                <p className="text-[10px] text-slate-600">IPI</p>
                                 <p className="text-xs font-medium text-slate-700">{formatCurrency(nfeData.ipiCents)}</p>
                               </div>
                             )}
                             {nfeData.pisCents != null && nfeData.pisCents > 0 && (
                               <div>
-                                <p className="text-[10px] text-slate-400">PIS</p>
+                                <p className="text-[10px] text-slate-600">PIS</p>
                                 <p className="text-xs font-medium text-slate-700">{formatCurrency(nfeData.pisCents)}</p>
                               </div>
                             )}
                             {nfeData.cofinsCents != null && nfeData.cofinsCents > 0 && (
                               <div>
-                                <p className="text-[10px] text-slate-400">COFINS</p>
+                                <p className="text-[10px] text-slate-600">COFINS</p>
                                 <p className="text-xs font-medium text-slate-700">{formatCurrency(nfeData.cofinsCents)}</p>
                               </div>
                             )}
                             {nfeData.freteCents != null && nfeData.freteCents > 0 && (
                               <div>
-                                <p className="text-[10px] text-slate-400">Frete</p>
+                                <p className="text-[10px] text-slate-600">Frete</p>
                                 <p className="text-xs font-medium text-slate-700">{formatCurrency(nfeData.freteCents)}</p>
                               </div>
                             )}
                             {nfeData.seguroCents != null && nfeData.seguroCents > 0 && (
                               <div>
-                                <p className="text-[10px] text-slate-400">Seguro</p>
+                                <p className="text-[10px] text-slate-600">Seguro</p>
                                 <p className="text-xs font-medium text-slate-700">{formatCurrency(nfeData.seguroCents)}</p>
                               </div>
                             )}
                             {nfeData.descontoCents != null && nfeData.descontoCents > 0 && (
                               <div>
-                                <p className="text-[10px] text-slate-400">Desconto</p>
+                                <p className="text-[10px] text-slate-600">Desconto</p>
                                 <p className="text-xs font-medium text-green-600">{formatCurrency(nfeData.descontoCents)}</p>
                               </div>
                             )}
                             {nfeData.outrasDespCents != null && nfeData.outrasDespCents > 0 && (
                               <div>
-                                <p className="text-[10px] text-slate-400">Outras Desp.</p>
+                                <p className="text-[10px] text-slate-600">Outras Desp.</p>
                                 <p className="text-xs font-medium text-slate-700">{formatCurrency(nfeData.outrasDespCents)}</p>
                               </div>
                             )}
@@ -2370,7 +2370,7 @@ export default function NfePage() {
                                         className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-blue-50 transition-colors"
                                       >
                                         <span className="font-medium text-slate-900">{p.name}</span>
-                                        <span className="text-xs text-slate-400">{p.document}</span>
+                                        <span className="text-xs text-slate-600">{p.document}</span>
                                       </button>
                                     ))}
                                   </div>
@@ -2509,7 +2509,7 @@ export default function NfePage() {
                                     <option value="MATERIAL_OBRA">Material Obra</option>
                                   </select>
                                 ) : (
-                                  <span className="text-slate-400 text-xs">{"\u2014"}</span>
+                                  <span className="text-slate-600 text-xs">{"\u2014"}</span>
                                 )}
                               </td>
                               <td className="px-3 py-2 text-slate-500 text-xs">{item.itemNumber}</td>
@@ -2582,7 +2582,7 @@ export default function NfePage() {
                 renderItem={(p) => (
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-slate-900">{p.description}</span>
-                    <span className="text-xs text-slate-400 ml-2">{p.code}</span>
+                    <span className="text-xs text-slate-600 ml-2">{p.code}</span>
                   </div>
                 )}
                 onSelect={handleProductSelected}
@@ -2856,7 +2856,7 @@ export default function NfePage() {
                           <p className="text-xs text-slate-500">Vincular existentes</p>
                         </div>
                         <div className="rounded-lg bg-white border border-slate-200 p-3 text-center">
-                          <p className="text-lg font-bold text-slate-400">{itemsToIgnore}</p>
+                          <p className="text-lg font-bold text-slate-600">{itemsToIgnore}</p>
                           <p className="text-xs text-slate-500">Ignorar</p>
                         </div>
                       </div>

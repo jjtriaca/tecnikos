@@ -260,7 +260,7 @@ export default function TenantsPage() {
           <div className="h-6 w-6 animate-spin rounded-full border-3 border-blue-500 border-t-transparent" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-400">
+        <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-600">
           Nenhuma empresa encontrada.
         </div>
       ) : (
@@ -289,7 +289,7 @@ export default function TenantsPage() {
                         </span>
                       )}
                     </div>
-                    {t.cnpj && <div className="text-xs text-slate-400">{t.cnpj}</div>}
+                    {t.cnpj && <div className="text-xs text-slate-600">{t.cnpj}</div>}
                   </td>
                   <td className="px-4 py-3">
                     <code className="text-xs text-blue-600">{t.slug}.tecnikos.com.br</code>
@@ -298,7 +298,7 @@ export default function TenantsPage() {
                     {t.plan ? (
                       <div>
                         <span className="font-medium">{t.plan.name}</span>
-                        <span className="ml-1 text-xs text-slate-400">{formatBRL(t.plan.priceCents)}/mês</span>
+                        <span className="ml-1 text-xs text-slate-600">{formatBRL(t.plan.priceCents)}/mês</span>
                       </div>
                     ) : (
                       <span className="text-slate-400">—</span>
@@ -311,7 +311,7 @@ export default function TenantsPage() {
                   </td>
                   <td className="px-4 py-3 text-slate-600">
                     {t.responsibleName || "—"}
-                    {t.responsibleEmail && <div className="text-xs text-slate-400">{t.responsibleEmail}</div>}
+                    {t.responsibleEmail && <div className="text-xs text-slate-600">{t.responsibleEmail}</div>}
                   </td>
                   <td className="px-4 py-3 text-slate-500 text-xs">{formatDate(t.createdAt)}</td>
                   <td className="px-4 py-3 text-right">
@@ -400,7 +400,7 @@ export default function TenantsPage() {
                     placeholder="nome-empresa"
                     required
                   />
-                  <span className="h-9 rounded-r-lg border border-l-0 border-slate-200 bg-slate-50 px-2 text-xs text-slate-400 leading-9">
+                  <span className="h-9 rounded-r-lg border border-l-0 border-slate-200 bg-slate-50 px-2 text-xs text-slate-600 leading-9">
                     .tecnikos.com.br
                   </span>
                 </div>
@@ -504,19 +504,19 @@ export default function TenantsPage() {
                   {/* Tenant info */}
                   <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                     <div>
-                      <span className="text-xs text-slate-400">CNPJ</span>
+                      <span className="text-xs text-slate-600">CNPJ</span>
                       <p className="font-medium text-slate-700">{verifyData.tenant.cnpj || "—"}</p>
                     </div>
                     <div>
-                      <span className="text-xs text-slate-400">Responsavel</span>
+                      <span className="text-xs text-slate-600">Responsavel</span>
                       <p className="font-medium text-slate-700">{verifyData.tenant.responsibleName || "—"}</p>
                     </div>
                     <div>
-                      <span className="text-xs text-slate-400">Email</span>
+                      <span className="text-xs text-slate-600">Email</span>
                       <p className="font-medium text-slate-700">{verifyData.tenant.responsibleEmail || "—"}</p>
                     </div>
                     <div>
-                      <span className="text-xs text-slate-400">Plano</span>
+                      <span className="text-xs text-slate-600">Plano</span>
                       <p className="font-medium text-slate-700">{verifyData.tenant.plan?.name || "—"}</p>
                     </div>
                   </div>
@@ -530,13 +530,13 @@ export default function TenantsPage() {
                     }`}>
                       {verifyData.reviewStatus === "PENDING" ? "Pendente" : verifyData.reviewStatus === "APPROVED" ? "Aprovado" : "Rejeitado"}
                     </span>
-                    <span className="text-slate-400">
+                    <span className="text-slate-600">
                       {verifyData.uploadedCount}/6 documentos enviados
                     </span>
-                    <span className="text-slate-400">
+                    <span className="text-slate-600">
                       Criado em {formatDateTime(verifyData.createdAt)}
                     </span>
-                    <span className="text-slate-400">
+                    <span className="text-slate-600">
                       Expira em {formatDateTime(verifyData.expiresAt)}
                     </span>
                   </div>

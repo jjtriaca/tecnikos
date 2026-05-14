@@ -17,7 +17,7 @@ export default function TopAccountsChart({ data }: TopAccountsChartProps) {
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm h-full flex flex-col">
         <h3 className="text-sm font-semibold text-slate-800 mb-4">Top Receitas por Categoria</h3>
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-sm text-slate-400">Sem dados no período</p>
+          <p className="text-sm text-slate-600">Sem dados no período</p>
         </div>
       </div>
     );
@@ -46,7 +46,7 @@ export default function TopAccountsChart({ data }: TopAccountsChartProps) {
                   {item.name}
                 </span>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-slate-400">{item.percentage}%</span>
+                  <span className="text-[10px] text-slate-600">{item.percentage}%</span>
                   <span className="text-xs font-semibold text-slate-800 tabular-nums">
                     {formatCurrency(item.totalCents)}
                   </span>

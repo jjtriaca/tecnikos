@@ -316,7 +316,7 @@ export default function PaymentInstrumentsTab() {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-slate-700">Meios de Pagamento e Recebimento</h3>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-600 mt-0.5">
             Cadastre aqui tudo que a empresa usa para receber ou pagar (cartoes, PIX, contas, cheques, boletos...)
           </p>
         </div>
@@ -341,7 +341,7 @@ export default function PaymentInstrumentsTab() {
           <p className="text-sm text-slate-500 mb-3">
             Nenhum instrumento de pagamento cadastrado.
           </p>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-600">
             Cadastre seus cartoes, contas PIX, contas bancarias para facilitar a conciliacao.
           </p>
         </div>
@@ -392,7 +392,7 @@ export default function PaymentInstrumentsTab() {
                     {pi.cashAccount && <span>Conta: {pi.cashAccount.name}</span>}
                     {(pi as any).feePercent != null && <span>Taxa: {(pi as any).feePercent}%</span>}
                     {(pi as any).receivingDays != null && <span>D+{(pi as any).receivingDays}</span>}
-                    {pi.details && <span className="text-slate-400 truncate max-w-[200px]">{pi.details}</span>}
+                    {pi.details && <span className="text-slate-600 truncate max-w-[200px]">{pi.details}</span>}
                   </div>
                 </div>
 
@@ -640,7 +640,7 @@ export default function PaymentInstrumentsTab() {
                         placeholder="Ex: 2,5"
                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                       />
-                      <p className="text-[10px] text-slate-400 mt-0.5">Atalho para taxas simples (cartoes).</p>
+                      <p className="text-[10px] text-slate-600 mt-0.5">Atalho para taxas simples (cartoes).</p>
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-slate-600 mb-1">Prazo recebimento (dias)</label>
@@ -652,7 +652,7 @@ export default function PaymentInstrumentsTab() {
                         placeholder="Ex: 30"
                         className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                       />
-                      <p className="text-[10px] text-slate-400 mt-0.5">D+N para cartoes/cheques.</p>
+                      <p className="text-[10px] text-slate-600 mt-0.5">D+N para cartoes/cheques.</p>
                     </div>
                   </div>
                 </div>
@@ -823,7 +823,7 @@ export default function PaymentInstrumentsTab() {
                             const next = formData.feeRates.filter((_, i) => i !== idx);
                             setFormData({ ...formData, feeRates: next });
                           }}
-                          className="rounded border border-slate-200 p-1 text-slate-400 hover:text-red-600 hover:border-red-300 transition-colors"
+                          className="rounded border border-slate-200 p-1 text-slate-600 hover:text-red-600 hover:border-red-300 transition-colors"
                           title="Remover faixa"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

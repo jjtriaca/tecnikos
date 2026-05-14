@@ -214,8 +214,8 @@ export default function PoolProjectDetailPage() {
     }
   }
 
-  if (loading) return <div className="p-6 text-slate-400">Carregando...</div>;
-  if (!project) return <div className="p-6 text-slate-400">Obra nao encontrada.</div>;
+  if (loading) return <div className="p-6 text-slate-600">Carregando...</div>;
+  if (!project) return <div className="p-6 text-slate-600">Obra nao encontrada.</div>;
   const status = PROJECT_STATUS[project.status] || { label: project.status, cls: "" };
 
   const totalGastos = project.entries.reduce((s, e) => s + e.totalCents, 0);
@@ -260,7 +260,7 @@ export default function PoolProjectDetailPage() {
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="text-xs text-slate-500">Gasto ate agora</div>
           <div className="mt-1 text-xl font-bold text-orange-600">{fmtCurrency(totalGastos)}</div>
-          <div className="mt-0.5 text-xs text-slate-400">{percentGasto.toFixed(1)}% do orcamento</div>
+          <div className="mt-0.5 text-xs text-slate-600">{percentGasto.toFixed(1)}% do orcamento</div>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="text-xs text-slate-500">Saldo</div>
@@ -335,7 +335,7 @@ export default function PoolProjectDetailPage() {
           </div>
           <div className="rounded-xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-100">
             {project.stages.length === 0 ? (
-              <div className="py-12 text-center text-slate-400">Nenhuma etapa ainda.</div>
+              <div className="py-12 text-center text-slate-600">Nenhuma etapa ainda.</div>
             ) : project.stages.map((s) => {
               const st = STAGE_STATUS[s.status] || { label: s.status, cls: "" };
               return (
@@ -395,7 +395,7 @@ export default function PoolProjectDetailPage() {
               </thead>
               <tbody>
                 {project.entries.length === 0 ? (
-                  <tr><td colSpan={9} className="py-12 text-center text-slate-400">Nenhum lancamento ainda.</td></tr>
+                  <tr><td colSpan={9} className="py-12 text-center text-slate-600">Nenhum lancamento ainda.</td></tr>
                 ) : project.entries.map((e) => (
                   <tr key={e.id} className="border-b border-slate-100 hover:bg-slate-50">
                     <td className="px-3 py-2 text-slate-600">{fmtDate(e.date)}</td>
@@ -409,7 +409,7 @@ export default function PoolProjectDetailPage() {
                       {e.reflectsInFinance ? (
                         <span className="text-xs text-green-700">✓ Sim</span>
                       ) : (
-                        <span className="text-xs text-slate-400">Nao</span>
+                        <span className="text-xs text-slate-600">Nao</span>
                       )}
                     </td>
                     <td className="px-3 py-2 text-right">
@@ -453,7 +453,7 @@ export default function PoolProjectDetailPage() {
             </label>
           </div>
           {project.photos.length === 0 ? (
-            <div className="py-16 text-center text-slate-400 rounded-xl border border-dashed border-slate-300 bg-white">
+            <div className="py-16 text-center text-slate-600 rounded-xl border border-dashed border-slate-300 bg-white">
               Nenhuma foto enviada ainda.
             </div>
           ) : (
@@ -464,7 +464,7 @@ export default function PoolProjectDetailPage() {
                        alt={p.caption || "Foto"} className="w-full h-40 object-cover" />
                   <div className="p-2 text-xs">
                     <div className="text-slate-700 truncate">{p.caption || "(sem legenda)"}</div>
-                    <div className="text-slate-400">{fmtDate(p.takenAt || p.uploadedAt)}</div>
+                    <div className="text-slate-600">{fmtDate(p.takenAt || p.uploadedAt)}</div>
                   </div>
                   <button onClick={() => removePhoto(p.id)}
                     className="absolute top-2 right-2 rounded-full bg-red-600 text-white text-xs h-7 w-7 opacity-0 group-hover:opacity-100 transition">

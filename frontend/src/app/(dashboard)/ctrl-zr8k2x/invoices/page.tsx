@@ -339,7 +339,7 @@ export default function InvoicesPage() {
               <div className="h-6 w-6 animate-spin rounded-full border-3 border-blue-500 border-t-transparent" />
             </div>
           ) : invoices.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-400">
+            <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-600">
               Nenhuma nota fiscal encontrada.
             </div>
           ) : (
@@ -362,7 +362,7 @@ export default function InvoicesPage() {
                       <tr key={inv.id} className="hover:bg-slate-100 transition-colors">
                         <td className="px-4 py-3">
                           <div className="font-medium text-slate-900">{inv.tenant.name}</div>
-                          {inv.tenant.cnpj && <div className="text-xs text-slate-400">{inv.tenant.cnpj}</div>}
+                          {inv.tenant.cnpj && <div className="text-xs text-slate-600">{inv.tenant.cnpj}</div>}
                         </td>
                         <td className="px-4 py-3 font-medium text-slate-800">
                           {formatBRL(inv.value)}
@@ -545,7 +545,7 @@ export default function InvoicesPage() {
                           value={config[key]}
                           onChange={(e) => setConfig({ ...config, [key]: parseFloat(e.target.value) || 0 })}
                         />
-                        <span className="h-9 rounded-r-lg border border-l-0 border-slate-200 bg-slate-50 px-2 text-xs text-slate-400 leading-9">%</span>
+                        <span className="h-9 rounded-r-lg border border-l-0 border-slate-200 bg-slate-50 px-2 text-xs text-slate-600 leading-9">%</span>
                       </div>
                     </div>
                   ))}
@@ -611,7 +611,7 @@ export default function InvoicesPage() {
               </div>
             </form>
           ) : (
-            <div className="text-sm text-slate-400">Erro ao carregar configuracao.</div>
+            <div className="text-sm text-slate-600">Erro ao carregar configuracao.</div>
           )}
         </div>
       )}
@@ -698,7 +698,7 @@ export default function InvoicesPage() {
                   value={issueDate}
                   onChange={(e) => setIssueDate(e.target.value)}
                 />
-                <p className="text-[10px] text-slate-400 mt-1">Se hoje: emissao em ate 15 minutos. Se futura: agendada.</p>
+                <p className="text-[10px] text-slate-600 mt-1">Se hoje: emissao em ate 15 minutos. Se futura: agendada.</p>
               </div>
 
               {/* Description (optional override) */}
@@ -790,46 +790,46 @@ export default function InvoicesPage() {
               {/* Info grid */}
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
-                  <span className="text-xs text-slate-400">Valor</span>
+                  <span className="text-xs text-slate-600">Valor</span>
                   <p className="font-semibold text-slate-900">{formatBRL(detailInvoice.value)}</p>
                 </div>
                 <div>
-                  <span className="text-xs text-slate-400">Data Emissao</span>
+                  <span className="text-xs text-slate-600">Data Emissao</span>
                   <p className="font-medium text-slate-700">{formatDate(detailInvoice.effectiveDate)}</p>
                 </div>
                 <div>
-                  <span className="text-xs text-slate-400">CNPJ</span>
+                  <span className="text-xs text-slate-600">CNPJ</span>
                   <p className="font-medium text-slate-700">{detailInvoice.tenant.cnpj || "—"}</p>
                 </div>
                 <div>
-                  <span className="text-xs text-slate-400">Plano</span>
+                  <span className="text-xs text-slate-600">Plano</span>
                   <p className="font-medium text-slate-700">{detailInvoice.tenant.plan?.name || "—"}</p>
                 </div>
                 <div>
-                  <span className="text-xs text-slate-400">Asaas ID</span>
+                  <span className="text-xs text-slate-600">Asaas ID</span>
                   <p className="font-mono text-xs text-slate-500">{detailInvoice.asaasInvoiceId || "—"}</p>
                 </div>
                 <div>
-                  <span className="text-xs text-slate-400">Criado em</span>
+                  <span className="text-xs text-slate-600">Criado em</span>
                   <p className="text-xs text-slate-500">{formatDateTime(detailInvoice.createdAt)}</p>
                 </div>
               </div>
 
               {/* Description */}
               <div>
-                <span className="text-xs text-slate-400">Descricao</span>
+                <span className="text-xs text-slate-600">Descricao</span>
                 <p className="text-sm text-slate-700 mt-1">{detailInvoice.serviceDescription}</p>
               </div>
               {detailInvoice.observations && (
                 <div>
-                  <span className="text-xs text-slate-400">Observacoes</span>
+                  <span className="text-xs text-slate-600">Observacoes</span>
                   <p className="text-sm text-slate-700 mt-1">{detailInvoice.observations}</p>
                 </div>
               )}
 
               {/* Taxes */}
               <div>
-                <span className="text-xs text-slate-400">Impostos</span>
+                <span className="text-xs text-slate-600">Impostos</span>
                 <div className="grid grid-cols-3 gap-2 mt-1">
                   {[
                     ["ISS", detailInvoice.iss],
@@ -840,7 +840,7 @@ export default function InvoicesPage() {
                     ["PIS", detailInvoice.pis],
                   ].map(([label, val]) => (
                     <div key={String(label)} className="rounded bg-slate-50 px-2 py-1 text-center">
-                      <span className="text-[10px] text-slate-400 block">{String(label)}</span>
+                      <span className="text-[10px] text-slate-600 block">{String(label)}</span>
                       <span className="text-xs font-medium text-slate-700">{String(val)}%</span>
                     </div>
                   ))}

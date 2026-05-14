@@ -77,7 +77,7 @@ export default function TechLoginPage() {
             <img src="/logo-icon.svg" alt="Tecnikos" className="h-9 w-9" />
             <div>
               <div className="text-sm font-bold text-slate-900">Tecnikos</div>
-              <div className="text-[10px] text-slate-400">Portal do Técnico</div>
+              <div className="text-[10px] text-slate-600">Portal do Técnico</div>
             </div>
           </div>
 
@@ -123,7 +123,7 @@ export default function TechLoginPage() {
 
               {/* Divider */}
               <div className="mt-5 pt-4 border-t border-slate-100">
-                <p className="text-xs text-slate-400 text-center leading-relaxed">
+                <p className="text-xs text-slate-600 text-center leading-relaxed">
                   Ou acesse pelo link enviado pela empresa via WhatsApp.
                 </p>
               </div>

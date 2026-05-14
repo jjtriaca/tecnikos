@@ -84,7 +84,7 @@ export default function HeaderBilling() {
         >
           <div className="flex flex-col gap-0.5 min-w-[100px]">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] text-slate-400">OS este mes</span>
+              <span className="text-[10px] text-slate-600">OS este mes</span>
               <span className={`text-[10px] ${getTextClass(usage.percentage)}`}>
                 {usage.percentage}%
               </span>

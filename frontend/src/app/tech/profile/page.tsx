@@ -54,7 +54,7 @@ export default function TechProfilePage() {
               </svg>
             </div>
             <div>
-              <p className="text-[11px] text-slate-400">Email</p>
+              <p className="text-[11px] text-slate-600">Email</p>
               <p className="text-sm font-medium text-slate-800">{user.email || "Não configurado"}</p>
             </div>
           </div>
@@ -68,7 +68,7 @@ export default function TechProfilePage() {
               </svg>
             </div>
             <div>
-              <p className="text-[11px] text-slate-400">Telefone</p>
+              <p className="text-[11px] text-slate-600">Telefone</p>
               <p className="text-sm font-medium text-slate-800">{user.phone}</p>
             </div>
           </div>
@@ -82,7 +82,7 @@ export default function TechProfilePage() {
               </svg>
             </div>
             <div>
-              <p className="text-[11px] text-slate-400">Status</p>
+              <p className="text-[11px] text-slate-600">Status</p>
               <p className="text-sm font-medium text-slate-800">
                 <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${user.status === "ATIVO" ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-600"}`}>
                   {user.status}

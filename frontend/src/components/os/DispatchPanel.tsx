@@ -111,7 +111,7 @@ function MessageStatus({ d }: { d: DispatchState }) {
   if (ns === "SENT" || wa === "SENT") return <span className="text-[11px] text-slate-500">✓ Enviada</span>;
   // No notification exists at all
   if (!d.notificationId && d.notificationStatus === "PENDING") {
-    return <span className="text-[11px] text-slate-400">Sem notificação</span>;
+    return <span className="text-[11px] text-slate-600">Sem notificação</span>;
   }
   return (
     <span className="flex items-center gap-1 text-[11px] text-amber-600">
@@ -133,7 +133,7 @@ function TechStatus({ d }: { d: DispatchState }) {
   if (d.arrivedAt) return <span className="text-[10px] text-indigo-600"><span className="text-[7px]">📍</span> No local</span>;
   if (d.enRouteAt) return <span className="text-[10px] text-amber-600"><span className="text-[7px]">🚗</span> A caminho</span>;
   if (d.acceptedAt) return <span className="text-[10px] text-green-600"><span className="text-[7px]">✅</span> Aceito</span>;
-  return <span className="text-[10px] text-slate-400"><span className="text-[7px]">⏳</span> Aguardando aceite</span>;
+  return <span className="text-[10px] text-slate-600"><span className="text-[7px]">⏳</span> Aguardando aceite</span>;
 }
 
 // ── Horizontal timeline ──
@@ -299,39 +299,39 @@ function FloatingCard({ d, position, zIndex, organizing, onFocus, onMove }: Floa
           <div className="grid grid-cols-2 gap-x-4 gap-y-1">
             {d.clientName && (
               <div className="flex items-center gap-1">
-                <span className="text-[10px] text-slate-400">Cliente:</span>
+                <span className="text-[10px] text-slate-600">Cliente:</span>
                 <span className="text-[10px] text-slate-700 truncate">{d.clientName}</span>
               </div>
             )}
             {d.createdByName && (
               <div className="flex items-center gap-1">
-                <span className="text-[10px] text-slate-400">Criado por:</span>
+                <span className="text-[10px] text-slate-600">Criado por:</span>
                 <span className="text-[10px] text-slate-700 truncate">{d.createdByName}</span>
               </div>
             )}
             <div className="flex items-center gap-1">
-              <span className="text-[10px] text-slate-400">Valor:</span>
+              <span className="text-[10px] text-slate-600">Valor:</span>
               <span className="text-[10px] text-slate-700 font-medium">{formatCurrency(d.valueCents)}</span>
             </div>
             {d.scheduledStartAt && (
               <div className="flex items-center gap-1">
-                <span className="text-[10px] text-slate-400">Agendada:</span>
+                <span className="text-[10px] text-slate-600">Agendada:</span>
                 <span className="text-[10px] text-slate-700">{formatShortDate(d.scheduledStartAt)}</span>
               </div>
             )}
             {d.deadlineAt && (
               <div className="flex items-center gap-1">
-                <span className="text-[10px] text-slate-400">Prazo:</span>
+                <span className="text-[10px] text-slate-600">Prazo:</span>
                 <span className="text-[10px] text-slate-700">{formatShortDate(d.deadlineAt)}</span>
               </div>
             )}
             <div className="flex items-center gap-1">
-              <span className="text-[10px] text-slate-400">Status:</span>
+              <span className="text-[10px] text-slate-600">Status:</span>
               <span className="text-[10px] text-indigo-600 font-medium">{STATUS_LABELS[d.osStatus || ""] || d.osStatus || "-"}</span>
             </div>
             {d.createdAt && (
               <div className="flex items-center gap-1">
-                <span className="text-[10px] text-slate-400">Criada:</span>
+                <span className="text-[10px] text-slate-600">Criada:</span>
                 <span className="text-[10px] text-slate-700">{formatShortDate(d.createdAt)}</span>
               </div>
             )}
@@ -356,7 +356,7 @@ function FloatingCard({ d, position, zIndex, organizing, onFocus, onMove }: Floa
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
               <span className="text-[11px] text-slate-700 font-medium">{d.technicianName || "Técnico"}</span>
-              {d.technicianPhone && <span className="text-[10px] text-slate-400">{d.technicianPhone}</span>}
+              {d.technicianPhone && <span className="text-[10px] text-slate-600">{d.technicianPhone}</span>}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <TechStatus d={d} />
@@ -424,16 +424,16 @@ function FloatingCard({ d, position, zIndex, organizing, onFocus, onMove }: Floa
                     className="flex w-full items-center justify-between rounded px-2 py-1 text-[10px] text-slate-700 hover:bg-blue-100 transition-colors"
                   >
                     <span className="font-medium">{t.name}</span>
-                    <span className="text-slate-400">{t.phone}</span>
+                    <span className="text-slate-600">{t.phone}</span>
                   </button>
                 ))}
                 {technicians.filter(t => t.id !== (d as any).technicianId).length === 0 && (
-                  <p className="text-[10px] text-slate-400 px-2 py-1">Nenhum outro tecnico ativo</p>
+                  <p className="text-[10px] text-slate-600 px-2 py-1">Nenhum outro tecnico ativo</p>
                 )}
               </div>
               <button
                 onClick={(e) => { e.stopPropagation(); setShowReassign(false); }}
-                className="mt-1 text-[9px] text-slate-400 hover:text-slate-600"
+                className="mt-1 text-[9px] text-slate-600 hover:text-slate-600"
               >
                 Cancelar
               </button>
@@ -562,13 +562,13 @@ function GpsSection({ d }: { d: DispatchState }) {
             </span>
           )}
           {ago && (
-            <span className="text-slate-400">
+            <span className="text-slate-600">
               {ago} atras
             </span>
           )}
         </div>
       ) : (
-        <div className="mt-1.5 text-center text-[10px] text-slate-400">
+        <div className="mt-1.5 text-center text-[10px] text-slate-600">
           Aguardando rastreamento...
         </div>
       )}
@@ -746,7 +746,7 @@ function MinimizedTray({ dispatches, onClick, config, onConfigChange }: {
             />
             <span className="text-slate-700">Abrir ao atualizar status</span>
           </label>
-          <div className="mt-2 pt-2 border-t border-slate-100 text-[10px] text-slate-400">
+          <div className="mt-2 pt-2 border-t border-slate-100 text-[10px] text-slate-600">
             Sem nenhuma opcao marcada, abre somente ao clicar.
           </div>
         </div>

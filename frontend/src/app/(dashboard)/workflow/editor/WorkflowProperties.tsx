@@ -347,7 +347,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M15.042 21.672L13.684 16.6m0 0l-2.51 2.225.569-9.47 5.227 7.917-3.286-.672zM12 2.25V4.5m5.834.166l-1.591 1.591M20.25 10.5H18M7.757 14.743l-1.59 1.59M6 10.5H3.75m4.007-4.243l-1.59-1.59" />
             </svg>
           </div>
-          <p className="text-xs text-slate-400">Selecione um bloco para editar suas propriedades</p>
+          <p className="text-xs text-slate-600">Selecione um bloco para editar suas propriedades</p>
         </div>
       </div>
     );
@@ -562,7 +562,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
           </span>
           <div>
             <p className={`text-sm font-semibold ${cat?.textColor || "text-slate-900"}`}>{cat?.name || block.type}</p>
-            <p className="text-[10px] text-slate-400">{cat?.description || ""}</p>
+            <p className="text-[10px] text-slate-600">{cat?.description || ""}</p>
           </div>
         </div>
       </div>
@@ -658,7 +658,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                   <Input type="number" value={cfg.intervalSeconds || 30} onChange={(v) => updateConfig("intervalSeconds", parseInt(v) || 30)} placeholder="30" />
 
                   <Checkbox checked={cfg.showDistanceToTech !== false} onChange={(v) => updateConfig("showDistanceToTech", v)} label="Mostrar distância do destino ao técnico" />
-                  <p className="text-[10px] text-slate-400">Exibe &quot;Você está a X km do destino&quot; no app do técnico</p>
+                  <p className="text-[10px] text-slate-600">Exibe &quot;Você está a X km do destino&quot; no app do técnico</p>
 
                   <div className="mt-3 border-t border-slate-200 pt-3">
                     <p className="text-[11px] font-medium text-slate-500 mb-2">Proximidade do destino</p>
@@ -670,10 +670,10 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                         className="flex-1 accent-blue-500" />
                       <span className="text-xs font-bold text-blue-600 min-w-[50px] text-right">{cfg.radiusMeters || 50}m</span>
                     </div>
-                    <p className="text-[10px] text-slate-400">Distancia em metros do destino para disparar eventos</p>
+                    <p className="text-[10px] text-slate-600">Distancia em metros do destino para disparar eventos</p>
 
                     <Checkbox checked={cfg.autoAdvanceOnProximity !== false} onChange={(v) => updateConfig("autoAdvanceOnProximity", v)} label="Auto-avancar ao entrar no raio" />
-                    <p className="text-[10px] text-slate-400">{cfg.autoAdvanceOnProximity !== false ? "O bloco avança automaticamente quando o técnico entra no raio" : "O técnico precisa clicar o botão abaixo para avançar"}</p>
+                    <p className="text-[10px] text-slate-600">{cfg.autoAdvanceOnProximity !== false ? "O bloco avança automaticamente quando o técnico entra no raio" : "O técnico precisa clicar o botão abaixo para avançar"}</p>
 
                     {cfg.autoAdvanceOnProximity === false && (
                       <ConfirmButtonEditor
@@ -683,7 +683,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                     )}
 
                     <Checkbox checked={!!cfg.saveArrivalCoords} onChange={(v) => updateConfig("saveArrivalCoords", v)} label="Salvar coordenadas no endereco do cliente" />
-                    <p className="text-[10px] text-slate-400">Ao chegar, as coordenadas GPS serao salvas no endereco de atendimento do cliente para maior precisao em futuros atendimentos</p>
+                    <p className="text-[10px] text-slate-600">Ao chegar, as coordenadas GPS serao salvas no endereco de atendimento do cliente para maior precisao em futuros atendimentos</p>
                   </div>
 
                   <OnEnterRadiusNotifications onEnter={onEnter} updateOnEnter={updateOnEnter} />
@@ -691,7 +691,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
               );
             })()}
 
-            <p className="text-[10px] text-slate-400 mt-2">
+            <p className="text-[10px] text-slate-600 mt-2">
               {cfg.trackingMode === "continuous"
                 ? cfg.autoAdvanceOnProximity !== false
                   ? "O rastreamento GPS inicia automaticamente. O bloco avança quando o técnico entra no raio configurado."
@@ -716,7 +716,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                   className="flex-1 accent-rose-500" />
                 <span className="text-xs font-bold text-rose-600 min-w-[50px] text-right">{cfg.radiusMeters || 50}m</span>
               </div>
-              <p className="text-[10px] text-slate-400">Distancia em metros do destino para disparar eventos</p>
+              <p className="text-[10px] text-slate-600">Distancia em metros do destino para disparar eventos</p>
 
               <Label>Intervalo de envio GPS (segundos)</Label>
               <Input type="number" value={cfg.trackingIntervalSeconds || 30} onChange={(v) => updateConfig("trackingIntervalSeconds", parseInt(v) || 30)} placeholder="30" />
@@ -725,7 +725,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
 
               <OnEnterRadiusNotifications onEnter={onEnter} updateOnEnter={updateOnEnter} />
 
-              <p className="text-[10px] text-slate-400 mt-3">O rastreamento GPS inicia automaticamente quando o fluxo chega neste bloco. O bloco avanca quando o tecnico entra no raio configurado.</p>
+              <p className="text-[10px] text-slate-600 mt-3">O rastreamento GPS inicia automaticamente quando o fluxo chega neste bloco. O bloco avanca quando o tecnico entra no raio configurado.</p>
             </>
           );
         })()}
@@ -787,7 +787,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
           <>
             <Label>Pergunta da condicao</Label>
             <Input value={cfg.question || ""} onChange={(v) => updateConfig("question", v)} placeholder="Ex: Problema encontrado?" />
-            <p className="text-[10px] text-slate-400 mt-1">SIM segue pelo caminho esquerdo, NAO pelo direito</p>
+            <p className="text-[10px] text-slate-600 mt-1">SIM segue pelo caminho esquerdo, NAO pelo direito</p>
           </>
         )}
 
@@ -934,7 +934,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                   <button onClick={addButton} className="text-[10px] text-blue-500 hover:text-blue-600 font-medium">+ Adicionar botao</button>
                 )}
               </div>
-              <p className="text-[10px] text-slate-400 mt-2">
+              <p className="text-[10px] text-slate-600 mt-2">
                 {buttons.length === 1
                   ? "1 botao = acao simples. O tecnico confirma e o fluxo continua."
                   : "Cada botao segue um caminho diferente no fluxo."}
@@ -952,7 +952,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                   }} className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600" />
                   <span className="text-xs font-medium text-slate-700">Incluir painel informativo</span>
                 </label>
-                <p className="text-[10px] text-slate-400 mt-0.5">Exibe informações da OS junto com os botões</p>
+                <p className="text-[10px] text-slate-600 mt-0.5">Exibe informações da OS junto com os botões</p>
 
                 {infoPanel?.enabled && (
                   <div className="mt-2 rounded-lg border border-dashed border-blue-300 bg-blue-50/30 p-2 space-y-2">
@@ -1020,7 +1020,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                       rows={3} placeholder="Texto com variáveis da OS..."
                       className="w-full rounded border border-slate-200 px-2 py-1 text-xs outline-none focus:border-blue-400 resize-none" />
 
-                    <p className="text-[10px] text-slate-400">Clique para inserir variável:</p>
+                    <p className="text-[10px] text-slate-600">Clique para inserir variável:</p>
                     <div className="flex flex-wrap gap-1">
                       {INFO_VARS_BTN.map(v => (
                         <button key={v.var} type="button"
@@ -1177,7 +1177,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
                 className="w-full rounded border border-slate-200 px-2 py-1 text-xs outline-none focus:border-blue-400 resize-none" />
 
               {/* Variable chips — click to insert at cursor position */}
-              <p className="text-[10px] text-slate-400 mt-1 mb-1">Clique para inserir dado real da OS na mensagem:</p>
+              <p className="text-[10px] text-slate-600 mt-1 mb-1">Clique para inserir dado real da OS na mensagem:</p>
               <div className="flex flex-wrap gap-1">
                 {VARS.map(v => (
                   <button key={v.var} type="button"
@@ -1299,7 +1299,7 @@ export default function WorkflowProperties({ block, onChange }: Props) {
           <>
             <Label>Mudar status para</Label>
             <Select value={cfg.targetStatus || "EM_EXECUCAO"} onChange={(v) => updateConfig("targetStatus", v)} options={OS_STATUSES} />
-            <p className="text-[10px] text-slate-400 mt-1">O sistema muda o status automaticamente. Para botoes de acao do tecnico, use o bloco "Botoes de Acao".</p>
+            <p className="text-[10px] text-slate-600 mt-1">O sistema muda o status automaticamente. Para botoes de acao do tecnico, use o bloco "Botoes de Acao".</p>
           </>
         )}
 

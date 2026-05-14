@@ -30,7 +30,7 @@ export default function CashBalances({ data, pendingCards }: CashBalancesProps) 
     <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-slate-800">Saldos por Conta</h3>
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-slate-600">
           Total: <span className={`font-semibold ${totalBalance >= 0 ? "text-green-600" : "text-red-600"}`}>
             {formatCurrency(totalBalance)}
           </span>
@@ -38,7 +38,7 @@ export default function CashBalances({ data, pendingCards }: CashBalancesProps) 
       </div>
 
       {data.length === 0 ? (
-        <p className="text-sm text-slate-400 text-center py-4">Nenhuma conta cadastrada</p>
+        <p className="text-sm text-slate-600 text-center py-4">Nenhuma conta cadastrada</p>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
           {data.map((account) => (

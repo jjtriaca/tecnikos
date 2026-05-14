@@ -586,13 +586,13 @@ export default function QuotesPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={columnsWithActions.length} className="py-16 text-center text-slate-400">
+                <td colSpan={columnsWithActions.length} className="py-16 text-center text-slate-600">
                   Carregando...
                 </td>
               </tr>
             ) : quotes.length === 0 ? (
               <tr>
-                <td colSpan={columnsWithActions.length} className="py-16 text-center text-slate-400">
+                <td colSpan={columnsWithActions.length} className="py-16 text-center text-slate-600">
                   Nenhum orçamento encontrado
                 </td>
               </tr>

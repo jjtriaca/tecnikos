@@ -91,7 +91,7 @@ export default function ExecutionTimeline({ open, ruleId, ruleName, onClose }: P
           ) : executions.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-4xl mb-3 opacity-30">📜</div>
-              <p className="text-sm text-slate-400">Nenhuma execução registrada ainda.</p>
+              <p className="text-sm text-slate-600">Nenhuma execução registrada ainda.</p>
             </div>
           ) : (
             <div className="relative">
@@ -115,14 +115,14 @@ export default function ExecutionTimeline({ open, ruleId, ruleName, onClose }: P
                             <span className={`px-2 py-0.5 text-[10px] font-medium rounded-full ${statusCfg.color}`}>
                               {statusCfg.icon} {statusCfg.label}
                             </span>
-                            <span className="text-[10px] text-slate-400">{exec.eventType}</span>
+                            <span className="text-[10px] text-slate-600">{exec.eventType}</span>
                           </div>
-                          <span className="text-[10px] text-slate-400">{timeStr}</span>
+                          <span className="text-[10px] text-slate-600">{timeStr}</span>
                         </div>
 
                         <div className="text-xs text-slate-600">
                           <span className="font-medium">{exec.entityType}</span>
-                          <span className="text-slate-400 ml-1 font-mono text-[10px]">
+                          <span className="text-slate-600 ml-1 font-mono text-[10px]">
                             {exec.entityId.substring(0, 8)}...
                           </span>
                         </div>

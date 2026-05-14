@@ -227,7 +227,7 @@ export default function WorkflowTemplates({ onSelect, onClose }: Props) {
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 shrink-0">
           <div>
             <h2 className="text-lg font-bold text-slate-800">Escolha um modelo</h2>
-            <p className="text-xs text-slate-400">Selecione um template para comecar ou crie do zero — todos os textos ja vem preenchidos</p>
+            <p className="text-xs text-slate-600">Selecione um template para comecar ou crie do zero — todos os textos ja vem preenchidos</p>
           </div>
           <button onClick={onClose} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
@@ -251,9 +251,9 @@ export default function WorkflowTemplates({ onSelect, onClose }: Props) {
                   </span>
                   <p className="text-sm font-semibold text-slate-700 group-hover:text-blue-700 leading-tight">{t.name}</p>
                 </div>
-                <p className="text-[11px] text-slate-400 leading-relaxed line-clamp-2">{t.description}</p>
+                <p className="text-[11px] text-slate-600 leading-relaxed line-clamp-2">{t.description}</p>
                 {blockCount > 0 && (
-                  <span className="text-[10px] text-slate-300 bg-slate-50 px-1.5 py-0.5 rounded">{blockCount} blocos</span>
+                  <span className="text-[10px] text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded">{blockCount} blocos</span>
                 )}
               </button>
             );

@@ -178,10 +178,10 @@ export default function ContactsSection({ partnerId }: Props) {
         </div>
       )}
 
-      {loading && <p className="text-sm text-slate-400 py-4">Carregando contatos...</p>}
+      {loading && <p className="text-sm text-slate-600 py-4">Carregando contatos...</p>}
 
       {!loading && contacts.length === 0 && !showForm && (
-        <p className="text-sm text-slate-400 py-4">Nenhum contato adicional cadastrado.</p>
+        <p className="text-sm text-slate-600 py-4">Nenhum contato adicional cadastrado.</p>
       )}
 
       {!loading && contacts.length > 0 && (
@@ -196,7 +196,7 @@ export default function ContactsSection({ partnerId }: Props) {
                     <div className="flex items-center gap-2 min-w-0">
                       <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${typeInfo(c.type).color}`}>{typeInfo(c.type).label}</span>
                       <span className="text-sm text-slate-800 truncate">{c.value}</span>
-                      {c.label && <span className="text-xs text-slate-400">({c.label})</span>}
+                      {c.label && <span className="text-xs text-slate-600">({c.label})</span>}
                     </div>
                     <div className="flex gap-1 shrink-0">
                       <button type="button" onClick={() => handleEdit(c)} className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1">Editar</button>
@@ -218,7 +218,7 @@ export default function ContactsSection({ partnerId }: Props) {
                     <div className="flex items-center gap-2 min-w-0">
                       <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${typeInfo(c.type).color}`}>{typeInfo(c.type).label}</span>
                       <span className="text-sm text-slate-800 truncate">{c.value}</span>
-                      {c.label && <span className="text-xs text-slate-400">({c.label})</span>}
+                      {c.label && <span className="text-xs text-slate-600">({c.label})</span>}
                     </div>
                     <div className="flex gap-1 shrink-0">
                       <button type="button" onClick={() => handleEdit(c)} className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1">Editar</button>

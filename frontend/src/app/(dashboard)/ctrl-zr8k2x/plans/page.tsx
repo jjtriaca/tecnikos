@@ -169,7 +169,7 @@ export default function PlansPage() {
         </div>
       ) : plans.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 p-10 text-center">
-          <p className="text-sm text-slate-400">Nenhum plano cadastrado.</p>
+          <p className="text-sm text-slate-600">Nenhum plano cadastrado.</p>
           <button onClick={openCreate} className="mt-2 text-sm font-medium text-blue-600 hover:underline">
             Criar primeiro plano
           </button>
@@ -199,10 +199,10 @@ export default function PlansPage() {
               <div className="mt-4">
                 <div className="text-3xl font-bold text-slate-900">
                   {formatBRL(plan.priceCents)}
-                  <span className="text-sm font-normal text-slate-400">/mês</span>
+                  <span className="text-sm font-normal text-slate-600">/mês</span>
                 </div>
                 {plan.priceYearlyCents && (
-                  <div className="text-xs text-slate-400 mt-0.5">
+                  <div className="text-xs text-slate-600 mt-0.5">
                     ou {formatBRL(plan.priceYearlyCents)}/ano ({formatBRL(plan.priceYearlyCents / 12)}/mês)
                   </div>
                 )}

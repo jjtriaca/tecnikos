@@ -542,7 +542,7 @@ function NewQuotePage() {
               {showProductValue && <div className="flex items-center gap-2 text-sm">
                 <span className="text-slate-600">Valor produtos:</span>
                 <div className="relative">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">R$</span>
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-600">R$</span>
                   <input
                     type="text"
                     value={productValue}
@@ -599,7 +599,7 @@ function NewQuotePage() {
               <button
                 type="button"
                 onClick={() => removeAttachment(idx)}
-                className="text-slate-400 hover:text-red-500 transition-colors mt-1"
+                className="text-slate-600 hover:text-red-500 transition-colors mt-1"
                 title="Remover"
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -703,10 +703,10 @@ function NewQuotePage() {
                       <label key={c.id} className="flex items-center gap-2 text-xs cursor-pointer">
                         <input type="radio" name="quote_wa" checked={selWaId === c.id} onChange={() => setSelWaId(c.id)} className="text-green-600" />
                         <span className="text-slate-700">{c.value}</span>
-                        {c.label && <span className="text-slate-400">({c.label})</span>}
+                        {c.label && <span className="text-slate-600">({c.label})</span>}
                       </label>
                     ))}
-                    {waContacts.length === 0 && !showNewWa && <p className="text-xs text-slate-400">Nenhum WhatsApp cadastrado</p>}
+                    {waContacts.length === 0 && !showNewWa && <p className="text-xs text-slate-600">Nenhum WhatsApp cadastrado</p>}
                     {!showNewWa ? (
                       <button type="button" onClick={() => setShowNewWa(true)} className="text-xs text-green-600 hover:text-green-800">+ Novo WhatsApp</button>
                     ) : (
@@ -733,10 +733,10 @@ function NewQuotePage() {
                       <label key={c.id} className="flex items-center gap-2 text-xs cursor-pointer">
                         <input type="radio" name="quote_email" checked={selEmailId === c.id} onChange={() => setSelEmailId(c.id)} className="text-blue-600" />
                         <span className="text-slate-700">{c.value}</span>
-                        {c.label && <span className="text-slate-400">({c.label})</span>}
+                        {c.label && <span className="text-slate-600">({c.label})</span>}
                       </label>
                     ))}
-                    {emailContacts.length === 0 && !showNewEmail && <p className="text-xs text-slate-400">Nenhum email cadastrado</p>}
+                    {emailContacts.length === 0 && !showNewEmail && <p className="text-xs text-slate-600">Nenhum email cadastrado</p>}
                     {!showNewEmail ? (
                       <button type="button" onClick={() => setShowNewEmail(true)} className="text-xs text-blue-600 hover:text-blue-800">+ Novo email</button>
                     ) : (
@@ -852,7 +852,7 @@ function QuoteItemEditor({
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-xs font-bold text-slate-400 w-6">#{index + 1}</span>
+        <span className="text-xs font-bold text-slate-600 w-6">#{index + 1}</span>
 
         {/* Move buttons */}
         <div className="flex flex-col gap-0.5">
@@ -940,9 +940,9 @@ function QuoteItemEditor({
           />
           {acShow && (
             <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto bg-white border border-slate-300 rounded-lg shadow-lg">
-              {acLoading && <div className="px-3 py-2 text-xs text-slate-400">Buscando...</div>}
+              {acLoading && <div className="px-3 py-2 text-xs text-slate-600">Buscando...</div>}
               {!acLoading && acSuggestions.length === 0 && (
-                <div className="px-3 py-2 text-xs text-slate-400">Nenhum resultado</div>
+                <div className="px-3 py-2 text-xs text-slate-600">Nenhum resultado</div>
               )}
               {acSuggestions.map((s) => (
                 <button

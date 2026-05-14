@@ -13,7 +13,7 @@ export default function WorkflowPalette({ onAddBlock }: Props) {
     <div className="w-56 shrink-0 border-r border-slate-200 bg-slate-50/80 overflow-y-auto">
       <div className="p-3 border-b border-slate-200">
         <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Blocos</h3>
-        <p className="text-[10px] text-slate-400 mt-0.5">Clique para adicionar</p>
+        <p className="text-[10px] text-slate-600 mt-0.5">Clique para adicionar</p>
       </div>
 
       {categories.map((cat) => {

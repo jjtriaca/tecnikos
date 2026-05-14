@@ -60,7 +60,7 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
         {/* Notifications */}
         <Link
           href="/notifications"
-          className="relative flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+          className="relative flex h-9 w-9 items-center justify-center rounded-xl text-slate-600 hover:bg-slate-100 hover:text-slate-600 transition-colors"
           title="Notificações"
         >
           <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>
@@ -80,11 +80,11 @@ export default function Header({ sidebarCollapsed }: HeaderProps) {
         <div className="flex items-center gap-3">
           <div className="text-right hidden sm:block">
             <p className="text-[13px] font-medium text-slate-800 leading-tight">{user?.name}</p>
-            <p className="text-[11px] text-slate-400">{user?.roles?.join(", ")}</p>
+            <p className="text-[11px] text-slate-600">{user?.roles?.join(", ")}</p>
           </div>
           <button
             onClick={logout}
-            className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-600 hover:bg-red-50 hover:text-red-500 transition-colors"
             title="Sair"
           >
             <svg className="h-[18px] w-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.8}>

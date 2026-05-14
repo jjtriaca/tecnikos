@@ -182,10 +182,10 @@ export default function SimulationModal({ open, ruleId, ruleName, entityType, on
           ) : (
             <div className="text-center py-12">
               <div className="text-4xl mb-3 opacity-30">🔬</div>
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-slate-600">
                 Informe o ID de uma entidade e clique em Simular
               </p>
-              <p className="text-xs text-slate-300 mt-1">
+              <p className="text-xs text-slate-600 mt-1">
                 A simulação avalia as condições sem executar nenhuma ação
               </p>
             </div>

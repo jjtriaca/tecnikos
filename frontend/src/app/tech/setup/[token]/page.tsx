@@ -131,7 +131,7 @@ export default function TechSetupPage({ params }: { params: Promise<{ token: str
             <img src="/logo-icon.svg" alt="Tecnikos" className="h-9 w-9" />
             <div>
               <div className="text-sm font-bold text-slate-900">Tecnikos</div>
-              <div className="text-[10px] text-slate-400">Portal do Técnico</div>
+              <div className="text-[10px] text-slate-600">Portal do Técnico</div>
             </div>
           </div>
 

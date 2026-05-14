@@ -589,7 +589,7 @@ export default function UsersPage() {
           ))}
         </div>
       ) : users.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-400">
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-600">
           Nenhum usuario cadastrado.
         </div>
       ) : (

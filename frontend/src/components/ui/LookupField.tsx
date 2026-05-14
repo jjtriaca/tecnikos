@@ -132,9 +132,9 @@ export default function LookupField<T>({
           {/* Dropdown */}
           {showDropdown && (
             <div className="absolute z-50 mt-1 w-full max-h-52 overflow-y-auto bg-white border border-slate-300 rounded-lg shadow-lg">
-              {searching && <div className="px-3 py-2 text-xs text-slate-400">Buscando...</div>}
+              {searching && <div className="px-3 py-2 text-xs text-slate-600">Buscando...</div>}
               {!searching && suggestions.length === 0 && inputValue.length >= 2 && (
-                <div className="px-3 py-2 text-xs text-slate-400">Nenhum resultado</div>
+                <div className="px-3 py-2 text-xs text-slate-600">Nenhum resultado</div>
               )}
               {suggestions.map((item) => (
                 <button

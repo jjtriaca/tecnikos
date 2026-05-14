@@ -208,7 +208,7 @@ export default function TechReviewModal({
             ))}
 
             {allTechs.length === 0 && (
-              <div className="text-center py-8 text-slate-400 text-sm">
+              <div className="text-center py-8 text-slate-600 text-sm">
                 Nenhum técnico encontrado para esta OS
               </div>
             )}
@@ -242,7 +242,7 @@ export default function TechReviewModal({
                     >
                       <span className="text-green-500 text-sm">＋</span>
                       <span className="text-sm text-slate-700">{tech.name}</span>
-                      {tech.phone && <span className="text-xs text-slate-400">({tech.phone})</span>}
+                      {tech.phone && <span className="text-xs text-slate-600">({tech.phone})</span>}
                     </button>
                   ))}
                 </div>

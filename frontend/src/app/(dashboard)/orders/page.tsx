@@ -733,7 +733,7 @@ export default function OrdersPage() {
         </div>
       ) : orders.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-600">
             {tp.search || Object.keys(tp.filters).length > 0
               ? "Nenhuma OS encontrada com os filtros selecionados."
               : "Nenhuma ordem de serviço cadastrada."}

@@ -143,7 +143,7 @@ export default function BoletoGenerationModal({ entry, onClose, onSuccess }: Pro
                 </button>
               </div>
 
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-600">
                 "Gerar e Registrar" cria e envia o boleto ao banco imediatamente.
                 "Rascunho" cria localmente para registro posterior.
               </p>

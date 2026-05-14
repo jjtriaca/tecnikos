@@ -213,7 +213,7 @@ export default function InstallmentDetailModal({ entryId, entryDescription, open
               <div className="h-8 w-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin" />
             </div>
           ) : installments.length === 0 ? (
-            <div className="text-center py-16"><p className="text-sm text-slate-400">Nenhuma parcela encontrada</p></div>
+            <div className="text-center py-16"><p className="text-sm text-slate-600">Nenhuma parcela encontrada</p></div>
           ) : (
             <table className="w-full text-sm">
               <thead>

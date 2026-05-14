@@ -652,7 +652,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                               CNO: <span className="font-mono">{o.cno}</span>
                             </p>
                             {(o.addressStreet || o.city) && (
-                              <p className="text-[11px] text-slate-400 mt-1">
+                              <p className="text-[11px] text-slate-600 mt-1">
                                 {[o.addressStreet, o.addressNumber, o.neighborhood, o.city, o.state].filter(Boolean).join(", ")}
                               </p>
                             )}
@@ -902,7 +902,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                           Obra (construção civil)
                         </button>
                       </div>
-                      <p className="mt-1 text-xs text-slate-400">
+                      <p className="mt-1 text-xs text-slate-600">
                         {tipoNota === "SERVICO"
                           ? "Padrão. Não anexa bloco de obra à nota."
                           : "Anexa bloco de obra (CNO + endereço) à nota — exigido para construção civil."}
@@ -967,7 +967,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                             placeholder="Buscar por codigo ou descricao (ex: aquecimento, instalacao)..."
                             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none pr-8"
                           />
-                          <svg className="absolute right-2.5 top-2.5 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                          <svg className="absolute right-2.5 top-2.5 w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                           {showNbsDropdown && nbsSearch.length >= 2 && (
                             <div className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto bg-white border border-slate-300 rounded-lg shadow-lg">
                               {(() => {
@@ -976,7 +976,7 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                                 const filtered = (nbsRef as { c: string; d: string }[]).filter(
                                   (r) => r.c.includes(q) || norm(r.d).includes(q)
                                 ).slice(0, 30);
-                                if (filtered.length === 0) return <div className="px-3 py-2 text-xs text-slate-400">Nenhum resultado</div>;
+                                if (filtered.length === 0) return <div className="px-3 py-2 text-xs text-slate-600">Nenhum resultado</div>;
                                 return filtered.map((r) => (
                                   <button
                                     key={r.c}
@@ -1233,11 +1233,11 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                         <label key={c.id} className="flex items-center gap-2 text-xs cursor-pointer">
                           <input type="radio" name="emailContact" checked={selectedEmailContactId === c.id} onChange={() => setSelectedEmailContactId(c.id)} className="text-blue-600" />
                           <span className="text-slate-700">{c.value}</span>
-                          {c.label && <span className="text-slate-400">({c.label})</span>}
+                          {c.label && <span className="text-slate-600">({c.label})</span>}
                         </label>
                       ))}
                       {emailContacts.length === 0 && !showNewEmail && (
-                        <p className="text-xs text-slate-400">Nenhum email cadastrado</p>
+                        <p className="text-xs text-slate-600">Nenhum email cadastrado</p>
                       )}
                       {!showNewEmail ? (
                         <button type="button" onClick={() => setShowNewEmail(true)} className="text-xs text-blue-600 hover:text-blue-800 mt-1">+ Novo email</button>
@@ -1265,11 +1265,11 @@ export default function NfseEmissionModal({ financialEntryId, open, onClose, onS
                         <label key={c.id} className="flex items-center gap-2 text-xs cursor-pointer">
                           <input type="radio" name="whatsappContact" checked={selectedWhatsappContactId === c.id} onChange={() => setSelectedWhatsappContactId(c.id)} className="text-green-600" />
                           <span className="text-slate-700">{c.value}</span>
-                          {c.label && <span className="text-slate-400">({c.label})</span>}
+                          {c.label && <span className="text-slate-600">({c.label})</span>}
                         </label>
                       ))}
                       {whatsappContacts.length === 0 && !showNewWhatsapp && (
-                        <p className="text-xs text-slate-400">Nenhum WhatsApp cadastrado</p>
+                        <p className="text-xs text-slate-600">Nenhum WhatsApp cadastrado</p>
                       )}
                       {!showNewWhatsapp ? (
                         <button type="button" onClick={() => setShowNewWhatsapp(true)} className="text-xs text-green-600 hover:text-green-800 mt-1">+ Novo WhatsApp</button>

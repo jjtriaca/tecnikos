@@ -19,14 +19,14 @@ function Connector({ onClick, label }: { onClick?: () => void; label?: string })
       {onClick && (
         <button
           onClick={onClick}
-          className="flex items-center justify-center h-6 w-6 rounded-full border-2 border-dashed border-slate-300 text-slate-400 text-xs hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all"
+          className="flex items-center justify-center h-6 w-6 rounded-full border-2 border-dashed border-slate-300 text-slate-600 text-xs hover:border-blue-400 hover:text-blue-500 hover:bg-blue-50 transition-all"
           title="Inserir bloco aqui"
         >
           +
         </button>
       )}
       {label && !onClick && (
-        <span className="text-[9px] text-slate-400 font-medium">{label}</span>
+        <span className="text-[9px] text-slate-600 font-medium">{label}</span>
       )}
       <div className="w-0.5 h-4 bg-slate-300" />
       <svg className="h-3 w-3 text-slate-300 -mt-0.5" fill="currentColor" viewBox="0 0 12 12">
@@ -196,7 +196,7 @@ function BranchRenderer({
 
 export default function WorkflowCanvas({ blocks, selectedBlockId, onSelectBlock, onDeleteBlock, onInsertAfter }: Props) {
   const startBlock = findStartBlock(blocks);
-  if (!startBlock) return <div className="flex-1 flex items-center justify-center text-slate-400">Workflow vazio</div>;
+  if (!startBlock) return <div className="flex-1 flex items-center justify-center text-slate-600">Workflow vazio</div>;
 
   // Walk the main chain
   const chainIds = walkChain(blocks, startBlock.id);

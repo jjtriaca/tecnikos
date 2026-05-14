@@ -142,7 +142,7 @@ function LoginPageInner() {
               <img src="/logo-icon.svg" alt="Tecnikos" className="h-10 w-10" />
               <div>
                 <div className="text-base font-bold text-slate-900">Tecnikos</div>
-                <div className="text-[11px] text-slate-400">Gestão de Serviços Técnicos</div>
+                <div className="text-[11px] text-slate-600">Gestão de Serviços Técnicos</div>
               </div>
             </div>
 
@@ -206,7 +206,7 @@ function LoginPageInner() {
                 />
                 <button
                   type="button"
-                  className="mt-2 text-xs text-slate-400 hover:text-blue-600 transition-colors"
+                  className="mt-2 text-xs text-slate-600 hover:text-blue-600 transition-colors"
                   onClick={() => {
                     setForgotEmail(email);
                     setForgotState("form");
@@ -271,7 +271,7 @@ function LoginPageInner() {
                 )}
               </button>
 
-              <div className="pt-3 text-center text-[11px] text-slate-300">
+              <div className="pt-3 text-center text-[11px] text-slate-600">
                 Tecnikos &mdash; Gestão de Serviços Técnicos
               </div>
             </form>

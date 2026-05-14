@@ -155,7 +155,7 @@ export default function CanvasBuilder({
           <span className="text-sm font-semibold text-slate-700">
             🎨 Canvas Visual {ruleName && `— ${ruleName}`}
           </span>
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-slate-600">
             {blocks.length} blocos · {connections.length} conexões
           </span>
         </div>
@@ -260,10 +260,10 @@ export default function CanvasBuilder({
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="text-center">
                 <div className="text-5xl mb-3 opacity-30">🎨</div>
-                <p className="text-sm text-slate-400 font-medium">
+                <p className="text-sm text-slate-600 font-medium">
                   Clique nos blocos da paleta para adicioná-los ao canvas
                 </p>
-                <p className="text-xs text-slate-300 mt-1">
+                <p className="text-xs text-slate-600 mt-1">
                   Arraste para mover · Conecte as portas entre si
                 </p>
               </div>

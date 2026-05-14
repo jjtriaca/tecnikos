@@ -428,7 +428,7 @@ function QuickCreateEntryModal({
                 {formatCurrency(line.amountCents)}
               </span>
             </div>
-            <div className="text-slate-400 mt-0.5">Data: {formatDate(line.transactionDate)}</div>
+            <div className="text-slate-600 mt-0.5">Data: {formatDate(line.transactionDate)}</div>
           </div>
 
           {/* Partner */}
@@ -1442,8 +1442,8 @@ function ConciliationModal({
             </div>
           ) : sorted.length === 0 ? (
             <div className="rounded-lg border border-dashed border-slate-300 p-4 text-center">
-              <p className="text-xs text-slate-400">Nenhum lancamento compativel encontrado.</p>
-              <p className="text-[10px] text-slate-400 mt-1">Verifique se existe um lancamento com valor proximo.</p>
+              <p className="text-xs text-slate-600">Nenhum lancamento compativel encontrado.</p>
+              <p className="text-[10px] text-slate-600 mt-1">Verifique se existe um lancamento com valor proximo.</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -1489,7 +1489,7 @@ function ConciliationModal({
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-400">
+                      <p className="text-xs text-slate-600">
                         {entry.partner?.name || "—"} • Venc: {formatDate(entry.dueDate)}
                         {(() => {
                           const pi = entry.paymentInstrumentRef;
@@ -1512,7 +1512,7 @@ function ConciliationModal({
                                   </span>
                                 )}
                                 {pi.paymentMethod?.code && pi.paymentMethod.code !== pi.name.toUpperCase() && (
-                                  <span className="ml-1 text-[9px] text-slate-400">({methodLabel})</span>
+                                  <span className="ml-1 text-[9px] text-slate-600">({methodLabel})</span>
                                 )}
                               </>
                             );
@@ -1559,7 +1559,7 @@ function ConciliationModal({
                       <div className="text-right">
                         <span className="text-sm font-semibold text-slate-800">{formatCurrency(amt)}</span>
                         {isCard && entry.grossCents !== amt && (
-                          <p className="text-[10px] text-slate-400">Bruto: {formatCurrency(entry.grossCents)}</p>
+                          <p className="text-[10px] text-slate-600">Bruto: {formatCurrency(entry.grossCents)}</p>
                         )}
                       </div>
                       <button
@@ -1753,7 +1753,7 @@ function ConciliationModal({
 
                 {discounts.map((d, idx) => (
                   <div key={d.id} className="flex items-start gap-2 bg-white rounded border border-slate-200 p-2">
-                    <span className="text-[10px] text-slate-400 mt-2 w-4">{idx + 1}.</span>
+                    <span className="text-[10px] text-slate-600 mt-2 w-4">{idx + 1}.</span>
                     <div className="flex-1 grid grid-cols-12 gap-2">
                       <input
                         type="text"
@@ -1986,8 +1986,8 @@ function RefundPairModal({
 
           {candidates.length === 0 ? (
             <div className="rounded-lg border border-dashed border-slate-300 p-4 text-center">
-              <p className="text-xs text-slate-400">Nenhuma linha compativel encontrada.</p>
-              <p className="text-[10px] text-slate-400 mt-1">
+              <p className="text-xs text-slate-600">Nenhuma linha compativel encontrada.</p>
+              <p className="text-[10px] text-slate-600 mt-1">
                 Precisa ser uma linha pendente, com sinal oposto e mesmo valor ({formatCurrency(lineAbs)}).
               </p>
             </div>
@@ -2015,7 +2015,7 @@ function RefundPairModal({
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-slate-400">
+                      <p className="text-[11px] text-slate-600">
                         {formatDate(c.transactionDate)}
                       </p>
                     </div>
@@ -2507,9 +2507,9 @@ function CardInvoiceMatchModal({
           )}
 
           {loadingCandidates ? (
-            <p className="text-center text-xs text-slate-400 py-6">Carregando...</p>
+            <p className="text-center text-xs text-slate-600 py-6">Carregando...</p>
           ) : candidates.length === 0 ? (
-            <p className="text-center text-xs text-slate-400 py-6">
+            <p className="text-center text-xs text-slate-600 py-6">
               {selectedCardIds.size === 0
                 ? "Selecione ao menos um cartao."
                 : "Nenhuma compra encontrada no periodo."}
@@ -2543,7 +2543,7 @@ function CardInvoiceMatchModal({
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          {entry.code && <span className="text-[10px] font-mono text-slate-400">{entry.code}</span>}
+                          {entry.code && <span className="text-[10px] font-mono text-slate-600">{entry.code}</span>}
                           <span className="text-sm font-medium text-slate-800 truncate">
                             {entry.partner?.name || entry.description || "—"}
                           </span>
@@ -2639,7 +2639,7 @@ function CardInvoiceMatchModal({
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            {entry.code && <span className="text-[10px] font-mono text-slate-400">{entry.code}</span>}
+                            {entry.code && <span className="text-[10px] font-mono text-slate-600">{entry.code}</span>}
                             <span className="text-sm font-medium text-slate-800 truncate">
                               {entry.partner?.name || entry.description || "—"}
                             </span>
@@ -2754,7 +2754,7 @@ function CardInvoiceMatchModal({
             <h3 className="text-base font-semibold text-slate-900">Novo lancamento — A Pagar (cartao)</h3>
             <button
               onClick={() => { setShowNewEntry(false); resetNewEntryForm(); }}
-              className="text-slate-400 hover:text-slate-600 text-xl leading-none"
+              className="text-slate-600 hover:text-slate-600 text-xl leading-none"
             >
               &times;
             </button>
@@ -2774,7 +2774,7 @@ function CardInvoiceMatchModal({
               renderItem={(p: PartnerSummary) => (
                 <div>
                   <div className="font-medium text-slate-900">{p.name}</div>
-                  {p.document && <div className="text-xs text-slate-400 mt-0.5">{p.document}</div>}
+                  {p.document && <div className="text-xs text-slate-600 mt-0.5">{p.document}</div>}
                 </div>
               )}
             />
@@ -2814,7 +2814,7 @@ function CardInvoiceMatchModal({
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Valor (R$) *</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">R$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-600">R$</span>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -2852,7 +2852,7 @@ function CardInvoiceMatchModal({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
-                Cartão {newEntryForm.isInvoiceCharge ? <span className="text-slate-400 font-normal">(opcional — vazio = encargo da fatura toda)</span> : "*"}
+                Cartão {newEntryForm.isInvoiceCharge ? <span className="text-slate-600 font-normal">(opcional — vazio = encargo da fatura toda)</span> : "*"}
               </label>
               <select
                 value={newEntryForm.paymentInstrumentId}
@@ -3400,7 +3400,7 @@ function MultipleMatchModal({
 
               {discounts.map((d, idx) => (
                 <div key={d.id} className="flex items-start gap-2 bg-white rounded border border-rose-200 p-2">
-                  <span className="text-[10px] text-slate-400 mt-2 w-4">{idx + 1}.</span>
+                  <span className="text-[10px] text-slate-600 mt-2 w-4">{idx + 1}.</span>
                   <div className="flex-1 grid grid-cols-12 gap-2">
                     <input
                       type="text"
@@ -3599,7 +3599,7 @@ function TransferMatchModal({
                 {formatCurrency(line.amountCents)}
               </span>
             </div>
-            <div className="text-slate-400 mt-0.5">{formatDate(line.transactionDate)}</div>
+            <div className="text-slate-600 mt-0.5">{formatDate(line.transactionDate)}</div>
           </div>
 
           {/* Explicacao da direcao */}
@@ -3806,7 +3806,7 @@ function ImportSection() {
             </button>
           </div>
         </div>
-        <p className="mt-2 text-xs text-slate-400">
+        <p className="mt-2 text-xs text-slate-600">
           Formatos aceitos: OFX (Open Financial Exchange) e CSV (com colunas Data, Descricao, Valor).
         </p>
       </div>
@@ -3871,7 +3871,7 @@ function StatementsSection() {
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
           <div className="text-3xl mb-2">🔄</div>
           <p className="text-sm text-slate-500">Nenhum extrato importado.</p>
-          <p className="text-xs text-slate-400 mt-1">Importe um OFX ou CSV para iniciar a conciliacao.</p>
+          <p className="text-xs text-slate-600 mt-1">Importe um OFX ou CSV para iniciar a conciliacao.</p>
         </div>
       ) : (
         <div className="space-y-5">
@@ -3913,7 +3913,7 @@ function StatementsSection() {
                         </div>
                         <div className="text-right ml-4">
                           <p className="text-sm font-medium text-slate-700">{s.matchedCount}/{s.lineCount}</p>
-                          <p className="text-[10px] text-slate-400">conciliados</p>
+                          <p className="text-[10px] text-slate-600">conciliados</p>
                           {s.lineCount > 0 && (
                             <div className="mt-1 h-1.5 w-20 rounded-full bg-slate-200 overflow-hidden">
                               <div
@@ -4036,7 +4036,7 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
     { id: "description", label: "Descrição", render: (l) => (
       <span className="text-[11px] text-slate-700 break-words block" title={l.description}>
         {l.description}
-        {l.fitId && <span className="ml-1 text-[10px] text-slate-400">[{l.fitId}]</span>}
+        {l.fitId && <span className="ml-1 text-[10px] text-slate-600">[{l.fitId}]</span>}
         {l.suggestedPairLineId && l.status === "UNMATCHED" && (
           <span className="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-purple-100 text-purple-700 border border-purple-300 whitespace-nowrap align-middle">
             Possivel estorno
@@ -4237,7 +4237,7 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
                   placeholder="0,00"
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                 />
-                <p className="text-[10px] text-slate-400 mt-1">
+                <p className="text-[10px] text-slate-600 mt-1">
                   Valor positivo: dinheiro em conta. Negativo: conta em aberto.
                 </p>
               </div>
@@ -4294,7 +4294,7 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
         </div>
       ) : lines.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center">
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-slate-600">
             {statusFilter !== "all" ? "Nenhuma transacao com este status." : "Nenhuma transacao nesta importacao."}
           </p>
         </div>

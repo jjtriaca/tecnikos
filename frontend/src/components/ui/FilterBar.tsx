@@ -31,7 +31,7 @@ export default function FilterBar({
         {onSearchChange !== undefined && (
           <div className="relative flex-1 min-w-0">
             <svg
-              className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400"
+              className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-600"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"

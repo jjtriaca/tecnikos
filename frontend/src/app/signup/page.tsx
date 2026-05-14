@@ -208,7 +208,7 @@ function SignupPage() {
         {attemptId && !reportSent && (
           <div>
             {!showReportForm ? (
-              <button onClick={() => setShowReportForm(true)} className="text-[11px] text-slate-400 hover:text-blue-500 underline">
+              <button onClick={() => setShowReportForm(true)} className="text-[11px] text-slate-600 hover:text-blue-500 underline">
                 Teve um problema? Nos avise
               </button>
             ) : (
@@ -219,7 +219,7 @@ function SignupPage() {
                   rows={3} value={reportMessage} onChange={(e) => setReportMessage(e.target.value)}
                   placeholder="Descreva o que aconteceu..." />
                 <div className="flex gap-2">
-                  <button onClick={() => setShowReportForm(false)} className="text-xs text-slate-400 hover:text-slate-600">Cancelar</button>
+                  <button onClick={() => setShowReportForm(false)} className="text-xs text-slate-600 hover:text-slate-800">Cancelar</button>
                   <button onClick={sendReport} disabled={reportSending || !reportMessage.trim()}
                     className="px-3 py-1 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
                     {reportSending ? "Enviando..." : "Enviar"}
@@ -702,13 +702,13 @@ function SignupPage() {
                       <div>
                         <h3 className="font-bold text-slate-900">{plan.name}</h3>
                         {plan.description && <p className="text-xs text-slate-500 mt-0.5">{plan.description}</p>}
-                        <p className="text-xs text-slate-400 mt-1">
+                        <p className="text-xs text-slate-600 mt-1">
                           {plan.maxUsers} usuario{plan.maxUsers > 1 ? "s" : ""} · {plan.maxOsPerMonth === 0 ? "OS ilimitadas" : `${plan.maxOsPerMonth} OS/mes`}
                         </p>
                       </div>
                       <div className="text-right">
                         <span className="text-2xl font-bold text-slate-900">{formatBRL(display)}</span>
-                        <span className="text-xs text-slate-400">/mes</span>
+                        <span className="text-xs text-slate-600">/mes</span>
                       </div>
                     </div>
                   </button>
@@ -742,7 +742,7 @@ function SignupPage() {
             {selectedPlan && (
               <div className="mt-4 rounded-xl bg-slate-900 text-white p-5">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-300">{selectedPlan.name} ({billingCycle === "yearly" ? "anual" : "mensal"})</span>
+                  <span className="text-slate-600">{selectedPlan.name} ({billingCycle === "yearly" ? "anual" : "mensal"})</span>
                   <span>{formatBRL(baseDisplayCents)}/mes</span>
                 </div>
                 {hasDiscount && (
@@ -786,9 +786,9 @@ function SignupPage() {
                   } focus:border-blue-500`}
                     value={form.slug} onChange={(e) => { setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") }); setSlugAvailable(null); }}
                     placeholder="sua-empresa" required minLength={3} />
-                  <span className="h-10 rounded-r-lg border border-l-0 border-slate-200 bg-slate-50 px-3 text-xs text-slate-400 leading-10 whitespace-nowrap">.tecnikos.com.br</span>
+                  <span className="h-10 rounded-r-lg border border-l-0 border-slate-200 bg-slate-50 px-3 text-xs text-slate-600 leading-10 whitespace-nowrap">.tecnikos.com.br</span>
                 </div>
-                {slugChecking && <p className="text-xs text-slate-400 mt-1">Verificando...</p>}
+                {slugChecking && <p className="text-xs text-slate-600 mt-1">Verificando...</p>}
                 {slugAvailable === true && <p className="text-xs text-green-600 mt-1">Disponível!</p>}
                 {slugAvailable === false && <p className="text-xs text-red-500 mt-1">Ja em uso. Tente outro.</p>}
               </div>
@@ -889,7 +889,7 @@ function SignupPage() {
                         value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8}
                         autoComplete="new-password" />
                       <button type="button" onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1">
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-600 p-1">
                         {showPassword ? (
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.894 7.894L21 21m-3.228-3.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
@@ -1067,11 +1067,11 @@ function SignupPage() {
                         </svg>
                         Selecionar arquivo
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-3">PDF, JPEG, PNG ou WebP — maximo 10MB</p>
+                      <p className="text-[10px] text-slate-600 mt-3">PDF, JPEG, PNG ou WebP — maximo 10MB</p>
                     </>
                   )}
                 </div>
-                <p className="text-[10px] text-slate-400 text-center mt-3">
+                <p className="text-[10px] text-slate-600 text-center mt-3">
                   Voce pode obter o Cartão CNPJ em <a href="https://solucoes.receita.fazenda.gov.br/servicos/cnpjreva/cnpjreva_solicitacao.asp" target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">receita.fazenda.gov.br</a>
                 </p>
               </div>
@@ -1101,7 +1101,7 @@ function SignupPage() {
                       <QRCodeSVG value={verifyUrl} size={180} level="M" />
                     </div>
                   )}
-                  <p className="text-[10px] text-slate-400 mb-5">
+                  <p className="text-[10px] text-slate-600 mb-5">
                     Ou abra este link no celular: <span className="text-blue-500 break-all">{verifyUrl}</span>
                   </p>
                 </div>
@@ -1139,7 +1139,7 @@ function SignupPage() {
                   </div>
                 </div>
 
-                <p className="text-[10px] text-slate-400 text-center">
+                <p className="text-[10px] text-slate-600 text-center">
                   Aguardando envio dos documentos pelo celular... A tela avancara automaticamente.
                 </p>
               </div>
@@ -1208,7 +1208,7 @@ function SignupPage() {
                 {selectedPlan && (
                   <div className="rounded-xl bg-slate-900 text-white p-4">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-slate-300">{selectedPlan.name}</span>
+                      <span className="text-slate-600">{selectedPlan.name}</span>
                       <span className="font-bold text-lg">{formatBRL(firstMonthCents)}</span>
                     </div>
                   </div>
@@ -1224,7 +1224,7 @@ function SignupPage() {
               {selectedPlan && (
                 <div className="rounded-xl bg-slate-900 text-white p-5">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-300">{selectedPlan.name} ({billingCycle === "yearly" ? "anual" : "mensal"})</span>
+                    <span className="text-slate-600">{selectedPlan.name} ({billingCycle === "yearly" ? "anual" : "mensal"})</span>
                     <span>{formatBRL(baseDisplayCents)}/mes</span>
                   </div>
                   {hasDiscount && (
@@ -1318,7 +1318,7 @@ function SignupPage() {
                 {resendSuccess && (
                   <p className="text-xs text-green-600 mb-2">Email reenviado com sucesso!</p>
                 )}
-                <p className="text-[10px] text-slate-400 mb-2">
+                <p className="text-[10px] text-slate-600 mb-2">
                   Nao recebeu? Confira o email acima e clique em reenviar.
                 </p>
                 <button

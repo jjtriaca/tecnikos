@@ -318,7 +318,7 @@ export default function AccountsTab() {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-slate-700">Plano de Contas</h3>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-600 mt-0.5">
             Organize receitas, custos e despesas em grupos e subgrupos.
           </p>
         </div>
@@ -360,7 +360,7 @@ export default function AccountsTab() {
             Recolher tudo
           </button>
           <span className="flex-1" />
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-slate-600">
             {groups.length} grupo{groups.length !== 1 ? "s" : ""},{" "}
             {groups.reduce((acc, g) => acc + (g.children?.length || 0), 0)} subgrupos
           </span>
@@ -382,7 +382,7 @@ export default function AccountsTab() {
           <p className="text-sm font-medium text-slate-600 mb-1">
             Nenhuma conta cadastrada
           </p>
-          <p className="text-xs text-slate-400 mb-4">
+          <p className="text-xs text-slate-600 mb-4">
             Comece gerando o plano de contas padrao ou crie grupos manualmente.
           </p>
           <button
@@ -446,7 +446,7 @@ export default function AccountsTab() {
                       <option value="EXPENSE">Despesa</option>
                     </select>
                     {formData.parentId && (
-                      <p className="mt-0.5 text-[10px] text-slate-400">Herdado do grupo pai</p>
+                      <p className="mt-0.5 text-[10px] text-slate-600">Herdado do grupo pai</p>
                     )}
                   </div>
                 </div>
@@ -626,7 +626,7 @@ function GroupRow({
           {/* Edit */}
           <button
             onClick={() => onEdit(group)}
-            className="rounded-lg p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+            className="rounded-lg p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-colors"
             title="Editar"
           >
             <EditIcon />
@@ -635,7 +635,7 @@ function GroupRow({
           {canDelete(group) && (
             <button
               onClick={() => onDelete(group)}
-              className="rounded-lg p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+              className="rounded-lg p-1.5 text-slate-600 hover:text-red-600 hover:bg-red-50 transition-colors"
               title="Excluir"
             >
               <TrashIcon />
@@ -758,7 +758,7 @@ function SubgroupRow({ account, parentType, onEdit, onDelete, onToggleActive, ca
         {/* Edit */}
         <button
           onClick={() => onEdit(account)}
-          className="rounded-lg p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+          className="rounded-lg p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 transition-colors"
           title="Editar"
         >
           <EditIcon />
@@ -767,7 +767,7 @@ function SubgroupRow({ account, parentType, onEdit, onDelete, onToggleActive, ca
         {canDelete(account) && (
           <button
             onClick={() => onDelete(account)}
-            className="rounded-lg p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+            className="rounded-lg p-1.5 text-slate-600 hover:text-red-600 hover:bg-red-50 transition-colors"
             title="Excluir"
           >
             <TrashIcon />

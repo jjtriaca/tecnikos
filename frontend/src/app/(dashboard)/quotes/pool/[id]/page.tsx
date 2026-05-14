@@ -443,10 +443,10 @@ export default function PoolBudgetDetailPage() {
   }
 
   if (loading) {
-    return <div className="p-6 text-slate-400">Carregando...</div>;
+    return <div className="p-6 text-slate-600">Carregando...</div>;
   }
   if (!budget) {
-    return <div className="p-6 text-slate-400">Orcamento nao encontrado.</div>;
+    return <div className="p-6 text-slate-600">Orcamento nao encontrado.</div>;
   }
   const status = STATUS_BADGE[budget.status] || { label: budget.status, cls: "" };
 
@@ -654,7 +654,7 @@ export default function PoolBudgetDetailPage() {
               >
                 Carregar template Linear (Padrao Juliano)
               </button>
-              <p className="text-xs text-slate-400 mt-4">
+              <p className="text-xs text-slate-600 mt-4">
                 Ou use os botoes &ldquo;+ Adicionar etapa&rdquo; abaixo pra montar manualmente.
               </p>
             </div>
@@ -747,7 +747,7 @@ export default function PoolBudgetDetailPage() {
                     <tbody>
                       {items.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="text-center text-xs text-slate-400 py-6">
+                          <td colSpan={8} className="text-center text-xs text-slate-600 py-6">
                             Etapa vazia — clique em &ldquo;+ Linha&rdquo; pra adicionar items.
                           </td>
                         </tr>
@@ -959,7 +959,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         ) : (
           <div className="flex items-center gap-1">
             <button type="button" onClick={() => setShowCatalogPick(true)}
-              className="text-slate-400 hover:text-cyan-700 hover:bg-cyan-50 rounded p-1 text-xs flex-shrink-0"
+              className="text-slate-600 hover:text-cyan-700 hover:bg-cyan-50 rounded p-1 text-xs flex-shrink-0"
               title="Buscar no catalogo">
               🔍
             </button>
@@ -1044,10 +1044,10 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             {onMove && (
               <>
                 <button onClick={() => onMove(-1)} disabled={isFirst}
-                  className="text-slate-400 hover:text-slate-700 text-[10px] disabled:opacity-20 disabled:cursor-not-allowed"
+                  className="text-slate-600 hover:text-slate-700 text-[10px] disabled:opacity-20 disabled:cursor-not-allowed"
                   title="Mover linha pra cima">▲</button>
                 <button onClick={() => onMove(1)} disabled={isLast}
-                  className="text-slate-400 hover:text-slate-700 text-[10px] disabled:opacity-20 disabled:cursor-not-allowed"
+                  className="text-slate-600 hover:text-slate-700 text-[10px] disabled:opacity-20 disabled:cursor-not-allowed"
                   title="Mover linha pra baixo">▼</button>
               </>
             )}
@@ -1222,7 +1222,7 @@ function AddItemModal({ catalog, defaultSection, onClose, onSubmit }: {
                 <input value={search} onChange={(e) => setSearch(e.target.value)} autoFocus
                   placeholder="Buscar por descricao, marca, codigo, voltagem, vazao..."
                   className="w-full rounded-lg border border-slate-300 pl-9 pr-8 py-2 text-sm focus:border-cyan-500 outline-none" />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">🔍</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none">🔍</span>
                 {search && (
                   <button type="button" onClick={() => setSearch("")}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-sm">✕</button>
@@ -1230,7 +1230,7 @@ function AddItemModal({ catalog, defaultSection, onClose, onSubmit }: {
               </div>
               <div className="max-h-72 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100 bg-white">
                 {filteredCatalog.length === 0 ? (
-                  <div className="text-center text-xs text-slate-400 py-6">
+                  <div className="text-center text-xs text-slate-600 py-6">
                     {search ? "Nenhum item encontrado" : "Catalogo vazio"}
                   </div>
                 ) : filteredCatalog.slice(0, 200).map((c) => {
@@ -1262,7 +1262,7 @@ function AddItemModal({ catalog, defaultSection, onClose, onSubmit }: {
                             <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${isProduct ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"}`}>
                               {isProduct ? "PROD" : "SERV"}
                             </span>
-                            <span className="text-[9px] font-mono text-slate-400">{code}</span>
+                            <span className="text-[9px] font-mono text-slate-600">{code}</span>
                             <span className="text-[9px] text-slate-500">{SECTION_LABEL[c.poolSection]}</span>
                           </div>
                           <div className="text-sm font-medium text-slate-900 mt-0.5">{name}</div>
@@ -1473,7 +1473,7 @@ function BudgetSummaryBlock({ budget, locked, paymentTerms, onUpdate, onManagePa
                     ? `+${budget.estimatedDurationDays}d`
                     : "—"}
               </div>
-              <div className="text-[10px] text-slate-400 mt-0.5">Calculado por items com unit h/dia (8h por dia)</div>
+              <div className="text-[10px] text-slate-600 mt-0.5">Calculado por items com unit h/dia (8h por dia)</div>
             </div>
           </div>
 
@@ -1986,7 +1986,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
               {/* Receitas — DEFAULT EXPANDIDO */}
               <details open className="group rounded-lg border border-slate-200 bg-white">
                 <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">
-                  <span className="text-xs font-bold uppercase tracking-wide text-slate-700">⚡ Receitas prontas <span className="text-slate-400 font-normal normal-case">— {FORMULA_RECIPES_PISCINA.length} disponiveis</span></span>
+                  <span className="text-xs font-bold uppercase tracking-wide text-slate-700">⚡ Receitas prontas <span className="text-slate-600 font-normal normal-case">— {FORMULA_RECIPES_PISCINA.length} disponiveis</span></span>
                   <span className="text-slate-400 text-xs group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 <div className="px-4 pb-3 pt-1 grid grid-cols-1 md:grid-cols-2 gap-1.5">
@@ -2006,7 +2006,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
                 <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">
                   <span className="text-xs font-bold uppercase tracking-wide text-slate-700">
                     📐 Variaveis disponiveis
-                    <span className="text-slate-400 font-normal normal-case ml-1">
+                    <span className="text-slate-600 font-normal normal-case ml-1">
                       — clique pra inserir no cursor
                       {productSpecsList.length > 0 && <span className="text-cyan-700"> · {productSpecsList.length} do produto vinculado</span>}
                     </span>
@@ -2096,7 +2096,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
               <details className="group rounded-lg border border-slate-200 bg-white">
                 <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">
                   <span className="text-xs font-bold uppercase tracking-wide text-slate-700">
-                    🧮 Funcoes <span className="text-slate-400 font-normal normal-case">— {FORMULA_FUNCTIONS.join(" · ")}</span>
+                    🧮 Funcoes <span className="text-slate-600 font-normal normal-case">— {FORMULA_FUNCTIONS.join(" · ")}</span>
                   </span>
                   <span className="text-slate-400 text-xs group-open:rotate-180 transition-transform">▼</span>
                 </summary>
@@ -2116,7 +2116,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
                 <details className="group rounded-lg border border-slate-200 bg-white">
                   <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">
                     <span className="text-xs font-bold uppercase tracking-wide text-slate-700">
-                      🔗 Outras linhas <span className="text-slate-400 font-normal normal-case">— {otherItems.filter(o => o.cellRef !== itemCellRef).length} disponiveis · qty(LX) / total(LX) / unitPrice(LX)</span>
+                      🔗 Outras linhas <span className="text-slate-600 font-normal normal-case">— {otherItems.filter(o => o.cellRef !== itemCellRef).length} disponiveis · qty(LX) / total(LX) / unitPrice(LX)</span>
                     </span>
                     <span className="text-slate-400 text-xs group-open:rotate-180 transition-transform">▼</span>
                   </summary>
@@ -2821,7 +2821,7 @@ function SaveAsTemplateModal({ budgetId, itemsCount, currentTemplateId, onClose,
 
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">
-              Nome do modelo {mode === "update" && <span className="text-slate-400">(opcional — mantem o atual se vazio)</span>}
+              Nome do modelo {mode === "update" && <span className="text-slate-600">(opcional — mantem o atual se vazio)</span>}
             </label>
             <input value={name} onChange={(e) => setName(e.target.value)}
               required={mode === "new"}
@@ -2905,7 +2905,7 @@ function CatalogPickModal({ catalog, currentSection, onClose, onPick }: {
                 <input value={search} onChange={(e) => setSearch(e.target.value)} autoFocus
                   placeholder="Buscar por descricao, marca, codigo, voltagem, vazao..."
                   className="w-full rounded-lg border border-slate-300 pl-9 pr-8 py-2 text-sm focus:border-cyan-500 outline-none" />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">🔍</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none">🔍</span>
                 {search && (
                   <button type="button" onClick={() => setSearch("")}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-sm">✕</button>
@@ -2913,7 +2913,7 @@ function CatalogPickModal({ catalog, currentSection, onClose, onPick }: {
               </div>
               <div className="flex-1 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100 bg-white">
                 {filtered.length === 0 ? (
-                  <div className="text-center text-xs text-slate-400 py-6">
+                  <div className="text-center text-xs text-slate-600 py-6">
                     {search ? "Nenhum item encontrado" : "Catalogo vazio"}
                   </div>
                 ) : filtered.slice(0, 200).map((c) => {
@@ -2942,7 +2942,7 @@ function CatalogPickModal({ catalog, currentSection, onClose, onPick }: {
                             <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${isProduct ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"}`}>
                               {isProduct ? "PROD" : "SERV"}
                             </span>
-                            <span className="text-[9px] font-mono text-slate-400">{code}</span>
+                            <span className="text-[9px] font-mono text-slate-600">{code}</span>
                             <span className="text-[9px] text-slate-500">{SECTION_LABEL[c.poolSection]}</span>
                           </div>
                           <div className="text-sm font-medium text-slate-900 mt-0.5">{name}</div>
@@ -3188,7 +3188,7 @@ function PaymentTermsModal({ onClose }: { onClose: () => void }) {
             </thead>
             <tbody>
               {items.length === 0 ? (
-                <tr><td colSpan={5} className="text-center text-sm text-slate-400 py-8">Nenhuma forma cadastrada</td></tr>
+                <tr><td colSpan={5} className="text-center text-sm text-slate-600 py-8">Nenhuma forma cadastrada</td></tr>
               ) : items.map((t) => (
                 <tr key={t.id} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50">
                   <td className="px-4 py-2 font-medium text-slate-900">{t.name}</td>

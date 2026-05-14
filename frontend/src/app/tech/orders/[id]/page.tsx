@@ -979,7 +979,7 @@ export default function TechOrderDetailPage() {
   if (!order) {
     return (
       <div className="py-16 text-center">
-        <p className="text-sm text-slate-400">Ordem de serviço nao encontrada.</p>
+        <p className="text-sm text-slate-600">Ordem de serviço nao encontrada.</p>
         <button onClick={() => router.push("/tech/orders")} className="mt-3 text-sm font-medium text-blue-600">
           Voltar
         </button>
@@ -1297,7 +1297,7 @@ export default function TechOrderDetailPage() {
                   className="w-full py-3 rounded-xl bg-red-600 text-white font-semibold disabled:opacity-40 active:scale-[0.98] transition-all">
                   {incidentLoading ? "Enviando..." : "Enviar Ocorrencia"}
                 </button>
-                <p className="text-[10px] text-slate-400 text-center mt-2">O gestor sera notificado imediatamente</p>
+                <p className="text-[10px] text-slate-600 text-center mt-2">O gestor sera notificado imediatamente</p>
               </div>
             </div>
           )}
@@ -1377,7 +1377,7 @@ function TerminalScreen({ order, infoBlock, showInfoMs, blankMs }: { order: Serv
           <span className="text-2xl">✅</span>
         </div>
         <p className="text-sm font-medium text-slate-600">Ordem de serviço finalizada</p>
-        <p className="text-xs text-slate-400 mt-1">Não há mais ações pendentes</p>
+        <p className="text-xs text-slate-600 mt-1">Não há mais ações pendentes</p>
       </div>
     </div>
   );
@@ -1640,7 +1640,7 @@ function V2BlockAction({
                             style={{ width: `${Math.max(5, Math.min(100, 100 - (proximityDistance / ((c.radiusMeters || 50) * 10)) * 100))}%` }}
                           />
                         </div>
-                        <p className="text-[10px] text-slate-400 mt-1">
+                        <p className="text-[10px] text-slate-600 mt-1">
                           Raio: {c.radiusMeters || 50}m {c.autoAdvanceOnProximity !== false ? "— avanca automaticamente ao chegar" : "— clique 'Cheguei' ao chegar"}
                         </p>
                       </div>
@@ -1692,7 +1692,7 @@ function V2BlockAction({
                             <>📍 Cheguei (manual)</>
                           )}
                         </button>
-                        <p className="text-[10px] text-slate-400 text-center">
+                        <p className="text-[10px] text-slate-600 text-center">
                           Use se o GPS não detectar sua chegada automaticamente
                         </p>
                       </>
@@ -1812,7 +1812,7 @@ function V2BlockAction({
                         style={{ width: `${Math.max(5, Math.min(100, 100 - (proximityDistance / ((c.radiusMeters || 50) * 10)) * 100))}%` }}
                       />
                     </div>
-                    <p className="text-[10px] text-slate-400 mt-1">
+                    <p className="text-[10px] text-slate-600 mt-1">
                       Raio de ativacao: {c.radiusMeters || 50}m — avanca automaticamente ao chegar
                     </p>
                   </div>
@@ -1836,7 +1836,7 @@ function V2BlockAction({
                     <>📍 Cheguei</>
                   )}
                 </button>
-                <p className="text-[10px] text-slate-400 text-center">
+                <p className="text-[10px] text-slate-600 text-center">
                   Use se o GPS nao detectar sua chegada automaticamente
                 </p>
               </div>

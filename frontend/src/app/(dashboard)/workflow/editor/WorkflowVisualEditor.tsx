@@ -229,7 +229,7 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
         />
 
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-slate-400 tabular-nums">{blockCount} blocos</span>
+          <span className="text-[10px] text-slate-600 tabular-nums">{blockCount} blocos</span>
 
           <button
             onClick={() => setShowTechPortal(true)}

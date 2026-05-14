@@ -106,7 +106,7 @@ export default function FinancialReportModal({ open, defaultType, onClose }: Fin
           <h3 className="text-lg font-semibold text-slate-900">Gerar Relatório Financeiro</h3>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-lg p-1 text-slate-600 hover:bg-slate-100 hover:text-slate-600"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -131,7 +131,7 @@ export default function FinancialReportModal({ open, defaultType, onClose }: Fin
               renderItem={(p) => (
                 <div>
                   <div className="font-medium text-slate-900">{p.name}</div>
-                  <div className="flex gap-3 text-xs text-slate-400 mt-0.5">
+                  <div className="flex gap-3 text-xs text-slate-600 mt-0.5">
                     {p.document && <span>{p.document}</span>}
                     {p.phone && <span>{p.phone}</span>}
                   </div>

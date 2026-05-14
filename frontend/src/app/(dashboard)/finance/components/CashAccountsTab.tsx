@@ -411,7 +411,7 @@ function AccountsSection() {
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
           <div className="text-3xl mb-2">🏦</div>
           <p className="text-sm text-slate-500">Nenhuma conta cadastrada.</p>
-          <p className="text-xs text-slate-400 mt-1">Crie caixas e contas bancarias para controlar seu saldo.</p>
+          <p className="text-xs text-slate-600 mt-1">Crie caixas e contas bancarias para controlar seu saldo.</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -426,7 +426,7 @@ function AccountsSection() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     {acc.code && (
-                      <span className="text-xs font-mono text-slate-400">{acc.code}</span>
+                      <span className="text-xs font-mono text-slate-600">{acc.code}</span>
                     )}
                     <span className="text-sm font-semibold text-slate-900">{acc.name}</span>
                     <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium border ${
@@ -470,7 +470,7 @@ function AccountsSection() {
                         <p className={`text-lg font-bold ${acc.currentBalanceCents < 0 ? "text-rose-700" : "text-slate-500"}`}>
                           {formatCurrency(Math.abs(acc.currentBalanceCents))}
                         </p>
-                        <p className="text-[10px] text-slate-400">
+                        <p className="text-[10px] text-slate-600">
                           {acc.currentBalanceCents < 0 ? "Em aberto" : "Fatura quitada"}
                         </p>
                       </>
@@ -479,7 +479,7 @@ function AccountsSection() {
                         <p className={`text-lg font-bold ${acc.currentBalanceCents >= 0 ? "text-green-700" : "text-red-700"}`}>
                           {formatCurrency(acc.currentBalanceCents)}
                         </p>
-                        <p className="text-[10px] text-slate-400">Saldo atual</p>
+                        <p className="text-[10px] text-slate-600">Saldo atual</p>
                       </>
                     )}
                   </div>
@@ -849,7 +849,7 @@ function AccountsSection() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Motivo * <span className="text-[10px] text-slate-400">(min 10 caracteres)</span>
+                    Motivo * <span className="text-[10px] text-slate-600">(min 10 caracteres)</span>
                   </label>
                   <textarea
                     value={rebalanceReason}
@@ -858,7 +858,7 @@ function AccountsSection() {
                     placeholder="Ex: Ajuste cumulativo historico — divergencia detectada na auditoria de 27/04/2026"
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none resize-none"
                   />
-                  <p className="text-[10px] text-slate-400 mt-0.5">{rebalanceReason.trim().length} / 10+ caracteres</p>
+                  <p className="text-[10px] text-slate-600 mt-0.5">{rebalanceReason.trim().length} / 10+ caracteres</p>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">Plano de contas (opcional)</label>
@@ -1001,7 +1001,7 @@ function TransfersSection() {
         </div>
       ) : transfers.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
-          <p className="text-sm text-slate-400">Nenhuma transferencia realizada.</p>
+          <p className="text-sm text-slate-600">Nenhuma transferencia realizada.</p>
         </div>
       ) : (
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
@@ -1022,11 +1022,11 @@ function TransfersSection() {
                 <tr key={tx.id} className="border-b border-slate-100 hover:bg-slate-100 transition-colors">
                   <td className="py-3 px-4 text-slate-700 whitespace-nowrap">{formatDateTime(tx.transferDate)}</td>
                   <td className="py-3 px-4 text-slate-700">{tx.fromAccount?.name || "—"}</td>
-                  <td className="py-3 px-4 text-center text-slate-400">→</td>
+                  <td className="py-3 px-4 text-center text-slate-600">→</td>
                   <td className="py-3 px-4 text-slate-700">{tx.toAccount?.name || "—"}</td>
                   <td className="py-3 px-4 text-right font-semibold text-indigo-700">{formatCurrency(tx.amountCents)}</td>
                   <td className="py-3 px-4 text-slate-500 truncate max-w-[200px]">{tx.description || "—"}</td>
-                  <td className="py-3 px-4 text-xs text-slate-400">{tx.createdByName}</td>
+                  <td className="py-3 px-4 text-xs text-slate-600">{tx.createdByName}</td>
                 </tr>
               ))}
             </tbody>

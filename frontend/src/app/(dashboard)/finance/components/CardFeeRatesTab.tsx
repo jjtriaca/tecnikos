@@ -228,7 +228,7 @@ export default function CardFeeRatesTab() {
       ) : rates.length === 0 ? (
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-8 text-center">
           <p className="text-sm text-slate-500">Nenhuma taxa cadastrada.</p>
-          <p className="text-xs text-slate-400 mt-1">Clique em &quot;+ Nova Taxa&quot; para configurar as taxas de cartao da empresa.</p>
+          <p className="text-xs text-slate-600 mt-1">Clique em &quot;+ Nova Taxa&quot; para configurar as taxas de cartao da empresa.</p>
         </div>
       ) : (
         <div className="space-y-4">

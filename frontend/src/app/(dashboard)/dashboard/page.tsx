@@ -476,7 +476,7 @@ export default function DashboardPage() {
               <span className="text-xs font-medium text-slate-500">A Receber</span>
             </div>
             <p className="text-lg font-bold text-green-700">{formatCurrency(financeSummary.receivables.pendingCents + financeSummary.receivables.confirmedCents)}</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">
+            <p className="text-[11px] text-slate-600 mt-0.5">
               {financeSummary.receivables.pendingCount + financeSummary.receivables.confirmedCount} pendente{(financeSummary.receivables.pendingCount + financeSummary.receivables.confirmedCount) !== 1 ? "s" : ""} · {formatCurrency(financeSummary.receivables.paidCents)} recebido
             </p>
           </Link>
@@ -488,7 +488,7 @@ export default function DashboardPage() {
               <span className="text-xs font-medium text-slate-500">A Pagar</span>
             </div>
             <p className="text-lg font-bold text-red-700">{formatCurrency(financeSummary.payables.pendingCents + financeSummary.payables.confirmedCents)}</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">
+            <p className="text-[11px] text-slate-600 mt-0.5">
               {financeSummary.payables.pendingCount + financeSummary.payables.confirmedCount} pendente{(financeSummary.payables.pendingCount + financeSummary.payables.confirmedCount) !== 1 ? "s" : ""} · {formatCurrency(financeSummary.payables.paidCents)} pago
             </p>
           </Link>
@@ -502,7 +502,7 @@ export default function DashboardPage() {
             <p className={`text-lg font-bold ${financeSummary.balanceCents >= 0 ? "text-green-700" : "text-red-700"}`}>
               {formatCurrency(financeSummary.balanceCents)}
             </p>
-            <p className="text-[11px] text-slate-400 mt-0.5">Recebido - Pago</p>
+            <p className="text-[11px] text-slate-600 mt-0.5">Recebido - Pago</p>
           </Link>
         </div>
       )}
@@ -517,7 +517,7 @@ export default function DashboardPage() {
                 <h3 className="text-sm font-semibold text-slate-800">
                   Distribuição por Status
                 </h3>
-                <span className="text-xs text-slate-400">{stats.total} total</span>
+                <span className="text-xs text-slate-600">{stats.total} total</span>
               </div>
               <div className="space-y-3">
                 {Object.entries(stats.byStatus)
@@ -535,7 +535,7 @@ export default function DashboardPage() {
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="text-[11px] text-slate-400">{pct}%</span>
+                            <span className="text-[11px] text-slate-600">{pct}%</span>
                             <span className="text-xs font-bold text-slate-800 w-6 text-right">
                               {count}
                             </span>
@@ -571,7 +571,7 @@ export default function DashboardPage() {
                 <div className="mb-2">
                   <Sparkline data={sparklineData} color="#3b82f6" height={120} />
                 </div>
-                <div className="flex justify-between text-[10px] text-slate-400 px-0.5">
+                <div className="flex justify-between text-[10px] text-slate-600 px-0.5">
                   {(() => {
                     const labels: string[] = [];
                     for (let i = 13; i >= 0; i--) {
@@ -589,7 +589,7 @@ export default function DashboardPage() {
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-32 text-slate-400">
+              <div className="flex flex-col items-center justify-center h-32 text-slate-600">
                 <IconClipboard className="h-8 w-8 opacity-30 mb-2" />
                 <p className="text-xs">Nenhuma OS criada nos últimos 14 dias</p>
               </div>
@@ -627,7 +627,7 @@ export default function DashboardPage() {
                 <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 mb-3">
                   <IconClipboard className="h-6 w-6 text-slate-400" />
                 </div>
-                <p className="text-sm text-slate-400 mb-3">
+                <p className="text-sm text-slate-600 mb-3">
                   Nenhuma ordem de serviço encontrada.
                 </p>
                 <Link
@@ -672,7 +672,7 @@ export default function DashboardPage() {
                       >
                         {STATUS_LABELS[order.status] || order.status}
                       </span>
-                      <span className="text-xs text-slate-400 w-10 text-right hidden sm:block">
+                      <span className="text-xs text-slate-600 w-10 text-right hidden sm:block">
                         {formatDate(order.deadlineAt)}
                       </span>
                       <span className="text-sm font-semibold text-slate-700 w-20 text-right">
@@ -713,7 +713,7 @@ export default function DashboardPage() {
                 <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 mb-3">
                   <IconUsers className="h-6 w-6 text-slate-400" />
                 </div>
-                <p className="text-sm text-slate-400">Nenhum parceiro cadastrado.</p>
+                <p className="text-sm text-slate-600">Nenhum parceiro cadastrado.</p>
               </div>
             ) : (
               <div className="divide-y divide-slate-100">
@@ -753,7 +753,7 @@ export default function DashboardPage() {
                     {/* Completion rate */}
                     <div className="text-right flex-shrink-0">
                       <p className="text-sm font-bold text-slate-800">{tech.completionRate}%</p>
-                      <p className="text-[10px] text-slate-400">conclusão</p>
+                      <p className="text-[10px] text-slate-600">conclusão</p>
                     </div>
                   </Link>
                 ))}

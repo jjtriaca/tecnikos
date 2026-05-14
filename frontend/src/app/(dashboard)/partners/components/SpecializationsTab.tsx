@@ -64,7 +64,7 @@ export default function SpecializationsTab({
         </p>
 
         {specializations.length === 0 ? (
-          <p className="text-sm text-slate-400 mb-4">Nenhuma especialização cadastrada.</p>
+          <p className="text-sm text-slate-600 mb-4">Nenhuma especialização cadastrada.</p>
         ) : (
           <div className="flex flex-wrap gap-2 mb-4">
             {specializations.map((spec) => (

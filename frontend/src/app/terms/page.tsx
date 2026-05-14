@@ -2,7 +2,7 @@ export default function TermsPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-12">
       <h1 className="text-2xl font-bold text-slate-800 mb-6">Termos de Uso — Tecnikos</h1>
-      <p className="text-xs text-slate-400 mb-8">Última atualizacao: 17 de marco de 2026</p>
+      <p className="text-xs text-slate-600 mb-8">Última atualizacao: 17 de marco de 2026</p>
 
       <div className="prose prose-slate prose-sm max-w-none space-y-6">
         <section>

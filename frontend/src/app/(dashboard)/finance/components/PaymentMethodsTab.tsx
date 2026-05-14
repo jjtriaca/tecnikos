@@ -199,7 +199,7 @@ export default function PaymentMethodsTab() {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-slate-700">Formas de Pagamento</h3>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-600 mt-0.5">
             Cadastre e gerencie as formas de pagamento aceitas.
           </p>
         </div>
@@ -250,7 +250,7 @@ export default function PaymentMethodsTab() {
           <p className="text-sm text-slate-500 mb-3">
             Nenhuma forma de pagamento cadastrada.
           </p>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-600">
             Clique em &quot;Criar Padrao&quot; para criar PIX, Cartão, Dinheiro, Boleto, Cheque e mais.
           </p>
         </div>
@@ -294,7 +294,7 @@ export default function PaymentMethodsTab() {
                       <span>Prazo: {pm.receivingDays} dia{pm.receivingDays !== 1 ? "s" : ""}</span>
                     )}
                     {pm.sortOrder > 0 && (
-                      <span className="text-slate-400">Ordem: {pm.sortOrder}</span>
+                      <span className="text-slate-600">Ordem: {pm.sortOrder}</span>
                     )}
                   </div>
                 </div>
@@ -372,7 +372,7 @@ export default function PaymentMethodsTab() {
                     placeholder="Ex: CARTAO_CREDITO"
                     className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                   />
-                  <p className="mt-0.5 text-[10px] text-slate-400">Identificador unico (gerado do nome)</p>
+                  <p className="mt-0.5 text-[10px] text-slate-600">Identificador unico (gerado do nome)</p>
                 </div>
               </div>
 

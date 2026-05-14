@@ -35,7 +35,7 @@ export function CurrencyInput({ value, onChange, placeholder, prefix, suffix, fo
 
   return (
     <div className="relative">
-      {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">{prefix}</span>}
+      {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-600 font-medium">{prefix}</span>}
       <input
         type="text"
         inputMode="decimal"
@@ -46,7 +46,7 @@ export function CurrencyInput({ value, onChange, placeholder, prefix, suffix, fo
         disabled={disabled}
         className={`w-full rounded-lg border border-slate-300 ${prefix ? "pl-9" : "pl-3"} ${suffix ? "pr-7" : "pr-3"} py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none disabled:bg-slate-100 ${className || ""}`}
       />
-      {suffix && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 font-medium">{suffix}</span>}
+      {suffix && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-600 font-medium">{suffix}</span>}
     </div>
   );
 }

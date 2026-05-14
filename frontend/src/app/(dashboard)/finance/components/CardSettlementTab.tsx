@@ -574,13 +574,13 @@ export default function CardSettlementTab() {
               <div className="text-xs text-green-600">
                 <p>Baixado</p>
                 {cs.settledAt && (
-                  <p className="text-slate-400">{formatDateTime(cs.settledAt)}</p>
+                  <p className="text-slate-600">{formatDateTime(cs.settledAt)}</p>
                 )}
               </div>
             );
           }
           if (cs.status === "CANCELLED") {
-            return <span className="text-xs text-slate-400">Cancelado</span>;
+            return <span className="text-xs text-slate-600">Cancelado</span>;
           }
           const days = daysUntil(cs.expectedDate);
           let color = "text-green-600";
@@ -889,7 +889,7 @@ export default function CardSettlementTab() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
           </svg>
           Configurar Taxas por Bandeira
-          <span className="text-xs text-slate-400">({feeRates.length} taxas cadastradas)</span>
+          <span className="text-xs text-slate-600">({feeRates.length} taxas cadastradas)</span>
         </button>
 
         {showFeeRates && (
@@ -1156,7 +1156,7 @@ export default function CardSettlementTab() {
       ) : settlements.data.length === 0 ? (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
           <p className="text-sm text-slate-500">Nenhuma baixa de cartao encontrada.</p>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-600 mt-1">
             As baixas sao criadas automaticamente ao registrar pagamentos com cartao.
           </p>
         </div>

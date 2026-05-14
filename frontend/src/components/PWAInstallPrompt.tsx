@@ -123,7 +123,7 @@ export default function PWAInstallPrompt() {
               <img src="/icons/icon-72.png" alt="Tecnikos" className="h-10 w-10 rounded-xl shadow" />
               <div>
                 <p className="text-base font-bold text-slate-800">Instalar Tecnikos</p>
-                <p className="text-xs text-slate-400">Acesse como um app nativo</p>
+                <p className="text-xs text-slate-600">Acesse como um app nativo</p>
               </div>
             </div>
             <button onClick={handleDismiss} className="text-slate-400 hover:text-slate-600 p-1">

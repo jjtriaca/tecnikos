@@ -88,7 +88,7 @@ export default function ChatIAPanel() {
             <div className="border-b border-slate-200 bg-slate-50 p-3 max-h-48 overflow-y-auto">
               <p className="mb-2 text-[11px] font-medium text-slate-500 uppercase">Conversas anteriores</p>
               {conversations.length === 0 ? (
-                <p className="text-xs text-slate-400">Nenhuma conversa ainda</p>
+                <p className="text-xs text-slate-600">Nenhuma conversa ainda</p>
               ) : (
                 <div className="space-y-1">
                   {conversations.map((conv) => (
@@ -101,7 +101,7 @@ export default function ChatIAPanel() {
                       className="w-full rounded-lg px-2.5 py-2 text-left text-xs text-slate-600 transition-colors hover:bg-slate-200"
                     >
                       <div className="font-medium truncate">{conv.title || "Sem título"}</div>
-                      <div className="text-[10px] text-slate-400">{conv.messageCount} msgs</div>
+                      <div className="text-[10px] text-slate-600">{conv.messageCount} msgs</div>
                     </button>
                   ))}
                 </div>
@@ -120,7 +120,7 @@ export default function ChatIAPanel() {
                     </svg>
                   </div>
                   <p className="text-sm font-medium text-slate-700">Sugestao enviada!</p>
-                  <p className="text-xs text-slate-400 mt-1">Obrigado pelo seu feedback</p>
+                  <p className="text-xs text-slate-600 mt-1">Obrigado pelo seu feedback</p>
                   <button onClick={() => setShowSuggestion(false)} className="mt-3 text-xs text-blue-600 hover:text-blue-700">Fechar</button>
                 </div>
               ) : (

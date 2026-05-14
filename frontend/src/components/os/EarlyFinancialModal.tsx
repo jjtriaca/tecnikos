@@ -205,7 +205,7 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
           {loading && (
             <div className="text-center py-6">
               <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-500 border-t-transparent mx-auto" />
-              <p className="text-xs text-slate-400 mt-2">Calculando...</p>
+              <p className="text-xs text-slate-600 mt-2">Calculando...</p>
             </div>
           )}
 
@@ -359,39 +359,39 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
                     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
                       <div className="grid grid-cols-4 gap-2">
                         <div>
-                          <span className="text-[10px] text-slate-400">Bandeira</span>
+                          <span className="text-[10px] text-slate-600">Bandeira</span>
                           <p className="font-medium text-slate-700">{selectedCardRate.brand}</p>
                         </div>
                         <div>
-                          <span className="text-[10px] text-slate-400">Parcelas</span>
+                          <span className="text-[10px] text-slate-600">Parcelas</span>
                           <p className="font-medium text-slate-700">{installmentCount}x</p>
                         </div>
                         <div>
-                          <span className="text-[10px] text-slate-400">Taxa</span>
+                          <span className="text-[10px] text-slate-600">Taxa</span>
                           <p className="font-medium text-red-600">{selectedCardRate.feePercent.toFixed(2)}%</p>
                         </div>
                         <div>
-                          <span className="text-[10px] text-slate-400">Recebimento</span>
+                          <span className="text-[10px] text-slate-600">Recebimento</span>
                           <p className="font-medium text-slate-700">{selectedCardRate.receivingDays}d/parcela</p>
                         </div>
                       </div>
                       <div className="mt-2 pt-2 border-t border-slate-200 grid grid-cols-3 gap-2">
                         <div>
-                          <span className="text-[10px] text-slate-400">Bruto</span>
+                          <span className="text-[10px] text-slate-600">Bruto</span>
                           <p className="font-medium text-slate-700">{formatBRL(recGross)}</p>
                         </div>
                         <div>
-                          <span className="text-[10px] text-slate-400">Taxa</span>
+                          <span className="text-[10px] text-slate-600">Taxa</span>
                           <p className="font-medium text-red-600">- {formatBRL(feeCents)}</p>
                         </div>
                         <div>
-                          <span className="text-[10px] text-slate-400">Liquido</span>
+                          <span className="text-[10px] text-slate-600">Liquido</span>
                           <p className="font-medium text-green-700">{formatBRL(netAfterFee)}</p>
                         </div>
                       </div>
                       {installmentCount > 1 && (
                         <div className="mt-2 pt-2 border-t border-slate-200">
-                          <span className="text-[10px] text-slate-400">Previsao de recebimento:</span>
+                          <span className="text-[10px] text-slate-600">Previsao de recebimento:</span>
                           <div className="mt-1 space-y-0.5">
                             {Array.from({ length: installmentCount }).map((_, i) => {
                               const parcGross = i < installmentCount - 1
@@ -420,7 +420,7 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
               {!recEntry && !payEntry && (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-center">
                   <p className="text-xs text-slate-500">Nenhum lancamento disponível para esta OS.</p>
-                  <p className="text-[10px] text-slate-400 mt-1">A OS precisa ter cliente e/ou tecnico atribuido.</p>
+                  <p className="text-[10px] text-slate-600 mt-1">A OS precisa ter cliente e/ou tecnico atribuido.</p>
                 </div>
               )}
 

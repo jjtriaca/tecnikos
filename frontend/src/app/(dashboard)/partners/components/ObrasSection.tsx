@@ -410,12 +410,12 @@ export default function ObrasSection({ partnerId }: Props) {
 
       {/* ----- Loading ----- */}
       {loading && (
-        <p className="text-sm text-slate-400 py-4">Carregando obras...</p>
+        <p className="text-sm text-slate-600 py-4">Carregando obras...</p>
       )}
 
       {/* ----- Empty state ----- */}
       {!loading && obras.length === 0 && !showForm && (
-        <p className="text-sm text-slate-400 py-4">
+        <p className="text-sm text-slate-600 py-4">
           Nenhuma obra cadastrada para este parceiro.
         </p>
       )}

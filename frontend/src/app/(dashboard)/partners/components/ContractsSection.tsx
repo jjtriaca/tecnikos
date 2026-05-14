@@ -132,7 +132,7 @@ export default function ContractsSection({ partnerId }: Props) {
                   <span className="text-sm">{cfg.icon}</span>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-slate-800 truncate">{c.contractName}</p>
-                    <p className="text-[10px] text-slate-400">
+                    <p className="text-[10px] text-slate-600">
                       Enviado {fmtDate(c.sentAt)} via {c.sentVia || 'N/A'}
                     </p>
                   </div>
@@ -156,14 +156,14 @@ export default function ContractsSection({ partnerId }: Props) {
                     <div className="text-slate-700">{fmtDate(c.sentAt)}</div>
 
                     <div className="text-slate-500">Visualizado:</div>
-                    <div className="text-slate-700">{c.viewedAt ? fmtDate(c.viewedAt) : <span className="text-slate-400">Ainda não</span>}</div>
+                    <div className="text-slate-700">{c.viewedAt ? fmtDate(c.viewedAt) : <span className="text-slate-600">Ainda não</span>}</div>
 
                     <div className="text-slate-500">Aceito:</div>
                     <div className="text-slate-700">
                       {c.acceptedAt ? (
                         <span className="text-green-700 font-medium">{fmtDate(c.acceptedAt)}</span>
                       ) : (
-                        <span className="text-slate-400">Ainda não</span>
+                        <span className="text-slate-600">Ainda não</span>
                       )}
                     </div>
 
@@ -226,7 +226,7 @@ export default function ContractsSection({ partnerId }: Props) {
                             alt="Assinatura digital"
                             className="max-w-full h-auto max-h-32 mx-auto"
                           />
-                          <p className="text-[10px] text-slate-400 text-center mt-1">Assinatura registrada em {fmtDate(c.acceptedAt)}</p>
+                          <p className="text-[10px] text-slate-600 text-center mt-1">Assinatura registrada em {fmtDate(c.acceptedAt)}</p>
                         </div>
                       )}
                     </div>

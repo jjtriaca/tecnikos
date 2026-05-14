@@ -708,7 +708,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
 
           {/* Last update */}
           {trackingLastUpdate && (
-            <p className="text-xs text-slate-400 text-center mb-3">
+            <p className="text-xs text-slate-600 text-center mb-3">
               Última atualização: {trackingLastUpdate.toLocaleTimeString("pt-BR")}
             </p>
           )}
@@ -756,7 +756,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
             Parar rastreamento
           </button>
 
-          <p className="text-[10px] text-slate-400 text-center mt-4">
+          <p className="text-[10px] text-slate-600 text-center mt-4">
             ⚡ Mantenha esta página aberta para o rastreamento funcionar.
           </p>
         </div>
@@ -787,7 +787,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
                 {pc?.maxPauses ? ` / ${pc.maxPauses}` : ''}
               </p>
               {(pauseStatus?.totalPausedMs || 0) > 0 && (
-                <p className="text-xs text-slate-400 mt-0.5">
+                <p className="text-xs text-slate-600 mt-0.5">
                   Tempo total pausado: {Math.round((pauseStatus?.totalPausedMs || 0) / 60000)} min
                 </p>
               )}
@@ -808,7 +808,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
             </div>
           )}
 
-          <p className="text-[10px] text-slate-400 text-center mt-4">
+          <p className="text-[10px] text-slate-600 text-center mt-4">
             O cronômetro de execução está em andamento.
           </p>
         </div>
@@ -922,7 +922,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
               <p className="text-xs text-slate-500">{activePause.reason}</p>
             )}
             {pausedAt && (
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-600">
                 Pausado desde: {pausedAt.toLocaleString("pt-BR")}
               </p>
             )}
@@ -944,7 +944,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
             {pauseLoading ? "Retomando..." : "▶️ Retomar Atendimento"}
           </button>
 
-          <p className="text-[10px] text-slate-400 text-center mt-4">
+          <p className="text-[10px] text-slate-600 text-center mt-4">
             O cronômetro de execução está pausado.
           </p>
         </div>
@@ -976,7 +976,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
             </button>
           )}
 
-          <p className="text-xs text-slate-400 mt-4">Você pode fechar esta página.</p>
+          <p className="text-xs text-slate-600 mt-4">Você pode fechar esta página.</p>
         </div>
       </div>
     );
@@ -1061,7 +1061,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
                           <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
                             <div className="text-2xl mb-1">✅</div>
                             <p className="text-sm font-medium text-green-700">Saída registrada</p>
-                            <p className="text-xs text-slate-400 mt-1">
+                            <p className="text-xs text-slate-600 mt-1">
                               {new Date(enRouteAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                             </p>
                           </div>
@@ -1076,7 +1076,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
                           <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
                             <div className="text-2xl mb-1">📡</div>
                             <p className="text-sm font-medium text-green-700">GPS ativo</p>
-                            <p className="text-xs text-slate-400 mt-1">Rastreando sua localização...</p>
+                            <p className="text-xs text-slate-600 mt-1">Rastreando sua localização...</p>
                           </div>
                         )}
                         {!trackingActive && gpsPermission !== "granted" && (
@@ -1102,7 +1102,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
                           <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
                             <div className="text-2xl mb-1">📡</div>
                             <p className="text-sm font-medium text-green-700">Conectando GPS...</p>
-                            <p className="text-xs text-slate-400 mt-1">Iniciando rastreamento automaticamente...</p>
+                            <p className="text-xs text-slate-600 mt-1">Iniciando rastreamento automaticamente...</p>
                           </div>
                         )}
                       </div>
@@ -1113,7 +1113,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
 
                 {/* If all actions done, show done info */}
                 {(!hasEnr || enrDone) && (!hasGps || gpsDone) && (
-                  <p className="text-center text-xs text-slate-400 mt-2">Você pode fechar esta página.</p>
+                  <p className="text-center text-xs text-slate-600 mt-2">Você pode fechar esta página.</p>
                 )}
               </>
             );
@@ -1135,7 +1135,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
               ? `Tempo estimado informado: ${selectedMinutes >= 60 ? `${selectedMinutes / 60}h` : `${selectedMinutes} min`}`
               : "Você foi atribuído a esta ordem de serviço."}
           </p>
-          <p className="text-xs text-slate-400 mt-4">Você pode fechar esta página.</p>
+          <p className="text-xs text-slate-600 mt-4">Você pode fechar esta página.</p>
         </div>
       </div>
     );
@@ -1151,7 +1151,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
           <p className="text-sm text-slate-600 mt-2">
             Sua recusa foi registrada. O sistema tomará a ação configurada pelo gestor.
           </p>
-          <p className="text-xs text-slate-400 mt-4">Você pode fechar esta página.</p>
+          <p className="text-xs text-slate-600 mt-4">Você pode fechar esta página.</p>
         </div>
       </div>
     );
@@ -1326,7 +1326,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
               <div key={checklistClass} className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold text-slate-800">{icon} {label}</h3>
-                  <span className="text-xs text-slate-400">{checkedCount}/{items.length}</span>
+                  <span className="text-xs text-slate-600">{checkedCount}/{items.length}</span>
                 </div>
                 <div className="space-y-1.5">
                   {items.map(item => {
@@ -1361,7 +1361,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
                   {submitting ? "Enviando..." : `Confirmar ${label}`}
                 </button>
                 {!isRequired && (
-                  <p className="text-[10px] text-slate-400 mt-1.5 text-center">Recomendado — marque os itens que você possui</p>
+                  <p className="text-[10px] text-slate-600 mt-1.5 text-center">Recomendado — marque os itens que você possui</p>
                 )}
               </div>
             );
@@ -1603,7 +1603,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
                         <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
                           <div className="text-2xl mb-1">✅</div>
                           <p className="text-sm font-medium text-green-700">Saída registrada</p>
-                          <p className="text-xs text-slate-400 mt-1">
+                          <p className="text-xs text-slate-600 mt-1">
                             {new Date(enRouteAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                           </p>
                         </div>
@@ -1618,7 +1618,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
                         <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
                           <div className="text-2xl mb-1">📡</div>
                           <p className="text-sm font-medium text-green-700">GPS ativo</p>
-                          <p className="text-xs text-slate-400 mt-1">Rastreando sua localização...</p>
+                          <p className="text-xs text-slate-600 mt-1">Rastreando sua localização...</p>
                         </div>
                       )}
                       {!trackingActive && gpsPermission !== "granted" && (
@@ -1637,7 +1637,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
                         <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-4 text-center">
                           <div className="text-2xl mb-1">📡</div>
                           <p className="text-sm font-medium text-green-700">Conectando GPS...</p>
-                          <p className="text-xs text-slate-400 mt-1">Iniciando rastreamento automaticamente...</p>
+                          <p className="text-xs text-slate-600 mt-1">Iniciando rastreamento automaticamente...</p>
                         </div>
                       )}
                     </div>
@@ -1650,7 +1650,7 @@ export default function PublicTokenPage({ params }: { params: Promise<{ token: s
         })()}
 
         {/* Expiry info */}
-        <p className="text-center text-xs text-slate-400">
+        <p className="text-center text-xs text-slate-600">
           Esta oferta expira em {new Date(data!.offer.expiresAt).toLocaleString("pt-BR")}
         </p>
       </div>

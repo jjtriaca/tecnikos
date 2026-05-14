@@ -1061,7 +1061,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
             renderItem={(c) => (
               <div>
                 <div className="font-medium text-slate-900">{c.name}</div>
-                <div className="flex gap-3 text-xs text-slate-400 mt-0.5">
+                <div className="flex gap-3 text-xs text-slate-600 mt-0.5">
                   {c.document && <span>{c.document}</span>}
                   {c.phone && <span>{c.phone}</span>}
                 </div>
@@ -1175,7 +1175,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
                   <label className="flex flex-col gap-1.5">
                     <span className="text-sm font-medium text-slate-700">
                       Nome do endereço
-                      <span className="text-xs text-slate-400 font-normal ml-1">(preencha para salvar no cadastro do cliente)</span>
+                      <span className="text-xs text-slate-600 font-normal ml-1">(preencha para salvar no cadastro do cliente)</span>
                     </span>
                     <input
                       value={newAddressLabel}
@@ -1313,7 +1313,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
           {obras.length > 0 && (
             <label className="flex flex-col gap-1.5">
               <span className="text-sm font-medium text-slate-700">
-                Obra <span className="text-xs text-slate-400 font-normal">(opcional)</span>
+                Obra <span className="text-xs text-slate-600 font-normal">(opcional)</span>
               </span>
               <select
                 value={selectedObraId}
@@ -1327,7 +1327,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
                   </option>
                 ))}
               </select>
-              <span className="text-xs text-slate-400">Selecione se esta OS é para uma obra de construção</span>
+              <span className="text-xs text-slate-600">Selecione se esta OS é para uma obra de construção</span>
             </label>
           )}
 
@@ -1343,7 +1343,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
           {/* ─── 6. Prazo ───────────────────────────────────── */}
           <div className="flex flex-col gap-1">
             <span className="text-sm font-medium text-slate-700">Prazo *</span>
-            <span className="text-[10px] text-slate-400">Data limite para concluir o serviço</span>
+            <span className="text-[10px] text-slate-600">Data limite para concluir o serviço</span>
             <DateTimePicker
               name="deadlineAt"
               value={form.deadlineAt}
@@ -1590,7 +1590,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
                 {/* A Receber */}
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-slate-500">🟢 A Receber (cliente)</span>
-                  <span className="text-slate-400">Nao sera gerado</span>
+                  <span className="text-slate-600">Nao sera gerado</span>
                 </div>
 
                 {/* A Pagar */}
@@ -1599,7 +1599,7 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
                   {hasPayable ? (
                     <span className="font-semibold text-blue-700">{fmtBRL(techPayCents)}</span>
                   ) : (
-                    <span className="text-slate-400">Nao sera gerado</span>
+                    <span className="text-slate-600">Nao sera gerado</span>
                   )}
                 </div>
 
@@ -1609,13 +1609,13 @@ function NewOrderPage({ editId }: { editId?: string } = {}) {
                   </p>
                 )}
                 {!hasPayable && (
-                  <p className="text-[10px] text-slate-400 mt-1">
+                  <p className="text-[10px] text-slate-600 mt-1">
                     Nenhum lancamento financeiro sera criado
                   </p>
                 )}
               </div>
 
-              <p className="text-xs text-slate-400 text-center mb-3">Deseja criar a OS mesmo assim?</p>
+              <p className="text-xs text-slate-600 text-center mb-3">Deseja criar a OS mesmo assim?</p>
 
               <div className="flex gap-2">
                 <button onClick={() => setShowZeroValueConfirm(false)}

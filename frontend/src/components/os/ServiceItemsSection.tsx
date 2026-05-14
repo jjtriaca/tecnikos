@@ -111,7 +111,7 @@ export default function ServiceItemsSection({ items, onChange }: Props) {
         renderItem={(s) => (
           <div>
             <div className="font-medium text-slate-900">
-              {s.code && <span className="text-slate-400 font-mono text-xs mr-2">{s.code}</span>}
+              {s.code && <span className="text-slate-600 font-mono text-xs mr-2">{s.code}</span>}
               {s.name}
             </div>
             <div className="flex gap-3 text-xs text-slate-400 mt-0.5">

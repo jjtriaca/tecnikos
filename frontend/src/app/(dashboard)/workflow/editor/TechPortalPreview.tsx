@@ -151,7 +151,7 @@ function MoveBtn({ direction, onClick }: { direction: "up" | "down"; onClick: ()
     <button
       type="button"
       onClick={onClick}
-      className="h-3.5 w-3.5 flex items-center justify-center rounded text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+      className="h-3.5 w-3.5 flex items-center justify-center rounded text-slate-600 hover:text-blue-500 hover:bg-blue-50 transition-colors"
       title={direction === "up" ? "Mover para cima" : "Mover para baixo"}
     >
       <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -462,7 +462,7 @@ export default function TechPortalPreview({ config, onChange, onClose, workflowI
             {/* Left: Controls (visible when expanded) */}
             {expanded && (
               <div className="shrink-0 flex flex-col overflow-y-auto" style={{ width: CONTROLS_W, maxHeight: PHONE_H }}>
-                <p className="text-[9px] text-slate-400 mb-2">Configure os campos visiveis. Mudancas sao salvas e refletidas no celular.</p>
+                <p className="text-[9px] text-slate-600 mb-2">Configure os campos visiveis. Mudancas sao salvas e refletidas no celular.</p>
 
                 {/* Reorderable field list */}
                 <div className="space-y-px border rounded-lg border-slate-200 p-1.5">
@@ -539,7 +539,7 @@ export default function TechPortalPreview({ config, onChange, onClose, workflowI
                     {loading ? (
                       <>
                         <div className="h-8 w-8 animate-spin rounded-full border-3 border-blue-600 border-t-transparent" />
-                        <p className="text-xs text-slate-400">Criando OS de preview...</p>
+                        <p className="text-xs text-slate-600">Criando OS de preview...</p>
                       </>
                     ) : error ? (
                       <>
@@ -557,7 +557,7 @@ export default function TechPortalPreview({ config, onChange, onClose, workflowI
                       <>
                         <div className="text-4xl">&#x1F4F1;</div>
                         <p className="text-sm font-semibold text-slate-700 text-center">Emulador do Portal</p>
-                        <p className="text-[10px] text-slate-400 text-center leading-relaxed">
+                        <p className="text-[10px] text-slate-600 text-center leading-relaxed">
                           Crie uma OS de teste para visualizar o portal do tecnico.
                         </p>
                         <button
@@ -580,7 +580,7 @@ export default function TechPortalPreview({ config, onChange, onClose, workflowI
               {previewToken && (
                 <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
                   <div className={`h-2 w-2 rounded-full ${usingRealOs ? "bg-amber-500" : "bg-green-500"}`} />
-                  <span className="text-[9px] text-slate-400">{usingRealOs ? "OS real" : "Preview"}</span>
+                  <span className="text-[9px] text-slate-600">{usingRealOs ? "OS real" : "Preview"}</span>
                   <button
                     onClick={() => iframeRef.current?.contentWindow?.location.reload()}
                     className="text-[9px] text-blue-500 hover:text-blue-700 underline"
@@ -606,7 +606,7 @@ export default function TechPortalPreview({ config, onChange, onClose, workflowI
                   )}
                   <button
                     onClick={() => { setPreviewToken(null); setUsingRealOs(false); setPreviewOsId(null); setShowOsList(false); }}
-                    className="text-[9px] text-slate-400 hover:text-slate-600 underline"
+                    className="text-[9px] text-slate-600 hover:text-slate-600 underline"
                   >
                     Trocar
                   </button>

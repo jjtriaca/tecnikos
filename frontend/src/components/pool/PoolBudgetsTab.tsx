@@ -151,14 +151,14 @@ export default function PoolBudgetsTab() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={subTab === "obras" ? 8 : 7} className="py-16 text-center text-slate-400">
+                <td colSpan={subTab === "obras" ? 8 : 7} className="py-16 text-center text-slate-600">
                   Carregando...
                 </td>
               </tr>
             ) : subTab === "orcamentos" ? (
               budgets.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-16 text-center text-slate-400">
+                  <td colSpan={7} className="py-16 text-center text-slate-600">
                     Nenhum orcamento de piscina ainda. Clique em &quot;Novo Orcamento de Obra&quot; pra comecar.
                   </td>
                 </tr>
@@ -172,7 +172,7 @@ export default function PoolBudgetsTab() {
                         <Link href={`/quotes/pool/${b.id}`} className="font-medium text-slate-900 hover:text-cyan-600">
                           {b.title}
                         </Link>
-                        <div className="text-xs text-slate-400">{b._count.items} item{b._count.items !== 1 ? "s" : ""}</div>
+                        <div className="text-xs text-slate-600">{b._count.items} item{b._count.items !== 1 ? "s" : ""}</div>
                       </td>
                       <td className="px-4 py-3 text-slate-700">{b.clientPartner?.name}</td>
                       <td className="px-4 py-3 text-right font-semibold text-slate-800">{fmtCurrency(b.totalCents)}</td>
@@ -194,7 +194,7 @@ export default function PoolBudgetsTab() {
             ) : (
               projects.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-16 text-center text-slate-400">
+                  <td colSpan={8} className="py-16 text-center text-slate-600">
                     Nenhuma obra ainda. Aprove um orcamento pra gerar a obra automaticamente.
                   </td>
                 </tr>
@@ -208,7 +208,7 @@ export default function PoolBudgetsTab() {
                         <Link href={`/quotes/pool/projects/${p.id}`} className="font-medium text-slate-900 hover:text-cyan-600">
                           {p.budget?.title || "(sem titulo)"}
                         </Link>
-                        <div className="text-xs text-slate-400 font-mono">{p.budget?.code}</div>
+                        <div className="text-xs text-slate-600 font-mono">{p.budget?.code}</div>
                       </td>
                       <td className="px-4 py-3 text-slate-700">{p.customer?.name}</td>
                       <td className="px-4 py-3 text-right font-semibold text-slate-800">{fmtCurrency(p.budget?.totalCents || 0)}</td>

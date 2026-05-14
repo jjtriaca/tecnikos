@@ -108,7 +108,7 @@ export default function AdminSettingsPage() {
       <p className="mt-1 text-sm text-slate-500">Configurações globais do SaaS Tecnikos</p>
 
       {loading ? (
-        <div className="mt-8 text-center text-slate-400">Carregando...</div>
+        <div className="mt-8 text-center text-slate-600">Carregando...</div>
       ) : (
         <div className="mt-6 space-y-8">
           {/* Integration Section */}
@@ -212,7 +212,7 @@ function ConfigRow({
     <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3">
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-slate-700">{config.label || config.key}</div>
-        <div className="text-xs text-slate-400 font-mono">{config.key}</div>
+        <div className="text-xs text-slate-600 font-mono">{config.key}</div>
         {!isEditing && (
           <div className="mt-1 text-sm text-slate-500 font-mono truncate">
             {config.maskedValue}

@@ -40,7 +40,7 @@ function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange
       </div>
       <div className="flex-1 min-w-0">
         <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">{label}</span>
-        {hint && <p className="text-xs text-slate-400 mt-0.5">{hint}</p>}
+        {hint && <p className="text-xs text-slate-600 mt-0.5">{hint}</p>}
       </div>
     </label>
   );
@@ -76,7 +76,7 @@ function NumberField({ label, value, onChange, min, suffix }: { label: string; v
     <label className="flex items-center gap-2">
       <span className="text-xs text-slate-500 whitespace-nowrap">{label}:</span>
       <input type="number" value={value} min={min ?? 1} onChange={e => onChange(parseInt(e.target.value) || 0)} className="text-xs rounded border border-slate-300 px-2 py-1 w-20 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
-      {suffix && <span className="text-xs text-slate-400">{suffix}</span>}
+      {suffix && <span className="text-xs text-slate-600">{suffix}</span>}
     </label>
   );
 }
@@ -120,7 +120,7 @@ function ItemList({ items, onChange, placeholder }: { items: string[]; onChange:
     <div className="space-y-1.5">
       {items.map((item, i) => (
         <div key={i} className="flex items-center gap-1.5">
-          <span className="text-xs text-slate-400 w-4">{i + 1}.</span>
+          <span className="text-xs text-slate-600 w-4">{i + 1}.</span>
           <input type="text" value={item} onChange={e => update(i, e.target.value)} placeholder={placeholder}
             className="flex-1 text-xs rounded border border-slate-300 px-2 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
           <button type="button" onClick={() => remove(i)} className="text-red-400 hover:text-red-600 p-0.5 text-xs">✕</button>
@@ -430,7 +430,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
             <h3 className="text-sm font-bold text-slate-800">
               {stage.label}
             </h3>
-            <p className="text-xs text-slate-400">{stage.status.replace('_', ' ')}</p>
+            <p className="text-xs text-slate-600">{stage.status.replace('_', ' ')}</p>
           </div>
           {stage.enabled && enabledCount > 0 && (
             <span className="ml-2 shrink-0 inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
@@ -438,7 +438,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
             </span>
           )}
           {stage.enabled && !expanded && enabledCount > 0 && (
-            <span className="text-[10px] text-slate-400 hidden sm:inline">— clique para expandir</span>
+            <span className="text-[10px] text-slate-600 hidden sm:inline">— clique para expandir</span>
           )}
         </div>
         {/* Right side — toggle on/off */}
@@ -564,7 +564,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                 className="mt-0.5 text-blue-600 focus:ring-blue-200" />
                               <div>
                                 <span className="text-xs font-medium text-slate-700">{m.label}</span>
-                                <p className="text-[10px] text-slate-400">{m.hint}</p>
+                                <p className="text-[10px] text-slate-600">{m.hint}</p>
                               </div>
                             </label>
                           ))}
@@ -576,11 +576,11 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                         <SubToggle checked={stage.autoActions.techSelection.discardBusyTechnicians}
                           onChange={v => updateAuto('techSelection', { discardBusyTechnicians: v })}
                           label="Descartar técnicos que estão em atendimento" />
-                        <p className="text-[10px] text-slate-400 ml-5 -mt-1">Técnicos ocupados dentro do prazo de aceitar não receberão a oferta.</p>
+                        <p className="text-[10px] text-slate-600 ml-5 -mt-1">Técnicos ocupados dentro do prazo de aceitar não receberão a oferta.</p>
                         <SubToggle checked={stage.autoActions.techSelection.respectDirectedTechnician}
                           onChange={v => updateAuto('techSelection', { respectDirectedTechnician: v })}
                           label="Respeitar técnico direcionado" />
-                        <p className="text-[10px] text-slate-400 ml-5 -mt-1">Quando a OS tem técnico direcionado, atribui automaticamente sem enviar oferta.</p>
+                        <p className="text-[10px] text-slate-600 ml-5 -mt-1">Quando a OS tem técnico direcionado, atribui automaticamente sem enviar oferta.</p>
                       </div>
                       <p className="text-[10px] text-slate-400 italic mt-1">
                         💡 O tempo para aceitar e o comportamento ao expirar são configurados na etapa &quot;Ofertada&quot;.
@@ -604,7 +604,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                       <SubToggle checked={stage.autoActions.techReviewScreen.allowEdit}
                         onChange={v => updateAuto('techReviewScreen', { allowEdit: v })}
                         label="Permitir editar a lista de técnicos" />
-                      <p className="text-[10px] text-slate-400 ml-5 -mt-1">
+                      <p className="text-[10px] text-slate-600 ml-5 -mt-1">
                         Quando ativado, o despacho pode incluir ou excluir técnicos da lista antes de confirmar o envio.
                       </p>
                     </div>
@@ -666,7 +666,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                     {scheduleActive && (
                                       <div className="flex flex-wrap gap-3 items-center">
                                         <span className="text-xs text-slate-500">📅 Modo agenda:</span>
-                                        <span className="text-[10px] text-slate-400">até a data agendada +</span>
+                                        <span className="text-[10px] text-slate-600">até a data agendada +</span>
                                         <NumberField label="" value={lnk.agendaMarginHours}
                                           onChange={v => updateLink({ agendaMarginHours: v })} suffix="horas de margem" />
                                       </div>
@@ -676,7 +676,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                   {/* ── PÁGINA 1 — OFERTA ── */}
                                   <div className="pt-2 border-t border-blue-200">
                                     <span className="text-xs font-bold text-slate-600 block mb-2">📄 Página 1 — Oferta</span>
-                                    <p className="text-[10px] text-slate-400 mb-2">O técnico abre o link e vê os detalhes da OS.</p>
+                                    <p className="text-[10px] text-slate-600 mb-2">O técnico abre o link e vê os detalhes da OS.</p>
 
                                     {/* Layout da página */}
                                     <div className="mb-3">
@@ -798,7 +798,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                             <div className="space-y-2">
                                               {stage.autoActions.techQuestion.options.map((opt, oi) => (
                                                 <div key={oi} className="flex items-start gap-2 p-2 rounded border border-slate-200 bg-white">
-                                                  <span className="text-xs text-slate-400 mt-1.5 font-mono w-4">{oi + 1}.</span>
+                                                  <span className="text-xs text-slate-600 mt-1.5 font-mono w-4">{oi + 1}.</span>
                                                   <div className="flex-1 space-y-1.5">
                                                     <input type="text" value={opt.label} placeholder="Texto da opção"
                                                       onChange={e => {
@@ -855,7 +855,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                     <div className="space-y-1">
                                       <SubToggle checked={lnk.acceptOS} onChange={v => updateLink({ acceptOS: v })}
                                         label={`✅ Botão "${lnk.acceptLabel || 'Aceitar OS'}"`} />
-                                      <p className="text-[10px] text-slate-400 ml-5">
+                                      <p className="text-[10px] text-slate-600 ml-5">
                                         {lnk.acceptOS
                                           ? 'Técnico clica para aceitar. Primeiro clique trava o link para este dispositivo.'
                                           : 'Desativado — a página é informativa. GPS ou "Estou a caminho" serão mostrados aqui.'}
@@ -876,7 +876,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                       {/* Botão Recusar */}
                                       <SubToggle checked={lnk.declineButton ?? false} onChange={v => updateLink({ declineButton: v })}
                                         label={`❌ Botão "${lnk.declineLabel || 'Recusar'}"`} />
-                                      <p className="text-[10px] text-slate-400 ml-5">
+                                      <p className="text-[10px] text-slate-600 ml-5">
                                         {lnk.declineButton
                                           ? 'Técnico pode recusar a OS. Aparece ao lado do botão aceitar.'
                                           : 'Desativado — técnico não terá opção de recusar.'}
@@ -898,12 +898,12 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                           {(lnk.declineRequireReason ?? true) && (
                                             <div className="ml-5 flex items-center gap-2">
                                               <label className="text-[10px] text-slate-500 whitespace-nowrap">Caracteres:</label>
-                                              <span className="text-[10px] text-slate-400">min</span>
+                                              <span className="text-[10px] text-slate-600">min</span>
                                               <input type="number" min={0} max={200}
                                                 value={lnk.declineReasonMinLen ?? 10}
                                                 onChange={e => updateLink({ declineReasonMinLen: Math.max(0, parseInt(e.target.value) || 0) })}
                                                 className="w-14 px-1.5 py-0.5 text-xs border border-slate-200 rounded text-center focus:border-blue-400 focus:outline-none" />
-                                              <span className="text-[10px] text-slate-400">máx</span>
+                                              <span className="text-[10px] text-slate-600">máx</span>
                                               <input type="number" min={1} max={500}
                                                 value={lnk.declineReasonMaxLen ?? 50}
                                                 onChange={e => updateLink({ declineReasonMaxLen: Math.max(1, parseInt(e.target.value) || 50) })}
@@ -957,7 +957,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                             onChange={e => updateLink({ autoAdvanceSeconds: Math.max(0, parseInt(e.target.value) || 0) })}
                                             className="w-16 px-2 py-1 text-xs border border-slate-200 rounded text-center focus:border-blue-400 focus:outline-none"
                                           />
-                                          <span className="text-[10px] text-slate-400">segundos (0 = não avança)</span>
+                                          <span className="text-[10px] text-slate-600">segundos (0 = não avança)</span>
                                         </div>
                                       )}
                                     </div>
@@ -967,7 +967,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                   {lnk.acceptOS && (
                                     <div className="pt-2 border-t border-blue-200">
                                       <span className="text-xs font-bold text-slate-600 block mb-2">📄 Página 2 — Pós-aceite</span>
-                                      <p className="text-[10px] text-slate-400 mb-2">Após aceitar, o técnico vê esta página até agir.</p>
+                                      <p className="text-[10px] text-slate-600 mb-2">Após aceitar, o técnico vê esta página até agir.</p>
                                       <div className="space-y-1">
                                         {lnk.page2Layout.map((block: LinkPageBlock, bi: number) => (
                                           <div key={block.id}>
@@ -1099,7 +1099,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                   {!lnk.acceptOS && (
                                     <div className="pt-2 border-t border-blue-200">
                                       <span className="text-xs font-bold text-slate-600 block mb-2">📄 Ações na página (sem aceite)</span>
-                                      <p className="text-[10px] text-slate-400 mb-2">Página informativa. O primeiro clique em qualquer botão trava o link para o dispositivo.</p>
+                                      <p className="text-[10px] text-slate-600 mb-2">Página informativa. O primeiro clique em qualquer botão trava o link para o dispositivo.</p>
                                       <div className="space-y-1">
                                         {lnk.page2Layout.filter((b: LinkPageBlock) => b.type === 'gps_button' || b.type === 'enroute_button').map((block: LinkPageBlock) => (
                                           <div key={block.id}>
@@ -1187,7 +1187,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                   {lnk.gpsNavigation && (
                                     <div className="pt-2 border-t border-blue-200">
                                       <span className="text-xs font-bold text-slate-600 block mb-1">📡 Página de tracking</span>
-                                      <p className="text-[10px] text-slate-400">Automática ao ativar GPS — mostra distância em tempo real, barra de proximidade e botão &quot;Cheguei no local&quot;. Configuração do raio na etapa A Caminho (Proximidade GPS).</p>
+                                      <p className="text-[10px] text-slate-600">Automática ao ativar GPS — mostra distância em tempo real, barra de proximidade e botão &quot;Cheguei no local&quot;. Configuração do raio na etapa A Caminho (Proximidade GPS).</p>
                                     </div>
                                   )}
                                 </div>
@@ -1211,7 +1211,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
             {stage.status === 'OFERTADA' && (
               <div className="rounded-lg border border-amber-200 bg-amber-50/30 p-3">
                 <h4 className="text-sm font-semibold text-amber-800 mb-1 flex items-center gap-1.5">⏱️ Configurações de aceite</h4>
-                <p className="text-[10px] text-slate-400 mb-3">Quando a OS é ofertada aos técnicos, defina o tempo e regras para aceitar.</p>
+                <p className="text-[10px] text-slate-600 mb-3">Quando a OS é ofertada aos técnicos, defina o tempo e regras para aceitar.</p>
 
                 {/* Tempo para aceitar */}
                 <div className="space-y-2.5">
@@ -1239,7 +1239,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                         onChange={() => updateAuto('techSelection', { acceptTimeout: { ...stage.autoActions.techSelection.acceptTimeout, mode: 'from_os' } })}
                         className="text-amber-600 focus:ring-amber-200" />
                       <span className="text-xs text-slate-700">Definido na OS</span>
-                      <span className="text-[10px] text-slate-400">(cada OS pode ter seu próprio tempo)</span>
+                      <span className="text-[10px] text-slate-600">(cada OS pode ter seu próprio tempo)</span>
                     </label>
                   </div>
                 </div>
@@ -1259,7 +1259,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                 {/* Card verde: Tempo para ir a caminho */}
                 <div className="rounded-lg border border-green-200 bg-green-50/30 p-3">
                   <h4 className="text-sm font-semibold text-green-800 mb-1 flex items-center gap-1.5">🚗 Tempo para ir a caminho</h4>
-                  <p className="text-[10px] text-slate-400 mb-3">Após aceitar, o técnico tem um prazo para clicar &quot;A caminho&quot;.</p>
+                  <p className="text-[10px] text-slate-600 mb-3">Após aceitar, o técnico tem um prazo para clicar &quot;A caminho&quot;.</p>
 
                   <div className="space-y-2.5">
                     <span className="text-xs font-medium text-slate-600 block">Tempo para clicar a caminho:</span>
@@ -1286,7 +1286,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                           onChange={() => updateAuto('techSelection', { enRouteTimeout: { ...stage.autoActions.techSelection.enRouteTimeout, mode: 'from_os' } })}
                           className="text-green-600 focus:ring-green-200" />
                         <span className="text-xs text-slate-700">Definido na OS</span>
-                        <span className="text-[10px] text-slate-400">(cada OS pode ter seu próprio tempo)</span>
+                        <span className="text-[10px] text-slate-600">(cada OS pode ter seu próprio tempo)</span>
                       </label>
                     </div>
                   </div>
@@ -1316,7 +1316,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                             const exceedsLimit = enRouteMinutes !== null && opt.minutes > enRouteMinutes;
                             return (
                               <div key={oi} className={`flex items-center gap-2 p-2 rounded border ${exceedsLimit ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-white'}`}>
-                                <span className="text-xs text-slate-400 font-mono w-4">{oi + 1}.</span>
+                                <span className="text-xs text-slate-600 font-mono w-4">{oi + 1}.</span>
                                 <input type="text" value={opt.label} placeholder="Rótulo (ex: 30 minutos)"
                                   onChange={e => {
                                     const newOpts = [...stage.autoActions.arrivalQuestion.options];
@@ -1325,7 +1325,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                   }}
                                   className="flex-1 text-xs rounded border border-slate-300 px-2 py-1 focus:border-blue-500 focus:ring-1 focus:ring-blue-200 outline-none" />
                                 <label className="flex items-center gap-1">
-                                  <span className="text-[10px] text-slate-400">min:</span>
+                                  <span className="text-[10px] text-slate-600">min:</span>
                                   <input type="number" value={opt.minutes} min={1}
                                     onChange={e => {
                                       const newOpts = [...stage.autoActions.arrivalQuestion.options];
@@ -1372,7 +1372,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                           <SubToggle checked={stage.autoActions.arrivalQuestion.useAsDynamicTimeout}
                             onChange={v => updateAuto('arrivalQuestion', { useAsDynamicTimeout: v })}
                             label="Usar como timeout dinâmico" />
-                          <p className="text-[10px] text-slate-400 ml-5 mt-0.5">
+                          <p className="text-[10px] text-slate-600 ml-5 mt-0.5">
                             Se ativo, o tempo que o técnico escolher substitui o prazo fixo acima. O prazo configurado acima passa a ser apenas o limite máximo.
                           </p>
                         </div>
@@ -1383,7 +1383,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                           onChange={v => updateAuto('arrivalQuestion', { notifyGestor: v })}
                           label="Notificar gestor sobre tempo estimado" />
                         {(stage.autoActions.arrivalQuestion.notifyCliente || stage.autoActions.arrivalQuestion.notifyGestor) && (
-                          <p className="text-[10px] text-slate-400 ml-5">
+                          <p className="text-[10px] text-slate-600 ml-5">
                             💡 Use a variável <code className="bg-slate-100 px-1 rounded">{'{tempo_estimado_chegada}'}</code> nas mensagens de notificação.
                           </p>
                         )}
@@ -1394,7 +1394,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                         <SelectField label="Ao recusar atendimento" value={stage.autoActions.arrivalQuestion.onDecline}
                           onChange={v => updateAuto('arrivalQuestion', { onDecline: v })}
                           options={ON_DECLINE_OPTIONS} />
-                        <p className="text-[10px] text-slate-400 mt-1">
+                        <p className="text-[10px] text-slate-600 mt-1">
                           Quando o técnico não conseguir cumprir o prazo e clicar &quot;Não vou poder atender&quot;, o sistema executará esta ação.
                         </p>
                       </div>
@@ -1427,10 +1427,10 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                             value={stage.autoActions.proximityTrigger.radiusMeters}
                             onChange={e => updateAuto('proximityTrigger', { radiusMeters: parseInt(e.target.value) || 200 })}
                             className="text-xs rounded border border-slate-300 px-2 py-1 w-20 text-center outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-200" />
-                          <span className="text-[10px] text-slate-400">m</span>
+                          <span className="text-[10px] text-slate-600">m</span>
                         </div>
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-1">
+                      <p className="text-[10px] text-slate-600 mt-1">
                         {stage.autoActions.proximityTrigger.radiusMeters >= 1000
                           ? `${(stage.autoActions.proximityTrigger.radiusMeters / 1000).toFixed(1)} km`
                           : `${stage.autoActions.proximityTrigger.radiusMeters}m`} — Eventos disparam quando o técnico entrar neste raio.
@@ -1447,7 +1447,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                           className="text-xs rounded border border-slate-300 px-2 py-1 w-16 text-center outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-200" />
                         <span className="text-xs text-slate-500">segundos</span>
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-1">
+                      <p className="text-[10px] text-slate-600 mt-1">
                         Frequência de envio da posição. Menor = mais preciso, maior = economiza bateria.
                       </p>
                     </div>
@@ -1471,7 +1471,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                               className="text-purple-600 focus:ring-purple-200 mt-0.5" />
                             <div>
                               <span className="text-xs text-slate-700">{opt.label}</span>
-                              <p className="text-[10px] text-slate-400">{opt.hint}</p>
+                              <p className="text-[10px] text-slate-600">{opt.hint}</p>
                             </div>
                           </label>
                         ))}
@@ -1507,7 +1507,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                     onChange={() => setMode(opt.value)} className="text-purple-600 focus:ring-purple-200 mt-0.5" />
                                   <div>
                                     <span className="text-xs text-slate-700 font-medium">{opt.label}</span>
-                                    <p className="text-[10px] text-slate-400">{opt.desc}</p>
+                                    <p className="text-[10px] text-slate-600">{opt.desc}</p>
                                   </div>
                                 </label>
 
@@ -1574,14 +1574,14 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                               onChange={e => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, coordsRadiusMeters: Number(e.target.value) || 10 } })} />
                                             <span className="text-[11px] text-slate-600">metros do endereço</span>
                                           </div>
-                                          <p className="text-[10px] text-slate-400">
+                                          <p className="text-[10px] text-slate-600">
                                             Só grava as coordenadas quando o técnico atingir essa distância. Use um valor baixo (ex: 10m ou menos) para maior precisão.
                                           </p>
                                         </div>
                                       )}
                                     </div>
 
-                                    <p className="text-[10px] text-slate-400 mt-1">
+                                    <p className="text-[10px] text-slate-600 mt-1">
                                       💡 Use <code className="bg-slate-100 px-1 rounded">{'{distancia_tecnico}'}</code> e <code className="bg-slate-100 px-1 rounded">{'{tecnico}'}</code> nas mensagens.
                                       Os eventos disparam apenas UMA vez.
                                     </p>
@@ -1643,7 +1643,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                         onChange={v => updateAuto('proximityTrigger', { arrivalButton: { ...prox.arrivalButton, updateAddressCoords: v } })}
                                         label="Atualizar coordenadas do endereço" />
                                       {(prox.arrivalButton?.updateAddressCoords ?? true) && (
-                                        <p className="text-[10px] text-slate-400 ml-5 mt-1">
+                                        <p className="text-[10px] text-slate-600 ml-5 mt-1">
                                           Grava as coordenadas exatas do técnico ao confirmar chegada. Maior precisão possível.
                                         </p>
                                       )}
@@ -1719,7 +1719,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                               onChange={e => updateAuto('proximityTrigger', { onEnterRadius: { ...prox.onEnterRadius, coordsRadiusMeters: Number(e.target.value) || 10 } })} />
                                             <span className="text-[11px] text-slate-600">metros do endereço</span>
                                           </div>
-                                          <p className="text-[10px] text-slate-400">
+                                          <p className="text-[10px] text-slate-600">
                                             Só grava as coordenadas quando o técnico atingir essa distância. Use um valor baixo (ex: 10m ou menos) para maior precisão.
                                           </p>
                                         </div>
@@ -1820,7 +1820,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                     {/* Checklist de revisão */}
                     <div>
                       <span className="text-xs font-semibold text-blue-800 block mb-2">📋 Checklist de revisão do gestor:</span>
-                      <p className="text-[10px] text-slate-400 mb-2">Itens que o gestor deve conferir antes de aprovar. Aparecerão como checkboxes no painel.</p>
+                      <p className="text-[10px] text-slate-600 mb-2">Itens que o gestor deve conferir antes de aprovar. Aparecerão como checkboxes no painel.</p>
                       <ItemList items={stage.autoActions.gestorApproval.reviewChecklist}
                         onChange={items => updateAuto('gestorApproval', { reviewChecklist: items })}
                         placeholder="Ex: Verificar fotos do serviço" />
@@ -1829,7 +1829,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                     {/* On Approve */}
                     <div className="pt-3 border-t border-blue-200">
                       <span className="text-xs font-semibold text-green-700 block mb-2">✅ Ao APROVAR:</span>
-                      <p className="text-[10px] text-slate-400 mb-2">A OS avança para &quot;Aprovada&quot; automaticamente.</p>
+                      <p className="text-[10px] text-slate-600 mb-2">A OS avança para &quot;Aprovada&quot; automaticamente.</p>
                       <div className="space-y-2">
                         <div className="rounded border border-blue-100 bg-white p-2">
                           <SubToggle checked={stage.autoActions.gestorApproval.onApprove.notifyTecnico.enabled}
@@ -1897,7 +1897,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                                     onChange={v => updateAuto('gestorApproval', { onApproveWithReservations: { ...stage.autoActions.gestorApproval.onApproveWithReservations, commissionAdjustment: { ...stage.autoActions.gestorApproval.onApproveWithReservations.commissionAdjustment, value: v } } })}
                                     min={0} suffix={stage.autoActions.gestorApproval.onApproveWithReservations.commissionAdjustment.type === 'reduce_percent' ? '%' : 'R$'} />
                                   {COMMISSION_ADJUSTMENT_TYPES.find(t => t.value === stage.autoActions.gestorApproval.onApproveWithReservations.commissionAdjustment.type) && (
-                                    <p className="text-[10px] text-slate-400 w-full">
+                                    <p className="text-[10px] text-slate-600 w-full">
                                       💡 {COMMISSION_ADJUSTMENT_TYPES.find(t => t.value === stage.autoActions.gestorApproval.onApproveWithReservations.commissionAdjustment.type)?.hint}
                                     </p>
                                   )}
@@ -1949,7 +1949,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                           onChange={v => updateAuto('gestorApproval', { onReject: { ...stage.autoActions.gestorApproval.onReject, action: v } })}
                           options={GESTOR_REJECT_ACTIONS} />
                         {GESTOR_REJECT_ACTIONS.find(a => a.value === stage.autoActions.gestorApproval.onReject.action) && (
-                          <p className="text-[10px] text-slate-400 -mt-1">
+                          <p className="text-[10px] text-slate-600 -mt-1">
                             💡 {GESTOR_REJECT_ACTIONS.find(a => a.value === stage.autoActions.gestorApproval.onReject.action)?.hint}
                           </p>
                         )}
@@ -2286,7 +2286,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                       <PhotoRequirementList
                         groups={stage.techActions.photoRequirements.groups}
                         onChange={groups => updateTech('photoRequirements', { groups })} />
-                      <p className="text-[10px] text-slate-400 mt-1">
+                      <p className="text-[10px] text-slate-600 mt-1">
                         💡 Configure grupos: ex. fotos &quot;Antes de iniciar&quot; + fotos &quot;Após concluir&quot;.
                       </p>
                     </div>
@@ -2388,7 +2388,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                   <SubToggle checked={stage.timeControl.executionTimer.pauseDiscountsFromSla}
                     onChange={v => updateTime('executionTimer', { pauseDiscountsFromSla: v })}
                     label="Pausas descontam do tempo" />
-                  <p className="text-[10px] text-slate-400">
+                  <p className="text-[10px] text-slate-600">
                     ⏲️ Registra o tempo efetivo de execução. O cronômetro é pausado/retomado automaticamente
                     quando o técnico pausa o atendimento (requer Sistema de Pausas ativado abaixo).
                   </p>
@@ -2436,7 +2436,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                               }}
                               className="rounded border-slate-300" />
                             <span>{cat.icon} {cat.label}</span>
-                            <span className="text-[10px] text-slate-400">— {cat.hint}</span>
+                            <span className="text-[10px] text-slate-600">— {cat.hint}</span>
                           </label>
                         );
                       })}
@@ -2560,7 +2560,7 @@ export default function StageSection({ stage, index, onChange, allStages }: Stag
                     </div>
                   </div>
 
-                  <p className="text-[10px] text-slate-400 mt-2">
+                  <p className="text-[10px] text-slate-600 mt-2">
                     ⏸️ O técnico verá um botão &quot;Pausar&quot; durante a execução. Ao pausar, o cronômetro para e os destinatários configurados são notificados.
                     O técnico pode retomar a qualquer momento.
                   </p>

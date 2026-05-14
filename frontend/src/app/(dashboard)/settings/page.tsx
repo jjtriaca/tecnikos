@@ -467,7 +467,7 @@ export default function SettingsPage() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900">Configurações</h1>
         </div>
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-400">
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-slate-600">
           Erro ao carregar dados da empresa.
         </div>
       </div>
@@ -581,7 +581,7 @@ export default function SettingsPage() {
                   />
                 </div>
               ) : (
-                <div className="w-[120px] h-[40px] border-2 border-dashed border-slate-300 rounded-lg flex items-center justify-center text-xs text-slate-400">
+                <div className="w-[120px] h-[40px] border-2 border-dashed border-slate-300 rounded-lg flex items-center justify-center text-xs text-slate-600">
                   Sem logo
                 </div>
               )}
@@ -916,7 +916,7 @@ export default function SettingsPage() {
             Plataforma
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <p className="col-span-full text-xs text-slate-400">
+            <p className="col-span-full text-xs text-slate-600">
               A comissão é definida individualmente no cadastro de cada serviço.
             </p>
           </div>
@@ -980,7 +980,7 @@ export default function SettingsPage() {
                 disabled={!isAdmin}
                 className={inputClass}
               />
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1 text-xs text-slate-600">
                 Peso da avaliacao feita pelo gestor
               </p>
             </div>
@@ -996,7 +996,7 @@ export default function SettingsPage() {
                 disabled
                 className={inputClass}
               />
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1 text-xs text-slate-600">
                 Calculado automaticamente (100 - Peso Gestor)
               </p>
             </div>
@@ -1014,7 +1014,7 @@ export default function SettingsPage() {
                 disabled={!isAdmin}
                 className={inputClass}
               />
-              <p className="mt-1 text-xs text-slate-400">
+              <p className="mt-1 text-xs text-slate-600">
                 Técnicos abaixo dessa nota ficam em &quot;Em Treinamento&quot;
               </p>
             </div>
@@ -1062,7 +1062,7 @@ export default function SettingsPage() {
             </button>
             <span className="text-sm text-slate-700">
               {poolModuleActive ? "Ativo" : "Desativado"}
-              {poolToggling && <span className="ml-2 text-xs text-slate-400">salvando...</span>}
+              {poolToggling && <span className="ml-2 text-xs text-slate-600">salvando...</span>}
             </span>
           </div>
           {poolModuleActive && (
@@ -1123,7 +1123,7 @@ export default function SettingsPage() {
             <div className="space-y-2">
               {form.businessHours.map((turno, idx) => (
                 <div key={idx} className="flex items-center gap-2">
-                  <span className="text-xs text-slate-400 w-16">Turno {idx + 1}</span>
+                  <span className="text-xs text-slate-600 w-16">Turno {idx + 1}</span>
                   <input
                     type="time"
                     value={turno.start}
@@ -1194,7 +1194,7 @@ export default function SettingsPage() {
             </button>
           </div>
         ) : !isAdmin ? (
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-600">
             Somente administradores podem alterar as configuracoes.
           </p>
         ) : null}

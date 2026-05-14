@@ -93,7 +93,7 @@ export default function WorkflowBlockNode({ block, isSelected, isFirst, isLast, 
           <div className="flex-1 min-w-0">
             <p className={`text-sm font-semibold truncate ${textColor}`}>{block.name}</p>
             {subtitle && (
-              <p className="text-[10px] text-slate-400 truncate">{subtitle}</p>
+              <p className="text-[10px] text-slate-600 truncate">{subtitle}</p>
             )}
           </div>
         </div>

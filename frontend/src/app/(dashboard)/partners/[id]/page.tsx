@@ -58,7 +58,7 @@ export default function PartnerDetailPage() {
           &larr; Voltar
         </button>
         <h1 className="text-xl font-bold text-slate-800">{partner.name}</h1>
-        <span className="text-xs text-slate-400">{partner.code}</span>
+        <span className="text-xs text-slate-600">{partner.code}</span>
       </div>
 
       <PartnerForm

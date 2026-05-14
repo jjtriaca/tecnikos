@@ -58,7 +58,7 @@ export default function UsageBar({ collapsed }: { collapsed: boolean }) {
   return (
     <div className="mx-3 mb-2 rounded-lg bg-white/5 p-2.5">
       <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[11px] font-medium text-slate-400">OS este mes</span>
+        <span className="text-[11px] font-medium text-slate-600">OS este mes</span>
         <span className={`text-[11px] font-semibold ${textColor}`}>
           {percentage}%
         </span>

@@ -138,7 +138,7 @@ export default function DateTimePicker({ value, onChange, required, className = 
           {/* Weekday headers */}
           <div className="grid grid-cols-7 mb-0.5">
             {WEEKDAYS.map((d, i) => (
-              <div key={i} className="text-center text-[9px] font-medium text-slate-400 py-0.5">{d}</div>
+              <div key={i} className="text-center text-[9px] font-medium text-slate-600 py-0.5">{d}</div>
             ))}
           </div>
 
@@ -161,7 +161,7 @@ export default function DateTimePicker({ value, onChange, required, className = 
           {/* Time selection — compact */}
           <div className="border-t border-slate-100 pt-2 space-y-1.5">
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-medium text-slate-400 w-8">Hora</span>
+              <span className="text-[10px] font-medium text-slate-600 w-8">Hora</span>
               <div className="flex-1 flex flex-wrap gap-0.5">
                 {hours.map((h) => (
                   <button key={h} type="button" onClick={() => handleHourClick(h)}
@@ -176,7 +176,7 @@ export default function DateTimePicker({ value, onChange, required, className = 
               </div>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-medium text-slate-400 w-8">Min</span>
+              <span className="text-[10px] font-medium text-slate-600 w-8">Min</span>
               <div className="flex-1 flex flex-wrap gap-0.5">
                 {minutes.map((m) => (
                   <button key={m} type="button" onClick={() => handleMinuteClick(m)}
@@ -194,7 +194,7 @@ export default function DateTimePicker({ value, onChange, required, className = 
 
           {/* Footer */}
           <div className="flex items-center justify-between mt-2 pt-1.5 border-t border-slate-100">
-            <button type="button" onClick={() => onChange("")} className="text-[10px] text-slate-400 hover:text-slate-600">
+            <button type="button" onClick={() => onChange("")} className="text-[10px] text-slate-600 hover:text-slate-600">
               Limpar
             </button>
             <button type="button" onClick={() => setOpen(false)}

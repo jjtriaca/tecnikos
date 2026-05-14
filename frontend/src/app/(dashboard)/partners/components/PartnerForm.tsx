@@ -552,7 +552,7 @@ export default function PartnerForm({
               <button type="button" onClick={onGoToSpecs} className="text-xs text-blue-600 hover:text-blue-800 font-medium">+ Adicionar nova</button>
             </div>
             {specializations.length === 0 ? (
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-slate-600">
                 Nenhuma especialização cadastrada.{" "}
                 <button type="button" onClick={onGoToSpecs} className="text-blue-600 hover:underline">Cadastrar agora</button>
               </p>

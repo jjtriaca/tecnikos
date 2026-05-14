@@ -174,7 +174,7 @@ export default function ResetPasswordPage() {
               <img src="/logo-icon.svg" alt="Tecnikos" className="h-10 w-10" />
               <div>
                 <div className="text-base font-bold text-slate-900">Tecnikos</div>
-                <div className="text-[11px] text-slate-400">Gestão de Serviços Técnicos</div>
+                <div className="text-[11px] text-slate-600">Gestão de Serviços Técnicos</div>
               </div>
             </div>
 
@@ -206,7 +206,7 @@ export default function ResetPasswordPage() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-600"
                     tabIndex={-1}
                   >
                     {showPassword ? (
@@ -300,7 +300,7 @@ export default function ResetPasswordPage() {
                 <button
                   type="button"
                   onClick={() => router.push("/login")}
-                  className="text-xs text-slate-400 hover:text-blue-600 transition-colors"
+                  className="text-xs text-slate-600 hover:text-blue-600 transition-colors"
                 >
                   Voltar ao login
                 </button>
