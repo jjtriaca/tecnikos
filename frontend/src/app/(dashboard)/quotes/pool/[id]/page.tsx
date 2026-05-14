@@ -2272,38 +2272,22 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
   },
   {
     icon: '🚿',
-    label: 'Tubo de filtragem (diametro pelo volume)',
-    description: 'Tubos do sistema de filtragem (50mm/60mm/75mm) com diametro proporcional ao volume da piscina. Mesma formula vale pra cascata/SPA/aquecedor — use o template equivalente.',
+    label: 'Tubo (mesmo diametro do equipamento da etapa)',
+    description: 'Tubo PVC com diametro igual ao tubo de entrada do equipamento escolhido na mesma etapa (filtro, aquecedor, cascata, SPA). Le siblingTuboMm calculado automaticamente. Vale pra qualquer etapa que tenha tubo.',
     rule: {
       filterCategoria: null,
-      filterDescription: 'Tubos conexoes e registros p/ sist. filtragem',
-      where: 'tuboEntradaMm >= 40 + volume * 0.3',
-      orderBy: 'tuboEntradaMm asc',
-      indicator: null,
-    },
-  },
-  {
-    icon: '🚿',
-    label: 'Tubo de cascata (diametro pelo volume)',
-    description: 'Tubos de cascata com mesma logica de diametro. Mesma formula matematica do tubo de filtragem.',
-    rule: {
-      filterCategoria: null,
-      filterDescription: 'Tubos conexoes e registros p/ cascata',
-      where: 'tuboEntradaMm >= 40 + volume * 0.3',
-      orderBy: 'tuboEntradaMm asc',
-      indicator: null,
-    },
-  },
-  {
-    icon: '🚿',
-    label: 'Tubo de SPA (diametro pelo volume)',
-    description: 'Tubos do sistema SPA com mesma logica de diametro.',
-    rule: {
-      filterCategoria: null,
-      filterDescription: 'Tubos conexoes e registros SPA',
-      where: 'tuboEntradaMm >= 40 + volume * 0.3',
-      orderBy: 'tuboEntradaMm asc',
-      indicator: null,
+      filterDescription: 'Tubos conexoes',
+      where: 'tuboEntradaMm == siblingTuboMm',
+      orderBy: 'priceCents asc',
+      indicator: {
+        label: 'Compatibilidade tubo',
+        expr: '(tuboEntradaMm - siblingTuboMm) * (tuboEntradaMm - siblingTuboMm)',
+        unit: '',
+        levels: [
+          { max: 0, label: 'Compativel', color: 'emerald' },
+          { max: 99999, label: 'Diametro errado', color: 'red' },
+        ],
+      },
     },
   },
   {

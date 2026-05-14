@@ -408,13 +408,16 @@ export class PoolBudgetService {
     // PASSO 0: auto-selecao do produto/servico em items que tem autoSelectRule.
     // Roda ANTES das formulas porque escolha do produto afeta technicalSpecs disponiveis.
     //
-    // CRITICO: so dispara em items SEM produto/servico vinculado (productId AND serviceId null).
-    // Antes (pre-v1.10.96) rodava em todo recalc sobre todos os items com rule,
-    // sobrescrevendo escolhas manuais do gestor. Agora respeita selecao manual:
-    // - Linha nova com rule -> auto-selecao escolhe um produto (preenche productId).
-    // - Linha ja com produto manual -> auto-selecao NAO MEXE.
-    // - Pra forcar reaplicacao apos mudar dimensoes ou regra, o gestor pode limpar
-    //   o produto (excluir e adicionar de novo) ou usar botao "Reaplicar regra" do modal.
+    // CRITICO 1 (v1.10.96): so dispara em items SEM produto/servico vinculado
+    // (productId AND serviceId null). Antes rodava em todo recalc sobrescrevendo
+    // escolhas manuais. Pra reaplicar: gestor limpa o produto da linha.
+    //
+    // CRITICO 2 (v1.10.98): execucao em 2 fases pra suportar regras "irmas" —
+    // ex: tubo da etapa FILTRO depende do tuboEntradaMm do filtro escolhido.
+    //   Fase A: items cuja rule NAO referencia 'sibling*' vars (equipamentos primarios)
+    //   Fase B: items cuja rule referencia 'sibling*' (tubos, etc) — recebem
+    //           siblingTuboMm/siblingVazao/siblingKcalH calculados por poolSection
+    //           a partir dos productIds ja resolvidos na Fase A.
     const itemsForAutoSelect = await this.prisma.poolBudgetItem.findMany({
       where: {
         budgetId,
@@ -422,7 +425,7 @@ export class PoolBudgetService {
         productId: null,
         serviceId: null,
       },
-      select: { id: true, autoSelectRule: true, productId: true, serviceId: true, description: true, unitPriceCents: true },
+      select: { id: true, autoSelectRule: true, productId: true, serviceId: true, description: true, unitPriceCents: true, poolSection: true },
     });
     if (itemsForAutoSelect.length > 0) {
       const companyId = await this.prisma.poolBudget.findUnique({
@@ -441,12 +444,23 @@ export class PoolBudgetService {
           select: { id: true, name: true, priceCents: true, unit: true, technicalSpecs: true },
         });
 
-        for (const it of itemsForAutoSelect) {
+        // Detecta uso de sibling vars no where da rule — split em 2 fases
+        const ruleUsesSiblings = (rule: AutoSelectRule | null): boolean => {
+          if (!rule) return false;
+          const text = `${rule.where || ''} ${rule.indicator?.expr || ''}`;
+          return /\bsibling[A-Z]/.test(text);
+        };
+
+        const processItem = async (
+          it: typeof itemsForAutoSelect[number],
+          extraVars: Record<string, number>,
+        ) => {
           const rule = it.autoSelectRule as AutoSelectRule | null;
-          if (!rule || (!rule.where && !rule.filterCategoria && !rule.filterDescription)) continue;
+          if (!rule || (!rule.where && !rule.filterCategoria && !rule.filterDescription)) return;
+          const vars = { ...dimensionVars, ...extraVars };
 
           // Tenta primeiro Products, depois Services
-          const bestProduct = selectBestCandidate(allProducts as any, rule, dimensionVars);
+          const bestProduct = selectBestCandidate(allProducts as any, rule, vars);
           let target: { id: string; type: 'product' | 'service'; description: string; priceCents: number; unit: string } | null = null;
           if (bestProduct) {
             target = {
@@ -460,7 +474,7 @@ export class PoolBudgetService {
             const bestService = selectBestCandidate(
               allServices.map((s) => ({ ...s, description: s.name })) as any,
               rule,
-              dimensionVars,
+              vars,
             );
             if (bestService) {
               target = {
@@ -472,9 +486,8 @@ export class PoolBudgetService {
               };
             }
           }
-          if (!target) continue;
+          if (!target) return;
 
-          // Aplica seleção: troca productId/serviceId, atualiza description e preco unit
           await this.prisma.poolBudgetItem.update({
             where: { id: it.id },
             data: {
@@ -485,6 +498,48 @@ export class PoolBudgetService {
               unit: target.unit,
             },
           });
+        };
+
+        // Fase A: equipamentos primarios (sem sibling vars)
+        const phaseA = itemsForAutoSelect.filter((it) => !ruleUsesSiblings(it.autoSelectRule as AutoSelectRule | null));
+        const phaseB = itemsForAutoSelect.filter((it) => ruleUsesSiblings(it.autoSelectRule as AutoSelectRule | null));
+
+        for (const it of phaseA) {
+          await processItem(it, {});
+        }
+
+        // Calcula vars 'sibling*' por poolSection — pega o primeiro produto vinculado
+        // com technicalSpecs que tenha cada chave. Roda DEPOIS da Fase A pra capturar
+        // tambem productIds resolvidos agora.
+        if (phaseB.length > 0) {
+          const allInBudget = await this.prisma.poolBudgetItem.findMany({
+            where: { budgetId },
+            select: {
+              poolSection: true,
+              product: { select: { technicalSpecs: true } },
+            },
+          });
+          const siblingsBySection: Record<string, Record<string, number>> = {};
+          for (const it of allInBudget) {
+            const specs = (it.product?.technicalSpecs as Record<string, unknown> | null) || null;
+            if (!specs) continue;
+            const sec = String(it.poolSection);
+            siblingsBySection[sec] ||= {};
+            // Primeira ocorrencia ganha — equipamentos cadastrados antes dos tubos
+            for (const [k, raw] of Object.entries(specs)) {
+              const n = Number(raw);
+              if (!Number.isFinite(n)) continue;
+              const siblingKey = `sibling${k.charAt(0).toUpperCase()}${k.slice(1)}`;
+              if (siblingsBySection[sec][siblingKey] === undefined) {
+                siblingsBySection[sec][siblingKey] = n;
+              }
+            }
+          }
+
+          for (const it of phaseB) {
+            const sectionVars = siblingsBySection[String(it.poolSection)] || {};
+            await processItem(it, sectionVars);
+          }
         }
       }
     }
