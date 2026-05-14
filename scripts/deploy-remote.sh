@@ -53,17 +53,26 @@ LOCAL_VERSION_PRE=$(node -e "console.log(require('./version.json').version)" 2>/
 LIVE_VERSION_PRE=$(curl -s --max-time 5 https://sls.tecnikos.com.br/health 2>/dev/null | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{console.log(JSON.parse(d).version)}catch(e){console.log('')}})" 2>/dev/null || echo "")
 if [ -z "$LIVE_VERSION_PRE" ]; then
   echo -e "  ${YELLOW}⚠${NC} Nao consegui consultar /health — pulando check (prod offline?)"
-elif [ "$LOCAL_VERSION_PRE" != "$LIVE_VERSION_PRE" ]; then
-  echo -e "  ${RED}✗ BLOQUEADO${NC} — versao local (${RED}${LOCAL_VERSION_PRE}${NC}) ≠ prod (${GREEN}${LIVE_VERSION_PRE}${NC})"
-  echo ""
-  echo -e "  ${YELLOW}Este worktree esta dessincronizado.${NC} Worktrees disponiveis:"
-  git worktree list
-  echo ""
-  echo -e "  ${YELLOW}→${NC} Procure o worktree com version.json = ${LIVE_VERSION_PRE} e rode o deploy de la."
-  echo -e "  ${YELLOW}→${NC} Se for um worktree novo, rebaseie em cima do worktree em prod antes de mexer."
-  exit 1
-else
+elif [ "$LOCAL_VERSION_PRE" = "$LIVE_VERSION_PRE" ]; then
   echo -e "  ${GREEN}✓${NC} Local e prod alinhados em ${LOCAL_VERSION_PRE}"
+else
+  # Compara versoes via sort -V (semver-aware): se local > prod, eh recovery de deploy
+  # quebrado (bump foi feito mas build/health falhou). Se local < prod, eh worktree
+  # defasado — bloquear pra nao reverter prod.
+  SMALLER=$(printf '%s\n%s\n' "$LOCAL_VERSION_PRE" "$LIVE_VERSION_PRE" | sort -V | head -1)
+  if [ "$SMALLER" = "$LIVE_VERSION_PRE" ]; then
+    echo -e "  ${YELLOW}⚠${NC} Local (${YELLOW}${LOCAL_VERSION_PRE}${NC}) > prod (${YELLOW}${LIVE_VERSION_PRE}${NC}) — deploy anterior nao subiu"
+    echo -e "  ${YELLOW}⚠${NC} Continuando como recovery (vai bumpar e tentar de novo)"
+  else
+    echo -e "  ${RED}✗ BLOQUEADO${NC} — versao local (${RED}${LOCAL_VERSION_PRE}${NC}) < prod (${GREEN}${LIVE_VERSION_PRE}${NC})"
+    echo ""
+    echo -e "  ${YELLOW}Este worktree esta defasado.${NC} Worktrees disponiveis:"
+    git worktree list
+    echo ""
+    echo -e "  ${YELLOW}→${NC} Procure o worktree com version.json = ${LIVE_VERSION_PRE} e rode o deploy de la."
+    echo -e "  ${YELLOW}→${NC} Se for um worktree novo, rebaseie em cima do worktree em prod antes de mexer."
+    exit 1
+  fi
 fi
 echo ""
 
