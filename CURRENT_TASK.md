@@ -1,7 +1,18 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.78 (em prod)
-## Ultima sessao: 197 (14/05/2026)
+## Versao: v1.10.79 (em prod)
+## Ultima sessao: 198 (14/05/2026)
+
+## v1.10.79 — Tela completa de detalhe do lancamento + acesso ao PDF da NFe
+- **Pedido do Juliano**: padronizar menus A Pagar/A Receber, adicionar "Ver detalhes" (como em OS), tela completa com TODOS os dados do banco do documento incluindo PDF da NFe importada. Codigo deve ter comentarios orientando IA pra que campos novos no banco apareçam automaticamente na tela.
+- **Backend**:
+  - **Endpoint `GET /finance/entries/:id/detail`** ([finance.service.ts](backend/src/finance/finance.service.ts) `findEntryDetail`): retorna entry COMPLETA (sem select projection) + relacoes: NfeImport, NfseEmission, boletos, cardSettlements, installments, parentEntry, childEntries, renegotiatedTo, invoiceMatchLine, refundPairEntry, nfseEntradaLinks. Tambem retorna `matchedLine` (BankStatementLine 1:1) e `auditLog` (50 ultimos).
+  - **Endpoint `GET /nfe/imports/:id/danfe`** ([nfe.controller.ts](backend/src/nfe/nfe.controller.ts)): gera DANFE PDF on-demand do `xmlContent` armazenado em NfeImport (mesmo gerador usado pra SefazDocument). Roles ADMIN/FISCAL/FINANCEIRO.
+- **Frontend**:
+  - **Nova rota** [/finance/entries/[id]/page.tsx](frontend/src/app/(dashboard)/finance/entries/[id]/page.tsx): tela completa com secoes — Geral, Pagamento, Documentos vinculados (NFe c/ botao "Baixar DANFE", NFS-e c/ pdfUrl, Boletos c/ pdfUrl), Parcelas, Renegociacao, Card Settlements, Conciliacao bancaria, Outros dados do banco, Auditoria.
+  - **Padrao TECNIKOS**: secao "Outros dados do banco" usa `Object.entries(entry).filter(!KNOWN_FIELDS_RENDERED.has(k))` — qualquer campo novo no Prisma cai automaticamente la sem precisar mexer na UI. Comentario no topo do arquivo orienta IA futura sobre o padrao.
+  - **Menu** ([finance/page.tsx](frontend/src/app/(dashboard)/finance/page.tsx)): "Ver detalhes" adicionado como primeiro item em A Pagar e A Receber. Padroniza ambos os menus.
+- **Multi-tenant**: tudo herda da query padrao filtrada por `companyId`. Tenants sem cartao/NFe/boleto/parcelas nao veem secoes vazias — renderiza condicional.
 
 ## v1.10.78 — Esconder entries de rebalance/ajuste dos candidates de conciliacao
 - **Bug reportado pelo Juliano**: FIN-00487 (R$ 296,30) e FIN-00488 (R$ 23,70) — entries criadas em SQL por sessao 182 (27/04/2026) pra rebalancear saldo SICREDI — apareciam como candidates no modal de "Conciliar Transacao". Conciliar elas geraria double-count e quebraria meses fechados.

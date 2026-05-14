@@ -717,6 +717,25 @@ export class FinanceController {
     return this.service.findOneEntry(id, user.companyId);
   }
 
+  /**
+   * v1.10.79 — Endpoint abrangente pra tela de detalhe completa.
+   * Retorna o entry com TODOS os relacionamentos: NFe importada, NFS-e emissao, boletos,
+   * card settlements, parcelas, OS, parceiro, plano de contas, instrumento de pagamento,
+   * conta, fatura matched, refund pair, chain de renegociacao, audit log.
+   *
+   * PADRAO TECNIKOS — TELA DE DETALHE: tudo que esta no banco aparece na tela. Ao adicionar
+   * novo campo no schema FinancialEntry, ele entra automaticamente no JSON via include/select
+   * abaixo e cai no fallback "Outros dados" da UI ate alguem mover pra secao apropriada.
+   */
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('entries/:id/detail')
+  findEntryDetail(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.findEntryDetail(id, user.companyId);
+  }
+
   @RequireVerification()
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
   @Post('entries')

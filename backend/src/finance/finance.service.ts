@@ -628,6 +628,146 @@ export class FinanceService {
     return { entries, total: totalCount };
   }
 
+  /**
+   * v1.10.79 — Detalhe abrangente da entry pra tela /finance/entries/[id].
+   *
+   * ════════════════════════════════════════════════════════════
+   * PADRAO TECNIKOS — Detalhe de FinancialEntry
+   * ════════════════════════════════════════════════════════════
+   * REGRA: a tela de detalhe deve mostrar TUDO que tem no banco sobre o documento.
+   *
+   * Ao adicionar campo novo ao Prisma FinancialEntry:
+   *  - NAO precisa mexer aqui — a entry e retornada inteira (sem select projection).
+   *  - Frontend tem fallback "Outros dados do banco" que mostra automaticamente
+   *    qualquer campo nao renderizado em secao especifica.
+   *
+   * Ao adicionar NOVA RELACAO (ex: novo model que aponta pra FinancialEntry):
+   *  - Inclua aqui no `include` pra trazer os dados.
+   *  - Adicione secao na tela de detalhe pra renderizar (ou deixa cair no fallback).
+   *
+   * NUNCA remover o fallback de "Outros dados" — eh garantia anti-bug:
+   *  evita campos novos passarem despercebidos pelos gestores.
+   * ════════════════════════════════════════════════════════════
+   */
+  async findEntryDetail(id: string, companyId: string) {
+    const entry = await this.prisma.financialEntry.findFirst({
+      where: { id, companyId, deletedAt: null },
+      include: {
+        serviceOrder: {
+          select: { id: true, code: true, title: true, status: true, valueCents: true },
+        },
+        partner: { select: { id: true, name: true, document: true, phone: true, email: true } },
+        financialAccount: { select: { id: true, code: true, name: true, type: true } },
+        paymentMethodRef: { select: { id: true, code: true, name: true } },
+        cashAccountRef: { select: { id: true, name: true, type: true, bankName: true } },
+        paymentInstrumentRef: {
+          select: {
+            id: true, name: true, cardLast4: true, cardBrand: true,
+            billingClosingDay: true, billingDueDay: true,
+            paymentMethod: { select: { code: true, name: true, requiresBrand: true } },
+            cashAccount: { select: { id: true, name: true } },
+          },
+        },
+        installments: { orderBy: { installmentNumber: 'asc' } },
+        parentEntry: {
+          select: { id: true, code: true, description: true, grossCents: true, netCents: true, status: true },
+        },
+        childEntries: {
+          select: { id: true, code: true, description: true, grossCents: true, netCents: true, status: true, renegotiatedAt: true },
+          orderBy: { createdAt: 'asc' },
+        },
+        renegotiatedTo: {
+          select: { id: true, code: true, description: true, grossCents: true, netCents: true, status: true },
+        },
+        invoiceMatchLine: {
+          select: {
+            id: true, description: true, transactionDate: true, amountCents: true,
+            cashAccountId: true, matchedAt: true, matchedByName: true,
+          },
+        },
+        refundPairEntry: {
+          select: { id: true, code: true, description: true, netCents: true, status: true },
+        },
+        nfseEmission: {
+          select: {
+            id: true, status: true, nfseNumber: true, rpsNumber: true, rpsSeries: true,
+            issuedAt: true, pdfUrl: true, xmlUrl: true, focusNfeRef: true,
+            codigoVerificacao: true, valorServicos: true,
+            cancelledAt: true, errorMessage: true,
+          },
+        },
+        boletos: {
+          select: {
+            id: true, status: true, nossoNumero: true, linhaDigitavel: true,
+            amountCents: true, issueDate: true, dueDate: true, paidAt: true,
+            pdfUrl: true, registeredAt: true, errorMessage: true,
+          },
+        },
+        cardSettlements: {
+          select: {
+            id: true, status: true, expectedDate: true, settledAt: true,
+            grossCents: true, feeCents: true, expectedNetCents: true,
+            cardBrand: true, paymentMethodCode: true,
+          },
+        },
+        nfseEntradaLinks: {
+          select: {
+            id: true,
+            nfseEntrada: {
+              select: { id: true, numero: true, dataEmissao: true, prestadorRazaoSocial: true, valorServicosCents: true },
+            },
+          },
+        },
+      },
+    });
+    if (!entry) throw new NotFoundException('Entrada financeira nao encontrada');
+
+    // NFe importada (vinculo reverso via NfeImport.financialEntryId)
+    const nfeImport = await this.prisma.nfeImport.findFirst({
+      where: { financialEntryId: id, companyId },
+      select: {
+        id: true, nfeNumber: true, nfeSeries: true, nfeKey: true, issueDate: true,
+        supplierName: true, supplierCnpj: true, totalCents: true, status: true,
+        indOper: true, finNfe: true, codSit: true,
+        baseIcmsCents: true, icmsCents: true, baseIcmsStCents: true, icmsStCents: true,
+        ipiCents: true, pisCents: true, cofinsCents: true,
+        freteCents: true, seguroCents: true, descontoCents: true, outrasDespCents: true,
+        infCpl: true, duplicatasJson: true,
+        xmlContent: true, // truncado abaixo pra payload menor
+        sefazDocumentId: true,
+      },
+    });
+    // Trunca xmlContent (so flag de existencia pra UI mostrar botoes de download)
+    const nfeImportTrimmed = nfeImport ? {
+      ...nfeImport,
+      xmlContent: undefined,
+      hasXml: !!nfeImport.xmlContent,
+    } : null;
+
+    // Conciliacao 1:1 direta via BankStatementLine.matchedEntryId
+    const matchedLine = await this.prisma.bankStatementLine.findFirst({
+      where: { matchedEntryId: id, status: 'MATCHED' },
+      select: {
+        id: true, description: true, transactionDate: true, amountCents: true,
+        cashAccountId: true, matchedAt: true, matchedByName: true,
+      },
+    });
+
+    // Audit log (mudancas retroativas e cancelamentos)
+    const auditLog = await this.prisma.auditLog.findMany({
+      where: { companyId, entityType: 'FINANCIAL_ENTRY', entityId: id },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    return {
+      entry,
+      nfeImport: nfeImportTrimmed,
+      matchedLine,
+      auditLog,
+    };
+  }
+
   async findOneEntry(id: string, companyId: string) {
     const entry = await this.prisma.financialEntry.findFirst({
       where: { id, companyId, deletedAt: null },

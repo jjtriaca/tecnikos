@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { api, getAccessToken } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -2718,6 +2718,7 @@ function EntryActions({
   allowDelete?: boolean;
 }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -2760,8 +2761,17 @@ function EntryActions({
   const hasInstallments = entry.installmentCount && entry.installmentCount > 0;
 
   // Build menu items
+  // v1.10.79: "Ver detalhes" sempre primeiro — abre tela completa com TODOS os dados do banco
+  // (NFe vinculada com botao DANFE, NFS-e, boletos, parcelas, conciliacao, auditoria...).
+  // Padrao do sistema: cada lancamento tem URL unica /finance/entries/[id] pra deep-link.
   type MenuItem = { label: string; onClick: () => void; className?: string; separator?: false } | { separator: true };
   const items: MenuItem[] = [];
+
+  items.push({
+    label: "Ver detalhes",
+    onClick: () => router.push(`/finance/entries/${entry.id}`),
+    className: "text-slate-700",
+  });
 
   // Primary action: Receber/Pagar
   if (isPendingOrConfirmed) {
