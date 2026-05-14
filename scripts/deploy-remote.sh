@@ -179,9 +179,12 @@ git commit -m "release: v${NEW_VERSION}
 
 Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>" 2>/dev/null || echo "(nada para commitar)"
 
-git push origin main 2>/dev/null || true
+# git push HEAD:main funciona em branch local 'main' ou em worktree 'claude/*'.
+# Sem silenciamento — push falhando deixaria o worktree defasado de origin/main
+# (incidente: 26 versoes perdidas silenciosamente, v1.10.55 -> v1.10.81).
+git push origin HEAD:main
 git tag -a "v${NEW_VERSION}" -m "Release v${NEW_VERSION}" 2>/dev/null || true
-git push origin "v${NEW_VERSION}" 2>/dev/null || true
+git push origin "v${NEW_VERSION}"
 
 # ── Limpar ────────────────────────────────────────────────────
 rm -f /tmp/tecnikos-deploy.tar.gz
