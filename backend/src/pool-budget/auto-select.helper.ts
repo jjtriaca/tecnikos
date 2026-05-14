@@ -181,6 +181,13 @@ function parseOrderBy(orderBy: string | null | undefined): { expr: string; dir: 
  * Filter = combinacao de filterCategoria (matcha technicalSpecs.categoriaPlanilha)
  * e filterDescription (matcha description/name case-insensitive).
  */
+// Normaliza string removendo acentos pra match case+accent-insensitive.
+// Sem isso, filtro 'conexoes' nao matcha 'conexões' (incidente v1.11.03).
+// ̀-ͯ e o range de combining diacritical marks gerados por NFD.
+function normalizeForMatch(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
 export function filterCandidates<T extends { description?: string | null; name?: string | null; technicalSpecs?: any }>(
   candidates: T[],
   rule: AutoSelectRule,
@@ -189,13 +196,13 @@ export function filterCandidates<T extends { description?: string | null; name?:
   return candidates.filter((c) => {
     if (filterCategoria && filterCategoria.trim()) {
       const cat = c.technicalSpecs?.categoriaPlanilha;
-      if (!cat || String(cat).toLowerCase() !== filterCategoria.trim().toLowerCase()) {
+      if (!cat || normalizeForMatch(String(cat)) !== normalizeForMatch(filterCategoria.trim())) {
         return false;
       }
     }
     if (filterDescription && filterDescription.trim()) {
-      const desc = (c.description || c.name || '').toLowerCase();
-      if (!desc.includes(filterDescription.trim().toLowerCase())) return false;
+      const desc = normalizeForMatch(c.description || c.name || '');
+      if (!desc.includes(normalizeForMatch(filterDescription.trim()))) return false;
     }
     return true;
   });

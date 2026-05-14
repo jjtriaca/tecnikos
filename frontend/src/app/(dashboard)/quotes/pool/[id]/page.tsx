@@ -2308,16 +2308,16 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
     description: 'Tubo PVC com diametro igual ao tubo de entrada do equipamento escolhido na mesma etapa (filtro, aquecedor, cascata, SPA). Le siblingTuboMm calculado automaticamente. Vale pra qualquer etapa que tenha tubo.',
     rule: {
       filterCategoria: null,
-      filterDescription: 'Tubos conexoes',
-      where: 'tuboEntradaMm == siblingTuboMm',
-      orderBy: 'priceCents asc',
+      filterDescription: 'Tubos conex', // matcha 'conexoes' e 'conexões' (sem/com acento)
+      where: 'tuboEntradaMm >= siblingTuboMm',
+      orderBy: 'tuboEntradaMm asc',
       indicator: {
         label: 'Compatibilidade tubo',
-        expr: '(tuboEntradaMm - siblingTuboMm) * (tuboEntradaMm - siblingTuboMm)',
-        unit: '',
+        expr: 'tuboEntradaMm - siblingTuboMm',
+        unit: 'mm',
         levels: [
           { max: 0, label: 'Compativel', color: 'emerald' },
-          { max: 99999, label: 'Diametro errado', color: 'red' },
+          { max: 999, label: 'Maior que necessario', color: 'yellow' },
         ],
       },
     },
@@ -2556,9 +2556,12 @@ function AutoSelectModal({
       type: c.product ? 'product' : 'service' as 'product' | 'service',
       kind: c.product ? 'Produto' : 'Serviço',
     }));
+    // Normalizacao remove acentos (NFD + strip combining marks) pra que
+    // 'conexoes' matcha 'conexões' e vice-versa.
+    const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
     const filtered1 = items.filter((c) => {
-      if (filterCategoria.trim() && String(c.specs.categoriaPlanilha || '').toLowerCase() !== filterCategoria.trim().toLowerCase()) return false;
-      if (filterDescription.trim() && !c.desc.toLowerCase().includes(filterDescription.trim().toLowerCase())) return false;
+      if (filterCategoria.trim() && norm(String(c.specs.categoriaPlanilha || '')) !== norm(filterCategoria.trim())) return false;
+      if (filterDescription.trim() && !norm(c.desc).includes(norm(filterDescription.trim()))) return false;
       return true;
     });
     const filtered2 = filtered1.map((c) => {
@@ -2660,6 +2663,26 @@ function AutoSelectModal({
                   <div className="text-sm text-red-600">⚠ Nenhum candidato passa nos filtros + criterio. Ajuste a regra.</div>
                 )}
               </div>
+              {/* Diagnostico: vars 'sibling*' calculadas pelos outros items da mesma etapa.
+                  Util pra entender por que uma regra com siblingTuboMm/siblingVazaoM3h falha
+                  (ex: equipamento principal nao vinculado ou sem technicalSpecs). */}
+              {siblingVars && Object.keys(siblingVars).length > 0 && (
+                <div className="mt-2 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-700">
+                  <span className="font-semibold uppercase text-slate-600 mr-2">Vars desta etapa:</span>
+                  {Object.entries(siblingVars).map(([k, v]) => (
+                    <span key={k} className="inline-block mr-3">
+                      <code className="text-slate-900">{k}</code>=<span className="font-mono">{v}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {(!siblingVars || Object.keys(siblingVars).length === 0) && (
+                <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                  <strong>Aviso:</strong> nenhum equipamento com technicalSpecs vinculado nas outras linhas desta etapa.
+                  Se a regra usa vars <code>sibling*</code>, escolha primeiro o equipamento principal (filtro/aquecedor/cascata/SPA)
+                  pra essa linha conseguir referencia-lo.
+                </div>
+              )}
             </div>
 
             <div className="overflow-y-auto px-6 py-4 space-y-2">
