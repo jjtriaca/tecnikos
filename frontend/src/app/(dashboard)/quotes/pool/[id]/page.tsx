@@ -1161,6 +1161,10 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
       <CatalogPickModal
         catalog={catalog}
         currentSection={item.poolSection}
+        autoSelectRule={item.autoSelectRule}
+        dimensions={dimensions}
+        environmentParams={environmentParams}
+        siblingVars={siblingVars}
         onClose={() => setShowCatalogPick(false)}
         onPick={(cfg) => {
           setShowCatalogPick(false);
@@ -3096,20 +3100,91 @@ function SaveAsTemplateModal({ budgetId, itemsCount, currentTemplateId, onClose,
 // ─────────────────────────────────────────────────────────
 // CatalogPickModal — busca produto/serviço pra trocar item de uma linha existente
 // ─────────────────────────────────────────────────────────
-function CatalogPickModal({ catalog, currentSection, onClose, onPick }: {
+function CatalogPickModal({ catalog, currentSection, autoSelectRule, dimensions, environmentParams, siblingVars, onClose, onPick }: {
   catalog: CatalogConfig[];
   currentSection?: string;
+  // v1.11.06: quando linha tem regra de auto-selecao, oferece checkbox 'Apenas
+  // os que passam na regra' (default ON) — usuario nao precisa filtrar manualmente.
+  autoSelectRule?: AutoSelectRule | null;
+  dimensions?: any;
+  environmentParams?: any;
+  siblingVars?: Record<string, number>;
   onClose: () => void;
   onPick: (cfg: CatalogConfig) => void;
 }) {
   const [search, setSearch] = useState("");
   const [showAll, setShowAll] = useState(true);
+  const hasRule = !!(autoSelectRule && (autoSelectRule.where || autoSelectRule.filterCategoria || autoSelectRule.filterDescription));
+  const [filterByRule, setFilterByRule] = useState(hasRule);
+
+  // Vars do orcamento (dim) + ambiente + siblings — mesma logica do AutoSelectModal,
+  // permite avaliar where da regra contra cada candidato pra mostrar so os que passam.
+  const ruleVars = useMemo(() => {
+    const v: Record<string, number> = {
+      length: Number(dimensions?.length) || 0,
+      width: Number(dimensions?.width) || 0,
+      depth: Number(dimensions?.depth) || 0,
+      area: Number(dimensions?.area) || 0,
+      perimeter: Number(dimensions?.perimeter) || 0,
+      volume: Number(dimensions?.volume) || 0,
+      cantos: Number(dimensions?.cantos) || 0,
+      perimExterno: Number(dimensions?.perimetroExternoBorda) || 0,
+      perimInterno: Number(dimensions?.perimetroParedesInternas) || 0,
+      areaParedeEFundo: Number(dimensions?.areaParedeEFundo) || 0,
+      radierM2: Number(dimensions?.radierM2) || 0,
+      radierEspessura: Number(dimensions?.radierEspessura) || 0,
+      radierM3: Number(dimensions?.radierM3) || 0,
+      escavacao: Number(dimensions?.escavacaoM3) || 0,
+      tempLocal: Number(environmentParams?.temperaturaMediaLocal ?? environmentParams?.temperatura) || 0,
+      tempAgua: Number(environmentParams?.temperaturaAguaDesejada) || 0,
+      ...(siblingVars || {}),
+    };
+    return v;
+  }, [dimensions, environmentParams, siblingVars]);
+
+  // Avalia where + filterCategoria + filterDescription da regra contra 1 candidato.
+  function matchesRule(c: CatalogConfig): boolean {
+    if (!autoSelectRule) return true;
+    const desc = c.product?.description || c.service?.name || '';
+    const specs = (c.product?.technicalSpecs || c.service?.technicalSpecs || {}) as Record<string, any>;
+    const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    if (autoSelectRule.filterCategoria && autoSelectRule.filterCategoria.trim()) {
+      const cat = specs.categoriaPlanilha;
+      if (!cat || norm(String(cat)) !== norm(autoSelectRule.filterCategoria.trim())) return false;
+    }
+    if (autoSelectRule.filterDescription && autoSelectRule.filterDescription.trim()) {
+      if (!norm(desc).includes(norm(autoSelectRule.filterDescription.trim()))) return false;
+    }
+    if (autoSelectRule.where && autoSelectRule.where.trim()) {
+      const specVars: Record<string, number> = {};
+      for (const [k, raw] of Object.entries(specs)) {
+        const n = Number(raw);
+        if (Number.isFinite(n)) specVars[k] = n;
+      }
+      const merged = { ...ruleVars, ...specVars };
+      let s = autoSelectRule.where.replace(/(\d),(\d)/g, '$1.$2');
+      for (const [k, val] of Object.entries(merged)) {
+        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k)) continue;
+        const n = Number(val) || 0;
+        s = s.replace(new RegExp('\\b' + k + '\\b', 'g'), '(' + n + ')');
+      }
+      const stripped = s.replace(/\b(ceil|floor|round|min|max)\b/g, '');
+      if (/[a-zA-Z_]/.test(stripped)) return false;
+      if (!/^[\d.\s+\-*/(),<>=!&|]*$/.test(stripped)) return false;
+      try {
+        const fn = Function('ceil', 'floor', 'round', 'min', 'max', '"use strict"; return (' + s + ');');
+        return !!fn(Math.ceil, Math.floor, Math.round, Math.min, Math.max);
+      } catch { return false; }
+    }
+    return true;
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const tokens = q.length > 0 ? q.split(/\s+/) : [];
     return catalog.filter((c) => {
       if (!showAll && currentSection && c.poolSection !== currentSection) return false;
+      if (filterByRule && hasRule && !matchesRule(c)) return false;
       if (tokens.length === 0) return true;
       const haystack = [
         c.product?.code, c.product?.description, c.product?.brand,
@@ -3120,7 +3195,8 @@ function CatalogPickModal({ catalog, currentSection, onClose, onPick }: {
       ].filter(Boolean).join(" ").toLowerCase();
       return tokens.every((t) => haystack.includes(t));
     });
-  }, [catalog, search, currentSection, showAll]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalog, search, currentSection, showAll, filterByRule, hasRule, ruleVars, autoSelectRule]);
 
   return (
     <tr>
@@ -3132,14 +3208,22 @@ function CatalogPickModal({ catalog, currentSection, onClose, onPick }: {
               <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl leading-none">✕</button>
             </div>
             <div className="space-y-2 overflow-hidden flex flex-col flex-1">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <span className="text-xs text-slate-600">{filtered.length} resultado{filtered.length !== 1 ? "s" : ""}</span>
-                {currentSection && (
-                  <label className="text-[10px] text-slate-500 flex items-center gap-1 cursor-pointer">
-                    <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} className="h-3 w-3" />
-                    Buscar em todas as etapas
-                  </label>
-                )}
+                <div className="flex items-center gap-3 flex-wrap">
+                  {hasRule && (
+                    <label className="text-[10px] text-violet-700 flex items-center gap-1 cursor-pointer font-medium" title="Aplica filtros + criterio da regra de auto-selecao desta linha. Desmarque pra ver todos os produtos do catalogo.">
+                      <input type="checkbox" checked={filterByRule} onChange={(e) => setFilterByRule(e.target.checked)} className="h-3 w-3" />
+                      ✨ Apenas que passam na regra desta linha
+                    </label>
+                  )}
+                  {currentSection && (
+                    <label className="text-[10px] text-slate-500 flex items-center gap-1 cursor-pointer">
+                      <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} className="h-3 w-3" />
+                      Buscar em todas as etapas
+                    </label>
+                  )}
+                </div>
               </div>
               <div className="relative">
                 <input value={search} onChange={(e) => setSearch(e.target.value)} autoFocus
