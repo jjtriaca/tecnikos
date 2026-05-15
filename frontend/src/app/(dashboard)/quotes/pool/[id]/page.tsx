@@ -2489,60 +2489,21 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
   // 3 templates de tubo — mesma logica matematica, filterDescription distinto pra
   // garantir que o auto-select pegue o tipo de tubo certo (filtragem nao deve
   // pegar tubo de cascata mesmo que ambos tenham tuboEntradaMm igual).
+  // Templates de tubo: usam prod(LREF, "tuboEntradaMm") como placeholder.
+  // O usuario precisa substituir LREF pela linha do equipamento principal
+  // (filtro/cascata/SPA) usando o botao "Inserir referencia a linha" do where.
   {
     icon: '🚿',
-    label: 'Tubo de filtragem (mesmo diametro do filtro)',
-    description: 'Tubos do sistema de filtragem com diametro = tuboEntradaMm do filtro escolhido na mesma etapa.',
+    label: 'Tubo (mesmo diametro do equipamento — escolha a linha)',
+    description: 'Tubos com diametro = tuboEntradaMm do equipamento principal de outra linha (filtro/cascata/SPA). Apos aplicar, edite o where pra apontar a linha certa (ex: prod(L3, "tuboEntradaMm")). Funciona em qualquer etapa.',
     rule: {
       filterCategoria: null,
-      filterDescription: 'sist. filtragem',
-      where: 'tuboEntradaMm >= siblingTuboEntradaMm',
+      filterDescription: 'tubo',
+      where: 'tuboEntradaMm >= prod(LREF, "tuboEntradaMm")',
       orderBy: 'tuboEntradaMm asc',
       indicator: {
         label: 'Compatibilidade tubo',
-        expr: 'tuboEntradaMm - siblingTuboEntradaMm',
-        unit: 'mm',
-        levels: [
-          { max: -0.01, label: 'Incompativel (tubo menor)', color: 'red' },
-          { max: 0, label: 'Compativel', color: 'emerald' },
-          { max: 999, label: 'Maior que necessario', color: 'yellow' },
-        ],
-      },
-    },
-  },
-  {
-    icon: '🚿',
-    label: 'Tubo de cascata (mesmo diametro do kit cascata)',
-    description: 'Tubos do sistema de cascata com diametro = tuboEntradaMm do kit cascata escolhido na mesma etapa.',
-    rule: {
-      filterCategoria: null,
-      filterDescription: 'p/ cascata',
-      where: 'tuboEntradaMm >= siblingTuboEntradaMm',
-      orderBy: 'tuboEntradaMm asc',
-      indicator: {
-        label: 'Compatibilidade tubo',
-        expr: 'tuboEntradaMm - siblingTuboEntradaMm',
-        unit: 'mm',
-        levels: [
-          { max: -0.01, label: 'Incompativel (tubo menor)', color: 'red' },
-          { max: 0, label: 'Compativel', color: 'emerald' },
-          { max: 999, label: 'Maior que necessario', color: 'yellow' },
-        ],
-      },
-    },
-  },
-  {
-    icon: '🚿',
-    label: 'Tubo de SPA (mesmo diametro do kit SPA)',
-    description: 'Tubos do sistema SPA com diametro = tuboEntradaMm do kit SPA escolhido na mesma etapa.',
-    rule: {
-      filterCategoria: null,
-      filterDescription: 'SPA',
-      where: 'tuboEntradaMm >= siblingTuboEntradaMm',
-      orderBy: 'tuboEntradaMm asc',
-      indicator: {
-        label: 'Compatibilidade tubo',
-        expr: 'tuboEntradaMm - siblingTuboEntradaMm',
+        expr: 'tuboEntradaMm - prod(LREF, "tuboEntradaMm")',
         unit: 'mm',
         levels: [
           { max: -0.01, label: 'Incompativel (tubo menor)', color: 'red' },
@@ -2789,10 +2750,25 @@ function AutoSelectModal({
     return v;
   }, [dimensions, environmentParams, effectiveSiblingVars]);
 
+  // Map cellRef -> specs do produto vinculado, alimenta substituicao de prod(LX, "spec") nas regras
+  const cellRefSpecs = useMemo(() => {
+    const m = new Map<string, Record<string, any>>();
+    for (const s of sectionItems || []) {
+      if (s.cellRef && s.specs) m.set(s.cellRef, s.specs);
+    }
+    return m;
+  }, [sectionItems]);
+
   // Avalia condicao boolean (mesmo padrao do evalLocal mas retornando boolean)
   function evalCondition(expr: string, vars: Record<string, number>): boolean {
     if (!expr.trim()) return true;
     let s = expr.replace(/(\d),(\d)/g, '$1.$2');
+    // prod(LX, "spec") — substitui pela spec real do produto da linha referenciada
+    s = s.replace(/\bprod\s*\(\s*(L\d+)\s*,\s*"([a-zA-Z_][a-zA-Z0-9_]*)"\s*\)/g, (_m, ref: string, key: string) => {
+      const specs = cellRefSpecs.get(ref);
+      const v = specs ? Number(specs[key] ?? 0) : 0;
+      return '(' + (Number.isFinite(v) ? v : 0) + ')';
+    });
     s = s.replace(SECTION_VAR_PATTERN, (_m, prefix: string, num: string) => '(' + (vars[prefix + num] || 0) + ')');
     for (const k of FORMULA_VARS) {
       s = s.replace(new RegExp('\\b' + k + '\\b', 'g'), '(' + (vars[k] || 0) + ')');
@@ -2817,7 +2793,14 @@ function AutoSelectModal({
 
   function evalNumber(expr: string, vars: Record<string, number>): number {
     if (!expr.trim()) return NaN;
-    const r = evalLocal(expr, vars);
+    // Pre-substitui prod(LX, "spec") pelo valor real antes de delegar pro evalLocal
+    let e = expr;
+    e = e.replace(/\bprod\s*\(\s*(L\d+)\s*,\s*"([a-zA-Z_][a-zA-Z0-9_]*)"\s*\)/g, (_m, ref: string, key: string) => {
+      const specs = cellRefSpecs.get(ref);
+      const v = specs ? Number(specs[key] ?? 0) : 0;
+      return '(' + (Number.isFinite(v) ? v : 0) + ')';
+    });
+    const r = evalLocal(e, vars);
     return r.ok ? r.value! : NaN;
   }
 
@@ -3090,33 +3073,6 @@ function AutoSelectModal({
                     </div>
                   </label>
 
-                  {/* Dropdown "Equipamento principal (linha)" — vinculo explicito.
-                      Quando preenchido, siblings vem so dessa linha. Recomendado
-                      quando a regra usa sibling* — evita ambiguidade de qual e o principal. */}
-                  <div className="rounded border border-violet-200 bg-violet-50/50 px-3 py-2">
-                    <label className="block text-[11px] font-bold uppercase text-violet-900 mb-1">
-                      🔗 Equipamento principal (linha) — opcional
-                    </label>
-                    <p className="text-[11px] text-slate-700 mb-2 leading-tight">
-                      Vincule esse item a uma linha especifica da mesma etapa (ex: tubo aponta pro Kit SPA da linha 1).
-                      Quando preenchido, <code>sibling*</code> vem so dessa linha — independe da ordem dos items.
-                      <strong className="text-violet-900"> Sem ambiguidade.</strong>
-                    </p>
-                    <select value={linkedCellRef} onChange={(e) => setLinkedCellRef(e.target.value)}
-                      className="w-full rounded border border-violet-300 px-2 py-1.5 text-sm text-slate-900 bg-white">
-                      <option value="">— Sem vinculo (siblings genericos da etapa) —</option>
-                      {(sectionItems || []).filter((it) => it.linked && it.cellRef).map((it) => (
-                        <option key={it.cellRef!} value={it.cellRef!}>
-                          {it.cellRef} — {it.description}
-                        </option>
-                      ))}
-                    </select>
-                    {(sectionItems || []).filter((it) => it.linked && it.cellRef).length === 0 && (
-                      <p className="text-[10px] text-amber-700 mt-1">
-                        Nenhuma outra linha desta etapa tem produto vinculado ainda.
-                      </p>
-                    )}
-                  </div>
                 </div>
               </details>
 
@@ -3127,11 +3083,59 @@ function AutoSelectModal({
                   <span className="text-slate-600 text-xs group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 <div className="px-4 pb-3 pt-1 space-y-2">
-                  <input type="text" value={where} onChange={(e) => setWhere(e.target.value)}
-                    placeholder="Ex: vazaoM3h * 1 >= volume * 0.25"
+                  <input id="autoselect-where-input" type="text" value={where} onChange={(e) => setWhere(e.target.value)}
+                    placeholder='Ex: vazaoM3h * 1 >= volume * 0.25  |  tuboEntradaMm >= prod(L3, "tuboEntradaMm")'
                     className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm font-mono text-slate-900" />
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {(sectionItems || []).filter((it) => it.linked && it.cellRef).length > 0 && (
+                      <details className="relative">
+                        <summary className="cursor-pointer list-none rounded border border-violet-300 bg-violet-50 hover:bg-violet-100 text-violet-800 px-2 py-1 text-[11px] font-semibold transition">
+                          📐 Inserir prod(L?, "spec") — referencia a linha
+                        </summary>
+                        <div className="absolute top-full left-0 mt-1 z-10 rounded-lg border border-violet-300 bg-white shadow-lg p-2 min-w-[280px] max-h-60 overflow-y-auto">
+                          <div className="text-[10px] text-violet-900 font-semibold mb-1">Clique numa linha pra inserir:</div>
+                          {(sectionItems || []).filter((it) => it.linked && it.cellRef).map((it) => {
+                            const specs = (it.specs as Record<string, any>) || {};
+                            const numKeys = Object.keys(specs).filter((k) => Number.isFinite(Number(specs[k])));
+                            return (
+                              <div key={it.cellRef} className="mb-1.5 last:mb-0">
+                                <div className="text-[10px] font-semibold text-slate-700 mb-0.5">
+                                  <code className="text-violet-700">{it.cellRef}</code> — {it.description}
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                  {numKeys.length === 0 ? (
+                                    <span className="text-[10px] text-amber-700 italic">sem specs numericas</span>
+                                  ) : numKeys.map((k) => (
+                                    <button key={k} type="button"
+                                      onClick={() => {
+                                        const insert = `prod(${it.cellRef}, "${k}")`;
+                                        const input = document.getElementById('autoselect-where-input') as HTMLInputElement | null;
+                                        if (input && document.activeElement === input) {
+                                          const start = input.selectionStart ?? where.length;
+                                          const end = input.selectionEnd ?? where.length;
+                                          const next = where.slice(0, start) + insert + where.slice(end);
+                                          setWhere(next);
+                                          requestAnimationFrame(() => { input.focus(); input.setSelectionRange(start + insert.length, start + insert.length); });
+                                        } else {
+                                          setWhere((p) => (p + (p.endsWith(' ') || p === '' ? '' : ' ') + insert).trim());
+                                        }
+                                      }}
+                                      className="text-[10px] font-mono bg-slate-100 hover:bg-violet-100 hover:text-violet-900 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200">
+                                      {k}={specs[k]}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </details>
+                    )}
+                  </div>
                   <div className="text-[11px] text-slate-700 leading-snug">
-                    Vars disponiveis: vars do orcamento (volume, area, areaParedeEFundo, dias, ...) + qualquer campo numerico do technicalSpecs do candidato (vazaoM3h, kcalHMin, kcalHMax, tuboEntradaMm, voltagem, potenciaCv, ...). Operadores: <code className="bg-slate-100 px-1 rounded text-slate-900">+ − × ÷ ( ) &gt;= &lt;= &gt; &lt; == != &amp;&amp; ||</code>
+                    Vars: orcamento (volume, area, areaParedeEFundo, dias, ...) + technicalSpecs do candidato (vazaoM3h, kcalHMin, tuboEntradaMm, ...).
+                    Pra ler spec de outra linha: <code className="bg-slate-100 px-1 rounded">prod(L3, "tuboEntradaMm")</code> (use o botao acima).
+                    Operadores: <code className="bg-slate-100 px-1 rounded text-slate-900">+ − × ÷ ( ) &gt;= &lt;= &gt; &lt; == != &amp;&amp; ||</code>
                   </div>
                 </div>
               </details>

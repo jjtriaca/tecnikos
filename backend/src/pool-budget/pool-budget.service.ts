@@ -625,11 +625,28 @@ export class PoolBudgetService {
           select: { id: true, name: true, priceCents: true, unit: true, technicalSpecs: true },
         });
 
-        // Detecta uso de sibling vars no where da rule — split em 2 fases
+        // Constroi map cellRef -> productSpecs do orcamento atual.
+        // Usado pra substituir prod(LX, "spec") nas expressoes de regra/indicator.
+        const allInBudgetForSpecs = await this.prisma.poolBudgetItem.findMany({
+          where: { budgetId },
+          select: {
+            cellRef: true,
+            product: { select: { technicalSpecs: true } },
+            service: { select: { technicalSpecs: true } },
+          },
+        });
+        const cellRefSpecsMap = new Map<string, Record<string, unknown>>();
+        for (const it of allInBudgetForSpecs) {
+          if (!it.cellRef) continue;
+          const specs = (it.product?.technicalSpecs ?? it.service?.technicalSpecs) as Record<string, unknown> | null | undefined;
+          if (specs) cellRefSpecsMap.set(it.cellRef, specs);
+        }
+
+        // Detecta uso de sibling vars OU prod() cross-line no where/indicator — split em 2 fases
         const ruleUsesSiblings = (rule: AutoSelectRule | null): boolean => {
           if (!rule) return false;
           const text = `${rule.where || ''} ${rule.indicator?.expr || ''}`;
-          return /\bsibling[A-Z]/.test(text);
+          return /\bsibling[A-Z]/.test(text) || /\bprod\s*\(\s*L\d+/.test(text);
         };
 
         // Avalia se o produto/servico ATUAL do item ainda passa nos 3 filtros da regra
@@ -643,7 +660,7 @@ export class PoolBudgetService {
             : [{ ...(it.service as any), description: (it.service as any).name }];
           const filtered1 = filterCandidates(candidate as any, rule);
           if (filtered1.length === 0) return false;
-          const filtered2 = filterByWhere(filtered1, rule, vars);
+          const filtered2 = filterByWhere(filtered1, rule, vars, cellRefSpecsMap);
           return filtered2.length > 0;
         };
 
@@ -672,7 +689,7 @@ export class PoolBudgetService {
           }
 
           // Tenta primeiro Products, depois Services
-          const bestProduct = selectBestCandidate(allProducts as any, rule, vars);
+          const bestProduct = selectBestCandidate(allProducts as any, rule, vars, cellRefSpecsMap);
           let target: { id: string; type: 'product' | 'service'; description: string; priceCents: number; unit: string } | null = null;
           if (bestProduct) {
             target = {
@@ -687,6 +704,7 @@ export class PoolBudgetService {
               allServices.map((s) => ({ ...s, description: s.name })) as any,
               rule,
               vars,
+              cellRefSpecsMap,
             );
             if (bestService) {
               target = {
@@ -1133,13 +1151,21 @@ export class PoolBudgetService {
       }
       return out;
     };
+    // Map cellRef -> productSpecs pra que evaluateIndicator possa avaliar
+    // prod(LX, "spec") quando o indicator usar referencia cross-line.
+    const indicatorCellRefSpecs = new Map<string, Record<string, unknown>>();
+    for (const it of budget.items) {
+      if (!it.cellRef) continue;
+      const specs = ((it.product as any)?.technicalSpecs ?? (it.service as any)?.technicalSpecs) as Record<string, unknown> | null | undefined;
+      if (specs) indicatorCellRefSpecs.set(it.cellRef, specs);
+    }
     for (const item of budget.items) {
       const rule = (item as any).autoSelectRule as AutoSelectRule | null | undefined;
       if (!rule?.indicator) continue;
       const productSpecs = (item.product as any)?.technicalSpecs ?? (item.service as any)?.technicalSpecs ?? null;
       const siblings = computeIndicatorSiblings(item.id, String(item.poolSection), rule.linkedCellRef);
       const vars = { ...dimensionVarsForIndicator, ...extractProductVars(productSpecs), ...siblings };
-      const calculated = evaluateIndicator(rule, vars);
+      const calculated = evaluateIndicator(rule, vars, indicatorCellRefSpecs);
       if (calculated) {
         (item as any).indicatorLabel = calculated.label;
         (item as any).indicatorColor = calculated.color;

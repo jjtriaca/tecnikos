@@ -68,10 +68,33 @@ export interface IndicatorResult {
 /**
  * Substitui variaveis e funcoes na expressao, retornando string normalizada
  * que pode ser passada pra Function eval. Reusa o mesmo padrao do formula-eval.
+ *
+ * Opcionalmente recebe cellRefSpecs: Map<cellRef, productSpecs> — quando definido,
+ * a funcao prod(LX, "spec") e substituida pelo valor real da spec do produto
+ * vinculado a linha LX. Compatibilidade com o helper do formula-eval.ts.
  */
-function substituteVars(expr: string, vars: FormulaVars): string {
+function substituteVars(
+  expr: string,
+  vars: FormulaVars,
+  cellRefSpecs?: Map<string, Record<string, unknown>>,
+): string {
   // Decimal com virgula -> ponto
   let s = expr.replace(/(\d),(\d)/g, '$1.$2');
+
+  // prod(LX, "spec") — substitui pela spec do produto da linha LX (cross-line reference)
+  if (cellRefSpecs) {
+    s = s.replace(
+      /\bprod\s*\(\s*(L\d+)\s*,\s*"([a-zA-Z_][a-zA-Z0-9_]*)"\s*\)/g,
+      (_m, ref: string, key: string) => {
+        const specs = cellRefSpecs.get(ref);
+        const v = specs ? Number(specs[key] ?? 0) : 0;
+        return `(${Number.isFinite(v) ? v : 0})`;
+      },
+    );
+  } else {
+    // Sem cellRefSpecs disponivel: ainda substitui pra 0 (nao quebra parser)
+    s = s.replace(/\bprod\s*\(\s*L\d+\s*,\s*"[a-zA-Z_][a-zA-Z0-9_]*"\s*\)/g, '(0)');
+  }
 
   // Substitui sectionVar dinamicamente
   s = s.replace(SECTION_VAR_PATTERN, (_m, prefix: string, num: string) => {
@@ -105,9 +128,13 @@ function substituteVars(expr: string, vars: FormulaVars): string {
  * Aceita operadores aritmeticos, comparacao (>= <= == != > <), logicos (&& ||).
  * Retorna false em caso de erro de sintaxe.
  */
-export function evaluateCondition(expr: string, vars: FormulaVars): boolean {
+export function evaluateCondition(
+  expr: string,
+  vars: FormulaVars,
+  cellRefSpecs?: Map<string, Record<string, unknown>>,
+): boolean {
   if (!expr || !expr.trim()) return true; // sem condicao = aceita todos
-  const normalized = substituteVars(expr, vars);
+  const normalized = substituteVars(expr, vars, cellRefSpecs);
 
   // Remove funcoes whitelisted antes de validar
   const fnPattern = new RegExp(`\\b(${ALLOWED_FUNCTIONS.join('|')})\\b`, 'g');
@@ -132,9 +159,13 @@ export function evaluateCondition(expr: string, vars: FormulaVars): boolean {
  * Avalia expressao numerica com vars (ex: "volume / vazaoM3h"). Retorna NaN em erro.
  * Difere do `evaluateFormula` por nao throw — auto-select nao deve quebrar recalc.
  */
-export function evaluateNumeric(expr: string, vars: FormulaVars): number {
+export function evaluateNumeric(
+  expr: string,
+  vars: FormulaVars,
+  cellRefSpecs?: Map<string, Record<string, unknown>>,
+): number {
   if (!expr || !expr.trim()) return 0;
-  const normalized = substituteVars(expr, vars);
+  const normalized = substituteVars(expr, vars, cellRefSpecs);
   const fnPattern = new RegExp(`\\b(${ALLOWED_FUNCTIONS.join('|')})\\b`, 'g');
   const stripped = normalized.replace(fnPattern, '');
   if (/[a-zA-Z_]/.test(stripped)) return NaN;
@@ -159,10 +190,11 @@ export function evaluateNumeric(expr: string, vars: FormulaVars): number {
 export function evaluateIndicator(
   rule: AutoSelectRule | null | undefined,
   vars: FormulaVars,
+  cellRefSpecs?: Map<string, Record<string, unknown>>,
 ): IndicatorResult | null {
   const ind = rule?.indicator;
   if (!ind || !ind.expr) return null;
-  const value = evaluateNumeric(ind.expr, vars);
+  const value = evaluateNumeric(ind.expr, vars, cellRefSpecs);
   if (!Number.isFinite(value)) return null;
   // Acha o primeiro level cujo max >= value
   const levels = Array.isArray(ind.levels) ? ind.levels : [];
@@ -236,6 +268,7 @@ export function filterByWhere<T extends { technicalSpecs?: any }>(
   candidates: T[],
   rule: AutoSelectRule,
   baseVars: FormulaVars,
+  cellRefSpecs?: Map<string, Record<string, unknown>>,
 ): T[] {
   if (!rule.where || !rule.where.trim()) return candidates;
   return candidates.filter((c) => {
@@ -247,7 +280,7 @@ export function filterByWhere<T extends { technicalSpecs?: any }>(
       if (Number.isFinite(n)) specVars[k] = n;
     }
     const merged = { ...baseVars, ...specVars };
-    return evaluateCondition(rule.where!, merged);
+    return evaluateCondition(rule.where!, merged, cellRefSpecs);
   });
 }
 
@@ -258,6 +291,7 @@ export function orderCandidates<T extends { technicalSpecs?: any; priceCents?: n
   candidates: T[],
   rule: AutoSelectRule,
   baseVars: FormulaVars,
+  cellRefSpecs?: Map<string, Record<string, unknown>>,
 ): T[] {
   const parsed = parseOrderBy(rule.orderBy);
   if (!parsed) return candidates;
@@ -277,7 +311,7 @@ export function orderCandidates<T extends { technicalSpecs?: any; priceCents?: n
       priceCents: c.priceCents ?? c.salePriceCents ?? c.unitPriceCents ?? 0,
       salePriceCents: c.salePriceCents ?? c.priceCents ?? c.unitPriceCents ?? 0,
     };
-    const v = evaluateNumeric(expr, merged);
+    const v = evaluateNumeric(expr, merged, cellRefSpecs);
     return Number.isFinite(v) ? v : Number.MAX_SAFE_INTEGER;
   };
   return [...candidates].sort((a, b) => (valueOf(a) - valueOf(b)) * dir);
@@ -292,9 +326,10 @@ export function selectBestCandidate<T extends Record<string, any>>(
   candidates: T[],
   rule: AutoSelectRule,
   baseVars: FormulaVars,
+  cellRefSpecs?: Map<string, Record<string, unknown>>,
 ): T | null {
   const filtered1 = filterCandidates(candidates as any, rule);
-  const filtered2 = filterByWhere(filtered1, rule, baseVars);
-  const ordered = orderCandidates(filtered2 as any, rule, baseVars);
+  const filtered2 = filterByWhere(filtered1, rule, baseVars, cellRefSpecs);
+  const ordered = orderCandidates(filtered2 as any, rule, baseVars, cellRefSpecs);
   return (ordered[0] as T) ?? null;
 }
