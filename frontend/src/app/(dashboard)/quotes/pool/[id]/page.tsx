@@ -1042,10 +1042,12 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         )}
         {item.isAutoCalculated && <span className="ml-2 text-[10px] text-cyan-600">auto</span>}
         {item.isExtra && <span className="ml-2 text-[10px] text-orange-600">extra</span>}
-        {/* Faixa de eficiencia da auto-selecao do produto. Recalcula automaticamente
-            se o gestor trocar o produto manualmente — o valor reflete o produto atual,
-            nao o que a regra originalmente escolheria. */}
-        {item.indicatorLabel && item.autoSelectRule?.indicator && (
+        {/* Faixa de eficiencia da auto-selecao do produto + badge/botao "selecao automatica"
+            integrado no canto direito (mesma linha). manualUnlink=true: botao "Voltar pra
+            selecao automatica" (laranja, clicavel). manualUnlink=false: badge cinza (info).
+            Quando NAO ha indicator mas a regra existe, o badge aparece numa linha propria
+            mais discreta. */}
+        {item.indicatorLabel && item.autoSelectRule?.indicator ? (
           <div className={
             "mt-1 px-2 py-1 rounded text-[11px] font-medium border flex items-center gap-2 flex-wrap " +
             (item.indicatorColor === 'emerald' ? "bg-emerald-50 border-emerald-400 text-emerald-800" :
@@ -1061,24 +1063,35 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             <span>
               {item.autoSelectRule.indicator.label}: <span className="font-semibold tabular-nums">{formatIndicatorValue(item.indicatorValue, item.indicatorUnit)}</span>
             </span>
+            {item.manualUnlink ? (
+              <button type="button"
+                onClick={() => onUpdate({ manualUnlink: false } as any)}
+                title="Clique pra voltar a selecao automatica — o sistema vai reaplicar a regra e escolher o produto otimo. Sua escolha manual sera substituida."
+                className="ml-auto text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-orange-300 bg-orange-50 hover:bg-orange-100 hover:border-orange-500 text-orange-800 transition cursor-pointer font-medium">
+                ↩ voltar selecao auto
+              </button>
+            ) : (
+              <span className="ml-auto text-[10px] opacity-70 flex items-center gap-1" title="Produto escolhido automaticamente pela regra de auto-selecao. Se voce trocar manualmente, vira botao 'Voltar pra selecao automatica'.">
+                ✨ selecao automatica
+              </span>
+            )}
           </div>
-        )}
-        {/* Badge/botao da selecao automatica — quando item tem autoSelectRule.
-            manualUnlink=true: vira botao "Voltar pra selecao automatica" (laranja).
-            manualUnlink=false: badge cinza informativo. */}
-        {item.autoSelectRule && (item.autoSelectRule.where || item.autoSelectRule.filterPoolType || item.autoSelectRule.filterDescription || item.autoSelectRule.filterCategoria) && (
-          item.manualUnlink ? (
-            <button type="button"
-              onClick={() => onUpdate({ manualUnlink: false } as any)}
-              title="Clique pra voltar a selecao automatica — o sistema vai reaplicar a regra e escolher o produto otimo. Sua escolha manual sera substituida."
-              className="mt-1 text-[10px] inline-flex items-center gap-1 px-2 py-0.5 rounded border border-orange-300 bg-orange-50 hover:bg-orange-100 hover:border-orange-500 text-orange-800 transition cursor-pointer font-medium">
-              ↩ Voltar pra selecao automatica
-            </button>
-          ) : (
-            <span className="mt-1 text-[10px] inline-flex items-center gap-1 px-2 py-0.5 rounded border border-slate-200 bg-slate-50 text-slate-600"
-              title="Produto escolhido automaticamente pela regra de auto-selecao. Se voce trocar manualmente, vira botao 'Voltar pra selecao automatica'.">
-              ✨ selecao automatica
-            </span>
+        ) : (
+          // Sem indicator: badge/botao em linha propria (caso edge — regra sem indicator)
+          item.autoSelectRule && (item.autoSelectRule.where || item.autoSelectRule.filterPoolType || item.autoSelectRule.filterDescription || item.autoSelectRule.filterCategoria) && (
+            item.manualUnlink ? (
+              <button type="button"
+                onClick={() => onUpdate({ manualUnlink: false } as any)}
+                title="Clique pra voltar a selecao automatica."
+                className="mt-1 text-[10px] inline-flex items-center gap-1 px-2 py-0.5 rounded border border-orange-300 bg-orange-50 hover:bg-orange-100 hover:border-orange-500 text-orange-800 transition cursor-pointer font-medium">
+                ↩ Voltar pra selecao automatica
+              </button>
+            ) : (
+              <span className="mt-1 text-[10px] inline-flex items-center gap-1 px-2 py-0.5 rounded border border-slate-200 bg-slate-50 text-slate-600"
+                title="Produto escolhido automaticamente pela regra. Se voce trocar manualmente, vira botao 'Voltar'.">
+                ✨ selecao automatica
+              </span>
+            )
           )
         )}
       </td>
