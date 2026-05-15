@@ -145,6 +145,7 @@ export class ProductService {
         unit: 'UN',
         salePriceCents: 0,
         costCents: 0,
+        defaultQty: 1, // explicito — produto universal, qty padrao 1 ao re-escolher
         useInSale: false,
         useInWork: true,
         status: 'ATIVO',

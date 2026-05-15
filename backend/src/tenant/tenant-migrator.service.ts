@@ -111,12 +111,13 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
 
         // Cria novo Sem Produto. Codigo seguro via counter SQL (nao usa CodeCounter
         // pra evitar dependencia do ProductService — esse cron roda no boot).
+        // defaultQty=1 explicito — produto universal, qty padrao 1 ao re-escolher.
         const code = `SEM-PRODUTO-${t.slug.toUpperCase()}`;
         await this.rawPrisma.$executeRawUnsafe(
           `INSERT INTO "${t.schemaName}"."Product"
-           (id, "companyId", code, description, unit, "salePriceCents", "costCents",
+           (id, "companyId", code, description, unit, "salePriceCents", "costCents", "defaultQty",
             "useInSale", "useInWork", status, "isSystemProduct", "currentStock", "createdAt", "updatedAt")
-           VALUES (gen_random_uuid(), $1, $2, 'Sem Produto', 'UN', 0, 0,
+           VALUES (gen_random_uuid(), $1, $2, 'Sem Produto', 'UN', 0, 0, 1,
                    false, true, 'ATIVO', true, 0, NOW(), NOW())`,
           companyId, code,
         );

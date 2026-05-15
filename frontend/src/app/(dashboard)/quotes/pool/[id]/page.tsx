@@ -310,6 +310,9 @@ export default function PoolBudgetDetailPage() {
   // inicial. Etapas com linhas amarelas (qty fora do padrao) ficam destacadas no header
   // mesmo minimizadas, pra chamar atencao.
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set(SECTION_ORDER));
+  // Refs pra cada section header — usado pelo IntersectionObserver pra auto-minimizar
+  // etapas que saem do viewport (operador rolou pra outra parte da tela).
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [confirmAction, setConfirmAction] = useState<null | "approve" | "reject" | "cancel" | "delete">(null);
   const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false);
   const [showEditHeader, setShowEditHeader] = useState(false);
@@ -317,20 +320,14 @@ export default function PoolBudgetDetailPage() {
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const { widths: colWidths, setWidth: setColWidth, reset: resetColWidths } = useColumnWidths();
 
-  // Modo accordion: ao expandir uma etapa, fecha todas as outras automaticamente.
-  // Operador foca numa etapa por vez — reduz scroll e ruido visual.
+  // Toggle simples — abrir/fechar uma etapa nao mexe nas outras. Etapas aberta
+  // sao auto-minimizadas via IntersectionObserver quando saem do viewport (perder
+  // foco ao rolar). Isso evita perder a etapa que o operador acabou de clicar.
   function toggleSection(section: string) {
     setCollapsedSections((prev) => {
-      const wasCollapsed = prev.has(section);
-      if (wasCollapsed) {
-        // Estava fechada — abre essa, fecha todas as outras
-        const next = new Set(SECTION_ORDER);
-        next.delete(section);
-        return next;
-      } else {
-        // Estava aberta — fecha (todas ficam fechadas)
-        return new Set(SECTION_ORDER);
-      }
+      const next = new Set(prev);
+      if (next.has(section)) next.delete(section); else next.add(section);
+      return next;
     });
   }
   function collapseAll() {
@@ -352,6 +349,36 @@ export default function PoolBudgetDetailPage() {
   }, [id, toast]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Auto-minimize etapas que saem do viewport (operador rolou a tela). Mantem
+  // foco na etapa que esta sendo vista — clicar em outra etapa nao "esconde" a
+  // que acabou de abrir. Quando o header da etapa sai 100% do viewport, fecha.
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const section = entry.target.getAttribute('data-section');
+          if (!section) continue;
+          // intersectionRatio === 0 = saiu COMPLETAMENTE do viewport
+          if (!entry.isIntersecting && entry.intersectionRatio === 0) {
+            setCollapsedSections((prev) => {
+              if (prev.has(section)) return prev; // ja fechada
+              const next = new Set(prev);
+              next.add(section);
+              return next;
+            });
+          }
+        }
+      },
+      { threshold: 0, rootMargin: '0px' },
+    );
+    for (const el of Object.values(sectionRefs.current)) {
+      if (el) observer.observe(el);
+    }
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [budget?.items?.length]);
 
   useEffect(() => {
     // Carrega catalogo paginado (limit max do backend = 100, cabem ~220 items)
@@ -746,7 +773,10 @@ export default function PoolBudgetDetailPage() {
                 ? 'text-amber-900 hover:text-amber-700'
                 : 'text-cyan-900 hover:text-cyan-700';
               return (
-                <div key={section} className={`rounded-xl border bg-white shadow-sm overflow-hidden ${sectionSeverity === 'red' ? 'border-red-200' : sectionSeverity === 'amber' ? 'border-amber-200' : 'border-slate-200'}`}>
+                <div key={section}
+                  data-section={section}
+                  ref={(el) => { sectionRefs.current[section] = el; }}
+                  className={`rounded-xl border bg-white shadow-sm overflow-hidden ${sectionSeverity === 'red' ? 'border-red-200' : sectionSeverity === 'amber' ? 'border-amber-200' : 'border-slate-200'}`}>
                   <div className={`flex items-center justify-between px-4 py-3 border-b ${headerBg}`}>
                     <button
                       type="button"
@@ -1131,7 +1161,9 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
               // CENARIO C — Voltar selecao auto (regras 2 e 3 + REGRA #5):
               // - manualUnlink=false (auto-select volta a operar).
               // - REGRA #5: se item tem formulaExpr, formula prevalece — NAO seta qty.
-              // - Sem formula: previousQty restaura qty se snapshot existir.
+              // - Sem formula: prioridade qty = previousQty (snapshot) > 1 (fallback robusto).
+              //   Garante que qty NUNCA fica 0 (Sem Produto tem defaultQty=0 — sem fallback,
+              //   ficaria preso em 0 ate proxima edicao manual).
               // - previousQty=null limpa o snapshot apos uso.
               <button type="button"
                 onClick={() => {
@@ -1140,7 +1172,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
                     ? undefined
                     : (typeof item.previousQty === 'number' && item.previousQty > 0
                         ? item.previousQty
-                        : undefined);
+                        : 1);
                   onUpdate({
                     manualUnlink: false,
                     ...(restoredQty !== undefined ? { qty: restoredQty } : {}),
@@ -1163,13 +1195,13 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             item.manualUnlink ? (
               <button type="button"
                 onClick={() => {
-                  // REGRA #5: formula prevalece — se item tem formulaExpr, nao seta qty.
+                  // REGRA #5: formula prevalece. Sem formula: snapshot > 1 (fallback).
                   const hasFormula = !!(item.formulaExpr && item.formulaExpr.trim());
                   const restoredQty = hasFormula
                     ? undefined
                     : (typeof item.previousQty === 'number' && item.previousQty > 0
                         ? item.previousQty
-                        : undefined);
+                        : 1);
                   onUpdate({
                     manualUnlink: false,
                     ...(restoredQty !== undefined ? { qty: restoredQty } : {}),
