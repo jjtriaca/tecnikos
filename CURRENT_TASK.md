@@ -1,7 +1,22 @@
 # TAREFA ATUAL
 
-## Versao: v1.11.13 (em prod)
-## Ultima sessao: 201 (14-15/05/2026)
+## Versao: v1.11.14 (em prod)
+## Ultima sessao: 202 (15/05/2026)
+
+## v1.11.14 — Pool budget: campo Product.poolType + chavinha "Apenas filtrar"
+- **Pedido do Juliano**: cascata e estetica, sem formula. No catalog picker da linha "Kit Cascata" abria 220 produtos sem filtro pre-aplicado. Faltava: (1) jeito de pre-filtrar candidatos por TIPO sem precisar de formula `where`; (2) salvar template SEM produto pre-selecionado (operador escolhe na mao toda vez).
+- **Solucao**:
+  - **Schema** ([Product](backend/prisma/schema.prisma) + [migration](backend/prisma/migrations/20260515130000_add_product_pool_type/migration.sql)): coluna `Product.poolType TEXT?` indexada + backfill de `technicalSpecs.categoriaPlanilha` no public. Cadastro de produto na aba Piscina ganha campo "Tipo" (combobox + datalist).
+  - **AutoSelectRule** ([auto-select.helper.ts](backend/src/pool-budget/auto-select.helper.ts)): nova chave `filterPoolType` (matcha `Product.poolType` top-level). `filterCategoria` mantido por compat (matcha `technicalSpecs.categoriaPlanilha`). Nova flag `manualSelection: true` — engine pula auto-link, regra so filtra candidatos.
+  - **Engine** ([pool-budget.service.ts](backend/src/pool-budget/pool-budget.service.ts)): PASSO 0 de `recalculateTotals` agora aceita `filterPoolType` no criterio e pula items com `manualSelection=true`. Snapshot de template inclui `autoSelectRule` — orcamento novo herda a regra sem precisar reconfigurar.
+  - **AutoSelectModal** ([pool/[id]/page.tsx](frontend/src/app/(dashboard)/quotes/pool/[id]/page.tsx)): dropdown "Tipo (Piscina)" alimentado por DISTINCT `Product.poolType` do catalogo carregado. Dropdown legado "Categoria" so aparece se houver valor antigo. Chavinha amarela "Apenas filtrar — nao escolher automaticamente". Novo template "💦 Cascata (operador escolhe)" usa `filterPoolType='Cascata' + manualSelection=true`.
+  - **Catalog picker**: respeita `filterPoolType` da regra (alem do legacy `filterCategoria`).
+  - **Endpoint**: `GET /products/pool-types` → DISTINCT lista pra alimentar dropdowns.
+- **Backfill** (tenant_sls): 171 produtos categorizados por heuristica de descricao (Cascata 9, Aquecedor 24, Refletor 15, Conjunto de filtragem 12, Quadro eletrico 10, Kit SPA 9, Tubos cascata/SPA/conexoes 11, Concreto 4, Argamassa 4, Tinta 2, etc.). 286 produtos sem poolType (materiais genericos sem relevancia pra Piscina).
+- **Como o user usa**:
+  1. Linha "Kit Cascata" no orcamento → clica em ✨ Regra → escolhe template "Cascata (operador escolhe)" → salva.
+  2. Linha fica sem produto pre-vinculado. Catalog picker filtra so produtos com poolType="Cascata" → operador escolhe a cascata manualmente.
+  3. Salva como modelo → snapshot inclui a regra com manualSelection=true. Novo orcamento aplica = catalog picker ja vem filtrado, sem produto auto-escolhido.
 
 ## RECAP SESSAO 201 — v1.10.55 → v1.11.13 (33 versoes deployadas)
 
