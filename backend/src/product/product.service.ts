@@ -112,16 +112,29 @@ export class ProductService {
      ═══════════════════════════════════════════════════════════════ */
 
   async ensureSemProduto(companyId: string): Promise<{ id: string; description: string; unit: string; salePriceCents: number }> {
-    // Busca case-insensitive
+    // Busca case-insensitive. Se existe mas nao esta marcado como system, marca.
     const existing = await this.prisma.product.findFirst({
       where: {
         companyId,
         deletedAt: null,
         description: { equals: 'Sem Produto', mode: 'insensitive' },
       },
-      select: { id: true, description: true, unit: true, salePriceCents: true },
+      select: { id: true, description: true, unit: true, salePriceCents: true, isSystemProduct: true },
     });
-    if (existing) return { ...existing, salePriceCents: existing.salePriceCents ?? 0 };
+    if (existing) {
+      if (!existing.isSystemProduct) {
+        await this.prisma.product.update({
+          where: { id: existing.id },
+          data: { isSystemProduct: true },
+        });
+      }
+      return {
+        id: existing.id,
+        description: existing.description,
+        unit: existing.unit,
+        salePriceCents: existing.salePriceCents ?? 0,
+      };
+    }
 
     const code = await this.codeGenerator.generateCode(companyId, 'PRODUCT');
     const created = await this.prisma.product.create({
@@ -135,6 +148,7 @@ export class ProductService {
         useInSale: false,
         useInWork: true,
         status: 'ATIVO',
+        isSystemProduct: true,
       },
       select: { id: true, description: true, unit: true, salePriceCents: true },
     });
@@ -253,6 +267,27 @@ export class ProductService {
   async update(id: string, companyId: string, data: UpdateProductDto) {
     const product = await this.findOne(id, companyId);
 
+    // Produtos padrao do sistema (ex: "Sem Produto"): bloqueia alterar campos
+    // que quebrariam a identificacao do registro. Permite editar campos secundarios
+    // (estoque, NCM, fiscal) caso necessario, mas description/code sao imutaveis.
+    if ((product as any).isSystemProduct) {
+      if (data.description !== undefined && data.description !== product.description) {
+        throw new BadRequestException(
+          'Este produto e padrao do sistema — a descricao nao pode ser alterada.',
+        );
+      }
+      if (data.code !== undefined && data.code !== product.code) {
+        throw new BadRequestException(
+          'Este produto e padrao do sistema — o codigo nao pode ser alterado.',
+        );
+      }
+      if (data.status !== undefined && data.status !== 'ATIVO') {
+        throw new BadRequestException(
+          'Este produto e padrao do sistema — deve permanecer ATIVO.',
+        );
+      }
+    }
+
     return this.prisma.product.update({
       where: { id },
       data: {
@@ -299,7 +334,14 @@ export class ProductService {
      ═══════════════════════════════════════════════════════════════ */
 
   async delete(id: string, companyId: string) {
-    await this.findOne(id, companyId);
+    const product = await this.findOne(id, companyId);
+
+    // Bloqueia delete de produtos padrao do sistema (ex: "Sem Produto" universal)
+    if ((product as any).isSystemProduct) {
+      throw new BadRequestException(
+        'Este produto e padrao do sistema e nao pode ser deletado. E necessario pra funcionamento da opcao "Sem Produto" no catalogo.',
+      );
+    }
 
     // Clean up NfeImportItems on PENDING imports that reference this product
     await this.prisma.$executeRaw`

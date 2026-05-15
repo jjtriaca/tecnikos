@@ -56,6 +56,78 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
     } catch (err) {
       this.logger.error(`Session cleanup failed: ${(err as Error).message}`);
     }
+
+    // Garante que o Product "Sem Produto" existe em todos tenants (universal,
+    // padrao do sistema). Idempotente: cria so se nao existir, marca isSystemProduct.
+    try {
+      await this.ensureSemProdutoInAllTenants();
+    } catch (err) {
+      this.logger.error(`Sem Produto provisioning failed: ${(err as Error).message}`);
+    }
+  }
+
+  /**
+   * Cria o Product "Sem Produto" em todos os tenants ativos (idempotente).
+   * Marca isSystemProduct=true pra protecao contra delete/edit/duplicate.
+   */
+  async ensureSemProdutoInAllTenants() {
+    const tenants = await this.rawPrisma.$queryRawUnsafe<{ schemaName: string; slug: string }[]>(`
+      SELECT "schemaName", slug FROM public."Tenant"
+      WHERE "deletedAt" IS NULL
+        AND status NOT IN ('CANCELLED')
+        AND "schemaName" IS NOT NULL
+    `);
+    if (tenants.length === 0) return;
+
+    let created = 0;
+    let marked = 0;
+    for (const t of tenants) {
+      try {
+        // Procura companyId do tenant
+        const companies = await this.rawPrisma.$queryRawUnsafe<{ id: string }[]>(
+          `SELECT id FROM "${t.schemaName}"."Company" LIMIT 1`,
+        );
+        if (companies.length === 0) continue;
+        const companyId = companies[0].id;
+
+        // Busca Sem Produto existente
+        const existing = await this.rawPrisma.$queryRawUnsafe<{ id: string; isSystemProduct: boolean }[]>(
+          `SELECT id, "isSystemProduct" FROM "${t.schemaName}"."Product"
+           WHERE "companyId" = $1 AND lower(description) = 'sem produto' AND "deletedAt" IS NULL
+           LIMIT 1`,
+          companyId,
+        );
+
+        if (existing.length > 0) {
+          if (!existing[0].isSystemProduct) {
+            await this.rawPrisma.$executeRawUnsafe(
+              `UPDATE "${t.schemaName}"."Product" SET "isSystemProduct" = true WHERE id = $1`,
+              existing[0].id,
+            );
+            marked++;
+          }
+          continue;
+        }
+
+        // Cria novo Sem Produto. Codigo seguro via counter SQL (nao usa CodeCounter
+        // pra evitar dependencia do ProductService — esse cron roda no boot).
+        const code = `SEM-PRODUTO-${t.slug.toUpperCase()}`;
+        await this.rawPrisma.$executeRawUnsafe(
+          `INSERT INTO "${t.schemaName}"."Product"
+           (id, "companyId", code, description, unit, "salePriceCents", "costCents",
+            "useInSale", "useInWork", status, "isSystemProduct", "currentStock", "createdAt", "updatedAt")
+           VALUES (gen_random_uuid(), $1, $2, 'Sem Produto', 'UN', 0, 0,
+                   false, true, 'ATIVO', true, 0, NOW(), NOW())`,
+          companyId, code,
+        );
+        created++;
+      } catch (err) {
+        this.logger.warn(`Sem Produto provisioning falhou pra tenant ${t.slug}: ${(err as Error).message}`);
+      }
+    }
+    if (created > 0 || marked > 0) {
+      this.logger.log(`Sem Produto provisioning: ${created} criado(s), ${marked} marcado(s) como system.`);
+    }
   }
 
   /**

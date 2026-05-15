@@ -1196,6 +1196,12 @@ model Product {
   useInWork Boolean @default(false)
 
   status    String    @default("ATIVO")
+  // Produto padrao do sistema (ex: "Sem Produto" universal). Quando true:
+  // - Nao pode ser deletado (softDelete bloqueia)
+  // - Nao pode ser editado em campos sensiveis (description, code, etc)
+  // - Import de CSV pula esse registro (nao edita, nao duplica)
+  // - Criado automaticamente em todos os tenants pelo TenantMigratorService
+  isSystemProduct Boolean @default(false)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
