@@ -306,7 +306,10 @@ export default function PoolBudgetDetailPage() {
   const [addSection, setAddSection] = useState<string | null>(null);
   // Etapas adicionadas manualmente que ainda nao tem items (pra UI ja ter card vazio)
   const [extraSections, setExtraSections] = useState<string[]>([]);
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  // Etapas vem MINIMIZADAS por padrao — operador expande as que precisa. Reduz scroll
+  // inicial. Etapas com linhas amarelas (qty fora do padrao) ficam destacadas no header
+  // mesmo minimizadas, pra chamar atencao.
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set(SECTION_ORDER));
   const [confirmAction, setConfirmAction] = useState<null | "approve" | "reject" | "cancel" | "delete">(null);
   const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false);
   const [showEditHeader, setShowEditHeader] = useState(false);
@@ -705,17 +708,51 @@ export default function PoolBudgetDetailPage() {
               const totServicos = items.filter((it) => isServicoItem(it)).reduce((s, it) => s + it.totalCents, 0);
               const totEtapa = totProdutos + totServicos;
               const isCollapsed = collapsedSections.has(section);
+              // Severity da etapa = maior gravidade das linhas dentro.
+              // Hoje: 'amber' (qty fora do padrao — defaultQty do produto ou qtyCalculated da formula).
+              // Futuro: 'red' (erro grave, sobrescreve amber). Sem severity = neutro (cyan).
+              const sectionSeverity = ((): 'red' | 'amber' | null => {
+                let hasAmber = false;
+                for (const it of items) {
+                  const hasFormula = !!(it.formulaExpr && it.formulaExpr.trim());
+                  const itemDefaultQty = it.product && typeof (it.product as any).defaultQty === 'number' && (it.product as any).defaultQty > 0
+                    ? (it.product as any).defaultQty as number
+                    : undefined;
+                  const itemOutOfDefault = hasFormula
+                    ? (it.qtyCalculated !== null && it.qtyCalculated !== undefined && it.qty !== it.qtyCalculated)
+                    : (itemDefaultQty !== undefined && it.qty !== itemDefaultQty);
+                  if (itemOutOfDefault) hasAmber = true;
+                }
+                if (hasAmber) return 'amber';
+                return null;
+              })();
+              const headerBg = sectionSeverity === 'red'
+                ? 'bg-red-50 border-red-200'
+                : sectionSeverity === 'amber'
+                ? 'bg-amber-50 border-amber-200'
+                : 'bg-cyan-50 border-slate-200';
+              const headerText = sectionSeverity === 'red'
+                ? 'text-red-900 hover:text-red-700'
+                : sectionSeverity === 'amber'
+                ? 'text-amber-900 hover:text-amber-700'
+                : 'text-cyan-900 hover:text-cyan-700';
               return (
-                <div key={section} className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-cyan-50">
+                <div key={section} className={`rounded-xl border bg-white shadow-sm overflow-hidden ${sectionSeverity === 'red' ? 'border-red-200' : sectionSeverity === 'amber' ? 'border-amber-200' : 'border-slate-200'}`}>
+                  <div className={`flex items-center justify-between px-4 py-3 border-b ${headerBg}`}>
                     <button
                       type="button"
                       onClick={() => toggleSection(section)}
-                      className="flex items-center gap-2 text-sm font-semibold text-cyan-900 uppercase tracking-wide hover:text-cyan-700"
+                      className={`flex items-center gap-2 text-sm font-semibold uppercase tracking-wide ${headerText}`}
                       title={isCollapsed ? "Expandir etapa" : "Minimizar etapa"}
                     >
                       <span className="inline-flex w-4 justify-center text-xs">{isCollapsed ? "▶" : "▼"}</span>
                       Etapa: {SECTION_LABEL[section] || section}
+                      {sectionSeverity === 'amber' && (
+                        <span className="text-[10px] font-normal text-amber-700 normal-case" title="Tem linha com qty fora do padrao">⚠ alerta</span>
+                      )}
+                      {sectionSeverity === 'red' && (
+                        <span className="text-[10px] font-normal text-red-700 normal-case" title="Tem erro grave">⛔ erro</span>
+                      )}
                       {isCollapsed && <span className="ml-2 normal-case font-normal text-xs text-slate-600 tabular-nums">— {fmtCurrency(totEtapa)}</span>}
                     </button>
                     <div className="flex items-center gap-2">
