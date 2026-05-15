@@ -3581,6 +3581,9 @@ model PoolBudgetItem {
   // deve PULAR esse item, mesmo que descricao matche um Product/Service unico.
   // Limpada automaticamente quando o usuario re-escolhe um produto.
   manualUnlink     Boolean @default(false)
+  // Snapshot da qty antes de virar "Sem produto" — quando o operador re-escolhe
+  // um produto, restaura a qty anterior pra ele nao perder o trabalho.
+  previousQty      Float?
   notes            String?
 
   // Regra de auto-selecao do produto/servico baseada em variaveis da piscina (volume, area)

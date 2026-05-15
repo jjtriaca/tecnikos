@@ -1511,6 +1511,7 @@ export class PoolBudgetService {
           ? { autoSelectRule: (dto.autoSelectRule === null ? Prisma.JsonNull : dto.autoSelectRule) as Prisma.InputJsonValue }
           : {}),
         ...(dto.manualUnlink !== undefined ? { manualUnlink: dto.manualUnlink } : {}),
+        ...(dto.previousQty !== undefined ? { previousQty: dto.previousQty } : {}),
         ...(autoCalculatedOverride !== undefined
           ? { isAutoCalculated: autoCalculatedOverride }
           : (dto.qty !== undefined || dto.unitPriceCents !== undefined

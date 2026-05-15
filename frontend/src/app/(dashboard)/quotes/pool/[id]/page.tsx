@@ -47,6 +47,8 @@ type BudgetItem = {
   productId?: string | null;
   serviceId?: string | null;
   autoSelectRule?: AutoSelectRule | null;
+  manualUnlink?: boolean;
+  previousQty?: number | null;
   // Calculados em runtime no findOne — nao persistidos:
   indicatorLabel?: string | null;
   indicatorColor?: string | null;
@@ -1197,26 +1199,36 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         onClose={() => setShowCatalogPick(false)}
         onPick={(cfg) => {
           setShowCatalogPick(false);
-          // Sentinel __NONE__ = "Sem produto / servico". Zera unit/preco/total, mantem
-          // qty e descricao. Marca manualUnlink=true pra que o auto-link silencioso
-          // NAO re-vincule no proximo recalc (resolve o loop "user desvincula → recalc
-          // re-vincula → user volta a ver produto vinculado").
+          // Sentinel __NONE__ = "Sem produto / servico". Salva snapshot da qty
+          // em previousQty pra restaurar quando o operador re-escolher produto.
+          // Zera: unit, valor, qty, total. Descricao vira "Sem Produto" (literal —
+          // sera usado em layout de impressao pra distinguir linhas sem produto).
+          // manualUnlink=true previne re-vinculo automatico via auto-link.
           if (cfg.id === '__NONE__') {
             onUpdate({
               catalogConfigId: null,
               productId: null,
               serviceId: null,
+              description: 'Sem Produto',
               unit: '',
               unitPriceCents: 0,
+              qty: 0,
+              previousQty: item.qty,
               manualUnlink: true,
             } as any);
+            setQty(0);
+            setDesc('Sem Produto');
             setPrice('0.00');
             return;
           }
           const newDesc = cfg.product?.description || cfg.service?.name || item.description;
           const newUnit = cfg.product?.unit || cfg.service?.unit || item.unit;
           const newPriceCents = cfg.product?.salePriceCents ?? cfg.service?.priceCents ?? item.unitPriceCents;
-          // Re-escolha de produto: limpa manualUnlink pra voltar ao fluxo normal.
+          // Re-escolha de produto: se vier de estado manualUnlink, restaura qty anterior.
+          // Description/unit/preco vem do novo produto.
+          const restoredQty = (item.manualUnlink && typeof item.previousQty === 'number')
+            ? item.previousQty
+            : undefined;
           onUpdate({
             catalogConfigId: cfg.id,
             productId: cfg.product?.id ?? null,
@@ -1224,10 +1236,13 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             description: newDesc,
             unit: newUnit,
             unitPriceCents: newPriceCents,
+            ...(restoredQty !== undefined ? { qty: restoredQty } : {}),
+            previousQty: null,
             manualUnlink: false,
           } as any);
           setDesc(newDesc);
           setPrice((newPriceCents / 100).toFixed(2));
+          if (restoredQty !== undefined) setQty(restoredQty);
         }}
       />
     )}

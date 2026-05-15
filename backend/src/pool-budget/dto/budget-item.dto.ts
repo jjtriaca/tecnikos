@@ -147,5 +147,11 @@ export class UpdateBudgetItemDto {
 
   @ApiPropertyOptional({ description: 'true quando operador escolheu "Sem produto / servico" no picker. Pula auto-link.' })
   @IsOptional()
+  @IsBoolean()
   manualUnlink?: boolean;
+
+  @ApiPropertyOptional({ description: 'Snapshot da qty antes de virar "Sem produto" — restaura ao re-escolher produto.' })
+  @IsOptional()
+  @IsNumber()
+  previousQty?: number | null;
 }
