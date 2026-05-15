@@ -1202,24 +1202,19 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         onClose={() => setShowCatalogPick(false)}
         onPick={(cfg) => {
           setShowCatalogPick(false);
-          const cfgDesc = (cfg.product?.description || cfg.service?.name || '').trim().toLowerCase();
-          // "Sem Produto" — fluxo unificado: tanto o sentinel __NONE__ quanto o
-          // Product real "Sem Produto" cadastrado caem aqui. Salva snapshot da qty,
-          // zera qty/valor/unit, descricao vira "Sem Produto", manualUnlink=true.
-          // Operador re-escolhe produto depois -> qty volta do snapshot.
-          if (cfg.id === '__NONE__' || cfgDesc === 'sem produto') {
+          // Fallback __NONE__: usado so se o tenant nao tem cadastro "Sem Produto"
+          // (raro). Desvincula e zera. Caso normal: trata Sem Produto como qualquer
+          // produto — vincula ao cadastro real (que ja tem tudo 0). Sem zerar manual,
+          // sem snapshot, sem manualUnlink — o sistema usa os zeros naturais do cadastro.
+          if (cfg.id === '__NONE__') {
             onUpdate({
-              catalogConfigId: cfg.id === '__NONE__' ? null : cfg.id,
-              productId: cfg.product?.id ?? null,
-              serviceId: cfg.service?.id ?? null,
+              catalogConfigId: null,
+              productId: null,
+              serviceId: null,
               description: 'Sem Produto',
               unit: '',
               unitPriceCents: 0,
-              qty: 0,
-              previousQty: item.qty,
-              manualUnlink: true,
             } as any);
-            setQty(0);
             setDesc('Sem Produto');
             setPrice('0.00');
             return;
@@ -1227,11 +1222,6 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
           const newDesc = cfg.product?.description || cfg.service?.name || item.description;
           const newUnit = cfg.product?.unit || cfg.service?.unit || item.unit;
           const newPriceCents = cfg.product?.salePriceCents ?? cfg.service?.priceCents ?? item.unitPriceCents;
-          // Re-escolha de produto: se vier de estado manualUnlink, restaura qty anterior.
-          // Description/unit/preco vem do novo produto.
-          const restoredQty = (item.manualUnlink && typeof item.previousQty === 'number')
-            ? item.previousQty
-            : undefined;
           onUpdate({
             catalogConfigId: cfg.id,
             productId: cfg.product?.id ?? null,
@@ -1239,13 +1229,9 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             description: newDesc,
             unit: newUnit,
             unitPriceCents: newPriceCents,
-            ...(restoredQty !== undefined ? { qty: restoredQty } : {}),
-            previousQty: null,
-            manualUnlink: false,
           } as any);
           setDesc(newDesc);
           setPrice((newPriceCents / 100).toFixed(2));
-          if (restoredQty !== undefined) setQty(restoredQty);
         }}
       />
     )}
@@ -3598,13 +3584,13 @@ function CatalogPickModal({ catalog, currentSection, autoSelectRule, dimensions,
                   type="button"
                   onClick={() => onPick(semProdutoCfg || { id: '__NONE__', poolSection: '' as any, product: null, service: null })}
                   className="w-full text-left px-3 py-2 hover:bg-slate-100 bg-slate-50 transition border-b border-slate-200"
-                  title="Vincula ao Product 'Sem Produto' do cadastro (preco 0, qty zerada). Restaura qty ao re-escolher produto."
+                  title="Vincula ao Product 'Sem Produto' do cadastro — todos os valores ja sao 0, qualquer formula que dependa do produto retorna 0 naturalmente."
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">VAZIO</span>
-                    <span className="text-sm font-medium text-slate-700">🚫 Sem produto / servico</span>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">UNIVERSAL</span>
+                    <span className="text-sm font-medium text-slate-700">🚫 Sem Produto</span>
                     <span className="text-[10px] text-slate-500">
-                      {semProdutoCfg ? 'vincula ao cadastro Sem Produto (qty/valor = 0)' : 'manter so a descricao livre da linha'}
+                      {semProdutoCfg ? 'aparece sempre no topo, independente do filtro' : 'cadastro nao encontrado — desvincula a linha'}
                     </span>
                   </div>
                 </button>
