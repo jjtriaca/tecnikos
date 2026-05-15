@@ -1064,11 +1064,12 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
               {item.autoSelectRule.indicator.label}: <span className="font-semibold tabular-nums">{formatIndicatorValue(item.indicatorValue, item.indicatorUnit)}</span>
             </span>
             {item.manualUnlink ? (
+              // CENARIO C — Voltar selecao auto (regras 2 e 3 do bloco do onPick):
+              // - manualUnlink=false (auto-select volta a operar).
+              // - previousQty restaura qty se snapshot existir (vindo de A).
+              // - previousQty=null limpa o snapshot apos uso.
               <button type="button"
                 onClick={() => {
-                  // Restaura qty do snapshot se houver (caso veio de Sem Produto e ainda
-                  // nao restaurou). Backend recalc roda auto-select normalmente apos
-                  // manualUnlink=false e escolhe o produto otimo pela regra.
                   const restoredQty = typeof item.previousQty === 'number' && item.previousQty > 0
                     ? item.previousQty
                     : undefined;
@@ -1250,14 +1251,38 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         environmentParams={environmentParams}
         siblingVars={siblingVars}
         onClose={() => setShowCatalogPick(false)}
+        /* ═══════════════════════════════════════════════════════════════
+           CATALOG PICKER — REGRAS INVIOVEIS (ja foi quebrado 3x)
+           Doc completo: memory/pool_budget_rules.md secao 16
+
+           3 cenarios, cada um com comportamento exato:
+
+           Cenario A — Sem Produto (sentinel __NONE__ ou Product real "Sem Produto"):
+             productId=Sem Produto, description="Sem Produto", qty=0,
+             previousQty=item.qty (snapshot), manualUnlink=true.
+
+           Cenario B — Produto manual (qualquer outro, mesmo que falhe na regra):
+             productId=cfg.product.id, qty=previousQty se houver senao mantem,
+             previousQty=null, manualUnlink=true (auto-select RESPEITA escolha).
+
+           Cenario C — Voltar selecao auto (handler do botao "↩ voltar selecao auto"):
+             manualUnlink=false, qty=previousQty se houver, previousQty=null.
+             Esta logica esta no botao do indicator (nao no onPick).
+
+           4 REGRAS INVIOVEIS:
+           1. Escolha manual via picker SEMPRE seta manualUnlink=true. NUNCA
+              false aqui — o auto-select substituiria o produto escolhido pelo
+              otimo da regra (Bug 1 de v1.11.35).
+           2. Snapshot previousQty restaura qty em A->B e A->C. NUNCA esquecer.
+           3. Snapshot eh salvo SO ao escolher Sem Produto (A). B e C limpam.
+           4. Auto-select PULA items com manualUnlink=true (backend recalc PASSO 0).
+
+           ANTES DE MEXER: leia checklist em pool_budget_rules.md secao 16.
+           ═══════════════════════════════════════════════════════════════ */
         onPick={(cfg) => {
           setShowCatalogPick(false);
           const cfgDesc = (cfg.product?.description || cfg.service?.name || '').trim().toLowerCase();
-          // "Sem Produto" — pode vir como sentinel __NONE__ ou como o Product real.
-          // Marca manualUnlink=true pra que o auto-select pule esse item (regra
-          // ativa nao re-escolheria outro produto sobrescrevendo a intencao).
-          // Zera qty (linha "Sem Produto" nao tem o que comprar) e salva snapshot
-          // em previousQty pra restaurar quando o operador re-escolher um produto.
+          // CENARIO A — "Sem Produto" (sentinel __NONE__ ou Product real)
           if (cfg.id === '__NONE__' || cfgDesc === 'sem produto') {
             onUpdate({
               catalogConfigId: cfg.id === '__NONE__' ? null : cfg.id,
@@ -1275,12 +1300,10 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             setPrice(((cfg.product?.salePriceCents ?? 0) / 100).toFixed(2));
             return;
           }
-          // Escolha manual de produto via picker:
-          // - Marca manualUnlink=true pra que o auto-select RESPEITE a escolha
-          //   (mesmo que o produto nao passe na regra where). Sem isso, o engine
-          //   substituiria pelo produto otimo, ignorando o operador.
-          // - Botao "Voltar selecao automatica" fica disponivel pra desfazer.
-          // - Se item tinha snapshot (vinha de Sem Produto), restaura qty anterior.
+          // CENARIO B — Produto manual (regras 1, 2, 3 do bloco acima):
+          // - manualUnlink=true SEMPRE (mesmo se produto passa na regra).
+          // - previousQty restaura qty se snapshot existir (vindo de A).
+          // - previousQty=null limpa o snapshot apos uso.
           const newDesc = cfg.product?.description || cfg.service?.name || item.description;
           const newUnit = cfg.product?.unit || cfg.service?.unit || item.unit;
           const newPriceCents = cfg.product?.salePriceCents ?? cfg.service?.priceCents ?? item.unitPriceCents;

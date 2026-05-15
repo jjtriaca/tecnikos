@@ -596,13 +596,24 @@ export class PoolBudgetService {
     //   nao passa mais (ex: user trocou filtro, tubo virou incompativel), re-aplica
     //   auto-select pra escolher um valido. Sem isso o tubo ficava 'incompativel'
     //   ate o user limpar e re-aplicar manualmente.
+    /* ═══════════════════════════════════════════════════════════════
+       AUTO-SELECT — REGRA INVIOVEL #4 (ja foi quebrado 3x)
+       Doc completo: memory/pool_budget_rules.md secao 16
+
+       Auto-select PULA items com manualUnlink=true. SEMPRE filtrar isso.
+
+       Por que: o operador pode escolher manualmente "Sem Produto" OU outro
+       produto que NAO passa na regra (ex: V30 numa regra que pede vazao >=
+       volume/3.7). Sem esse filtro, o engine detectaria que o produto atual
+       nao passa e substituiria pelo otimo da regra — frustrando a intencao
+       manual. Botao "↩ voltar selecao auto" no frontend desfaz (seta false).
+
+       ANTES DE MEXER: leia checklist em pool_budget_rules.md secao 16.
+       ═══════════════════════════════════════════════════════════════ */
     const itemsForAutoSelect = await this.prisma.poolBudgetItem.findMany({
       where: {
         budgetId,
         autoSelectRule: { not: Prisma.JsonNull as any },
-        // Items com manualUnlink=true (operador escolheu "Sem Produto" no picker):
-        // pula o auto-select. A escolha manual prevalece — sem isso o engine
-        // detectaria que "Sem Produto" nao passa na regra e re-escolheria outro.
         manualUnlink: false,
       },
       select: {
