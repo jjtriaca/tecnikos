@@ -487,7 +487,7 @@ export class PoolBudgetService {
         // Avalia se o produto/servico ATUAL do item ainda passa nos 3 filtros da regra
         // (filterCategoria, filterDescription, where). Se passa, item nao precisa
         // reauto-selecao — respeita escolha que continua valida.
-        const currentStillPasses = (it: typeof itemsForAutoSelect[number], rule: AutoSelectRule, vars: Record<string, number>): boolean => {
+        const currentStillPasses = (it: typeof itemsForAutoSelect[number], rule: AutoSelectRule, vars: Record<string, number | undefined>): boolean => {
           const current = it.product || it.service;
           if (!current) return false; // sem produto: precisa escolher
           const candidate = it.product
