@@ -1,7 +1,20 @@
 # TAREFA ATUAL
 
-## Versao: v1.11.14 (em prod)
+## Versao: v1.11.16 (em prod)
 ## Ultima sessao: 202 (15/05/2026)
+
+## v1.11.16 — Pool budget: mensagem detalhada quando sibling* falta + fix linha 27 SLS
+- **Pedido do Juliano**: "Servico de montagem de cascata" usa formula `siblingTempoMontagemH`. Quando aplica, da erro generico "Variavel ou funcao desconhecida". Quer que o sistema avise *especificamente* qual produto da etapa precisa de cadastro ou qual campo falta.
+- **Regra absorvida** ([feedback_tenant_vs_geral.md](memory/feedback_tenant_vs_geral.md)): sempre distinguir fix pontual em tenant_sls (SQL UPDATE) vs melhoria geral no codigo (vale pra todos tenants). Avisos = codigo, nao SQL.
+- **Fix geral** ([pool-budget.service.ts](backend/src/pool-budget/pool-budget.service.ts) `diagnoseSiblingFailure`): quando `addItem`/`updateItem` falham na avaliacao da formula e a expressao contem `sibling*`, em vez de erro generico, computa diagnostico por sibling e retorna mensagem clara: items SEM produto vinculado (lista 3 primeiros + "vincule no catalogo (🔍)"); produtos vinculados sem o campo (lista 3 primeiros + "preencha em Cadastros > Produtos > Aba Piscina"). Vale pra qualquer tenant.
+- **Fix pontual SLS**: Kit Cascata da linha 27 estava sem `productId` vinculado (UPDATE manual ao Product que ja existia no catalogo).
+
+## v1.11.15 — Filtros na lista de produtos
+- **Pedido do Juliano**: adicionar filtros na pesquisa de cadastro de produtos.
+- **Backend** ([product.service.ts](backend/src/product/product.service.ts) + [product.controller.ts](backend/src/product/product.controller.ts)):
+  - `findAll` aceita filtros novos: `poolType`, `finalidade` (alem dos existentes category, status, brand, usage)
+  - Novo endpoint `GET /products/filter-options` retorna DISTINCT `{categories, brands, poolTypes}` numa chamada — alimenta dropdowns
+- **Frontend** ([products/page.tsx](frontend/src/app/(dashboard)/products/page.tsx)): `buildProductFilters(opts)` substitui o array estatico. 6 filtros agora: Tipo (Piscina), Categoria (era texto livre — virou select), Marca, Usado em (Venda/Obra/Ambos), Finalidade, Status. Categoria + Marca + Tipo alimentados por DISTINCT do backend.
 
 ## v1.11.14 — Pool budget: campo Product.poolType + chavinha "Apenas filtrar"
 - **Pedido do Juliano**: cascata e estetica, sem formula. No catalog picker da linha "Kit Cascata" abria 220 produtos sem filtro pre-aplicado. Faltava: (1) jeito de pre-filtrar candidatos por TIPO sem precisar de formula `where`; (2) salvar template SEM produto pre-selecionado (operador escolhe na mao toda vez).
