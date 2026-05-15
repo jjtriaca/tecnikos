@@ -194,6 +194,39 @@ export class PoolBudgetService {
   }
 
   /**
+   * Calcula sibling vars (technicalSpecs do equipamento principal da mesma poolSection)
+   * pra serem usadas em formulas/regras com prefixo 'sibling*'. Primeira ocorrencia
+   * de cada chave ganha — equipamentos cadastrados antes dos tubos/servicos.
+   *
+   * Exemplo: linha de servico de montagem na etapa FILTRO usa 'siblingTempoMontagemH'.
+   * Esta funcao le o filtro vinculado na etapa, pega technicalSpecs.tempoMontagemH,
+   * retorna { siblingTempoMontagemH: 4, siblingVazaoM3h: 9, siblingTuboEntradaMm: 50, ... }.
+   */
+  private async buildSiblingVars(budgetId: string, poolSection: any): Promise<Record<string, number>> {
+    const items = await this.prisma.poolBudgetItem.findMany({
+      where: { budgetId, poolSection },
+      select: {
+        product: { select: { technicalSpecs: true } },
+        service: { select: { technicalSpecs: true } },
+      },
+    });
+    const out: Record<string, number> = {};
+    for (const it of items) {
+      const specs = (it.product?.technicalSpecs ?? it.service?.technicalSpecs) as Record<string, unknown> | null | undefined;
+      if (!specs) continue;
+      for (const [k, raw] of Object.entries(specs)) {
+        const n = Number(raw);
+        if (!Number.isFinite(n)) continue;
+        const siblingKey = `sibling${k.charAt(0).toUpperCase()}${k.slice(1)}`;
+        if (out[siblingKey] === undefined) {
+          out[siblingKey] = n;
+        }
+      }
+    }
+    return out;
+  }
+
+  /**
    * Auto-vincula uma linha do orcamento ao Product ou Service do cadastro quando a
    * descricao da match exato (case-insensitive, trim). So vincula quando o match e
    * unico — ambiguidade (multiplos cadastros com mesmo nome) deixa sem vinculo.
@@ -549,14 +582,35 @@ export class PoolBudgetService {
       where: { budgetId },
       select: {
         id: true, qty: true, unit: true, unitPriceCents: true, formulaExpr: true, cellRef: true,
+        poolSection: true,
         product: { select: { technicalSpecs: true } },
         service: { select: { technicalSpecs: true } },
       },
     });
-    // Monta o vars completo pra um item: dimensions + environment + product/service specs
+    // Calcula sibling vars POR poolSection — primeira ocorrencia de cada chave do
+    // technicalSpecs de products/services vinculados ganha. Permite formulas
+    // como 'siblingTempoMontagemH' usadas em receitas como "Tempo de montagem do
+    // equipamento da etapa".
+    const formulaSiblings: Record<string, Record<string, number>> = {};
+    for (const it of items) {
+      const specs = (it.product?.technicalSpecs ?? it.service?.technicalSpecs) as Record<string, unknown> | null;
+      if (!specs) continue;
+      const sec = String(it.poolSection);
+      formulaSiblings[sec] ||= {};
+      for (const [k, raw] of Object.entries(specs)) {
+        const n = Number(raw);
+        if (!Number.isFinite(n)) continue;
+        const siblingKey = `sibling${k.charAt(0).toUpperCase()}${k.slice(1)}`;
+        if (formulaSiblings[sec][siblingKey] === undefined) {
+          formulaSiblings[sec][siblingKey] = n;
+        }
+      }
+    }
+    // Monta o vars completo pra um item: dimensions + environment + product/service specs + siblings da etapa
     const varsForItem = (it: typeof items[number]) => {
       const productSpecs = it.product?.technicalSpecs ?? it.service?.technicalSpecs ?? null;
-      return { ...dimensionVars, ...extractProductVars(productSpecs) };
+      const siblings = formulaSiblings[String(it.poolSection)] || {};
+      return { ...dimensionVars, ...extractProductVars(productSpecs), ...siblings };
     };
 
     const usesDias = (expr: string | null) => !!expr && /\bdias\b/.test(expr);
@@ -1046,7 +1100,8 @@ export class PoolBudgetService {
         });
         productSpecs = s?.technicalSpecs;
       }
-      const vars = { ...extractDimensionVars(fullBudget?.poolDimensions), ...extractProductVars(productSpecs) };
+      const siblingVars = await this.buildSiblingVars(budgetId, dto.poolSection);
+      const vars = { ...extractDimensionVars(fullBudget?.poolDimensions), ...extractProductVars(productSpecs), ...siblingVars };
       const cellRefMap = await this.buildBudgetCellRefMap(budgetId);
       try {
         effectiveQty = evaluateFormula(dto.formulaExpr, vars, cellRefMap);
@@ -1151,7 +1206,8 @@ export class PoolBudgetService {
           });
           productSpecs = s?.technicalSpecs;
         }
-        const vars = { ...extractDimensionVars(fullBudget?.poolDimensions), ...extractProductVars(productSpecs) };
+        const siblingVars = await this.buildSiblingVars(item.budgetId, item.poolSection);
+        const vars = { ...extractDimensionVars(fullBudget?.poolDimensions), ...extractProductVars(productSpecs), ...siblingVars };
         const cellRefMap = await this.buildBudgetCellRefMap(item.budgetId);
         try {
           effectiveQty = evaluateFormula(dto.formulaExpr, vars, cellRefMap);
