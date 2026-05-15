@@ -1202,16 +1202,16 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         onClose={() => setShowCatalogPick(false)}
         onPick={(cfg) => {
           setShowCatalogPick(false);
-          // Sentinel __NONE__ = "Sem produto / servico". Salva snapshot da qty
-          // em previousQty pra restaurar quando o operador re-escolher produto.
-          // Zera: unit, valor, qty, total. Descricao vira "Sem Produto" (literal —
-          // sera usado em layout de impressao pra distinguir linhas sem produto).
-          // manualUnlink=true previne re-vinculo automatico via auto-link.
-          if (cfg.id === '__NONE__') {
+          const cfgDesc = (cfg.product?.description || cfg.service?.name || '').trim().toLowerCase();
+          // "Sem Produto" — fluxo unificado: tanto o sentinel __NONE__ quanto o
+          // Product real "Sem Produto" cadastrado caem aqui. Salva snapshot da qty,
+          // zera qty/valor/unit, descricao vira "Sem Produto", manualUnlink=true.
+          // Operador re-escolhe produto depois -> qty volta do snapshot.
+          if (cfg.id === '__NONE__' || cfgDesc === 'sem produto') {
             onUpdate({
-              catalogConfigId: null,
-              productId: null,
-              serviceId: null,
+              catalogConfigId: cfg.id === '__NONE__' ? null : cfg.id,
+              productId: cfg.product?.id ?? null,
+              serviceId: cfg.service?.id ?? null,
               description: 'Sem Produto',
               unit: '',
               unitPriceCents: 0,
@@ -3524,10 +3524,19 @@ function CatalogPickModal({ catalog, currentSection, autoSelectRule, dimensions,
     return true;
   }
 
+  // Localiza o Product "Sem Produto" universal no catalog (alimenta o botao
+  // virtual do topo). Se existe, o botao usa esse cfg real (com productId,
+  // preco 0, etc) — evita duplicacao na lista filtrada abaixo.
+  const semProdutoCfg = useMemo(() => {
+    return catalog.find((c) => c.product && (c.product.description || '').trim().toLowerCase() === 'sem produto') || null;
+  }, [catalog]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const tokens = q.length > 0 ? q.split(/\s+/) : [];
     return catalog.filter((c) => {
+      // Sempre exclui o Sem Produto da lista filtrada — aparece so como botao virtual no topo
+      if (semProdutoCfg && c.id === semProdutoCfg.id) return false;
       if (!showAll && currentSection && c.poolSection !== currentSection) return false;
       if (filterByRule && hasRule && !matchesRule(c)) return false;
       if (tokens.length === 0) return true;
@@ -3541,7 +3550,7 @@ function CatalogPickModal({ catalog, currentSection, autoSelectRule, dimensions,
       return tokens.every((t) => haystack.includes(t));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalog, search, currentSection, showAll, filterByRule, hasRule, ruleVars, autoSelectRule]);
+  }, [catalog, search, currentSection, showAll, filterByRule, hasRule, ruleVars, autoSelectRule, semProdutoCfg]);
 
   return (
     <tr>
@@ -3581,18 +3590,22 @@ function CatalogPickModal({ catalog, currentSection, autoSelectRule, dimensions,
                 )}
               </div>
               <div className="flex-1 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100 bg-white">
-                {/* Opcao virtual SEMPRE visivel no topo — independe de busca/filtros.
-                    Permite limpar vinculo da linha (descricao livre sem produto/servico). */}
+                {/* Opcao "Sem Produto" SEMPRE visivel no topo — independe de busca/filtros.
+                    Quando o Product "Sem Produto" existe no catalogo (caso comum), usa-o
+                    como vinculo real (preco 0, unit padrao). Quando nao existe (fallback),
+                    envia sentinel __NONE__ que apenas remove vinculos. */}
                 <button
                   type="button"
-                  onClick={() => onPick({ id: '__NONE__', poolSection: '' as any, product: null, service: null })}
+                  onClick={() => onPick(semProdutoCfg || { id: '__NONE__', poolSection: '' as any, product: null, service: null })}
                   className="w-full text-left px-3 py-2 hover:bg-slate-100 bg-slate-50 transition border-b border-slate-200"
-                  title="Mantem a descricao e qty da linha, mas remove vinculo com produto/servico do cadastro"
+                  title="Vincula ao Product 'Sem Produto' do cadastro (preco 0, qty zerada). Restaura qty ao re-escolher produto."
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">VAZIO</span>
                     <span className="text-sm font-medium text-slate-700">🚫 Sem produto / servico</span>
-                    <span className="text-[10px] text-slate-500">manter so a descricao livre da linha</span>
+                    <span className="text-[10px] text-slate-500">
+                      {semProdutoCfg ? 'vincula ao cadastro Sem Produto (qty/valor = 0)' : 'manter so a descricao livre da linha'}
+                    </span>
                   </div>
                 </button>
                 {filtered.length === 0 ? (

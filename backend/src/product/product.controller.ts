@@ -63,6 +63,14 @@ export class ProductController {
     return this.service.listFilterOptions(user.companyId);
   }
 
+  /* ── Sem Produto placeholder (idempotente) ── */
+
+  @Roles(UserRole.ADMIN)
+  @Get('sem-produto')
+  ensureSemProduto(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.ensureSemProduto(user.companyId);
+  }
+
   /* ── Detail ─────────────────────────────────────────────── */
 
   @Roles(UserRole.ADMIN)

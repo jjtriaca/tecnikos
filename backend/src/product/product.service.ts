@@ -105,6 +105,43 @@ export class ProductService {
   }
 
   /* ═══════════════════════════════════════════════════════════════
+     ensureSemProduto — garante que existe um Product "Sem Produto"
+     universal no tenant. Idempotente: busca por description (case-insensitive),
+     cria se nao existe. Usado como placeholder universal no catalog picker
+     (botao virtual "Sem produto / servico"). Tudo com valor 0.
+     ═══════════════════════════════════════════════════════════════ */
+
+  async ensureSemProduto(companyId: string): Promise<{ id: string; description: string; unit: string; salePriceCents: number }> {
+    // Busca case-insensitive
+    const existing = await this.prisma.product.findFirst({
+      where: {
+        companyId,
+        deletedAt: null,
+        description: { equals: 'Sem Produto', mode: 'insensitive' },
+      },
+      select: { id: true, description: true, unit: true, salePriceCents: true },
+    });
+    if (existing) return { ...existing, salePriceCents: existing.salePriceCents ?? 0 };
+
+    const code = await this.codeGenerator.generateCode(companyId, 'PRODUCT');
+    const created = await this.prisma.product.create({
+      data: {
+        companyId,
+        code,
+        description: 'Sem Produto',
+        unit: 'UN',
+        salePriceCents: 0,
+        costCents: 0,
+        useInSale: false,
+        useInWork: true,
+        status: 'ATIVO',
+      },
+      select: { id: true, description: true, unit: true, salePriceCents: true },
+    });
+    return { ...created, salePriceCents: created.salePriceCents ?? 0 };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
      listFilterOptions — DISTINCT categories + brands + poolTypes
      pra alimentar os dropdowns de filtro da lista de produtos.
      ═══════════════════════════════════════════════════════════════ */
