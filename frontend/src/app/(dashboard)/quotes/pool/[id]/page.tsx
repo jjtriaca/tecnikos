@@ -1179,6 +1179,16 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         onClose={() => setShowCatalogPick(false)}
         onPick={(cfg) => {
           setShowCatalogPick(false);
+          // Sentinel __NONE__ = limpar vinculo. Mantem description/qty/price da linha,
+          // remove apenas catalogConfigId/productId/serviceId.
+          if (cfg.id === '__NONE__') {
+            onUpdate({
+              catalogConfigId: null,
+              productId: null,
+              serviceId: null,
+            } as any);
+            return;
+          }
           const newDesc = cfg.product?.description || cfg.service?.name || item.description;
           const newUnit = cfg.product?.unit || cfg.service?.unit || item.unit;
           const newPriceCents = cfg.product?.salePriceCents ?? cfg.service?.priceCents ?? item.unitPriceCents;
@@ -3364,6 +3374,20 @@ function CatalogPickModal({ catalog, currentSection, autoSelectRule, dimensions,
                 )}
               </div>
               <div className="flex-1 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100 bg-white">
+                {/* Opcao virtual SEMPRE visivel no topo — independe de busca/filtros.
+                    Permite limpar vinculo da linha (descricao livre sem produto/servico). */}
+                <button
+                  type="button"
+                  onClick={() => onPick({ id: '__NONE__', poolSection: '' as any, product: null, service: null })}
+                  className="w-full text-left px-3 py-2 hover:bg-slate-100 bg-slate-50 transition border-b border-slate-200"
+                  title="Mantem a descricao e qty da linha, mas remove vinculo com produto/servico do cadastro"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">VAZIO</span>
+                    <span className="text-sm font-medium text-slate-700">🚫 Sem produto / servico</span>
+                    <span className="text-[10px] text-slate-500">manter so a descricao livre da linha</span>
+                  </div>
+                </button>
                 {filtered.length === 0 ? (
                   <div className="text-center text-xs text-slate-600 py-6">
                     {search ? "Nenhum item encontrado" : "Catalogo vazio"}

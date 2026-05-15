@@ -510,12 +510,43 @@ export class PoolBudgetService {
         startDate: true,
         poolDimensions: true,
         environmentParams: true,
+        companyId: true,
       },
     });
     const dimensionVars = {
       ...extractDimensionVars(budget?.poolDimensions),
       ...extractEnvVars(budget?.environmentParams),
     };
+
+    // PASSO -1: auto-link por descricao em items SEM produto/servico vinculado.
+    // Resolve o caso em que o usuario criou linha com descricao identica a um
+    // Product/Service cadastrado mas sem passar pelo catalog picker (ex: snapshot
+    // de template, edicao manual). Sem isso, sibling vars da etapa ficam vazias
+    // e formulas com sibling* falham. Idempotente: nao toca em items ja vinculados.
+    if (budget?.companyId) {
+      const unlinkedItems = await this.prisma.poolBudgetItem.findMany({
+        where: {
+          budgetId,
+          productId: null,
+          serviceId: null,
+          description: { not: '' },
+        },
+        select: { id: true, description: true },
+      });
+      for (const it of unlinkedItems) {
+        if (!it.description || !it.description.trim()) continue;
+        const matched = await this.findAutoLinkByDescription(it.description, budget.companyId);
+        if (matched.productId || matched.serviceId) {
+          await this.prisma.poolBudgetItem.update({
+            where: { id: it.id },
+            data: {
+              productId: matched.productId ?? null,
+              serviceId: matched.serviceId ?? null,
+            },
+          });
+        }
+      }
+    }
 
     // PASSO 0: auto-selecao do produto/servico em items que tem autoSelectRule.
     // Roda ANTES das formulas porque escolha do produto afeta technicalSpecs disponiveis.
