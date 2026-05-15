@@ -202,10 +202,15 @@ export class PoolBudgetService {
    * Esta funcao le o filtro vinculado na etapa, pega technicalSpecs.tempoMontagemH,
    * retorna { siblingTempoMontagemH: 4, siblingVazaoM3h: 9, siblingTuboEntradaMm: 50, ... }.
    */
-  private async buildSiblingVars(budgetId: string, poolSection: any): Promise<Record<string, number>> {
+  private async buildSiblingVars(budgetId: string, poolSection: any, excludeItemId?: string): Promise<Record<string, number>> {
     const items = await this.prisma.poolBudgetItem.findMany({
-      where: { budgetId, poolSection },
+      where: {
+        budgetId,
+        poolSection,
+        ...(excludeItemId ? { id: { not: excludeItemId } } : {}),
+      },
       select: {
+        id: true,
         product: { select: { technicalSpecs: true } },
         service: { select: { technicalSpecs: true } },
       },
@@ -682,39 +687,40 @@ export class PoolBudgetService {
           await processItem(it, {});
         }
 
-        // Calcula vars 'sibling*' por poolSection — pega o primeiro produto vinculado
-        // com technicalSpecs que tenha cada chave. Roda DEPOIS da Fase A pra capturar
-        // tambem productIds resolvidos agora.
+        // Calcula vars 'sibling*' por item da Fase B — exclui o PROPRIO item pra
+        // evitar auto-referencia (ex: tubo lendo o proprio tuboEntradaMm). Roda
+        // DEPOIS da Fase A pra capturar tambem productIds resolvidos agora.
         if (phaseB.length > 0) {
           const allInBudget = await this.prisma.poolBudgetItem.findMany({
             where: { budgetId },
             select: {
+              id: true,
               poolSection: true,
               product: { select: { technicalSpecs: true } },
             },
           });
-          const siblingsBySection: Record<string, Record<string, number>> = {};
-          for (const it of allInBudget) {
-            const specs = (it.product?.technicalSpecs as Record<string, unknown> | null) || null;
-            if (!specs) continue;
-            const sec = String(it.poolSection);
-            siblingsBySection[sec] ||= {};
-            // Primeira ocorrencia ganha — equipamentos cadastrados antes dos tubos
-            for (const [k, raw] of Object.entries(specs)) {
-              const n = Number(raw);
-              if (!Number.isFinite(n)) continue;
-              const siblingKey = `sibling${k.charAt(0).toUpperCase()}${k.slice(1)}`;
-              if (siblingsBySection[sec][siblingKey] === undefined) {
-                siblingsBySection[sec][siblingKey] = n;
-              }
-            }
-          }
 
           // Fase B (dependentes): forceReapply=true — items como tubos sempre seguem
           // o equipamento principal da etapa. Quando filtro/cascata/SPA/aquecedor muda,
           // o tubo redo automaticamente. Escolha manual em tubo dura ate o proximo recalc.
           for (const it of phaseB) {
-            const sectionVars = siblingsBySection[String(it.poolSection)] || {};
+            const sec = String(it.poolSection);
+            const sectionVars: Record<string, number> = {};
+            // Itera SOMENTE outros items da MESMA etapa (exclui o proprio)
+            for (const other of allInBudget) {
+              if (other.id === it.id) continue;
+              if (String(other.poolSection) !== sec) continue;
+              const specs = (other.product?.technicalSpecs as Record<string, unknown> | null) || null;
+              if (!specs) continue;
+              for (const [k, raw] of Object.entries(specs)) {
+                const n = Number(raw);
+                if (!Number.isFinite(n)) continue;
+                const siblingKey = `sibling${k.charAt(0).toUpperCase()}${k.slice(1)}`;
+                if (sectionVars[siblingKey] === undefined) {
+                  sectionVars[siblingKey] = n;
+                }
+              }
+            }
             await processItem(it, sectionVars, { forceReapply: true });
           }
         }
@@ -731,29 +737,32 @@ export class PoolBudgetService {
         service: { select: { technicalSpecs: true } },
       },
     });
-    // Calcula sibling vars POR poolSection — primeira ocorrencia de cada chave do
-    // technicalSpecs de products/services vinculados ganha. Permite formulas
-    // como 'siblingTempoMontagemH' usadas em receitas como "Tempo de montagem do
-    // equipamento da etapa".
-    const formulaSiblings: Record<string, Record<string, number>> = {};
-    for (const it of items) {
-      const specs = (it.product?.technicalSpecs ?? it.service?.technicalSpecs) as Record<string, unknown> | null;
-      if (!specs) continue;
+    // Calcula sibling vars POR ITEM, EXCLUINDO o proprio (evita auto-referencia).
+    // Antes calculava globalmente por etapa — bug: tubo lia o proprio tuboEntradaMm,
+    // ao trocar o equipamento principal o tubo nao seguia mais.
+    const computeSiblingsForItem = (it: typeof items[number]): Record<string, number> => {
       const sec = String(it.poolSection);
-      formulaSiblings[sec] ||= {};
-      for (const [k, raw] of Object.entries(specs)) {
-        const n = Number(raw);
-        if (!Number.isFinite(n)) continue;
-        const siblingKey = `sibling${k.charAt(0).toUpperCase()}${k.slice(1)}`;
-        if (formulaSiblings[sec][siblingKey] === undefined) {
-          formulaSiblings[sec][siblingKey] = n;
+      const out: Record<string, number> = {};
+      for (const other of items) {
+        if (other.id === it.id) continue;
+        if (String(other.poolSection) !== sec) continue;
+        const specs = (other.product?.technicalSpecs ?? other.service?.technicalSpecs) as Record<string, unknown> | null;
+        if (!specs) continue;
+        for (const [k, raw] of Object.entries(specs)) {
+          const n = Number(raw);
+          if (!Number.isFinite(n)) continue;
+          const siblingKey = `sibling${k.charAt(0).toUpperCase()}${k.slice(1)}`;
+          if (out[siblingKey] === undefined) {
+            out[siblingKey] = n;
+          }
         }
       }
-    }
+      return out;
+    };
     // Monta o vars completo pra um item: dimensions + environment + product/service specs + siblings da etapa
     const varsForItem = (it: typeof items[number]) => {
       const productSpecs = it.product?.technicalSpecs ?? it.service?.technicalSpecs ?? null;
-      const siblings = formulaSiblings[String(it.poolSection)] || {};
+      const siblings = computeSiblingsForItem(it);
       return { ...dimensionVars, ...extractProductVars(productSpecs), ...siblings };
     };
 
@@ -1027,30 +1036,33 @@ export class PoolBudgetService {
       ...extractDimensionVars(budget.poolDimensions),
       ...extractEnvVars(budget.environmentParams),
     };
-    // v1.11.05: precalcula sibling vars POR poolSection — necessario pra indicators
-    // que referenciam o equipamento principal da etapa (ex: tubo usa siblingTuboEntradaMm).
-    // Sem isso o evalNumeric falha (chave nao existe = expressao com var sem valor),
-    // indicator vira null, faixa nao aparece na UI.
-    const siblingVarsByPoolSection: Record<string, Record<string, number>> = {};
-    for (const it of budget.items) {
-      const specs = ((it.product as any)?.technicalSpecs ?? (it.service as any)?.technicalSpecs) as Record<string, unknown> | null;
-      if (!specs) continue;
-      const sec = String(it.poolSection);
-      siblingVarsByPoolSection[sec] ||= {};
-      for (const [k, raw] of Object.entries(specs)) {
-        const n = Number(raw);
-        if (!Number.isFinite(n)) continue;
-        const siblingKey = `sibling${k.charAt(0).toUpperCase()}${k.slice(1)}`;
-        if (siblingVarsByPoolSection[sec][siblingKey] === undefined) {
-          siblingVarsByPoolSection[sec][siblingKey] = n;
+    // Calcula sibling vars POR ITEM, excluindo o proprio (evita auto-referencia).
+    // v1.11.05: necessario pra indicators que referenciam o equipamento principal
+    // da etapa (ex: tubo usa siblingTuboEntradaMm). Antes calculava por etapa global
+    // — bug: tubo lia o proprio tuboEntradaMm em vez do kit/filtro.
+    const computeIndicatorSiblings = (currentId: string, sec: string): Record<string, number> => {
+      const out: Record<string, number> = {};
+      for (const other of budget.items) {
+        if (other.id === currentId) continue;
+        if (String(other.poolSection) !== sec) continue;
+        const specs = ((other.product as any)?.technicalSpecs ?? (other.service as any)?.technicalSpecs) as Record<string, unknown> | null;
+        if (!specs) continue;
+        for (const [k, raw] of Object.entries(specs)) {
+          const n = Number(raw);
+          if (!Number.isFinite(n)) continue;
+          const siblingKey = `sibling${k.charAt(0).toUpperCase()}${k.slice(1)}`;
+          if (out[siblingKey] === undefined) {
+            out[siblingKey] = n;
+          }
         }
       }
-    }
+      return out;
+    };
     for (const item of budget.items) {
       const rule = (item as any).autoSelectRule as AutoSelectRule | null | undefined;
       if (!rule?.indicator) continue;
       const productSpecs = (item.product as any)?.technicalSpecs ?? (item.service as any)?.technicalSpecs ?? null;
-      const siblings = siblingVarsByPoolSection[String(item.poolSection)] || {};
+      const siblings = computeIndicatorSiblings(item.id, String(item.poolSection));
       const vars = { ...dimensionVarsForIndicator, ...extractProductVars(productSpecs), ...siblings };
       const calculated = evaluateIndicator(rule, vars);
       if (calculated) {
@@ -1352,7 +1364,9 @@ export class PoolBudgetService {
           });
           productSpecs = s?.technicalSpecs;
         }
-        const siblingVars = await this.buildSiblingVars(item.budgetId, item.poolSection);
+        // Exclui o proprio item — evita auto-referencia em items com technicalSpecs
+        // (ex: tubo lendo o proprio tuboEntradaMm via siblingTuboEntradaMm).
+        const siblingVars = await this.buildSiblingVars(item.budgetId, item.poolSection, item.id);
         const vars = { ...extractDimensionVars(fullBudget?.poolDimensions), ...extractProductVars(productSpecs), ...siblingVars };
         const cellRefMap = await this.buildBudgetCellRefMap(item.budgetId);
         try {
