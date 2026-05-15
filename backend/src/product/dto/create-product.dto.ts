@@ -149,4 +149,10 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   poolType?: string;
+
+  // Quantidade padrao ao escolher esse produto numa linha do orcamento de piscina.
+  // Null = sem padrao (fluxo usa 1).
+  @IsOptional()
+  @IsNumber()
+  defaultQty?: number;
 }

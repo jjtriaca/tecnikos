@@ -1182,6 +1182,13 @@ model Product {
   // Dropdown na aba Piscina do cadastro alimenta-se de DISTINCT desta coluna.
   poolType String?
 
+  // Quantidade padrao ao escolher esse produto numa linha do orcamento de piscina.
+  // Null = sem padrao definido (default 1 no fluxo). Quando setado, o handler do
+  // catalog picker usa este valor como qty inicial. Se o operador editar manualmente
+  // a qty depois, a linha do orcamento fica destacada (fundo amarelo) — visual claro
+  // de "fora do padrao".
+  defaultQty Float?
+
   // Especificacoes tecnicas extensiveis (modulo Piscina). Json livre:
   // { weightKg, lengthCm, widthCm, thicknessCm, powerHp, voltage, phaseType,
   //   powerWatts, amperage, wattsHourMax, wattsHourAvg, flowRateM3h, sandLoadKg,

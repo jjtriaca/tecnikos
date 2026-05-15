@@ -1116,7 +1116,7 @@ export class PoolBudgetService {
         items: {
           orderBy: [{ poolSection: 'asc' }, { sortOrder: 'asc' }],
           include: {
-            product: { select: { id: true, code: true, description: true, imageUrl: true, technicalSpecs: true } },
+            product: { select: { id: true, code: true, description: true, imageUrl: true, technicalSpecs: true, defaultQty: true } },
             service: { select: { id: true, code: true, name: true, imageUrl: true, technicalSpecs: true } },
           },
         },

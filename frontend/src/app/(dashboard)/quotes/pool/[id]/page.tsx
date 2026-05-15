@@ -54,7 +54,7 @@ type BudgetItem = {
   indicatorColor?: string | null;
   indicatorValue?: number | null;
   indicatorUnit?: string | null;
-  product?: { id: string; code: string | null; description: string; technicalSpecs?: Record<string, unknown> | null } | null;
+  product?: { id: string; code: string | null; description: string; technicalSpecs?: Record<string, unknown> | null; defaultQty?: number | null } | null;
   service?: { id: string; code: string | null; name: string; technicalSpecs?: Record<string, unknown> | null } | null;
 };
 
@@ -118,7 +118,7 @@ type PoolPaymentTerm = {
 type CatalogConfig = {
   id: string;
   poolSection: string;
-  product: { id: string; code?: string | null; description: string; brand?: string | null; salePriceCents: number; unit: string; technicalSpecs?: Record<string, any> | null; poolType?: string | null } | null;
+  product: { id: string; code?: string | null; description: string; brand?: string | null; salePriceCents: number; unit: string; technicalSpecs?: Record<string, any> | null; poolType?: string | null; defaultQty?: number | null } | null;
   service: { id: string; code?: string | null; name: string; priceCents: number; unit: string; technicalSpecs?: Record<string, any> | null } | null;
 };
 
@@ -992,14 +992,32 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
     if (Object.keys(patch).length > 0) onUpdate(patch);
   }
 
+  // Linha amarela: indica qty "fora do padrao". Aplicado quando:
+  // - Item tem produto vinculado com defaultQty cadastrado e qty != defaultQty
+  // OU
+  // - Item tem formula (qtyCalculated) e qty != qtyCalculated (operador editou
+  //   manualmente, formula nao bate mais).
+  // Sem produto/formula nao fica amarelo (operador edita livremente).
+  const productDefaultQty = item.product && typeof (item.product as any).defaultQty === 'number' && (item.product as any).defaultQty > 0
+    ? (item.product as any).defaultQty as number
+    : undefined;
+  const outOfDefault = (productDefaultQty !== undefined && item.qty !== productDefaultQty)
+    || (item.qtyCalculated !== null && item.qtyCalculated !== undefined && item.qty !== item.qtyCalculated);
   return (
     <>
-    <tr className="border-b border-slate-100 hover:bg-slate-50 last:border-b-0">
+    <tr className={`border-b border-slate-100 last:border-b-0 ${outOfDefault ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-slate-50'}`}>
       <td className="px-3 py-1.5 text-xs font-mono tabular-nums whitespace-nowrap">
         <span className="text-slate-700 font-semibold">{seq ?? ""}</span>
         {item.cellRef && (
           <span className="ml-1 text-[10px] font-bold text-amber-900 bg-amber-200 border border-amber-400 rounded px-1.5 py-0.5"
             title="Endereço da linha (use em formulas: qty(LX), total(LX))">{item.cellRef}</span>
+        )}
+        {outOfDefault && (
+          <span className="ml-1 text-[9px] text-amber-700" title={productDefaultQty !== undefined
+            ? `Quantidade fora do padrao (cadastro: ${productDefaultQty})`
+            : `Quantidade diferente da formula (formula: ${item.qtyCalculated})`}>
+            ⚠
+          </span>
         )}
       </td>
       <td className="px-3 py-1.5">
@@ -1302,14 +1320,19 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
           }
           // CENARIO B — Produto manual (regras 1, 2, 3 do bloco acima):
           // - manualUnlink=true SEMPRE (mesmo se produto passa na regra).
-          // - previousQty restaura qty se snapshot existir (vindo de A).
+          // - qty: prioridade 1=snapshot previousQty (vindo de A), 2=defaultQty
+          //   do produto escolhido (campo do cadastro), 3=mantem qty atual.
           // - previousQty=null limpa o snapshot apos uso.
           const newDesc = cfg.product?.description || cfg.service?.name || item.description;
           const newUnit = cfg.product?.unit || cfg.service?.unit || item.unit;
           const newPriceCents = cfg.product?.salePriceCents ?? cfg.service?.priceCents ?? item.unitPriceCents;
-          const restoredQty = typeof item.previousQty === 'number' && item.previousQty > 0
+          const productDefaultQty = typeof cfg.product?.defaultQty === 'number' && cfg.product.defaultQty > 0
+            ? cfg.product.defaultQty
+            : undefined;
+          const snapshotQty = typeof item.previousQty === 'number' && item.previousQty > 0
             ? item.previousQty
             : undefined;
+          const restoredQty = snapshotQty ?? productDefaultQty;
           onUpdate({
             catalogConfigId: cfg.id,
             productId: cfg.product?.id ?? null,

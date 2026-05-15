@@ -311,6 +311,9 @@ interface ProductForm {
   // Tipo no modulo Piscina (Cascata, Aquecedor, Conjunto de filtragem, etc.)
   // Alimenta dropdown de filtro no AutoSelectModal de orcamento.
   poolType: string;
+  // Quantidade padrao ao escolher esse produto numa linha do orcamento de piscina.
+  // Vazio = sem padrao (fluxo usa 1). Linha do orcamento fica amarela se qty != defaultQty.
+  defaultQty: string;
   // Specs tecnicas (Modulo Piscina) — strings pra inputs, viram numero no payload
   specVazaoM3h: string;       // m³/h (filtros, bombas)
   specTuboEntradaMm: string;  // mm (todos equipamentos hidraulicos — chave do auto-select de tubos)
@@ -352,6 +355,7 @@ const EMPTY_FORM: ProductForm = {
   location: "",
   status: "ATIVO",
   poolType: "",
+  defaultQty: "",
   specVazaoM3h: "",
   specTuboEntradaMm: "",
   specKcalHMin: "",
@@ -393,6 +397,7 @@ function productToForm(p: Product): ProductForm {
     location: p.location || "",
     status: p.status,
     poolType: (p as any).poolType || "",
+    defaultQty: (p as any).defaultQty != null ? String((p as any).defaultQty) : "",
     specVazaoM3h: numericSpecToStr(p.technicalSpecs?.vazaoM3h),
     specTuboEntradaMm: numericSpecToStr(p.technicalSpecs?.tuboEntradaMm),
     specKcalHMin: numericSpecToStr(p.technicalSpecs?.kcalHMin),
@@ -474,6 +479,8 @@ function formToPayload(f: ProductForm, existingSpecs?: Record<string, any>) {
     // Tipo no modulo Piscina (Cascata, Aquecedor, etc.) — campo top-level, indexado.
     // Alimenta dropdown de filtro do AutoSelectModal de orcamento de piscina.
     poolType: f.poolType.trim() || undefined,
+    // Quantidade padrao no orcamento de piscina. Vazio = sem padrao (fluxo usa 1).
+    defaultQty: f.defaultQty.trim() === "" ? null : parseFloat(f.defaultQty.replace(",", ".")),
     // Inclui technicalSpecs no payload. Preserva chaves existentes que nao
     // tem input no form (eficiencia, bifTrifConta, multiplicador, etc seedadas
     // da planilha) — so atualiza as chaves expostas como inputs.
@@ -1654,24 +1661,44 @@ export default function ProductsPage() {
                       <em> Tubos cascata</em>, <em>Quadro eletrico</em>, <em>Disjuntor</em>). O orcamento de piscina usa esse tipo
                       pra filtrar candidatos na auto-selecao. Digite um tipo novo livremente — ele passa a aparecer no dropdown depois.
                     </p>
-                    <div className="max-w-md">
-                      <label className={labelClass}>Tipo</label>
-                      <input
-                        type="text"
-                        list="poolTypeOptions"
-                        value={form.poolType}
-                        onChange={(e) => setField("poolType", e.target.value)}
-                        placeholder="Ex: Cascata, Aquecedor, Conjunto de filtragem..."
-                        className={inputClass}
-                      />
-                      <datalist id="poolTypeOptions">
-                        {poolTypes.map((t) => <option key={t} value={t} />)}
-                      </datalist>
-                      {poolTypes.length > 0 && (
-                        <p className="mt-1 text-[10px] text-slate-500">
-                          {poolTypes.length} tipo(s) ja cadastrado(s) no catalogo. Comece a digitar pra ver sugestoes.
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+                      <div>
+                        <label className={labelClass}>Tipo</label>
+                        <input
+                          type="text"
+                          list="poolTypeOptions"
+                          value={form.poolType}
+                          onChange={(e) => setField("poolType", e.target.value)}
+                          placeholder="Ex: Cascata, Aquecedor, Conjunto de filtragem..."
+                          className={inputClass}
+                        />
+                        <datalist id="poolTypeOptions">
+                          {poolTypes.map((t) => <option key={t} value={t} />)}
+                        </datalist>
+                        {poolTypes.length > 0 && (
+                          <p className="mt-1 text-[10px] text-slate-500">
+                            {poolTypes.length} tipo(s) ja cadastrado(s). Comece a digitar pra ver sugestoes.
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label className={labelClass}>Quantidade padrao</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={form.defaultQty}
+                          onChange={(e) => setField("defaultQty", e.target.value)}
+                          placeholder="Ex: 1 (padrao)"
+                          className={inputClass}
+                        />
+                        <p className="mt-1 text-[10px] text-slate-600 leading-tight">
+                          Qty usada ao escolher esse produto numa linha do orcamento de piscina.
+                          Vazio = sem padrao (sistema usa 1). Se operador editar a qty, a linha fica
+                          <span className="bg-amber-100 text-amber-800 px-1 rounded mx-0.5">amarela</span>
+                          (fora do padrao).
                         </p>
-                      )}
+                      </div>
                     </div>
                   </div>
 

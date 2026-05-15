@@ -35,6 +35,9 @@ export interface Product {
   // Tubos cascata, etc.). Substitui o uso de technicalSpecs.categoriaPlanilha.
   // Alimenta dropdown de filtro no AutoSelectModal de orcamento de piscina.
   poolType?: string;
+  // Quantidade padrao ao escolher esse produto numa linha do orcamento de piscina.
+  // Null = sem padrao (fluxo usa 1). Linha do orcamento fica amarela se qty != defaultQty.
+  defaultQty?: number | null;
   // Specs tecnicas livres em JSON (modulo Piscina). Chaves comuns:
   // vazaoM3h, tuboEntradaMm, kcalHMin, kcalHMax, potenciaCv, voltagem,
   // amperagem, bifTrif, potenciaWatts, eficiencia, multiplicador.

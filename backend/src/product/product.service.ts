@@ -253,6 +253,7 @@ export class ProductService {
         technicalSpecs: data.technicalSpecs as any,
         imageUrl: data.imageUrl,
         poolType: data.poolType,
+        defaultQty: data.defaultQty,
       },
       include: {
         _count: { select: { equivalents: true } },
@@ -322,6 +323,7 @@ export class ProductService {
         technicalSpecs: data.technicalSpecs as any,
         imageUrl: data.imageUrl,
         poolType: data.poolType,
+        defaultQty: data.defaultQty,
       },
       include: {
         _count: { select: { equivalents: true } },
