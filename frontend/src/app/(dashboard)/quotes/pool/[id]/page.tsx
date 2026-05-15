@@ -992,17 +992,17 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
     if (Object.keys(patch).length > 0) onUpdate(patch);
   }
 
-  // Linha amarela: indica qty "fora do padrao". Aplicado quando:
-  // - Item tem produto vinculado com defaultQty cadastrado e qty != defaultQty
-  // OU
-  // - Item tem formula (qtyCalculated) e qty != qtyCalculated (operador editou
-  //   manualmente, formula nao bate mais).
-  // Sem produto/formula nao fica amarelo (operador edita livremente).
+  // Linha amarela: indica qty "fora do padrao". REGRA #5 (formula prevalece):
+  // - Se item tem FORMULA: padrao = qtyCalculated. Amarelo se qty != qtyCalculated.
+  // - Sem formula MAS tem produto com defaultQty: padrao = defaultQty. Amarelo se qty != defaultQty.
+  // - Sem formula nem padrao: nao fica amarelo (operador edita livremente).
+  const hasFormula = !!(item.formulaExpr && item.formulaExpr.trim());
   const productDefaultQty = item.product && typeof (item.product as any).defaultQty === 'number' && (item.product as any).defaultQty > 0
     ? (item.product as any).defaultQty as number
     : undefined;
-  const outOfDefault = (productDefaultQty !== undefined && item.qty !== productDefaultQty)
-    || (item.qtyCalculated !== null && item.qtyCalculated !== undefined && item.qty !== item.qtyCalculated);
+  const outOfDefault = hasFormula
+    ? (item.qtyCalculated !== null && item.qtyCalculated !== undefined && item.qty !== item.qtyCalculated)
+    : (productDefaultQty !== undefined && item.qty !== productDefaultQty);
   return (
     <>
     <tr className={`border-b border-slate-100 last:border-b-0 ${outOfDefault ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-slate-50'}`}>
@@ -1013,9 +1013,9 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             title="Endereço da linha (use em formulas: qty(LX), total(LX))">{item.cellRef}</span>
         )}
         {outOfDefault && (
-          <span className="ml-1 text-[9px] text-amber-700" title={productDefaultQty !== undefined
-            ? `Quantidade fora do padrao (cadastro: ${productDefaultQty})`
-            : `Quantidade diferente da formula (formula: ${item.qtyCalculated})`}>
+          <span className="ml-1 text-[9px] text-amber-700" title={hasFormula
+            ? `Quantidade fora do calculo da formula (formula: ${item.qtyCalculated})`
+            : `Quantidade fora do padrao do produto (cadastro: ${productDefaultQty})`}>
             ⚠
           </span>
         )}
@@ -1082,15 +1082,19 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
               {item.autoSelectRule.indicator.label}: <span className="font-semibold tabular-nums">{formatIndicatorValue(item.indicatorValue, item.indicatorUnit)}</span>
             </span>
             {item.manualUnlink ? (
-              // CENARIO C — Voltar selecao auto (regras 2 e 3 do bloco do onPick):
+              // CENARIO C — Voltar selecao auto (regras 2 e 3 + REGRA #5):
               // - manualUnlink=false (auto-select volta a operar).
-              // - previousQty restaura qty se snapshot existir (vindo de A).
+              // - REGRA #5: se item tem formulaExpr, formula prevalece — NAO seta qty.
+              // - Sem formula: previousQty restaura qty se snapshot existir.
               // - previousQty=null limpa o snapshot apos uso.
               <button type="button"
                 onClick={() => {
-                  const restoredQty = typeof item.previousQty === 'number' && item.previousQty > 0
-                    ? item.previousQty
-                    : undefined;
+                  const hasFormula = !!(item.formulaExpr && item.formulaExpr.trim());
+                  const restoredQty = hasFormula
+                    ? undefined
+                    : (typeof item.previousQty === 'number' && item.previousQty > 0
+                        ? item.previousQty
+                        : undefined);
                   onUpdate({
                     manualUnlink: false,
                     ...(restoredQty !== undefined ? { qty: restoredQty } : {}),
@@ -1113,9 +1117,13 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             item.manualUnlink ? (
               <button type="button"
                 onClick={() => {
-                  const restoredQty = typeof item.previousQty === 'number' && item.previousQty > 0
-                    ? item.previousQty
-                    : undefined;
+                  // REGRA #5: formula prevalece — se item tem formulaExpr, nao seta qty.
+                  const hasFormula = !!(item.formulaExpr && item.formulaExpr.trim());
+                  const restoredQty = hasFormula
+                    ? undefined
+                    : (typeof item.previousQty === 'number' && item.previousQty > 0
+                        ? item.previousQty
+                        : undefined);
                   onUpdate({
                     manualUnlink: false,
                     ...(restoredQty !== undefined ? { qty: restoredQty } : {}),
@@ -1287,13 +1295,16 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
              manualUnlink=false, qty=previousQty se houver, previousQty=null.
              Esta logica esta no botao do indicator (nao no onPick).
 
-           4 REGRAS INVIOVEIS:
+           5 REGRAS INVIOVEIS:
            1. Escolha manual via picker SEMPRE seta manualUnlink=true. NUNCA
               false aqui — o auto-select substituiria o produto escolhido pelo
               otimo da regra (Bug 1 de v1.11.35).
            2. Snapshot previousQty restaura qty em A->B e A->C. NUNCA esquecer.
            3. Snapshot eh salvo SO ao escolher Sem Produto (A). B e C limpam.
            4. Auto-select PULA items com manualUnlink=true (backend recalc PASSO 0).
+           5. FORMULA PREVALECE: se item.formulaExpr existe, NUNCA sobrescreve qty.
+              A formula reavalia no recalc do backend com o produto novo. Snapshot
+              e defaultQty so se aplicam em items SEM formula. (v1.11.38)
 
            ANTES DE MEXER: leia checklist em pool_budget_rules.md secao 16.
            ═══════════════════════════════════════════════════════════════ */
@@ -1318,21 +1329,25 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             setPrice(((cfg.product?.salePriceCents ?? 0) / 100).toFixed(2));
             return;
           }
-          // CENARIO B — Produto manual (regras 1, 2, 3 do bloco acima):
+          // CENARIO B — Produto manual (regras 1, 2, 3 do bloco acima + REGRA #5):
           // - manualUnlink=true SEMPRE (mesmo se produto passa na regra).
-          // - qty: prioridade 1=snapshot previousQty (vindo de A), 2=defaultQty
-          //   do produto escolhido (campo do cadastro), 3=mantem qty atual.
+          // - REGRA #5: se item tem formulaExpr, a FORMULA prevalece — NAO sobrescreve
+          //   qty (backend recalc reavalia a formula com novo produto vinculado).
+          // - Sem formula: qty: 1=snapshot previousQty (vindo de A), 2=defaultQty do
+          //   produto escolhido (cadastro), 3=mantem qty atual.
           // - previousQty=null limpa o snapshot apos uso.
           const newDesc = cfg.product?.description || cfg.service?.name || item.description;
           const newUnit = cfg.product?.unit || cfg.service?.unit || item.unit;
           const newPriceCents = cfg.product?.salePriceCents ?? cfg.service?.priceCents ?? item.unitPriceCents;
+          const hasFormula = !!(item.formulaExpr && item.formulaExpr.trim());
           const productDefaultQty = typeof cfg.product?.defaultQty === 'number' && cfg.product.defaultQty > 0
             ? cfg.product.defaultQty
             : undefined;
           const snapshotQty = typeof item.previousQty === 'number' && item.previousQty > 0
             ? item.previousQty
             : undefined;
-          const restoredQty = snapshotQty ?? productDefaultQty;
+          // Se tem formula, NAO seta qty (recalc reavalia). Senao, snapshot > defaultQty.
+          const restoredQty = hasFormula ? undefined : (snapshotQty ?? productDefaultQty);
           onUpdate({
             catalogConfigId: cfg.id,
             productId: cfg.product?.id ?? null,
