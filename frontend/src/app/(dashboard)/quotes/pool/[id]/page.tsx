@@ -1061,10 +1061,25 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             <span>
               {item.autoSelectRule.indicator.label}: <span className="font-semibold tabular-nums">{formatIndicatorValue(item.indicatorValue, item.indicatorUnit)}</span>
             </span>
-            <span className="ml-auto text-[10px] opacity-70 flex items-center gap-1" title="Produto escolhido automaticamente pela regra de auto-selecao. Se voce trocar manualmente, a eficiencia recalcula com base no novo produto.">
+          </div>
+        )}
+        {/* Badge/botao da selecao automatica — quando item tem autoSelectRule.
+            manualUnlink=true: vira botao "Voltar pra selecao automatica" (laranja).
+            manualUnlink=false: badge cinza informativo. */}
+        {item.autoSelectRule && (item.autoSelectRule.where || item.autoSelectRule.filterPoolType || item.autoSelectRule.filterDescription || item.autoSelectRule.filterCategoria) && (
+          item.manualUnlink ? (
+            <button type="button"
+              onClick={() => onUpdate({ manualUnlink: false } as any)}
+              title="Clique pra voltar a selecao automatica — o sistema vai reaplicar a regra e escolher o produto otimo. Sua escolha manual sera substituida."
+              className="mt-1 text-[10px] inline-flex items-center gap-1 px-2 py-0.5 rounded border border-orange-300 bg-orange-50 hover:bg-orange-100 hover:border-orange-500 text-orange-800 transition cursor-pointer font-medium">
+              ↩ Voltar pra selecao automatica
+            </button>
+          ) : (
+            <span className="mt-1 text-[10px] inline-flex items-center gap-1 px-2 py-0.5 rounded border border-slate-200 bg-slate-50 text-slate-600"
+              title="Produto escolhido automaticamente pela regra de auto-selecao. Se voce trocar manualmente, vira botao 'Voltar pra selecao automatica'.">
               ✨ selecao automatica
             </span>
-          </div>
+          )
         )}
       </td>
       <td className="px-2 py-1.5 text-center text-xs text-slate-500">{item.unit}</td>
