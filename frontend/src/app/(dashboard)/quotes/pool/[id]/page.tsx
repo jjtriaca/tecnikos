@@ -15,6 +15,10 @@ type AutoSelectRule = {
   where?: string | null;
   orderBy?: string | null;
   manualSelection?: boolean | null;
+  // Vincula esse item a uma linha especifica (ex: tubo SPA aponta pra L39 do
+  // Kit SPA). Quando preenchido, sibling* vem so dessa linha — elimina
+  // ambiguidade. Opcional — sem ele, fallback pra siblings genericos da etapa.
+  linkedCellRef?: string | null;
   indicator?: {
     label: string;
     expr: string;
@@ -940,12 +944,24 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
 
   // Sibling vars (v1.10.99+) — pra preview do modal de auto-selecao em items
   // com regra cross-line (ex: tubo le tuboEntradaMm do filtro da mesma etapa).
-  // Backend ja calcula essas vars no recalc; aqui replicamos pro preview do
-  // modal mostrar candidatos corretos antes do save. Primeiro sibling com a
-  // chave ganha — mesma logica do backend.
+  // Modo preferido: linkedCellRef da regra (vinculo explicito a uma linha).
+  // Fallback: outros items da mesma etapa, excluindo o proprio.
   const siblingVars = useMemo(() => {
     const out: Record<string, number> = {};
     if (!allItems) return out;
+    const linkedCellRef = item.autoSelectRule?.linkedCellRef;
+    if (linkedCellRef && linkedCellRef.trim()) {
+      const target = allItems.find((sib) => sib.cellRef === linkedCellRef.trim());
+      const specs = (target?.product?.technicalSpecs ?? target?.service?.technicalSpecs) as Record<string, unknown> | null | undefined;
+      if (specs) {
+        for (const [k, raw] of Object.entries(specs)) {
+          const n = Number(raw);
+          if (!Number.isFinite(n)) continue;
+          out[`sibling${k.charAt(0).toUpperCase()}${k.slice(1)}`] = n;
+        }
+      }
+      return out;
+    }
     for (const sib of allItems) {
       if (sib.id === item.id) continue;
       if (sib.poolSection !== item.poolSection) continue;
@@ -961,7 +977,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
       }
     }
     return out;
-  }, [allItems, item.id, item.poolSection]);
+  }, [allItems, item.id, item.poolSection, item.autoSelectRule]);
 
   function commit() {
     const newQty = parseFloat(String(qty)) || 0;
@@ -1151,6 +1167,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
           .filter((it) => it.poolSection === item.poolSection && it.id !== item.id)
           .map((it) => ({
             id: it.id,
+            cellRef: it.cellRef,
             description: it.description,
             linked: !!(it.productId || it.serviceId),
             specs: (it.product?.technicalSpecs ?? it.service?.technicalSpecs) || null,
@@ -2550,8 +2567,8 @@ function AutoSelectModal({
   // referencia o equipamento da linha vizinha (ex: tubo usa siblingTuboMm).
   siblingVars?: Record<string, number>;
   // Items da mesma etapa (sem o atual) — usado pra diagnosticar siblings
-  // ausentes: lista items SEM vinculo e items vinculados sem o campo necessario.
-  sectionItems?: { id: string; description: string; linked: boolean; specs: Record<string, any> | null }[];
+  // ausentes E alimentar dropdown "Equipamento principal (linha)".
+  sectionItems?: { id: string; cellRef: string | null; description: string; linked: boolean; specs: Record<string, any> | null }[];
   itemDescription?: string;
   currentProductName?: string | null;
   onClose: () => void;
@@ -2564,6 +2581,7 @@ function AutoSelectModal({
   const [where, setWhere] = useState(initialRule?.where || '');
   const [orderBy, setOrderBy] = useState(initialRule?.orderBy || 'priceCents asc');
   const [manualSelection, setManualSelection] = useState(!!initialRule?.manualSelection);
+  const [linkedCellRef, setLinkedCellRef] = useState(initialRule?.linkedCellRef || '');
   const [hasIndicator, setHasIndicator] = useState(!!initialRule?.indicator);
   const [indLabel, setIndLabel] = useState(initialRule?.indicator?.label || '');
   const [indExpr, setIndExpr] = useState(initialRule?.indicator?.expr || '');
@@ -2598,6 +2616,21 @@ function AutoSelectModal({
     return Array.from(set).sort();
   }, [catalog]);
 
+  // Sibling vars dinamicas: se linkedCellRef definido, pega specs da linha vinculada
+  // (modo explicito). Caso contrario, usa siblingVars genericos passados pelo pai.
+  const effectiveSiblingVars = useMemo(() => {
+    if (!linkedCellRef.trim() || !sectionItems) return siblingVars || {};
+    const target = sectionItems.find((it) => it.cellRef === linkedCellRef.trim());
+    if (!target?.specs) return {};
+    const out: Record<string, number> = {};
+    for (const [k, raw] of Object.entries(target.specs)) {
+      const n = Number(raw);
+      if (!Number.isFinite(n)) continue;
+      out[`sibling${k.charAt(0).toUpperCase()}${k.slice(1)}`] = n;
+    }
+    return out;
+  }, [linkedCellRef, sectionItems, siblingVars]);
+
   // Vars do orcamento (mesma lista de FORMULA_VARS, computada das dimensoes)
   const dimVars = useMemo(() => {
     const v: Record<string, number> = {
@@ -2617,13 +2650,11 @@ function AutoSelectModal({
       escavacao: Number(dimensions?.escavacaoM3) || 0,
       tempLocal: Number(environmentParams?.temperaturaMediaLocal ?? environmentParams?.temperatura) || 0,
       tempAgua: Number(environmentParams?.temperaturaAguaDesejada) || 0,
-      // Merge das sibling vars vindas do componente pai (calculadas a partir dos outros items da mesma poolSection).
-      // Permite regras como 'tuboEntradaMm == siblingTuboMm' funcionarem no preview do modal,
-      // antes mesmo do save (backend tambem calcula no recalc, e os dois precisam bater).
-      ...(siblingVars || {}),
+      // Sibling vars resolvidas: linkedCellRef se definido, senao siblingVars genericos.
+      ...effectiveSiblingVars,
     };
     return v;
-  }, [dimensions, environmentParams, siblingVars]);
+  }, [dimensions, environmentParams, effectiveSiblingVars]);
 
   // Avalia condicao boolean (mesmo padrao do evalLocal mas retornando boolean)
   function evalCondition(expr: string, vars: Record<string, number>): boolean {
@@ -2731,6 +2762,7 @@ function AutoSelectModal({
       where: where.trim() || null,
       orderBy: orderBy.trim() || null,
       manualSelection: manualSelection || null,
+      linkedCellRef: linkedCellRef.trim() || null,
       indicator: hasIndicator && indLabel.trim() && indExpr.trim()
         ? { label: indLabel.trim(), expr: indExpr.trim(), unit: indUnit.trim() || null, levels: indLevels }
         : null,
@@ -2924,6 +2956,34 @@ function AutoSelectModal({
                       </div>
                     </div>
                   </label>
+
+                  {/* Dropdown "Equipamento principal (linha)" — vinculo explicito.
+                      Quando preenchido, siblings vem so dessa linha. Recomendado
+                      quando a regra usa sibling* — evita ambiguidade de qual e o principal. */}
+                  <div className="rounded border border-violet-200 bg-violet-50/50 px-3 py-2">
+                    <label className="block text-[11px] font-bold uppercase text-violet-900 mb-1">
+                      🔗 Equipamento principal (linha) — opcional
+                    </label>
+                    <p className="text-[11px] text-slate-700 mb-2 leading-tight">
+                      Vincule esse item a uma linha especifica da mesma etapa (ex: tubo aponta pro Kit SPA da linha 1).
+                      Quando preenchido, <code>sibling*</code> vem so dessa linha — independe da ordem dos items.
+                      <strong className="text-violet-900"> Sem ambiguidade.</strong>
+                    </p>
+                    <select value={linkedCellRef} onChange={(e) => setLinkedCellRef(e.target.value)}
+                      className="w-full rounded border border-violet-300 px-2 py-1.5 text-sm text-slate-900 bg-white">
+                      <option value="">— Sem vinculo (siblings genericos da etapa) —</option>
+                      {(sectionItems || []).filter((it) => it.linked && it.cellRef).map((it) => (
+                        <option key={it.cellRef!} value={it.cellRef!}>
+                          {it.cellRef} — {it.description}
+                        </option>
+                      ))}
+                    </select>
+                    {(sectionItems || []).filter((it) => it.linked && it.cellRef).length === 0 && (
+                      <p className="text-[10px] text-amber-700 mt-1">
+                        Nenhuma outra linha desta etapa tem produto vinculado ainda.
+                      </p>
+                    )}
+                  </div>
                 </div>
               </details>
 

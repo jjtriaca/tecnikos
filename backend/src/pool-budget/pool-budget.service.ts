@@ -202,7 +202,38 @@ export class PoolBudgetService {
    * Esta funcao le o filtro vinculado na etapa, pega technicalSpecs.tempoMontagemH,
    * retorna { siblingTempoMontagemH: 4, siblingVazaoM3h: 9, siblingTuboEntradaMm: 50, ... }.
    */
-  private async buildSiblingVars(budgetId: string, poolSection: any, excludeItemId?: string): Promise<Record<string, number>> {
+  private async buildSiblingVars(
+    budgetId: string,
+    poolSection: any,
+    excludeItemId?: string,
+    linkedCellRef?: string | null,
+  ): Promise<Record<string, number>> {
+    // Se linkedCellRef definido, busca SO o item com aquele cellRef (link explicito).
+    // Modo preferido — elimina ambiguidade quando varios items da etapa tem o mesmo
+    // technicalSpec (ex: 2 equipamentos com tuboEntradaMm na mesma etapa).
+    if (linkedCellRef && linkedCellRef.trim()) {
+      const target = await this.prisma.poolBudgetItem.findFirst({
+        where: { budgetId, cellRef: linkedCellRef.trim() },
+        select: {
+          id: true,
+          product: { select: { technicalSpecs: true } },
+          service: { select: { technicalSpecs: true } },
+        },
+      });
+      const out: Record<string, number> = {};
+      const specs = (target?.product?.technicalSpecs ?? target?.service?.technicalSpecs) as Record<string, unknown> | null | undefined;
+      if (specs) {
+        for (const [k, raw] of Object.entries(specs)) {
+          const n = Number(raw);
+          if (!Number.isFinite(n)) continue;
+          const siblingKey = `sibling${k.charAt(0).toUpperCase()}${k.slice(1)}`;
+          out[siblingKey] = n;
+        }
+      }
+      return out;
+    }
+
+    // Fallback: itera itens da etapa (excluindo o proprio) — comportamento legacy.
     const items = await this.prisma.poolBudgetItem.findMany({
       where: {
         budgetId,
@@ -687,16 +718,18 @@ export class PoolBudgetService {
           await processItem(it, {});
         }
 
-        // Calcula vars 'sibling*' por item da Fase B — exclui o PROPRIO item pra
-        // evitar auto-referencia (ex: tubo lendo o proprio tuboEntradaMm). Roda
-        // DEPOIS da Fase A pra capturar tambem productIds resolvidos agora.
+        // Calcula vars 'sibling*' por item da Fase B — usa linkedCellRef quando
+        // a regra define vinculo explicito a uma linha (preferido). Senao, fallback
+        // generico: itera outros items da mesma etapa, excluindo o proprio.
         if (phaseB.length > 0) {
           const allInBudget = await this.prisma.poolBudgetItem.findMany({
             where: { budgetId },
             select: {
               id: true,
+              cellRef: true,
               poolSection: true,
               product: { select: { technicalSpecs: true } },
+              service: { select: { technicalSpecs: true } },
             },
           });
 
@@ -704,20 +737,35 @@ export class PoolBudgetService {
           // o equipamento principal da etapa. Quando filtro/cascata/SPA/aquecedor muda,
           // o tubo redo automaticamente. Escolha manual em tubo dura ate o proximo recalc.
           for (const it of phaseB) {
+            const rule = it.autoSelectRule as AutoSelectRule | null;
+            const linkedCellRef = rule?.linkedCellRef || null;
             const sec = String(it.poolSection);
             const sectionVars: Record<string, number> = {};
-            // Itera SOMENTE outros items da MESMA etapa (exclui o proprio)
-            for (const other of allInBudget) {
-              if (other.id === it.id) continue;
-              if (String(other.poolSection) !== sec) continue;
-              const specs = (other.product?.technicalSpecs as Record<string, unknown> | null) || null;
-              if (!specs) continue;
-              for (const [k, raw] of Object.entries(specs)) {
-                const n = Number(raw);
-                if (!Number.isFinite(n)) continue;
-                const siblingKey = `sibling${k.charAt(0).toUpperCase()}${k.slice(1)}`;
-                if (sectionVars[siblingKey] === undefined) {
-                  sectionVars[siblingKey] = n;
+            if (linkedCellRef) {
+              // Modo vinculo explicito: pega APENAS o item com aquele cellRef
+              const target = allInBudget.find((o) => o.cellRef === linkedCellRef);
+              const specs = (target?.product?.technicalSpecs ?? target?.service?.technicalSpecs) as Record<string, unknown> | null | undefined;
+              if (specs) {
+                for (const [k, raw] of Object.entries(specs)) {
+                  const n = Number(raw);
+                  if (!Number.isFinite(n)) continue;
+                  sectionVars[`sibling${k.charAt(0).toUpperCase()}${k.slice(1)}`] = n;
+                }
+              }
+            } else {
+              // Modo legacy: itera outros items da mesma etapa
+              for (const other of allInBudget) {
+                if (other.id === it.id) continue;
+                if (String(other.poolSection) !== sec) continue;
+                const specs = (other.product?.technicalSpecs as Record<string, unknown> | null) || null;
+                if (!specs) continue;
+                for (const [k, raw] of Object.entries(specs)) {
+                  const n = Number(raw);
+                  if (!Number.isFinite(n)) continue;
+                  const siblingKey = `sibling${k.charAt(0).toUpperCase()}${k.slice(1)}`;
+                  if (sectionVars[siblingKey] === undefined) {
+                    sectionVars[siblingKey] = n;
+                  }
                 }
               }
             }
@@ -732,17 +780,30 @@ export class PoolBudgetService {
       where: { budgetId },
       select: {
         id: true, qty: true, unit: true, unitPriceCents: true, formulaExpr: true, cellRef: true,
-        poolSection: true,
+        poolSection: true, autoSelectRule: true,
         product: { select: { technicalSpecs: true } },
         service: { select: { technicalSpecs: true } },
       },
     });
-    // Calcula sibling vars POR ITEM, EXCLUINDO o proprio (evita auto-referencia).
-    // Antes calculava globalmente por etapa — bug: tubo lia o proprio tuboEntradaMm,
-    // ao trocar o equipamento principal o tubo nao seguia mais.
+    // Calcula sibling vars POR ITEM. Modo preferido: linkedCellRef da regra
+    // (vinculo explicito a uma linha). Fallback: outros items da mesma etapa
+    // excluindo o proprio (evita auto-referencia).
     const computeSiblingsForItem = (it: typeof items[number]): Record<string, number> => {
       const sec = String(it.poolSection);
       const out: Record<string, number> = {};
+      const linkedCellRef = (it.autoSelectRule as any)?.linkedCellRef as string | null | undefined;
+      if (linkedCellRef && linkedCellRef.trim()) {
+        const target = items.find((o) => o.cellRef === linkedCellRef.trim());
+        const specs = (target?.product?.technicalSpecs ?? target?.service?.technicalSpecs) as Record<string, unknown> | null;
+        if (specs) {
+          for (const [k, raw] of Object.entries(specs)) {
+            const n = Number(raw);
+            if (!Number.isFinite(n)) continue;
+            out[`sibling${k.charAt(0).toUpperCase()}${k.slice(1)}`] = n;
+          }
+        }
+        return out;
+      }
       for (const other of items) {
         if (other.id === it.id) continue;
         if (String(other.poolSection) !== sec) continue;
@@ -1040,8 +1101,20 @@ export class PoolBudgetService {
     // v1.11.05: necessario pra indicators que referenciam o equipamento principal
     // da etapa (ex: tubo usa siblingTuboEntradaMm). Antes calculava por etapa global
     // — bug: tubo lia o proprio tuboEntradaMm em vez do kit/filtro.
-    const computeIndicatorSiblings = (currentId: string, sec: string): Record<string, number> => {
+    const computeIndicatorSiblings = (currentId: string, sec: string, linkedCellRef?: string | null): Record<string, number> => {
       const out: Record<string, number> = {};
+      if (linkedCellRef && linkedCellRef.trim()) {
+        const target = budget.items.find((o) => o.cellRef === linkedCellRef.trim());
+        const specs = ((target?.product as any)?.technicalSpecs ?? (target?.service as any)?.technicalSpecs) as Record<string, unknown> | null;
+        if (specs) {
+          for (const [k, raw] of Object.entries(specs)) {
+            const n = Number(raw);
+            if (!Number.isFinite(n)) continue;
+            out[`sibling${k.charAt(0).toUpperCase()}${k.slice(1)}`] = n;
+          }
+        }
+        return out;
+      }
       for (const other of budget.items) {
         if (other.id === currentId) continue;
         if (String(other.poolSection) !== sec) continue;
@@ -1062,7 +1135,7 @@ export class PoolBudgetService {
       const rule = (item as any).autoSelectRule as AutoSelectRule | null | undefined;
       if (!rule?.indicator) continue;
       const productSpecs = (item.product as any)?.technicalSpecs ?? (item.service as any)?.technicalSpecs ?? null;
-      const siblings = computeIndicatorSiblings(item.id, String(item.poolSection));
+      const siblings = computeIndicatorSiblings(item.id, String(item.poolSection), rule.linkedCellRef);
       const vars = { ...dimensionVarsForIndicator, ...extractProductVars(productSpecs), ...siblings };
       const calculated = evaluateIndicator(rule, vars);
       if (calculated) {
@@ -1256,7 +1329,9 @@ export class PoolBudgetService {
         });
         productSpecs = s?.technicalSpecs;
       }
-      const siblingVars = await this.buildSiblingVars(budgetId, dto.poolSection);
+      // Se a regra tem linkedCellRef, siblings vem so dessa linha (vinculo explicito)
+      const ruleLinkedCellRef = (dto.autoSelectRule as any)?.linkedCellRef as string | null | undefined;
+      const siblingVars = await this.buildSiblingVars(budgetId, dto.poolSection, undefined, ruleLinkedCellRef);
       const vars = { ...extractDimensionVars(fullBudget?.poolDimensions), ...extractProductVars(productSpecs), ...siblingVars };
       const cellRefMap = await this.buildBudgetCellRefMap(budgetId);
       try {
@@ -1366,7 +1441,9 @@ export class PoolBudgetService {
         }
         // Exclui o proprio item — evita auto-referencia em items com technicalSpecs
         // (ex: tubo lendo o proprio tuboEntradaMm via siblingTuboEntradaMm).
-        const siblingVars = await this.buildSiblingVars(item.budgetId, item.poolSection, item.id);
+        // Se a regra tem linkedCellRef, usa SO a linha vinculada (vinculo explicito).
+        const ruleLinkedCellRef = (dto.autoSelectRule as any)?.linkedCellRef ?? (item.autoSelectRule as any)?.linkedCellRef ?? null;
+        const siblingVars = await this.buildSiblingVars(item.budgetId, item.poolSection, item.id, ruleLinkedCellRef);
         const vars = { ...extractDimensionVars(fullBudget?.poolDimensions), ...extractProductVars(productSpecs), ...siblingVars };
         const cellRefMap = await this.buildBudgetCellRefMap(item.budgetId);
         try {

@@ -36,6 +36,12 @@ export interface AutoSelectRule {
   where?: string | null;
   orderBy?: string | null;
   manualSelection?: boolean | null;
+  // Vincula esse item a uma linha especifica como "equipamento principal"
+  // (ex: tubo aponta pra L39 do Kit SPA). Quando preenchido, sibling* vem
+  // SO do item com esse cellRef — elimina ambiguidade de "qual e o principal
+  // da etapa". Sem ele, fallback pro comportamento generico (primeiro item
+  // da etapa com cada chave).
+  linkedCellRef?: string | null;
   indicator?: AutoSelectIndicator | null;
 }
 
