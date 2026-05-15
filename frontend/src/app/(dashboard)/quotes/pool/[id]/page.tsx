@@ -1152,6 +1152,9 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             qty: x.qty,
             total: x.totalCents / 100,
             unitPrice: x.unitPriceCents / 100,
+            // Enriquecido com technicalSpecs do produto/servico vinculado —
+            // permite preview do prod(LX, "key") avaliar com valor real.
+            productSpecs: (x.product?.technicalSpecs ?? x.service?.technicalSpecs ?? null) as Record<string, any> | null,
           }))}
         siblingVars={siblingVars}
         onClose={() => setShowFormula(false)}
@@ -1748,6 +1751,7 @@ function evalLocal(
   expr: string,
   vars: Record<string, number>,
   cellRefs: Map<string, CellRefDataLocal> = new Map(),
+  cellRefProductSpecs: Map<string, Record<string, any>> = new Map(),
 ): { ok: boolean; value?: number; error?: string } {
   if (!expr.trim()) return { ok: false, error: 'vazia' };
   // Aceita decimal com virgula (padrao BR) — auto-converte "0,1" -> "0.1".
@@ -1771,9 +1775,14 @@ function evalLocal(
     );
   }
   if (cellRefError) return { ok: false, error: cellRefError };
-  // Funcoes de agregacao avaliadas no servidor — frontend usa placeholder 0 pra nao quebrar
-  // o validador. O resultado real virá do recalculateTotals apos salvar.
-  s = s.replace(/\bprod\s*\(\s*L\d+\s*,\s*"[a-zA-Z_][a-zA-Z0-9_]*"\s*\)/g, '(0)');
+  // prod(LX, "key") — busca spec do produto vinculado a linha. Se disponivel,
+  // mostra o valor real no preview (em vez de 0). Caso a linha nao tenha
+  // produto/spec, retorna 0 (mesmo comportamento que o backend).
+  s = s.replace(/\bprod\s*\(\s*(L\d+)\s*,\s*"([a-zA-Z_][a-zA-Z0-9_]*)"\s*\)/g, (_m, ref: string, key: string) => {
+    const specs = cellRefProductSpecs.get(ref);
+    const v = specs ? Number(specs[key] ?? 0) : 0;
+    return '(' + (Number.isFinite(v) ? v : 0) + ')';
+  });
   s = s.replace(/\bsum\s*\(\s*"[a-zA-Z_][a-zA-Z0-9_]*"\s*(?:,\s*"[^"]*"\s*)?\)/g, '(0)');
   // Substitui areaSecN / volumeSecN dinamicamente (uma por section)
   s = s.replace(SECTION_VAR_PATTERN, (_m, prefix: string, num: string) => {
@@ -1861,7 +1870,7 @@ const FORMULA_FN_HELP: Record<typeof FORMULA_FUNCTIONS[number], string> = {
   max: "Maior entre 2 valores: max(area, 10). Garante minimo.",
 };
 
-type OtherItemForModal = { cellRef: string; description: string; poolSection: string; qty: number; total: number; unitPrice: number };
+type OtherItemForModal = { cellRef: string; description: string; poolSection: string; qty: number; total: number; unitPrice: number; productSpecs?: Record<string, any> | null };
 
 function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDescription, itemUnit, itemCellRef, itemPoolSection, productSpecs, productName, otherItems, siblingVars, onClose, onSave, onClear }: {
   initialExpr: string;
@@ -1888,6 +1897,9 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
   // Quando o usuario clica numa receita que precisa de linha (needsLineRef),
   // guarda o template aqui e mostra picker de linha logo abaixo.
   const [pendingRecipe, setPendingRecipe] = useState<FormulaRecipe | null>(null);
+  // Multi-select: linhas selecionadas no picker. Ao aplicar, gera soma de
+  // prod(LA, "key") + prod(LB, "key") + ... (multiplos equipamentos).
+  const [pendingLineRefs, setPendingLineRefs] = useState<Set<string>>(new Set());
 
   // Mapeia strings -> numero (mesma logica do backend)
   const ventoNum = (() => {
@@ -1964,9 +1976,13 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
     productSpecsList.sort((a, b) => a.key.localeCompare(b.key));
   }
   const cellRefMap = new Map<string, CellRefDataLocal>();
+  // Map de cellRef -> productSpecs do produto/servico vinculado.
+  // Usado pelo evalLocal pra avaliar prod(LX, "key") com valor real no preview.
+  const cellRefProductSpecs = new Map<string, Record<string, any>>();
   for (const o of otherItems ?? []) {
     if (o.cellRef && o.cellRef !== itemCellRef) {
       cellRefMap.set(o.cellRef, { qty: o.qty, total: o.total, unitPrice: o.unitPrice });
+      if (o.productSpecs) cellRefProductSpecs.set(o.cellRef, o.productSpecs);
     }
   }
   const VAR_GROUPS: Record<string, { label: string; vars: string[] }> = {
@@ -2026,7 +2042,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
     construcao: "Tipo construcao (1=ABERTA, 2=FECHADA)",
   };
 
-  const result = evalLocal(expr, vars, cellRefMap);
+  const result = evalLocal(expr, vars, cellRefMap, cellRefProductSpecs);
 
   function insert(text: string) {
     const el = inputRef.current;
@@ -2146,9 +2162,11 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
                     <button key={r.label} type="button" onClick={() => {
                       if (r.needsLineRef) {
                         setPendingRecipe(r);
+                        setPendingLineRefs(new Set());
                       } else {
                         setExpr(r.expr);
                         setPendingRecipe(null);
+                        setPendingLineRefs(new Set());
                       }
                     }}
                       className="text-left rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-3 py-1.5 transition group/r">
@@ -2161,49 +2179,83 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
                     </button>
                   ))}
                 </div>
-                {/* Picker de linha — aparece quando o usuario clica numa receita
-                    com needsLineRef. Lista linhas da MESMA etapa do item atual com
-                    cellRef. Substitui LREF na expressao pelo cellRef escolhido. */}
+                {/* Picker de linhas (multi-select) — aparece quando o usuario clica numa
+                    receita com needsLineRef. Lista linhas da MESMA etapa do item atual com
+                    cellRef. Operador escolhe UMA ou VARIAS linhas — gera prod(LX, "key")
+                    ou soma prod(LA, "key") + prod(LB, "key") + ... pra varios equipamentos. */}
                 {pendingRecipe && (
                   <div className="mx-4 mb-3 rounded-lg border-2 border-violet-300 bg-violet-50 p-3">
                     <div className="text-xs font-bold text-violet-900 mb-1">
-                      🔗 Escolha a linha do equipamento principal
+                      🔗 Escolha as linhas (1 ou mais) {pendingLineRefs.size > 0 && <span className="text-violet-700">— {pendingLineRefs.size} selecionada(s)</span>}
                     </div>
                     <div className="text-[11px] text-violet-800 mb-2 leading-tight">
-                      A expressao <code className="bg-white px-1 rounded">{pendingRecipe.expr}</code> precisa apontar pra uma linha.
-                      Clique numa linha abaixo — vai virar <code className="bg-white px-1 rounded">{pendingRecipe.expr.replace('LREF', 'L<linha>')}</code>.
+                      Marque os equipamentos que entram nesta formula. Se escolher varios, a soma vira
+                      <code className="bg-white px-1 rounded ml-1">{pendingRecipe.expr.replace('LREF', 'LA')} + {pendingRecipe.expr.replace('LREF', 'LB')} + ...</code>
                     </div>
                     <div className="space-y-1 max-h-40 overflow-y-auto">
                       {(() => {
-                        // Prefere linhas da MESMA etapa do item atual (mais comum).
-                        // Se nao houver, mostra todas. Filtra somente as que tem cellRef.
                         const sameSec = (otherItems || []).filter((o) => o.cellRef && itemPoolSection && o.poolSection === itemPoolSection);
                         const list = sameSec.length > 0 ? sameSec : (otherItems || []).filter((o) => o.cellRef);
                         if (list.length === 0) {
                           return <div className="text-[11px] text-amber-700 italic">Nenhuma outra linha disponivel.</div>;
                         }
-                        return list.map((o) => (
-                          <button
-                            key={o.cellRef}
-                            type="button"
-                            onClick={() => {
-                              const finalExpr = pendingRecipe.expr.replace(/\bLREF\b/g, o.cellRef);
-                              setExpr(finalExpr);
-                              setPendingRecipe(null);
-                            }}
-                            className="w-full text-left rounded border border-violet-200 bg-white hover:border-violet-500 hover:bg-violet-100 px-2 py-1 transition"
-                          >
-                            <span className="font-mono text-[10px] text-violet-700 mr-2">{o.cellRef}</span>
-                            <span className="text-xs text-slate-800">{o.description}</span>
-                            <span className="text-[10px] text-slate-500 ml-2">({SECTION_LABEL[o.poolSection] || o.poolSection})</span>
-                          </button>
-                        ));
+                        return list.map((o) => {
+                          const specs = o.productSpecs as Record<string, any> | null | undefined;
+                          // Detecta a chave da spec usada na expressao da receita (ex: "tempoMontagemH")
+                          const m = pendingRecipe.expr.match(/"([a-zA-Z_][a-zA-Z0-9_]*)"/);
+                          const specKey = m ? m[1] : null;
+                          const specVal = specKey && specs ? Number(specs[specKey]) : null;
+                          const hasSpec = specVal !== null && Number.isFinite(specVal);
+                          const checked = pendingLineRefs.has(o.cellRef);
+                          return (
+                            <label key={o.cellRef}
+                              className={`flex items-center gap-2 rounded border px-2 py-1.5 cursor-pointer transition ${
+                                checked ? 'bg-violet-100 border-violet-500' : 'bg-white border-violet-200 hover:border-violet-400 hover:bg-violet-50'
+                              }`}>
+                              <input type="checkbox" checked={checked}
+                                onChange={(e) => {
+                                  setPendingLineRefs((prev) => {
+                                    const next = new Set(prev);
+                                    if (e.target.checked) next.add(o.cellRef);
+                                    else next.delete(o.cellRef);
+                                    return next;
+                                  });
+                                }}
+                                className="h-3.5 w-3.5 accent-violet-600" />
+                              <span className="font-mono text-[10px] text-violet-700">{o.cellRef}</span>
+                              <span className="text-xs text-slate-800 flex-1">{o.description}</span>
+                              {hasSpec && (
+                                <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                                  {specKey}={specVal}
+                                </span>
+                              )}
+                              {specKey && !hasSpec && (
+                                <span className="text-[10px] text-amber-700">sem {specKey}</span>
+                              )}
+                              <span className="text-[10px] text-slate-500">({SECTION_LABEL[o.poolSection] || o.poolSection})</span>
+                            </label>
+                          );
+                        });
                       })()}
                     </div>
-                    <button type="button" onClick={() => setPendingRecipe(null)}
-                      className="mt-2 text-[10px] text-violet-700 hover:text-violet-900 underline">
-                      Cancelar
-                    </button>
+                    <div className="flex items-center gap-2 mt-2">
+                      <button type="button" disabled={pendingLineRefs.size === 0}
+                        onClick={() => {
+                          const refs = Array.from(pendingLineRefs);
+                          // Gera prod(LA, "key") + prod(LB, "key") + ... pra cada linha selecionada
+                          const finalExpr = refs.map((r) => pendingRecipe.expr.replace(/\bLREF\b/g, r)).join(' + ');
+                          setExpr(finalExpr);
+                          setPendingRecipe(null);
+                          setPendingLineRefs(new Set());
+                        }}
+                        className="rounded bg-violet-600 hover:bg-violet-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-3 py-1 text-xs font-semibold">
+                        Aplicar {pendingLineRefs.size > 0 && `(${pendingLineRefs.size})`}
+                      </button>
+                      <button type="button" onClick={() => { setPendingRecipe(null); setPendingLineRefs(new Set()); }}
+                        className="text-[10px] text-violet-700 hover:text-violet-900 underline">
+                        Cancelar
+                      </button>
+                    </div>
                   </div>
                 )}
               </details>
