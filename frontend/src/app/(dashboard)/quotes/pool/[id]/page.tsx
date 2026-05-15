@@ -1179,6 +1179,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
     )}
     {showAutoSelect && catalog && (
       <AutoSelectModal
+        key={`${item.id}-${JSON.stringify(item.autoSelectRule || {})}`}
         initialRule={item.autoSelectRule || null}
         catalog={catalog}
         dimensions={dimensions}
@@ -3507,8 +3508,9 @@ function CatalogPickModal({ catalog, currentSection, autoSelectRule, dimensions,
     return v;
   }, [dimensions, environmentParams, siblingVars]);
 
-  // Avalia where + filterPoolType + filterCategoria + filterDescription da regra contra 1 candidato.
-  function matchesRule(c: CatalogConfig): boolean {
+  // Filtro de TIPO da regra (filterPoolType + filterCategoria + filterDescription)
+  // — agrupamento natural, sempre aplicado quando a regra define tipo.
+  function matchesRuleType(c: CatalogConfig): boolean {
     if (!autoSelectRule) return true;
     const desc = c.product?.description || c.service?.name || '';
     const specs = (c.product?.technicalSpecs || c.service?.technicalSpecs || {}) as Record<string, any>;
@@ -3524,28 +3526,32 @@ function CatalogPickModal({ catalog, currentSection, autoSelectRule, dimensions,
     if (autoSelectRule.filterDescription && autoSelectRule.filterDescription.trim()) {
       if (!norm(desc).includes(norm(autoSelectRule.filterDescription.trim()))) return false;
     }
-    if (autoSelectRule.where && autoSelectRule.where.trim()) {
-      const specVars: Record<string, number> = {};
-      for (const [k, raw] of Object.entries(specs)) {
-        const n = Number(raw);
-        if (Number.isFinite(n)) specVars[k] = n;
-      }
-      const merged = { ...ruleVars, ...specVars };
-      let s = autoSelectRule.where.replace(/(\d),(\d)/g, '$1.$2');
-      for (const [k, val] of Object.entries(merged)) {
-        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k)) continue;
-        const n = Number(val) || 0;
-        s = s.replace(new RegExp('\\b' + k + '\\b', 'g'), '(' + n + ')');
-      }
-      const stripped = s.replace(/\b(ceil|floor|round|min|max)\b/g, '');
-      if (/[a-zA-Z_]/.test(stripped)) return false;
-      if (!/^[\d.\s+\-*/(),<>=!&|]*$/.test(stripped)) return false;
-      try {
-        const fn = Function('ceil', 'floor', 'round', 'min', 'max', '"use strict"; return (' + s + ');');
-        return !!fn(Math.ceil, Math.floor, Math.round, Math.min, Math.max);
-      } catch { return false; }
-    }
     return true;
+  }
+
+  // Filtro de CRITERIO da regra (where) — opcional, via checkbox.
+  function matchesRuleCriterio(c: CatalogConfig): boolean {
+    if (!autoSelectRule?.where || !autoSelectRule.where.trim()) return true;
+    const specs = (c.product?.technicalSpecs || c.service?.technicalSpecs || {}) as Record<string, any>;
+    const specVars: Record<string, number> = {};
+    for (const [k, raw] of Object.entries(specs)) {
+      const n = Number(raw);
+      if (Number.isFinite(n)) specVars[k] = n;
+    }
+    const merged = { ...ruleVars, ...specVars };
+    let s = autoSelectRule.where.replace(/(\d),(\d)/g, '$1.$2');
+    for (const [k, val] of Object.entries(merged)) {
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k)) continue;
+      const n = Number(val) || 0;
+      s = s.replace(new RegExp('\\b' + k + '\\b', 'g'), '(' + n + ')');
+    }
+    const stripped = s.replace(/\b(ceil|floor|round|min|max)\b/g, '');
+    if (/[a-zA-Z_]/.test(stripped)) return false;
+    if (!/^[\d.\s+\-*/(),<>=!&|]*$/.test(stripped)) return false;
+    try {
+      const fn = Function('ceil', 'floor', 'round', 'min', 'max', '"use strict"; return (' + s + ');');
+      return !!fn(Math.ceil, Math.floor, Math.round, Math.min, Math.max);
+    } catch { return false; }
   }
 
   // Localiza o Product "Sem Produto" universal no catalog (alimenta o botao
@@ -3562,7 +3568,11 @@ function CatalogPickModal({ catalog, currentSection, autoSelectRule, dimensions,
       // Sempre exclui o Sem Produto da lista filtrada — aparece so como botao virtual no topo
       if (semProdutoCfg && c.id === semProdutoCfg.id) return false;
       if (!showAll && currentSection && c.poolSection !== currentSection) return false;
-      if (filterByRule && hasRule && !matchesRule(c)) return false;
+      // Filtro TIPO da regra (filterPoolType + filterDescription + filterCategoria) — SEMPRE aplicado se houver regra.
+      // Agrupamento natural pelo tipo do produto. Operador ve todos os candidatos do tipo (mesmo os que falham no criterio).
+      if (hasRule && !matchesRuleType(c)) return false;
+      // Filtro CRITERIO (where) — opcional via checkbox "Apenas que passam no criterio".
+      if (filterByRule && hasRule && !matchesRuleCriterio(c)) return false;
       if (tokens.length === 0) return true;
       const haystack = [
         c.product?.code, c.product?.description, c.product?.brand,
@@ -3590,9 +3600,9 @@ function CatalogPickModal({ catalog, currentSection, autoSelectRule, dimensions,
                 <span className="text-xs text-slate-600">{filtered.length} resultado{filtered.length !== 1 ? "s" : ""}</span>
                 <div className="flex items-center gap-3 flex-wrap">
                   {hasRule && (
-                    <label className="text-[10px] text-violet-700 flex items-center gap-1 cursor-pointer font-medium" title="Aplica filtros + criterio da regra de auto-selecao desta linha. Desmarque pra ver todos os produtos do catalogo.">
+                    <label className="text-[10px] text-violet-700 flex items-center gap-1 cursor-pointer font-medium" title="Filtra so os candidatos que PASSAM no criterio (where) da regra. Tipo da regra (poolType + descricao) sempre eh aplicado — agrupamento natural por tipo nao bloqueia.">
                       <input type="checkbox" checked={filterByRule} onChange={(e) => setFilterByRule(e.target.checked)} className="h-3 w-3" />
-                      ✨ Apenas que passam na regra desta linha
+                      ✨ Apenas que passam no criterio (where)
                     </label>
                   )}
                   {currentSection && (
