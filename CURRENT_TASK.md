@@ -1,7 +1,64 @@
 # TAREFA ATUAL
 
-## Versao: v1.10.81 (em prod)
-## Ultima sessao: 200 (14/05/2026)
+## Versao: v1.11.13 (em prod)
+## Ultima sessao: 201 (14-15/05/2026)
+
+## RECAP SESSAO 201 — v1.10.55 → v1.11.13 (33 versoes deployadas)
+
+### Trabalhos principais
+
+**UI / Contraste / Ortografia**
+- Sweep ortografico em 144 arquivos (.tsx + types/.ts) — Servico/Servicos, Configuracoes, Conciliacao, Codigo, Numero, etc. (v1.10.82-84)
+- Fix critico: globals.css tinha `@media (prefers-color-scheme: dark)` sobrescrevendo `--foreground` pra cinza claro em dark mode do SO. Removido — texto default agora sempre `#171717`. Resolvia 'texto apagado' recorrente. (v1.10.85)
+- Sweep amplo de contraste em 144 arquivos: text-slate-300/400 em VALORES virou text-slate-600+ (v1.10.86)
+- Redundancia Bruto/Comissao em A Pagar removida (v1.10.82)
+- Descricao em tabelas: padrao novo `w-full + truncate + title` (v1.11.07, aplicado so em /products — outras 10 telas pendentes)
+- Barra de contexto fixa no modal de Editar Produto (v1.11.08)
+
+**Tracking universal (Fases 0, 1, 2 — 26 tabelas)**
+- Fase 0: infra completa (userContext AsyncLocalStorage, UserContextInterceptor, helpers withCreate/withUpdate, enum CreationSource, name no JWT) (v1.10.87)
+- Fase 1: 16 tabelas financeiras (FinancialEntry, FinancialInstallment, AccountTransfer, CardSettlement, CardFeeRate, Boleto, BoletoConfig, BankStatementImport, BankStatementLine, CashAccount, FinancialAccount, PaymentMethod, PaymentInstrument, PaymentInstrumentFeeRate, CollectionRule, CollectionExecution) (v1.10.87+88)
+- Fase 2: 10 tabelas OS/Orcamentos (ServiceOrder*, Quote*, Evaluation, ChecklistResponse) (v1.10.89)
+- Secao 'Rastreabilidade' em /finance/entries/[id] mostra Criado por X em DD/MM via origem
+- Detalhe em [project_universal_tracking_fields.md](memory/project_universal_tracking_fields.md). Fases 3-6 PENDENTES.
+
+**Modulo Piscina — auto-selecao de produtos**
+- 7 templates de auto-selecao no orcamento de piscina: Filtro (vazao/3.7 igual macro VBA original), Aquecedor (kcal/h), 3 tubos (filtragem/cascata/SPA — siblingTuboEntradaMm), Cascata, Kit SPA (v1.10.90 → v1.11.05)
+- 6 cores no select de niveis do indicador (emerald, green, blue, yellow, orange, red) (v1.10.92)
+- Faixa de eficiencia destacada abaixo da descricao do produto na linha (v1.10.94)
+- Aba 'Piscina' no cadastro de produto com 10 specs tecnicas: tempoMontagemH, vazaoM3h, tuboEntradaMm, kcalHMin/Max, potenciaCv, voltagem, amperagem, bifTrif, bifTrifConta (v1.10.97+99, v1.11.02)
+- Receita de formula 'Tempo de montagem do equipamento (h)' (siblingTempoMontagemH) (v1.11.09)
+- Cross-line reference: tubos leem siblingTuboEntradaMm do equipamento principal da etapa (v1.10.98 → v1.11.04)
+- Catalog picker filtra pela regra de auto-selecao da linha atual (v1.11.06)
+- v1.11.11/13: comportamento refinado por tipo de item:
+  - Fase A (filtro/cascata/etc): respeita escolha manual valida
+  - Fase B (tubos): forceReapply — sempre seguem equipamento principal
+- evaluateFormula reconhece sibling* vars (recalc, create, update) (v1.11.10)
+
+**Deploy infra**
+- Step 0 do deploy-remote.sh agora distingue 'local > prod' (recovery) de 'local < prod' (worktree defasado) (v1.10.83)
+- Fix do push origin HEAD:main (resolvia bug de 26 commits silenciosamente perdidos)
+- 2 incidentes de build do Docker falhando silencioso (v1.10.82 e v1.11.11) — fix do detector PENDENTE em memory/feedback_deploy_build_silent.md
+
+**Fixes bugs**
+- DTO autoSelectRule estava sendo stripado pelo ValidationPipe (faltava @IsObject) — caia campos no save (v1.10.95)
+- 1 template Tubo unificado pegava tubo errado (cascata em vez de filtragem) — voltou pra 3 templates especificos (v1.11.05)
+- Normalizacao NFD pra filter description matchar acentos (conexoes/conexões) (v1.11.03)
+- Indicator nao aparecia em items com sibling vars — findOne agora passa siblings (v1.11.05)
+
+### Pendentes ativos (priorizadas)
+
+🟦 **GRANDE — Tracking universal Fases 3-6**: Cadastros, Fiscal, Config/Workflow/Piscina, Ativacao soft delete + lixeira. Plano em [project_universal_tracking_fields.md](memory/project_universal_tracking_fields.md). 4-5h restantes.
+
+🟨 **Medio — Tabelas com max-w fixo na descricao**: 10 arquivos identificados em [feedback_truncate_descricao.md](memory/feedback_truncate_descricao.md). Audit e aplicar padrao w-full + truncate + title.
+
+🟨 **Medio — Fix detector build Docker silencioso**: [feedback_deploy_build_silent.md](memory/feedback_deploy_build_silent.md). 2 incidentes ja, 1h pra arrumar.
+
+🟡 **Baixa — Canal EMAIL mock**: notification.service nao envia email real (TODO antigo).
+
+🟡 **Baixa — Sweep ortografico minusculas residuais**: gestao/automacao/manutencao/etc em SEO keywords e frases corridas. Trabalho menor.
+
+🟡 **Baixa — FinancialInstallment legacy**: finance.service.ts:981 (renegotiate) e nfe.service.ts:791 (NFe parcelada) ainda usam modelo antigo.
 
 ## FEATURES PENDENTES (priorizadas)
 
