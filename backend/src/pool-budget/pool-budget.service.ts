@@ -619,7 +619,8 @@ export class PoolBudgetService {
       select: {
         id: true, autoSelectRule: true, productId: true, serviceId: true,
         description: true, unitPriceCents: true, poolSection: true,
-        product: { select: { id: true, description: true, salePriceCents: true, unit: true, technicalSpecs: true, poolType: true } },
+        qty: true, formulaExpr: true, previousQty: true,
+        product: { select: { id: true, description: true, salePriceCents: true, unit: true, technicalSpecs: true, poolType: true, defaultQty: true } },
         service: { select: { id: true, name: true, priceCents: true, unit: true, technicalSpecs: true } },
       },
     });
@@ -633,7 +634,7 @@ export class PoolBudgetService {
         // Carrega catalogo (Products + Services) com technicalSpecs uma vez
         const allProducts = await this.prisma.product.findMany({
           where: { companyId },
-          select: { id: true, description: true, salePriceCents: true, unit: true, technicalSpecs: true, poolType: true },
+          select: { id: true, description: true, salePriceCents: true, unit: true, technicalSpecs: true, poolType: true, defaultQty: true },
         });
         const allServices = await this.prisma.service.findMany({
           where: { companyId },
@@ -733,6 +734,31 @@ export class PoolBudgetService {
           }
           if (!target) return;
 
+          // REGRA #5 (formula prevalece): se item tem formulaExpr, NAO toca qty.
+          //   Recalc PASSO 1 reavalia formula com novo produto vinculado.
+          // Senao, ao trocar produto:
+          //   - Prioridade 1: snapshot previousQty (vindo de Sem Produto). Restaura
+          //     qty anterior + limpa snapshot.
+          //   - Prioridade 2: se qty atual == 0 (zero da Sem Produto sem snapshot),
+          //     usa target.defaultQty (novo produto cadastrado).
+          //   - Prioridade 3: mantem qty atual (operador talvez setou manualmente).
+          const hasFormula = !!(it.formulaExpr && it.formulaExpr.trim());
+          const itPreviousQty = (it as any).previousQty as number | null | undefined;
+          const targetDefaultQty = target.type === 'product'
+            ? (bestProduct as any)?.defaultQty as number | null | undefined
+            : null;
+          const itQty = (it as any).qty as number | null | undefined;
+          let newQty: number | undefined;
+          let clearSnapshot = false;
+          if (!hasFormula) {
+            if (typeof itPreviousQty === 'number' && itPreviousQty > 0) {
+              newQty = itPreviousQty;
+              clearSnapshot = true;
+            } else if ((itQty == null || itQty === 0) && typeof targetDefaultQty === 'number' && targetDefaultQty > 0) {
+              newQty = targetDefaultQty;
+            }
+          }
+
           await this.prisma.poolBudgetItem.update({
             where: { id: it.id },
             data: {
@@ -741,6 +767,8 @@ export class PoolBudgetService {
               description: target.description || it.description,
               unitPriceCents: target.priceCents || it.unitPriceCents,
               unit: target.unit,
+              ...(newQty !== undefined ? { qty: newQty } : {}),
+              ...(clearSnapshot ? { previousQty: null } : {}),
             },
           });
         };
