@@ -1138,6 +1138,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         itemDescription={item.description}
         itemUnit={item.unit}
         itemCellRef={item.cellRef}
+        itemPoolSection={item.poolSection}
         productSpecs={(item.product?.technicalSpecs ?? item.service?.technicalSpecs) as Record<string, unknown> | null | undefined}
         productName={item.product?.description ?? item.service?.name ?? null}
         otherItems={(allItems ?? [])
@@ -1793,7 +1794,16 @@ function evalLocal(
   }
 }
 
-type FormulaRecipe = { label: string; expr: string; hint: string };
+type FormulaRecipe = {
+  label: string;
+  expr: string;
+  hint: string;
+  // Quando true, ao clicar a receita o modal pede pro operador escolher uma
+  // linha da mesma etapa. A expressao final substitui o placeholder `LREF`
+  // pelo cellRef escolhido (ex: prod(LREF, "tempoMontagemH") -> prod(L40, "tempoMontagemH")).
+  // Mais robusto que usar siblingXxx — funciona em qualquer etapa, sem ambiguidade.
+  needsLineRef?: boolean;
+};
 
 const FORMULA_RECIPES_PISCINA: FormulaRecipe[] = [
   // ── Area / superficie (somatorio das sections) ──
@@ -1813,8 +1823,11 @@ const FORMULA_RECIPES_PISCINA: FormulaRecipe[] = [
   { label: "Escavacao (m³)", expr: "escavacao", hint: "Volume de terra removida" },
   // ── Diarias ──
   { label: "Diaria por dia de obra", expr: "dias", hint: "Quantidade = nº de dias da obra (auto)" },
-  // ── Tempo de montagem do equipamento da etapa (sibling) ──
-  { label: "⏱ Tempo de montagem do equipamento (h)", expr: "siblingTempoMontagemH", hint: "Le tempoMontagemH (horas) do cadastro do equipamento principal da mesma etapa (filtro, aquecedor, kit cascata/SPA). Use em linhas de servico de montagem/instalacao." },
+  // ── Tempo de montagem do equipamento (precisa apontar pra linha) ──
+  // expr usa placeholder LREF; ao clicar, modal pede a linha do equipamento
+  // principal e substitui LREF pelo cellRef escolhido. Mais robusto que sibling*
+  // (que dependia da ordem dos items na etapa).
+  { label: "⏱ Tempo de montagem do equipamento (h)", expr: 'prod(LREF, "tempoMontagemH")', hint: "Le tempoMontagemH (horas) do cadastro do produto vinculado a uma linha especifica (filtro, aquecedor, kit cascata/SPA). Clique pra escolher a linha.", needsLineRef: true },
   // ── Produto vinculado (technicalSpecs do cadastro) ──
   { label: "Sacos por consumo (parede+fundo) — CIMA", expr: "ceil(consumoKgM2 * areaParedeEFundo / pesoKg)", hint: "Argamassa, cimentcola, cimento, impermeabilizante: aplica em paredes + fundo (areaParedeEFundo). Ceil = sempre completa o saco." },
   { label: "Sacos por consumo (parede+fundo) — NORMAL", expr: "round(consumoKgM2 * areaParedeEFundo / pesoKg)", hint: "Igual a anterior, arredondamento normal (50.4→50, 50.5→51)" },
@@ -1835,7 +1848,7 @@ const FORMULA_FN_HELP: Record<typeof FORMULA_FUNCTIONS[number], string> = {
 
 type OtherItemForModal = { cellRef: string; description: string; poolSection: string; qty: number; total: number; unitPrice: number };
 
-function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDescription, itemUnit, itemCellRef, productSpecs, productName, otherItems, siblingVars, onClose, onSave, onClear }: {
+function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDescription, itemUnit, itemCellRef, itemPoolSection, productSpecs, productName, otherItems, siblingVars, onClose, onSave, onClear }: {
   initialExpr: string;
   dimensions: any;
   environmentParams?: any;
@@ -1843,6 +1856,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
   itemDescription?: string;
   itemUnit?: string;
   itemCellRef?: string | null;
+  itemPoolSection?: string;
   productSpecs?: Record<string, unknown> | null;
   productName?: string | null;
   otherItems?: OtherItemForModal[];
@@ -1856,6 +1870,9 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
 }) {
   const [expr, setExpr] = useState(initialExpr);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Quando o usuario clica numa receita que precisa de linha (needsLineRef),
+  // guarda o template aqui e mostra picker de linha logo abaixo.
+  const [pendingRecipe, setPendingRecipe] = useState<FormulaRecipe | null>(null);
 
   // Mapeia strings -> numero (mesma logica do backend)
   const ventoNum = (() => {
@@ -2111,14 +2128,69 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
                 </summary>
                 <div className="px-4 pb-3 pt-1 grid grid-cols-1 md:grid-cols-2 gap-1.5">
                   {FORMULA_RECIPES_PISCINA.map((r) => (
-                    <button key={r.label} type="button" onClick={() => setExpr(r.expr)}
+                    <button key={r.label} type="button" onClick={() => {
+                      if (r.needsLineRef) {
+                        setPendingRecipe(r);
+                      } else {
+                        setExpr(r.expr);
+                        setPendingRecipe(null);
+                      }
+                    }}
                       className="text-left rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-3 py-1.5 transition group/r">
-                      <div className="text-xs font-semibold text-slate-800 group-hover/r:text-cyan-900">{r.label}</div>
+                      <div className="text-xs font-semibold text-slate-800 group-hover/r:text-cyan-900">
+                        {r.label}
+                        {r.needsLineRef && <span className="ml-1 text-[9px] font-normal text-violet-700">(escolha a linha)</span>}
+                      </div>
                       <div className="font-mono text-[11px] text-cyan-700">{r.expr}</div>
                       <div className="text-[10px] text-slate-500">{r.hint}</div>
                     </button>
                   ))}
                 </div>
+                {/* Picker de linha — aparece quando o usuario clica numa receita
+                    com needsLineRef. Lista linhas da MESMA etapa do item atual com
+                    cellRef. Substitui LREF na expressao pelo cellRef escolhido. */}
+                {pendingRecipe && (
+                  <div className="mx-4 mb-3 rounded-lg border-2 border-violet-300 bg-violet-50 p-3">
+                    <div className="text-xs font-bold text-violet-900 mb-1">
+                      🔗 Escolha a linha do equipamento principal
+                    </div>
+                    <div className="text-[11px] text-violet-800 mb-2 leading-tight">
+                      A expressao <code className="bg-white px-1 rounded">{pendingRecipe.expr}</code> precisa apontar pra uma linha.
+                      Clique numa linha abaixo — vai virar <code className="bg-white px-1 rounded">{pendingRecipe.expr.replace('LREF', 'L<linha>')}</code>.
+                    </div>
+                    <div className="space-y-1 max-h-40 overflow-y-auto">
+                      {(() => {
+                        // Prefere linhas da MESMA etapa do item atual (mais comum).
+                        // Se nao houver, mostra todas. Filtra somente as que tem cellRef.
+                        const sameSec = (otherItems || []).filter((o) => o.cellRef && itemPoolSection && o.poolSection === itemPoolSection);
+                        const list = sameSec.length > 0 ? sameSec : (otherItems || []).filter((o) => o.cellRef);
+                        if (list.length === 0) {
+                          return <div className="text-[11px] text-amber-700 italic">Nenhuma outra linha disponivel.</div>;
+                        }
+                        return list.map((o) => (
+                          <button
+                            key={o.cellRef}
+                            type="button"
+                            onClick={() => {
+                              const finalExpr = pendingRecipe.expr.replace(/\bLREF\b/g, o.cellRef);
+                              setExpr(finalExpr);
+                              setPendingRecipe(null);
+                            }}
+                            className="w-full text-left rounded border border-violet-200 bg-white hover:border-violet-500 hover:bg-violet-100 px-2 py-1 transition"
+                          >
+                            <span className="font-mono text-[10px] text-violet-700 mr-2">{o.cellRef}</span>
+                            <span className="text-xs text-slate-800">{o.description}</span>
+                            <span className="text-[10px] text-slate-500 ml-2">({SECTION_LABEL[o.poolSection] || o.poolSection})</span>
+                          </button>
+                        ));
+                      })()}
+                    </div>
+                    <button type="button" onClick={() => setPendingRecipe(null)}
+                      className="mt-2 text-[10px] text-violet-700 hover:text-violet-900 underline">
+                      Cancelar
+                    </button>
+                  </div>
+                )}
               </details>
 
               {/* Variaveis — DEFAULT FECHADO */}
