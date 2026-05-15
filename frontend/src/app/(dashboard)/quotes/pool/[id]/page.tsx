@@ -1065,7 +1065,19 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             </span>
             {item.manualUnlink ? (
               <button type="button"
-                onClick={() => onUpdate({ manualUnlink: false } as any)}
+                onClick={() => {
+                  // Restaura qty do snapshot se houver (caso veio de Sem Produto e ainda
+                  // nao restaurou). Backend recalc roda auto-select normalmente apos
+                  // manualUnlink=false e escolhe o produto otimo pela regra.
+                  const restoredQty = typeof item.previousQty === 'number' && item.previousQty > 0
+                    ? item.previousQty
+                    : undefined;
+                  onUpdate({
+                    manualUnlink: false,
+                    ...(restoredQty !== undefined ? { qty: restoredQty } : {}),
+                    previousQty: null,
+                  } as any);
+                }}
                 title="Clique pra voltar a selecao automatica — o sistema vai reaplicar a regra e escolher o produto otimo. Sua escolha manual sera substituida."
                 className="ml-auto text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-orange-300 bg-orange-50 hover:bg-orange-100 hover:border-orange-500 text-orange-800 transition cursor-pointer font-medium">
                 ↩ voltar selecao auto
@@ -1081,7 +1093,16 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
           item.autoSelectRule && (item.autoSelectRule.where || item.autoSelectRule.filterPoolType || item.autoSelectRule.filterDescription || item.autoSelectRule.filterCategoria) && (
             item.manualUnlink ? (
               <button type="button"
-                onClick={() => onUpdate({ manualUnlink: false } as any)}
+                onClick={() => {
+                  const restoredQty = typeof item.previousQty === 'number' && item.previousQty > 0
+                    ? item.previousQty
+                    : undefined;
+                  onUpdate({
+                    manualUnlink: false,
+                    ...(restoredQty !== undefined ? { qty: restoredQty } : {}),
+                    previousQty: null,
+                  } as any);
+                }}
                 title="Clique pra voltar a selecao automatica."
                 className="mt-1 text-[10px] inline-flex items-center gap-1 px-2 py-0.5 rounded border border-orange-300 bg-orange-50 hover:bg-orange-100 hover:border-orange-500 text-orange-800 transition cursor-pointer font-medium">
                 ↩ Voltar pra selecao automatica
@@ -1254,13 +1275,16 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             setPrice(((cfg.product?.salePriceCents ?? 0) / 100).toFixed(2));
             return;
           }
-          // Re-escolha de produto: limpa manualUnlink pra que o auto-select volte
-          // a operar normalmente. Se a linha estava em estado Sem Produto com
-          // snapshot, restaura a qty anterior (operador nao perde trabalho).
+          // Escolha manual de produto via picker:
+          // - Marca manualUnlink=true pra que o auto-select RESPEITE a escolha
+          //   (mesmo que o produto nao passe na regra where). Sem isso, o engine
+          //   substituiria pelo produto otimo, ignorando o operador.
+          // - Botao "Voltar selecao automatica" fica disponivel pra desfazer.
+          // - Se item tinha snapshot (vinha de Sem Produto), restaura qty anterior.
           const newDesc = cfg.product?.description || cfg.service?.name || item.description;
           const newUnit = cfg.product?.unit || cfg.service?.unit || item.unit;
           const newPriceCents = cfg.product?.salePriceCents ?? cfg.service?.priceCents ?? item.unitPriceCents;
-          const restoredQty = (item.manualUnlink && typeof item.previousQty === 'number')
+          const restoredQty = typeof item.previousQty === 'number' && item.previousQty > 0
             ? item.previousQty
             : undefined;
           onUpdate({
@@ -1272,7 +1296,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             unitPriceCents: newPriceCents,
             ...(restoredQty !== undefined ? { qty: restoredQty } : {}),
             previousQty: null,
-            manualUnlink: false,
+            manualUnlink: true,
           } as any);
           setDesc(newDesc);
           setPrice((newPriceCents / 100).toFixed(2));
