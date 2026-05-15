@@ -227,6 +227,82 @@ export class PoolBudgetService {
   }
 
   /**
+   * Diagnostica por que uma formula com sibling* falhou — retorna mensagem
+   * clara ao operador (qual variavel falta, quais items da etapa nao tem o
+   * campo preenchido, ou items sem produto/servico vinculado).
+   *
+   * Chamada quando evaluateFormula lanca erro e a formula contem sibling*.
+   * Retorna null se a formula nao usa siblings (caller fallback pro erro generico).
+   */
+  private async diagnoseSiblingFailure(
+    budgetId: string,
+    poolSection: any,
+    formula: string,
+  ): Promise<string | null> {
+    // Extrai todas as siblingXxx referenciadas na formula
+    const siblingRefs = Array.from(formula.matchAll(/\bsibling([A-Z][A-Za-z0-9_]*)\b/g))
+      .map((m) => ({ siblingKey: `sibling${m[1]}`, specKey: m[1].charAt(0).toLowerCase() + m[1].slice(1) }));
+    if (siblingRefs.length === 0) return null;
+
+    const items = await this.prisma.poolBudgetItem.findMany({
+      where: { budgetId, poolSection },
+      select: {
+        description: true,
+        product: { select: { description: true, technicalSpecs: true } },
+        service: { select: { name: true, technicalSpecs: true } },
+        productId: true,
+        serviceId: true,
+      },
+    });
+
+    const sectionLabel = String(poolSection);
+    const problems: string[] = [];
+    const uniqueRefs = Array.from(new Map(siblingRefs.map((r) => [r.siblingKey, r])).values());
+
+    for (const ref of uniqueRefs) {
+      // Procura algum item da etapa que tenha o campo preenchido
+      const itemsWithField = items.filter((it) => {
+        const specs = (it.product?.technicalSpecs ?? it.service?.technicalSpecs) as Record<string, unknown> | null | undefined;
+        if (!specs) return false;
+        const v = Number(specs[ref.specKey]);
+        return Number.isFinite(v);
+      });
+      if (itemsWithField.length > 0) continue; // achou — sibling existe
+
+      // Nao achou. Diagnostica:
+      const unlinkedItems = items.filter((it) => !it.productId && !it.serviceId);
+      const linkedWithoutField = items.filter((it) => {
+        if (!it.productId && !it.serviceId) return false;
+        const specs = (it.product?.technicalSpecs ?? it.service?.technicalSpecs) as Record<string, unknown> | null | undefined;
+        if (!specs) return true; // vinculado mas sem specs nenhum
+        return !Number.isFinite(Number(specs[ref.specKey]));
+      });
+
+      const detail: string[] = [];
+      if (unlinkedItems.length > 0) {
+        const names = unlinkedItems.slice(0, 3).map((it) => `"${it.description}"`).join(', ');
+        const more = unlinkedItems.length > 3 ? ` e mais ${unlinkedItems.length - 3}` : '';
+        detail.push(`Items SEM produto vinculado: ${names}${more} — vincule no catalogo (🔍).`);
+      }
+      if (linkedWithoutField.length > 0) {
+        const names = linkedWithoutField.slice(0, 3).map((it) => {
+          const prodName = it.product?.description || it.service?.name || it.description;
+          return `"${prodName}"`;
+        }).join(', ');
+        const more = linkedWithoutField.length > 3 ? ` e mais ${linkedWithoutField.length - 3}` : '';
+        detail.push(`Produtos vinculados sem "${ref.specKey}": ${names}${more} — preencha em Cadastros > Produtos > Aba Piscina.`);
+      }
+      if (detail.length === 0) {
+        detail.push(`Nenhum item na etapa ${sectionLabel} tem "${ref.specKey}". Adicione um produto que tenha esse campo.`);
+      }
+      problems.push(`Variavel "${ref.siblingKey}" indisponivel na etapa ${sectionLabel}. ${detail.join(' ')}`);
+    }
+
+    if (problems.length === 0) return null;
+    return problems.join('\n\n');
+  }
+
+  /**
    * Auto-vincula uma linha do orcamento ao Product ou Service do cadastro quando a
    * descricao da match exato (case-insensitive, trim). So vincula quando o match e
    * unico — ambiguidade (multiplos cadastros com mesmo nome) deixa sem vinculo.
@@ -1150,7 +1226,9 @@ export class PoolBudgetService {
           // mantem qty fornecido no DTO; recalculateTotals depois ajusta
           qtyCalculated = effectiveQty;
         } else {
-          throw new BadRequestException(`Formula invalida: ${err.message}`);
+          // Mensagem rica quando a formula usa sibling* e o erro pode ser por var indisponivel
+          const diag = await this.diagnoseSiblingFailure(budgetId, dto.poolSection, dto.formulaExpr);
+          throw new BadRequestException(diag || `Formula invalida: ${err.message}`);
         }
       }
     }
@@ -1252,7 +1330,9 @@ export class PoolBudgetService {
           // Se usa cellRef e nao resolve agora, deixa pro recalculateTotals depois
           const refs = extractCellRefs(dto.formulaExpr);
           if (refs.length === 0) {
-            throw new BadRequestException(`Formula invalida: ${err.message}`);
+            // Mensagem rica quando a formula usa sibling* e o erro pode ser por var indisponivel
+            const diag = await this.diagnoseSiblingFailure(item.budgetId, item.poolSection, dto.formulaExpr);
+            throw new BadRequestException(diag || `Formula invalida: ${err.message}`);
           }
           // mantem qty atual; recalc ajusta
         }
