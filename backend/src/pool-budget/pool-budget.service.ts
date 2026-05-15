@@ -502,16 +502,21 @@ export class PoolBudgetService {
         const processItem = async (
           it: typeof itemsForAutoSelect[number],
           extraVars: Record<string, number>,
+          opts: { forceReapply?: boolean } = {},
         ) => {
           const rule = it.autoSelectRule as AutoSelectRule | null;
           if (!rule || (!rule.where && !rule.filterCategoria && !rule.filterDescription)) return;
           const vars = { ...dimensionVars, ...extraVars };
 
-          // Se ja tem produto/servico vinculado E ele ainda passa na regra, mantem
-          // (respeita escolha manual ou auto-selecao anterior que continua valida).
-          // Se nao passa, segue pra escolher um novo (caso: user trocou um equipamento
-          // primario, o sibling mudou, e o item dependente ficou incompativel).
-          if ((it.productId || it.serviceId) && currentStillPasses(it, rule, vars)) {
+          // Comportamento por tipo de item:
+          //   - Items PRIMARIOS (filtro/cascata/SPA/aquecedor — Fase A, sem sibling):
+          //     respeita produto vinculado se ainda passa na regra. So substitui se
+          //     ficou incompativel. Permite operador escolher entre opcoes validas.
+          //   - Items DEPENDENTES (tubos — Fase B, com sibling*): com forceReapply=true,
+          //     SEMPRE re-aplica a regra todo recalc. Pra que quando o gestor troca
+          //     o filtro/cascata/aquecedor manualmente, o tubo se ajuste automaticamente.
+          //     A 'escolha manual' do tubo dura ate o proximo recalc do orcamento.
+          if (!opts.forceReapply && (it.productId || it.serviceId) && currentStillPasses(it, rule, vars)) {
             return;
           }
 
@@ -592,9 +597,12 @@ export class PoolBudgetService {
             }
           }
 
+          // Fase B (dependentes): forceReapply=true — items como tubos sempre seguem
+          // o equipamento principal da etapa. Quando filtro/cascata/SPA/aquecedor muda,
+          // o tubo redo automaticamente. Escolha manual em tubo dura ate o proximo recalc.
           for (const it of phaseB) {
             const sectionVars = siblingsBySection[String(it.poolSection)] || {};
-            await processItem(it, sectionVars);
+            await processItem(it, sectionVars, { forceReapply: true });
           }
         }
       }
