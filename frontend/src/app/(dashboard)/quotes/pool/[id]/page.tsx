@@ -1196,19 +1196,26 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         onClose={() => setShowCatalogPick(false)}
         onPick={(cfg) => {
           setShowCatalogPick(false);
-          // Sentinel __NONE__ = limpar vinculo. Mantem description/qty/price da linha,
-          // remove apenas catalogConfigId/productId/serviceId.
+          // Sentinel __NONE__ = "Sem produto / servico". Zera unit/preco/total, mantem
+          // qty e descricao. Marca manualUnlink=true pra que o auto-link silencioso
+          // NAO re-vincule no proximo recalc (resolve o loop "user desvincula → recalc
+          // re-vincula → user volta a ver produto vinculado").
           if (cfg.id === '__NONE__') {
             onUpdate({
               catalogConfigId: null,
               productId: null,
               serviceId: null,
+              unit: '',
+              unitPriceCents: 0,
+              manualUnlink: true,
             } as any);
+            setPrice('0.00');
             return;
           }
           const newDesc = cfg.product?.description || cfg.service?.name || item.description;
           const newUnit = cfg.product?.unit || cfg.service?.unit || item.unit;
           const newPriceCents = cfg.product?.salePriceCents ?? cfg.service?.priceCents ?? item.unitPriceCents;
+          // Re-escolha de produto: limpa manualUnlink pra voltar ao fluxo normal.
           onUpdate({
             catalogConfigId: cfg.id,
             productId: cfg.product?.id ?? null,
@@ -1216,6 +1223,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             description: newDesc,
             unit: newUnit,
             unitPriceCents: newPriceCents,
+            manualUnlink: false,
           } as any);
           setDesc(newDesc);
           setPrice((newPriceCents / 100).toFixed(2));

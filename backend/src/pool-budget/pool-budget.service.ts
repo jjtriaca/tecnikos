@@ -559,12 +559,14 @@ export class PoolBudgetService {
     // Product/Service cadastrado mas sem passar pelo catalog picker (ex: snapshot
     // de template, edicao manual). Sem isso, sibling vars da etapa ficam vazias
     // e formulas com sibling* falham. Idempotente: nao toca em items ja vinculados.
+    // Pula items com manualUnlink=true (operador escolheu "Sem produto" no picker).
     if (budget?.companyId) {
       const unlinkedItems = await this.prisma.poolBudgetItem.findMany({
         where: {
           budgetId,
           productId: null,
           serviceId: null,
+          manualUnlink: false,
           description: { not: '' },
         },
         select: { id: true, description: true },
@@ -1508,6 +1510,7 @@ export class PoolBudgetService {
         ...(dto.autoSelectRule !== undefined
           ? { autoSelectRule: (dto.autoSelectRule === null ? Prisma.JsonNull : dto.autoSelectRule) as Prisma.InputJsonValue }
           : {}),
+        ...(dto.manualUnlink !== undefined ? { manualUnlink: dto.manualUnlink } : {}),
         ...(autoCalculatedOverride !== undefined
           ? { isAutoCalculated: autoCalculatedOverride }
           : (dto.qty !== undefined || dto.unitPriceCents !== undefined

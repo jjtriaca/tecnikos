@@ -3576,6 +3576,11 @@ model PoolBudgetItem {
 
   isAutoCalculated Boolean @default(true) // UI badge "auto" vs "editado"
   isExtra          Boolean @default(false) // Adicionado fora do template
+  // Quando true, indica que o operador escolheu "Sem produto / servico" no
+  // catalog picker — o auto-link silencioso por descricao (recalc PASSO -1)
+  // deve PULAR esse item, mesmo que descricao matche um Product/Service unico.
+  // Limpada automaticamente quando o usuario re-escolhe um produto.
+  manualUnlink     Boolean @default(false)
   notes            String?
 
   // Regra de auto-selecao do produto/servico baseada em variaveis da piscina (volume, area)

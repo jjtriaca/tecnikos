@@ -144,4 +144,8 @@ export class UpdateBudgetItemDto {
   @ValidateIf((_o, v) => v !== null)
   @IsObject()
   autoSelectRule?: Record<string, any> | null;
+
+  @ApiPropertyOptional({ description: 'true quando operador escolheu "Sem produto / servico" no picker. Pula auto-link.' })
+  @IsOptional()
+  manualUnlink?: boolean;
 }
