@@ -1147,6 +1147,14 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         dimensions={dimensions}
         environmentParams={environmentParams}
         siblingVars={siblingVars}
+        sectionItems={(allItems || [])
+          .filter((it) => it.poolSection === item.poolSection && it.id !== item.id)
+          .map((it) => ({
+            id: it.id,
+            description: it.description,
+            linked: !!(it.productId || it.serviceId),
+            specs: (it.product?.technicalSpecs ?? it.service?.technicalSpecs) || null,
+          }))}
         itemDescription={item.description}
         currentProductName={item.product?.description ?? item.service?.name ?? null}
         onClose={() => setShowAutoSelect(false)}
@@ -2518,6 +2526,7 @@ function AutoSelectModal({
   siblingVars,
   itemDescription,
   currentProductName,
+  sectionItems,
   onClose,
   onSave,
   onClear,
@@ -2530,6 +2539,9 @@ function AutoSelectModal({
   // backend pra preview do modal mostrar candidatos certos quando regra
   // referencia o equipamento da linha vizinha (ex: tubo usa siblingTuboMm).
   siblingVars?: Record<string, number>;
+  // Items da mesma etapa (sem o atual) — usado pra diagnosticar siblings
+  // ausentes: lista items SEM vinculo e items vinculados sem o campo necessario.
+  sectionItems?: { id: string; description: string; linked: boolean; specs: Record<string, any> | null }[];
   itemDescription?: string;
   currentProductName?: string | null;
   onClose: () => void;
@@ -2771,13 +2783,46 @@ function AutoSelectModal({
                   ))}
                 </div>
               )}
-              {(!siblingVars || Object.keys(siblingVars).length === 0) && (
-                <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
-                  <strong>Aviso:</strong> nenhum equipamento com technicalSpecs vinculado nas outras linhas desta etapa.
-                  Se a regra usa vars <code>sibling*</code>, escolha primeiro o equipamento principal (filtro/aquecedor/cascata/SPA)
-                  pra essa linha conseguir referencia-lo.
-                </div>
-              )}
+              {/* Diagnostico especifico: detecta siblings necessarias (regex em where + indicator.expr)
+                  e mostra exatamente o que falta — linhas SEM vinculo ou com produto sem o campo.
+                  Substitui o aviso generico que so dizia "nenhum equipamento vinculado". */}
+              {(() => {
+                const exprText = `${where} ${hasIndicator ? indExpr : ''}`;
+                const matches = Array.from(exprText.matchAll(/\bsibling([A-Z][A-Za-z0-9_]*)\b/g));
+                if (matches.length === 0) return null;
+                const needed = Array.from(new Map(matches.map((m) => [m[0], { full: m[0], specKey: m[1].charAt(0).toLowerCase() + m[1].slice(1) }])).values());
+                const missing = needed.filter((n) => !siblingVars || siblingVars[n.full] === undefined);
+                if (missing.length === 0) return null;
+
+                const sectionItemsArr = sectionItems || [];
+                const unlinked = sectionItemsArr.filter((it) => !it.linked);
+                return (
+                  <div className="mt-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900 space-y-1.5">
+                    <div className="font-semibold text-amber-900">⚠ Variavel(is) ausente(s) nesta etapa:</div>
+                    {missing.map((m) => {
+                      const linkedWithoutField = sectionItemsArr.filter((it) => it.linked && (!it.specs || !Number.isFinite(Number(it.specs[m.specKey]))));
+                      return (
+                        <div key={m.full} className="pl-2 border-l-2 border-amber-400">
+                          <div className="font-medium"><code className="text-amber-900">{m.full}</code> (campo <code>{m.specKey}</code>)</div>
+                          {unlinked.length > 0 && (
+                            <div className="text-amber-800">
+                              Linhas SEM produto vinculado nesta etapa: {unlinked.slice(0, 3).map((it) => `"${it.description}"`).join(', ')}{unlinked.length > 3 ? ` e mais ${unlinked.length - 3}` : ''}. Clique em 🔍 nessa linha pra vincular.
+                            </div>
+                          )}
+                          {unlinked.length === 0 && linkedWithoutField.length > 0 && (
+                            <div className="text-amber-800">
+                              Produtos vinculados sem o campo <code>{m.specKey}</code>: {linkedWithoutField.slice(0, 3).map((it) => `"${it.description}"`).join(', ')}. Preencha em Cadastros &gt; Produtos &gt; Aba Piscina.
+                            </div>
+                          )}
+                          {unlinked.length === 0 && linkedWithoutField.length === 0 && (
+                            <div className="text-amber-800">Nenhum item da etapa tem esse campo. Adicione um produto principal (filtro/aquecedor/cascata/SPA) com <code>{m.specKey}</code> preenchido.</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="overflow-y-auto px-6 py-4 space-y-2">
