@@ -149,6 +149,12 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   imageUrl?: string;
+
+  // Tipo do produto no modulo Piscina (Cascata, Aquecedor, Conjunto de filtragem,
+  // Tubos cascata, etc.). Substitui o uso de technicalSpecs.categoriaPlanilha.
+  @IsOptional()
+  @IsString()
+  poolType?: string;
 }
 
 /* ── Ajuste de Estoque ──────────────────────────────────── */

@@ -9,10 +9,12 @@ import ConfirmModal from "@/components/ui/ConfirmModal";
 import PartnerCombobox from "@/components/PartnerCombobox";
 
 type AutoSelectRule = {
+  filterPoolType?: string | null;
   filterCategoria?: string | null;
   filterDescription?: string | null;
   where?: string | null;
   orderBy?: string | null;
+  manualSelection?: boolean | null;
   indicator?: {
     label: string;
     expr: string;
@@ -110,7 +112,7 @@ type PoolPaymentTerm = {
 type CatalogConfig = {
   id: string;
   poolSection: string;
-  product: { id: string; code?: string | null; description: string; brand?: string | null; salePriceCents: number; unit: string; technicalSpecs?: Record<string, any> | null } | null;
+  product: { id: string; code?: string | null; description: string; brand?: string | null; salePriceCents: number; unit: string; technicalSpecs?: Record<string, any> | null; poolType?: string | null } | null;
   service: { id: string; code?: string | null; name: string; priceCents: number; unit: string; technicalSpecs?: Record<string, any> | null } | null;
 };
 
@@ -2384,6 +2386,20 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
   },
   {
     icon: '💦',
+    label: 'Cascata (operador escolhe)',
+    description: 'Filtra candidatos pelo Tipo "Cascata" no catalogo, mas NAO escolhe automaticamente. O operador clica em 🔍 e escolhe a cascata desejada na lista pre-filtrada. Ideal pra item estetico sem criterio objetivo. Salva no template sem produto pre-selecionado.',
+    rule: {
+      filterPoolType: 'Cascata',
+      filterCategoria: null,
+      filterDescription: null,
+      where: null,
+      orderBy: null,
+      manualSelection: true,
+      indicator: null,
+    },
+  },
+  {
+    icon: '💦',
     label: 'Kit Cascata (mais barato disponivel)',
     description: 'Kit Cascata Inox De Embutir. Escolhe o mais barato do catalogo. Para selecao baseada em largura especifica da borda, edite o criterio.',
     rule: {
@@ -2520,10 +2536,12 @@ function AutoSelectModal({
   onSave: (rule: AutoSelectRule) => void;
   onClear: () => void;
 }) {
+  const [filterPoolType, setFilterPoolType] = useState(initialRule?.filterPoolType || '');
   const [filterCategoria, setFilterCategoria] = useState(initialRule?.filterCategoria || '');
   const [filterDescription, setFilterDescription] = useState(initialRule?.filterDescription || '');
   const [where, setWhere] = useState(initialRule?.where || '');
   const [orderBy, setOrderBy] = useState(initialRule?.orderBy || 'priceCents asc');
+  const [manualSelection, setManualSelection] = useState(!!initialRule?.manualSelection);
   const [hasIndicator, setHasIndicator] = useState(!!initialRule?.indicator);
   const [indLabel, setIndLabel] = useState(initialRule?.indicator?.label || '');
   const [indExpr, setIndExpr] = useState(initialRule?.indicator?.expr || '');
@@ -2536,7 +2554,18 @@ function AutoSelectModal({
     ]
   );
 
-  // Categorias unicas extraidas do catalogo (de technicalSpecs.categoriaPlanilha)
+  // Tipos unicos extraidos do catalogo (Product.poolType — campo top-level).
+  // Preferido sobre categoriaPlanilha (legado em technicalSpecs).
+  const poolTypes = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of catalog) {
+      const t = c.product?.poolType;
+      if (t && typeof t === 'string' && t.trim()) set.add(t);
+    }
+    return Array.from(set).sort();
+  }, [catalog]);
+
+  // Categorias legadas — so aparece dropdown se houver valor ja cadastrado (compat).
   const categorias = useMemo(() => {
     const set = new Set<string>();
     for (const c of catalog) {
@@ -2620,6 +2649,10 @@ function AutoSelectModal({
     // 'conexoes' matcha 'conexões' e vice-versa.
     const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
     const filtered1 = items.filter((c) => {
+      if (filterPoolType.trim()) {
+        const t = c.cfg.product?.poolType || '';
+        if (!t || norm(String(t)) !== norm(filterPoolType.trim())) return false;
+      }
       if (filterCategoria.trim() && norm(String(c.specs.categoriaPlanilha || '')) !== norm(filterCategoria.trim())) return false;
       if (filterDescription.trim() && !norm(c.desc).includes(norm(filterDescription.trim()))) return false;
       return true;
@@ -2648,7 +2681,7 @@ function AutoSelectModal({
     });
     return { all: filtered2, selected: sorted[0] || null };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalog, filterCategoria, filterDescription, where, orderBy, dimVars]);
+  }, [catalog, filterPoolType, filterCategoria, filterDescription, where, orderBy, dimVars]);
 
   // Indicator preview: avalia a expressao no contexto do candidato selecionado
   const indicatorPreview = useMemo(() => {
@@ -2670,10 +2703,12 @@ function AutoSelectModal({
 
   function handleSave() {
     const rule: AutoSelectRule = {
+      filterPoolType: filterPoolType.trim() || null,
       filterCategoria: filterCategoria.trim() || null,
       filterDescription: filterDescription.trim() || null,
       where: where.trim() || null,
       orderBy: orderBy.trim() || null,
+      manualSelection: manualSelection || null,
       indicator: hasIndicator && indLabel.trim() && indExpr.trim()
         ? { label: indLabel.trim(), expr: indExpr.trim(), unit: indUnit.trim() || null, levels: indLevels }
         : null,
@@ -2755,10 +2790,12 @@ function AutoSelectModal({
                 <div className="px-4 pb-3 pt-1 grid grid-cols-1 md:grid-cols-3 gap-2">
                   {AUTOSELECT_TEMPLATES.map((t) => (
                     <button key={t.label} type="button" onClick={() => {
+                      setFilterPoolType(t.rule.filterPoolType || '');
                       setFilterCategoria(t.rule.filterCategoria || '');
                       setFilterDescription(t.rule.filterDescription || '');
                       setWhere(t.rule.where || '');
                       setOrderBy(t.rule.orderBy || 'priceCents asc');
+                      setManualSelection(!!t.rule.manualSelection);
                       if (t.rule.indicator) {
                         setHasIndicator(true);
                         setIndLabel(t.rule.indicator.label);
@@ -2787,19 +2824,51 @@ function AutoSelectModal({
                 </summary>
                 <div className="px-4 pb-3 pt-1 space-y-2">
                   <div>
-                    <label className="block text-[11px] font-medium text-slate-800 mb-1">Categoria do cadastro (opcional)</label>
-                    <select value={filterCategoria} onChange={(e) => setFilterCategoria(e.target.value)}
+                    <label className="block text-[11px] font-medium text-slate-800 mb-1">
+                      Tipo (Piscina) <span className="text-slate-500 font-normal">— preferido</span>
+                    </label>
+                    <select value={filterPoolType} onChange={(e) => setFilterPoolType(e.target.value)}
                       className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm text-slate-900">
-                      <option value="">— Sem filtro de categoria —</option>
-                      {categorias.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+                      <option value="">— Sem filtro de tipo —</option>
+                      {poolTypes.map((t) => <option key={t} value={t}>{t}</option>)}
                     </select>
+                    {poolTypes.length === 0 && (
+                      <p className="text-[10px] text-amber-700 mt-1">
+                        Nenhum produto com Tipo cadastrado. Defina o Tipo na aba Piscina do cadastro do produto pra alimentar este dropdown.
+                      </p>
+                    )}
                   </div>
+                  {(filterCategoria || categorias.length > 0) && (
+                    <div>
+                      <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                        Categoria (legado) <span className="text-slate-500 font-normal">— prefira usar Tipo acima</span>
+                      </label>
+                      <select value={filterCategoria} onChange={(e) => setFilterCategoria(e.target.value)}
+                        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm text-slate-700">
+                        <option value="">— Sem filtro de categoria —</option>
+                        {categorias.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+                      </select>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-[11px] font-medium text-slate-800 mb-1">Descricao contendo (opcional, case-insensitive)</label>
                     <input type="text" value={filterDescription} onChange={(e) => setFilterDescription(e.target.value)}
                       placeholder="Ex: filtro, aquecedor"
                       className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm text-slate-900" />
                   </div>
+                  {/* Chavinha "Apenas filtrar" — usuario escolhe na mao, engine nao auto-vincula */}
+                  <label className="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 cursor-pointer">
+                    <input type="checkbox" checked={manualSelection}
+                      onChange={(e) => setManualSelection(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 accent-amber-600" />
+                    <div>
+                      <div className="text-sm font-semibold text-amber-900">Apenas filtrar — nao escolher automaticamente</div>
+                      <div className="text-[11px] text-amber-800 leading-tight">
+                        Ideal pra items esteticos (cascata, refletor, revestimento) sem criterio objetivo. O catalogo so mostra
+                        candidatos do tipo, mas o operador escolhe na mao. Salva no template sem produto pre-selecionado.
+                      </div>
+                    </div>
+                  </label>
                 </div>
               </details>
 
@@ -3124,7 +3193,7 @@ function CatalogPickModal({ catalog, currentSection, autoSelectRule, dimensions,
 }) {
   const [search, setSearch] = useState("");
   const [showAll, setShowAll] = useState(true);
-  const hasRule = !!(autoSelectRule && (autoSelectRule.where || autoSelectRule.filterCategoria || autoSelectRule.filterDescription));
+  const hasRule = !!(autoSelectRule && (autoSelectRule.where || autoSelectRule.filterPoolType || autoSelectRule.filterCategoria || autoSelectRule.filterDescription));
   const [filterByRule, setFilterByRule] = useState(hasRule);
 
   // Vars do orcamento (dim) + ambiente + siblings — mesma logica do AutoSelectModal,
@@ -3152,12 +3221,16 @@ function CatalogPickModal({ catalog, currentSection, autoSelectRule, dimensions,
     return v;
   }, [dimensions, environmentParams, siblingVars]);
 
-  // Avalia where + filterCategoria + filterDescription da regra contra 1 candidato.
+  // Avalia where + filterPoolType + filterCategoria + filterDescription da regra contra 1 candidato.
   function matchesRule(c: CatalogConfig): boolean {
     if (!autoSelectRule) return true;
     const desc = c.product?.description || c.service?.name || '';
     const specs = (c.product?.technicalSpecs || c.service?.technicalSpecs || {}) as Record<string, any>;
     const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    if (autoSelectRule.filterPoolType && autoSelectRule.filterPoolType.trim()) {
+      const t = c.product?.poolType;
+      if (!t || norm(String(t)) !== norm(autoSelectRule.filterPoolType.trim())) return false;
+    }
     if (autoSelectRule.filterCategoria && autoSelectRule.filterCategoria.trim()) {
       const cat = specs.categoriaPlanilha;
       if (!cat || norm(String(cat)) !== norm(autoSelectRule.filterCategoria.trim())) return false;

@@ -4,10 +4,13 @@
  *
  * Estrutura da regra (JSON em PoolBudgetItem.autoSelectRule):
  * {
- *   filterCategoria: "Conjuntos de filtragem" | null,  // matcha technicalSpecs.categoriaPlanilha
+ *   filterPoolType: "Cascata" | null,                   // matcha Product.poolType (campo top-level)
+ *   filterCategoria: "Conjuntos de filtragem" | null,   // LEGADO: matcha technicalSpecs.categoriaPlanilha (mantido por compat)
  *   filterDescription: "filtro" | null,                 // ILIKE %x% em description/name
- *   where: "vazaoM3h * 1 >= volume * 0.25",             // condicao avaliada por candidato
+ *   where: "vazaoM3h * 1 >= volume * 0.25",             // condicao avaliada por candidato (opcional)
  *   orderBy: "priceCents asc",                          // 1 chave + asc|desc (default asc)
+ *   manualSelection: true,                              // se true, engine NAO auto-vincula — so filtra candidatos
+ *                                                       //   no catalog picker. Usuario escolhe na mao.
  *   indicator: {
  *     label: "Tempo de filtragem",
  *     expr: "volume / vazaoM3h",
@@ -27,10 +30,12 @@ const ALLOWED_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
 const SECTION_VAR_PATTERN = /\b(areaSec|volumeSec)(\d+)\b/g;
 
 export interface AutoSelectRule {
+  filterPoolType?: string | null;
   filterCategoria?: string | null;
   filterDescription?: string | null;
   where?: string | null;
   orderBy?: string | null;
+  manualSelection?: boolean | null;
   indicator?: AutoSelectIndicator | null;
 }
 
@@ -188,12 +193,22 @@ function normalizeForMatch(s: string): string {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 }
 
-export function filterCandidates<T extends { description?: string | null; name?: string | null; technicalSpecs?: any }>(
+export function filterCandidates<T extends { description?: string | null; name?: string | null; technicalSpecs?: any; poolType?: string | null }>(
   candidates: T[],
   rule: AutoSelectRule,
 ): T[] {
-  const { filterCategoria, filterDescription } = rule;
+  const { filterPoolType, filterCategoria, filterDescription } = rule;
   return candidates.filter((c) => {
+    // filterPoolType matcha Product.poolType (campo top-level) — preferido.
+    // Service nao tem poolType, entao essa regra so filtra produtos.
+    if (filterPoolType && filterPoolType.trim()) {
+      const t = (c as any).poolType;
+      if (!t || normalizeForMatch(String(t)) !== normalizeForMatch(filterPoolType.trim())) {
+        return false;
+      }
+    }
+    // filterCategoria (LEGADO) matcha technicalSpecs.categoriaPlanilha. Mantido pra
+    // compat com regras antigas que ainda usam esse campo.
     if (filterCategoria && filterCategoria.trim()) {
       const cat = c.technicalSpecs?.categoriaPlanilha;
       if (!cat || normalizeForMatch(String(cat)) !== normalizeForMatch(filterCategoria.trim())) {

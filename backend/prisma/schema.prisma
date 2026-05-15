@@ -1175,6 +1175,13 @@ model Product {
   // Imagem (modulo Piscina + impressao de orcamento)
   imageUrl String? // URL da foto do produto (CDN ou /uploads)
 
+  // Tipo do produto no modulo Piscina (ex: "Cascata", "Conjuntos de filtragem",
+  // "Aquecedor", "Tubos cascata", "Quadro eletrico", "Disjuntor"). Usado pra
+  // filtrar candidatos na auto-selecao do orcamento de piscina.
+  // Substitui o uso de `technicalSpecs.categoriaPlanilha` (mantido por compat).
+  // Dropdown na aba Piscina do cadastro alimenta-se de DISTINCT desta coluna.
+  poolType String?
+
   // Especificacoes tecnicas extensiveis (modulo Piscina). Json livre:
   // { weightKg, lengthCm, widthCm, thicknessCm, powerHp, voltage, phaseType,
   //   powerWatts, amperage, wattsHourMax, wattsHourAvg, flowRateM3h, sandLoadKg,
@@ -1206,6 +1213,7 @@ model Product {
   @@index([companyId, deletedAt])
   @@index([barcode])
   @@index([companyId, category])
+  @@index([companyId, poolType])
 }
 
 model ProductEquivalent {

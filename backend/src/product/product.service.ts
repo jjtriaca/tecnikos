@@ -89,6 +89,20 @@ export class ProductService {
   }
 
   /* ═══════════════════════════════════════════════════════════════
+     listPoolTypes — DISTINCT poolType (alimenta dropdown da regra)
+     ═══════════════════════════════════════════════════════════════ */
+
+  async listPoolTypes(companyId: string): Promise<string[]> {
+    const rows = await this.prisma.product.findMany({
+      where: { companyId, deletedAt: null, poolType: { not: null } },
+      select: { poolType: true },
+      distinct: ['poolType'],
+      orderBy: { poolType: 'asc' },
+    });
+    return rows.map((r) => r.poolType!).filter((t) => t && t.trim().length > 0);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
      findOne — Detail with equivalents + supplier info
      ═══════════════════════════════════════════════════════════════ */
 
@@ -148,6 +162,7 @@ export class ProductService {
         useInWork: data.useInWork,
         technicalSpecs: data.technicalSpecs as any,
         imageUrl: data.imageUrl,
+        poolType: data.poolType,
       },
       include: {
         _count: { select: { equivalents: true } },
@@ -195,6 +210,7 @@ export class ProductService {
         useInWork: data.useInWork,
         technicalSpecs: data.technicalSpecs as any,
         imageUrl: data.imageUrl,
+        poolType: data.poolType,
       },
       include: {
         _count: { select: { equivalents: true } },

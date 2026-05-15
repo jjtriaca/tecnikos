@@ -43,6 +43,14 @@ export class ProductController {
     });
   }
 
+  /* ── List pool types (DISTINCT) — alimenta dropdown ────── */
+
+  @Roles(UserRole.ADMIN)
+  @Get('pool-types')
+  listPoolTypes(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.listPoolTypes(user.companyId);
+  }
+
   /* ── Detail ─────────────────────────────────────────────── */
 
   @Roles(UserRole.ADMIN)

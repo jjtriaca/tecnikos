@@ -264,6 +264,9 @@ interface ProductForm {
   maxStock: string;
   location: string;
   status: string;
+  // Tipo no modulo Piscina (Cascata, Aquecedor, Conjunto de filtragem, etc.)
+  // Alimenta dropdown de filtro no AutoSelectModal de orcamento.
+  poolType: string;
   // Specs tecnicas (Modulo Piscina) — strings pra inputs, viram numero no payload
   specVazaoM3h: string;       // m³/h (filtros, bombas)
   specTuboEntradaMm: string;  // mm (todos equipamentos hidraulicos — chave do auto-select de tubos)
@@ -304,6 +307,7 @@ const EMPTY_FORM: ProductForm = {
   maxStock: "",
   location: "",
   status: "ATIVO",
+  poolType: "",
   specVazaoM3h: "",
   specTuboEntradaMm: "",
   specKcalHMin: "",
@@ -344,6 +348,7 @@ function productToForm(p: Product): ProductForm {
     maxStock: p.maxStock != null ? String(p.maxStock) : "",
     location: p.location || "",
     status: p.status,
+    poolType: (p as any).poolType || "",
     specVazaoM3h: numericSpecToStr(p.technicalSpecs?.vazaoM3h),
     specTuboEntradaMm: numericSpecToStr(p.technicalSpecs?.tuboEntradaMm),
     specKcalHMin: numericSpecToStr(p.technicalSpecs?.kcalHMin),
@@ -422,6 +427,9 @@ function formToPayload(f: ProductForm, existingSpecs?: Record<string, any>) {
     maxStock: f.maxStock ? parseInt(f.maxStock, 10) : undefined,
     location: f.location || undefined,
     status: f.status,
+    // Tipo no modulo Piscina (Cascata, Aquecedor, etc.) — campo top-level, indexado.
+    // Alimenta dropdown de filtro do AutoSelectModal de orcamento de piscina.
+    poolType: f.poolType.trim() || undefined,
     // Inclui technicalSpecs no payload. Preserva chaves existentes que nao
     // tem input no form (eficiencia, bifTrifConta, multiplicador, etc seedadas
     // da planilha) — so atualiza as chaves expostas como inputs.
@@ -534,6 +542,9 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [meta, setMeta] = useState<PaginationMeta>({ total: 0, page: 1, limit: 20, totalPages: 1 });
   const [loading, setLoading] = useState(true);
+  // Tipos de produto Piscina ja cadastrados (alimenta datalist do dropdown
+  // "Tipo (Piscina)" no formulario de cadastro).
+  const [poolTypes, setPoolTypes] = useState<string[]>([]);
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -579,6 +590,13 @@ export default function ProductsPage() {
   useEffect(() => {
     loadProducts();
   }, [loadProducts]);
+
+  // Carrega tipos ja cadastrados pra alimentar dropdown da aba Piscina.
+  useEffect(() => {
+    api.get<string[]>("/products/pool-types")
+      .then((r) => setPoolTypes(Array.isArray(r) ? r : []))
+      .catch(() => setPoolTypes([]));
+  }, []);
 
   /* ── Load equivalents for a product ─────────────────── */
 
@@ -1570,6 +1588,36 @@ export default function ProductsPage() {
                       Preencha apenas os campos relevantes pro tipo de produto (filtro, bomba, aquecedor, kit SPA, cascata, etc).
                       Campos em branco nao sao usados.
                     </p>
+                  </div>
+
+                  <div className="rounded-xl border border-violet-200 bg-violet-50/30 p-5">
+                    <h4 className="text-xs font-semibold text-violet-900 uppercase mb-2">
+                      🏷 Tipo do produto (Piscina)
+                    </h4>
+                    <p className="text-[11px] text-slate-700 mb-3 leading-tight">
+                      Categoria do produto no modulo Piscina (ex: <em>Cascata</em>, <em>Conjunto de filtragem</em>, <em>Aquecedor</em>,
+                      <em> Tubos cascata</em>, <em>Quadro eletrico</em>, <em>Disjuntor</em>). O orcamento de piscina usa esse tipo
+                      pra filtrar candidatos na auto-selecao. Digite um tipo novo livremente — ele passa a aparecer no dropdown depois.
+                    </p>
+                    <div className="max-w-md">
+                      <label className={labelClass}>Tipo</label>
+                      <input
+                        type="text"
+                        list="poolTypeOptions"
+                        value={form.poolType}
+                        onChange={(e) => setField("poolType", e.target.value)}
+                        placeholder="Ex: Cascata, Aquecedor, Conjunto de filtragem..."
+                        className={inputClass}
+                      />
+                      <datalist id="poolTypeOptions">
+                        {poolTypes.map((t) => <option key={t} value={t} />)}
+                      </datalist>
+                      {poolTypes.length > 0 && (
+                        <p className="mt-1 text-[10px] text-slate-500">
+                          {poolTypes.length} tipo(s) ja cadastrado(s) no catalogo. Comece a digitar pra ver sugestoes.
+                        </p>
+                      )}
+                    </div>
                   </div>
 
                   <div className="rounded-xl border border-slate-200 bg-white p-5">

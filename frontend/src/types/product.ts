@@ -31,6 +31,10 @@ export interface Product {
   maxStock?: number;
   location?: string;
   status: string;
+  // Tipo do produto no modulo Piscina (Cascata, Aquecedor, Conjunto de filtragem,
+  // Tubos cascata, etc.). Substitui o uso de technicalSpecs.categoriaPlanilha.
+  // Alimenta dropdown de filtro no AutoSelectModal de orcamento de piscina.
+  poolType?: string;
   // Specs tecnicas livres em JSON (modulo Piscina). Chaves comuns:
   // vazaoM3h, tuboEntradaMm, kcalHMin, kcalHMax, potenciaCv, voltagem,
   // amperagem, bifTrif, potenciaWatts, eficiencia, multiplicador.

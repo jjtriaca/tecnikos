@@ -326,6 +326,9 @@ export class PoolBudgetService {
         totalCents,
         isAutoCalculated: !!it.formulaExpr,
         isExtra: false,
+        // Snapshot carrega autoSelectRule do template — recalculateTotals
+        // depois aplica auto-link (exceto se manualSelection=true).
+        autoSelectRule: it.autoSelectRule ?? (Prisma.JsonNull as any),
       });
     }
     if (itemsToCreate.length > 0) {
@@ -456,7 +459,7 @@ export class PoolBudgetService {
       select: {
         id: true, autoSelectRule: true, productId: true, serviceId: true,
         description: true, unitPriceCents: true, poolSection: true,
-        product: { select: { id: true, description: true, salePriceCents: true, unit: true, technicalSpecs: true } },
+        product: { select: { id: true, description: true, salePriceCents: true, unit: true, technicalSpecs: true, poolType: true } },
         service: { select: { id: true, name: true, priceCents: true, unit: true, technicalSpecs: true } },
       },
     });
@@ -470,7 +473,7 @@ export class PoolBudgetService {
         // Carrega catalogo (Products + Services) com technicalSpecs uma vez
         const allProducts = await this.prisma.product.findMany({
           where: { companyId },
-          select: { id: true, description: true, salePriceCents: true, unit: true, technicalSpecs: true },
+          select: { id: true, description: true, salePriceCents: true, unit: true, technicalSpecs: true, poolType: true },
         });
         const allServices = await this.prisma.service.findMany({
           where: { companyId },
@@ -505,7 +508,10 @@ export class PoolBudgetService {
           opts: { forceReapply?: boolean } = {},
         ) => {
           const rule = it.autoSelectRule as AutoSelectRule | null;
-          if (!rule || (!rule.where && !rule.filterCategoria && !rule.filterDescription)) return;
+          if (!rule || (!rule.where && !rule.filterCategoria && !rule.filterDescription && !rule.filterPoolType)) return;
+          // manualSelection: regra so filtra candidatos no catalog picker, engine NAO escolhe automaticamente.
+          // Usado quando o item nao tem criterio objetivo (ex: cascata e estetica) e o operador escolhe na mao.
+          if (rule.manualSelection) return;
           const vars = { ...dimensionVars, ...extraVars };
 
           // Comportamento por tipo de item:
@@ -1683,6 +1689,11 @@ export class PoolBudgetService {
       qty: it.qty,
       unitPriceCents: it.unitPriceCents,
       formulaExpr: it.formulaExpr,
+      // Inclui autoSelectRule (regra de filtro/auto-selecao do produto). Permite
+      // que novo orcamento criado a partir do template ja venha com a mesma logica.
+      // Items com manualSelection=true NAO vinculam productId na criacao — o
+      // operador escolhe na mao via catalog picker (que ja respeita a regra).
+      autoSelectRule: (it as any).autoSelectRule ?? null,
     }));
 
     // Defaults
