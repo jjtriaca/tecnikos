@@ -3477,7 +3477,10 @@ function CatalogPickModal({ catalog, currentSection, autoSelectRule, dimensions,
   const [search, setSearch] = useState("");
   const [showAll, setShowAll] = useState(true);
   const hasRule = !!(autoSelectRule && (autoSelectRule.where || autoSelectRule.filterPoolType || autoSelectRule.filterCategoria || autoSelectRule.filterDescription));
-  const [filterByRule, setFilterByRule] = useState(hasRule);
+  // Default OFF — mostra todos os candidatos do catalog. Usuario marca o checkbox
+  // se quiser filtrar pelos que passam na regra (where + filterDescription).
+  // O filterPoolType continua aplicado SEMPRE (filtro de tipo nao bloqueia, agrupa).
+  const [filterByRule, setFilterByRule] = useState(false);
 
   // Vars do orcamento (dim) + ambiente + siblings — mesma logica do AutoSelectModal,
   // permite avaliar where da regra contra cada candidato pra mostrar so os que passam.
