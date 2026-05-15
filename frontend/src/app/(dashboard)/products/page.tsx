@@ -355,7 +355,7 @@ const EMPTY_FORM: ProductForm = {
   location: "",
   status: "ATIVO",
   poolType: "",
-  defaultQty: "",
+  defaultQty: "1",
   specVazaoM3h: "",
   specTuboEntradaMm: "",
   specKcalHMin: "",
