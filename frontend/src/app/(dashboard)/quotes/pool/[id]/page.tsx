@@ -1204,10 +1204,10 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
           setShowCatalogPick(false);
           const cfgDesc = (cfg.product?.description || cfg.service?.name || '').trim().toLowerCase();
           // "Sem Produto" — pode vir como sentinel __NONE__ ou como o Product real.
-          // Em ambos, marca manualUnlink=true pra que o auto-select da regra NAO
-          // sobrescreva a escolha no proximo recalc. Sem essa flag, o backend
-          // detectaria que "Sem Produto" nao passa na regra do filtro e re-escolheria
-          // outro produto, ignorando a intencao do operador.
+          // Marca manualUnlink=true pra que o auto-select pule esse item (regra
+          // ativa nao re-escolheria outro produto sobrescrevendo a intencao).
+          // Zera qty (linha "Sem Produto" nao tem o que comprar) e salva snapshot
+          // em previousQty pra restaurar quando o operador re-escolher um produto.
           if (cfg.id === '__NONE__' || cfgDesc === 'sem produto') {
             onUpdate({
               catalogConfigId: cfg.id === '__NONE__' ? null : cfg.id,
@@ -1216,17 +1216,24 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
               description: 'Sem Produto',
               unit: cfg.product?.unit || '',
               unitPriceCents: cfg.product?.salePriceCents ?? 0,
+              qty: 0,
+              previousQty: item.qty,
               manualUnlink: true,
             } as any);
+            setQty(0);
             setDesc('Sem Produto');
             setPrice(((cfg.product?.salePriceCents ?? 0) / 100).toFixed(2));
             return;
           }
-          // Re-escolha de produto: limpa manualUnlink pra que o auto-select da
-          // regra volte a operar normalmente (caso a regra ainda esteja ativa).
+          // Re-escolha de produto: limpa manualUnlink pra que o auto-select volte
+          // a operar normalmente. Se a linha estava em estado Sem Produto com
+          // snapshot, restaura a qty anterior (operador nao perde trabalho).
           const newDesc = cfg.product?.description || cfg.service?.name || item.description;
           const newUnit = cfg.product?.unit || cfg.service?.unit || item.unit;
           const newPriceCents = cfg.product?.salePriceCents ?? cfg.service?.priceCents ?? item.unitPriceCents;
+          const restoredQty = (item.manualUnlink && typeof item.previousQty === 'number')
+            ? item.previousQty
+            : undefined;
           onUpdate({
             catalogConfigId: cfg.id,
             productId: cfg.product?.id ?? null,
@@ -1234,10 +1241,13 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             description: newDesc,
             unit: newUnit,
             unitPriceCents: newPriceCents,
+            ...(restoredQty !== undefined ? { qty: restoredQty } : {}),
+            previousQty: null,
             manualUnlink: false,
           } as any);
           setDesc(newDesc);
           setPrice((newPriceCents / 100).toFixed(2));
+          if (restoredQty !== undefined) setQty(restoredQty);
         }}
       />
     )}
