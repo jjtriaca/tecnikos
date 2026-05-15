@@ -600,6 +600,10 @@ export class PoolBudgetService {
       where: {
         budgetId,
         autoSelectRule: { not: Prisma.JsonNull as any },
+        // Items com manualUnlink=true (operador escolheu "Sem Produto" no picker):
+        // pula o auto-select. A escolha manual prevalece — sem isso o engine
+        // detectaria que "Sem Produto" nao passa na regra e re-escolheria outro.
+        manualUnlink: false,
       },
       select: {
         id: true, autoSelectRule: true, productId: true, serviceId: true,

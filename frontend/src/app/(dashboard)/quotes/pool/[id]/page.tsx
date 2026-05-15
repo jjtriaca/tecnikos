@@ -1202,23 +1202,28 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         onClose={() => setShowCatalogPick(false)}
         onPick={(cfg) => {
           setShowCatalogPick(false);
-          // Fallback __NONE__: usado so se o tenant nao tem cadastro "Sem Produto"
-          // (raro). Desvincula e zera. Caso normal: trata Sem Produto como qualquer
-          // produto — vincula ao cadastro real (que ja tem tudo 0). Sem zerar manual,
-          // sem snapshot, sem manualUnlink — o sistema usa os zeros naturais do cadastro.
-          if (cfg.id === '__NONE__') {
+          const cfgDesc = (cfg.product?.description || cfg.service?.name || '').trim().toLowerCase();
+          // "Sem Produto" — pode vir como sentinel __NONE__ ou como o Product real.
+          // Em ambos, marca manualUnlink=true pra que o auto-select da regra NAO
+          // sobrescreva a escolha no proximo recalc. Sem essa flag, o backend
+          // detectaria que "Sem Produto" nao passa na regra do filtro e re-escolheria
+          // outro produto, ignorando a intencao do operador.
+          if (cfg.id === '__NONE__' || cfgDesc === 'sem produto') {
             onUpdate({
-              catalogConfigId: null,
-              productId: null,
-              serviceId: null,
+              catalogConfigId: cfg.id === '__NONE__' ? null : cfg.id,
+              productId: cfg.product?.id ?? null,
+              serviceId: cfg.service?.id ?? null,
               description: 'Sem Produto',
-              unit: '',
-              unitPriceCents: 0,
+              unit: cfg.product?.unit || '',
+              unitPriceCents: cfg.product?.salePriceCents ?? 0,
+              manualUnlink: true,
             } as any);
             setDesc('Sem Produto');
-            setPrice('0.00');
+            setPrice(((cfg.product?.salePriceCents ?? 0) / 100).toFixed(2));
             return;
           }
+          // Re-escolha de produto: limpa manualUnlink pra que o auto-select da
+          // regra volte a operar normalmente (caso a regra ainda esteja ativa).
           const newDesc = cfg.product?.description || cfg.service?.name || item.description;
           const newUnit = cfg.product?.unit || cfg.service?.unit || item.unit;
           const newPriceCents = cfg.product?.salePriceCents ?? cfg.service?.priceCents ?? item.unitPriceCents;
@@ -1229,6 +1234,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             description: newDesc,
             unit: newUnit,
             unitPriceCents: newPriceCents,
+            manualUnlink: false,
           } as any);
           setDesc(newDesc);
           setPrice((newPriceCents / 100).toFixed(2));
