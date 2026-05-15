@@ -15,7 +15,7 @@ import { CreatePoolBudgetDto } from './dto/create-pool-budget.dto';
 import { UpdatePoolBudgetDto } from './dto/update-pool-budget.dto';
 import { QueryPoolBudgetDto } from './dto/query-pool-budget.dto';
 import { evaluateFormula, extractCellRefs, extractDimensionVars, extractEnvVars, extractProductVars, type CellRefData } from './formula-eval';
-import { selectBestCandidate, evaluateIndicator, type AutoSelectRule } from './auto-select.helper';
+import { selectBestCandidate, evaluateIndicator, filterCandidates, filterByWhere, type AutoSelectRule } from './auto-select.helper';
 import { CreateBudgetItemDto, UpdateBudgetItemDto } from './dto/budget-item.dto';
 import {
   PoolFormulaService,
@@ -441,24 +441,24 @@ export class PoolBudgetService {
     // PASSO 0: auto-selecao do produto/servico em items que tem autoSelectRule.
     // Roda ANTES das formulas porque escolha do produto afeta technicalSpecs disponiveis.
     //
-    // CRITICO 1 (v1.10.96): so dispara em items SEM produto/servico vinculado
-    // (productId AND serviceId null). Antes rodava em todo recalc sobrescrevendo
-    // escolhas manuais. Pra reaplicar: gestor limpa o produto da linha.
-    //
-    // CRITICO 2 (v1.10.98): execucao em 2 fases pra suportar regras "irmas" —
-    // ex: tubo da etapa FILTRO depende do tuboEntradaMm do filtro escolhido.
-    //   Fase A: items cuja rule NAO referencia 'sibling*' vars (equipamentos primarios)
-    //   Fase B: items cuja rule referencia 'sibling*' (tubos, etc) — recebem
-    //           siblingTuboMm/siblingVazao/siblingKcalH calculados por poolSection
-    //           a partir dos productIds ja resolvidos na Fase A.
+    // EVOLUCAO DO COMPORTAMENTO:
+    // - v1.10.96: so disparava em items SEM produto/servico vinculado.
+    // - v1.10.98: 2 fases (equipamentos primarios + tubos/dependentes).
+    // - v1.11.11: respeita escolha que AINDA PASSA na regra. Se o produto atual
+    //   nao passa mais (ex: user trocou filtro, tubo virou incompativel), re-aplica
+    //   auto-select pra escolher um valido. Sem isso o tubo ficava 'incompativel'
+    //   ate o user limpar e re-aplicar manualmente.
     const itemsForAutoSelect = await this.prisma.poolBudgetItem.findMany({
       where: {
         budgetId,
         autoSelectRule: { not: Prisma.JsonNull as any },
-        productId: null,
-        serviceId: null,
       },
-      select: { id: true, autoSelectRule: true, productId: true, serviceId: true, description: true, unitPriceCents: true, poolSection: true },
+      select: {
+        id: true, autoSelectRule: true, productId: true, serviceId: true,
+        description: true, unitPriceCents: true, poolSection: true,
+        product: { select: { id: true, description: true, salePriceCents: true, unit: true, technicalSpecs: true } },
+        service: { select: { id: true, name: true, priceCents: true, unit: true, technicalSpecs: true } },
+      },
     });
     if (itemsForAutoSelect.length > 0) {
       const companyId = await this.prisma.poolBudget.findUnique({
@@ -484,6 +484,21 @@ export class PoolBudgetService {
           return /\bsibling[A-Z]/.test(text);
         };
 
+        // Avalia se o produto/servico ATUAL do item ainda passa nos 3 filtros da regra
+        // (filterCategoria, filterDescription, where). Se passa, item nao precisa
+        // reauto-selecao — respeita escolha que continua valida.
+        const currentStillPasses = (it: typeof itemsForAutoSelect[number], rule: AutoSelectRule, vars: Record<string, number>): boolean => {
+          const current = it.product || it.service;
+          if (!current) return false; // sem produto: precisa escolher
+          const candidate = it.product
+            ? [{ ...it.product }]
+            : [{ ...(it.service as any), description: (it.service as any).name }];
+          const filtered1 = filterCandidates(candidate as any, rule);
+          if (filtered1.length === 0) return false;
+          const filtered2 = filterByWhere(filtered1, rule, vars);
+          return filtered2.length > 0;
+        };
+
         const processItem = async (
           it: typeof itemsForAutoSelect[number],
           extraVars: Record<string, number>,
@@ -491,6 +506,14 @@ export class PoolBudgetService {
           const rule = it.autoSelectRule as AutoSelectRule | null;
           if (!rule || (!rule.where && !rule.filterCategoria && !rule.filterDescription)) return;
           const vars = { ...dimensionVars, ...extraVars };
+
+          // Se ja tem produto/servico vinculado E ele ainda passa na regra, mantem
+          // (respeita escolha manual ou auto-selecao anterior que continua valida).
+          // Se nao passa, segue pra escolher um novo (caso: user trocou um equipamento
+          // primario, o sibling mudou, e o item dependente ficou incompativel).
+          if ((it.productId || it.serviceId) && currentStillPasses(it, rule, vars)) {
+            return;
+          }
 
           // Tenta primeiro Products, depois Services
           const bestProduct = selectBestCandidate(allProducts as any, rule, vars);
