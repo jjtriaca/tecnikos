@@ -317,11 +317,20 @@ export default function PoolBudgetDetailPage() {
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const { widths: colWidths, setWidth: setColWidth, reset: resetColWidths } = useColumnWidths();
 
+  // Modo accordion: ao expandir uma etapa, fecha todas as outras automaticamente.
+  // Operador foca numa etapa por vez — reduz scroll e ruido visual.
   function toggleSection(section: string) {
     setCollapsedSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(section)) next.delete(section); else next.add(section);
-      return next;
+      const wasCollapsed = prev.has(section);
+      if (wasCollapsed) {
+        // Estava fechada — abre essa, fecha todas as outras
+        const next = new Set(SECTION_ORDER);
+        next.delete(section);
+        return next;
+      } else {
+        // Estava aberta — fecha (todas ficam fechadas)
+        return new Set(SECTION_ORDER);
+      }
     });
   }
   function collapseAll() {

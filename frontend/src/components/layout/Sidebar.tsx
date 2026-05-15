@@ -443,7 +443,11 @@ export default function Sidebar({ collapsed, onToggle, tenantPending }: SidebarP
                 </div>
               </div>
               {buildInfo && (
-                <p className="mt-2 text-center text-xs text-slate-600">
+                // LOCKED — NAO mudar tamanho/cor/peso da versao no sidebar sem pedido
+                // explicito do usuario. Foi escolhido text-sm + text-slate-100 + font-semibold
+                // pra ficar legivel (era text-xs slate-600 — apagado demais). Ver
+                // memory/feedback_sidebar_version_locked.md.
+                <p className="mt-2 text-center text-sm font-semibold text-slate-100">
                   v{buildInfo.version}
                 </p>
               )}
@@ -454,7 +458,8 @@ export default function Sidebar({ collapsed, onToggle, tenantPending }: SidebarP
                 {user.name?.charAt(0)?.toUpperCase() || "U"}
               </div>
               {buildInfo && (
-                <p className="text-[10px] text-slate-600">v{buildInfo.version}</p>
+                // LOCKED — ver acima. Versao collapsed mantida xs por nao caber sm.
+                <p className="text-xs font-semibold text-slate-100">v{buildInfo.version}</p>
               )}
             </div>
           )}
