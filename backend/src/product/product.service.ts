@@ -35,7 +35,7 @@ export class ProductService {
   async findAll(
     companyId: string,
     pagination?: PaginationDto,
-    filters?: { category?: string; status?: string; brand?: string; usage?: 'sale' | 'work' | 'both' },
+    filters?: { category?: string; status?: string; brand?: string; usage?: 'sale' | 'work' | 'both'; poolType?: string; finalidade?: string },
   ): Promise<PaginatedResult<any>> {
     const page = pagination?.page ?? 1;
     const limit = pagination?.limit ?? 20;
@@ -46,6 +46,8 @@ export class ProductService {
     if (filters?.category) where.category = filters.category;
     if (filters?.status) where.status = filters.status;
     if (filters?.brand) where.brand = { contains: filters.brand, mode: 'insensitive' };
+    if (filters?.poolType) where.poolType = filters.poolType;
+    if (filters?.finalidade) where.finalidade = filters.finalidade;
     if (filters?.usage === 'sale') where.useInSale = true;
     else if (filters?.usage === 'work') where.useInWork = true;
     else if (filters?.usage === 'both') {
@@ -100,6 +102,43 @@ export class ProductService {
       orderBy: { poolType: 'asc' },
     });
     return rows.map((r) => r.poolType!).filter((t) => t && t.trim().length > 0);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     listFilterOptions — DISTINCT categories + brands + poolTypes
+     pra alimentar os dropdowns de filtro da lista de produtos.
+     ═══════════════════════════════════════════════════════════════ */
+
+  async listFilterOptions(companyId: string): Promise<{
+    categories: string[];
+    brands: string[];
+    poolTypes: string[];
+  }> {
+    const [cats, brands, types] = await Promise.all([
+      this.prisma.product.findMany({
+        where: { companyId, deletedAt: null, category: { not: null } },
+        select: { category: true },
+        distinct: ['category'],
+        orderBy: { category: 'asc' },
+      }),
+      this.prisma.product.findMany({
+        where: { companyId, deletedAt: null, brand: { not: null } },
+        select: { brand: true },
+        distinct: ['brand'],
+        orderBy: { brand: 'asc' },
+      }),
+      this.prisma.product.findMany({
+        where: { companyId, deletedAt: null, poolType: { not: null } },
+        select: { poolType: true },
+        distinct: ['poolType'],
+        orderBy: { poolType: 'asc' },
+      }),
+    ]);
+    return {
+      categories: cats.map((c) => c.category!).filter((s) => s && s.trim().length > 0),
+      brands: brands.map((b) => b.brand!).filter((s) => s && s.trim().length > 0),
+      poolTypes: types.map((t) => t.poolType!).filter((s) => s && s.trim().length > 0),
+    };
   }
 
   /* ═══════════════════════════════════════════════════════════════

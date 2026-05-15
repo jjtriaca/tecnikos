@@ -33,6 +33,8 @@ export class ProductController {
     @Query('status') status: string | undefined,
     @Query('brand') brand: string | undefined,
     @Query('usage') usage: 'sale' | 'work' | 'both' | undefined,
+    @Query('poolType') poolType: string | undefined,
+    @Query('finalidade') finalidade: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.findAll(user.companyId, pagination, {
@@ -40,15 +42,25 @@ export class ProductController {
       status,
       brand,
       usage,
+      poolType,
+      finalidade,
     });
   }
 
-  /* ── List pool types (DISTINCT) — alimenta dropdown ────── */
+  /* ── List pool types (DISTINCT) — alimenta dropdown da regra ── */
 
   @Roles(UserRole.ADMIN)
   @Get('pool-types')
   listPoolTypes(@CurrentUser() user: AuthenticatedUser) {
     return this.service.listPoolTypes(user.companyId);
+  }
+
+  /* ── List filter options (categories + brands + poolTypes) ── */
+
+  @Roles(UserRole.ADMIN)
+  @Get('filter-options')
+  listFilterOptions(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.listFilterOptions(user.companyId);
   }
 
   /* ── Detail ─────────────────────────────────────────────── */

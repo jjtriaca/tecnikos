@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { fmtCurrency } from "@/components/ui/CurrencyInput";
@@ -76,23 +76,67 @@ const MODAL_TABS: { id: ModalTab; label: string }[] = [
 
 /* ── Filter definitions ───────────────────────────────── */
 
-const PRODUCT_FILTERS: FilterDefinition[] = [
-  {
-    key: "category",
-    label: "Categoria",
-    type: "text",
-    placeholder: "Filtrar categoria...",
-  },
-  {
-    key: "status",
-    label: "Status",
-    type: "select",
-    options: [
-      { value: "ATIVO", label: "Ativo" },
-      { value: "INATIVO", label: "Inativo" },
-    ],
-  },
-];
+// Filtros dinamicos: alguns selects sao alimentados por DISTINCT do backend
+// (Categoria, Marca, Tipo Piscina) — buildProductFilters monta o array com as
+// opcoes carregadas. Os demais sao estaticos.
+function buildProductFilters(opts: {
+  categories: string[];
+  brands: string[];
+  poolTypes: string[];
+}): FilterDefinition[] {
+  const toOptions = (arr: string[]) => arr.map((v) => ({ value: v, label: v }));
+  return [
+    {
+      key: "poolType",
+      label: "Tipo (Piscina)",
+      type: "select",
+      options: toOptions(opts.poolTypes),
+    },
+    {
+      key: "category",
+      label: "Categoria",
+      type: "select",
+      options: toOptions(opts.categories),
+    },
+    {
+      key: "brand",
+      label: "Marca",
+      type: "select",
+      options: toOptions(opts.brands),
+    },
+    {
+      key: "usage",
+      label: "Usado em",
+      type: "select",
+      options: [
+        { value: "sale", label: "Venda" },
+        { value: "work", label: "Obra" },
+        { value: "both", label: "Venda + Obra" },
+      ],
+    },
+    {
+      key: "finalidade",
+      label: "Finalidade",
+      type: "select",
+      options: [
+        { value: "USO_CONSUMO", label: "Uso/Consumo" },
+        { value: "REVENDA", label: "Revenda" },
+        { value: "ATIVO_IMOBILIZADO", label: "Ativo Imobilizado" },
+        { value: "MATERIA_PRIMA", label: "Materia Prima" },
+        { value: "MATERIAL_OBRA", label: "Material Obra" },
+      ],
+    },
+    {
+      key: "status",
+      label: "Status",
+      type: "select",
+      options: [
+        { value: "ATIVO", label: "Ativo" },
+        { value: "INATIVO", label: "Inativo" },
+      ],
+    },
+  ];
+}
 
 /* ── Column definitions ───────────────────────────────── */
 
@@ -545,6 +589,8 @@ export default function ProductsPage() {
   // Tipos de produto Piscina ja cadastrados (alimenta datalist do dropdown
   // "Tipo (Piscina)" no formulario de cadastro).
   const [poolTypes, setPoolTypes] = useState<string[]>([]);
+  // Opcoes pros filtros da lista (DISTINCT do backend).
+  const [filterOptions, setFilterOptions] = useState<{ categories: string[]; brands: string[]; poolTypes: string[] }>({ categories: [], brands: [], poolTypes: [] });
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -597,6 +643,15 @@ export default function ProductsPage() {
       .then((r) => setPoolTypes(Array.isArray(r) ? r : []))
       .catch(() => setPoolTypes([]));
   }, []);
+
+  // Carrega opcoes pros filtros da lista (DISTINCT de category, brand, poolType).
+  useEffect(() => {
+    api.get<{ categories: string[]; brands: string[]; poolTypes: string[] }>("/products/filter-options")
+      .then((r) => setFilterOptions(r || { categories: [], brands: [], poolTypes: [] }))
+      .catch(() => setFilterOptions({ categories: [], brands: [], poolTypes: [] }));
+  }, []);
+
+  const productFilters = useMemo(() => buildProductFilters(filterOptions), [filterOptions]);
 
   /* ── Load equivalents for a product ─────────────────── */
 
@@ -797,7 +852,7 @@ export default function ProductsPage() {
 
       {/* ── Filters ─────────────────────────────────────── */}
       <FilterBar
-        filters={PRODUCT_FILTERS}
+        filters={productFilters}
         values={tp.filters}
         onChange={tp.setFilter}
         onReset={tp.resetFilters}
