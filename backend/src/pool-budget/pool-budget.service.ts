@@ -748,15 +748,22 @@ export class PoolBudgetService {
             newQty = targetDefaultQty;
           }
 
+          // FIX v1.11.48 (bug v1.11.47): items SEM formula precisam de totalCents recalculado aqui.
+          // PASSO 1/2 so atualizam totalCents pra items COM formula (via persistItem). Sem este recalc,
+          // "↩ voltar selecao auto" vindo de Sem Produto (totalCents=0) mantinha totalCents=0 mesmo apos
+          // vincular produto novo com preco. Items com formula: totalCents eh recomputado no PASSO 1/2.
+          const finalUnitPrice = target.priceCents || it.unitPriceCents;
+          const finalQty = newQty !== undefined ? newQty : (Number(it.qty) || 0);
           await this.prisma.poolBudgetItem.update({
             where: { id: it.id },
             data: {
               productId: target.type === 'product' ? target.id : null,
               serviceId: target.type === 'service' ? target.id : null,
               description: target.description || it.description,
-              unitPriceCents: target.priceCents || it.unitPriceCents,
+              unitPriceCents: finalUnitPrice,
               unit: target.unit,
               ...(newQty !== undefined ? { qty: newQty } : {}),
+              ...(hasFormula ? {} : { totalCents: Math.round(finalQty * finalUnitPrice) }),
               previousQty: null,
             },
           });
