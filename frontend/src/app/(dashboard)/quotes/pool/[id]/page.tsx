@@ -1339,40 +1339,28 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         siblingVars={siblingVars}
         onClose={() => setShowCatalogPick(false)}
         /* ═══════════════════════════════════════════════════════════════
-           CATALOG PICKER — REGRAS INVIOVEIS (ja foi quebrado 3x)
-           Doc completo: memory/pool_budget_rules.md secao 16
+           CATALOG PICKER — REGRA UNICA (v1.11.46): qty SEMPRE busca cfg.product.defaultQty
+           do cadastro. SEM hardcode, SEM snapshot, SEM fallback. BUSCA, nao cria.
+           Excecao REGRA #5: se item.formulaExpr existe, NAO toca qty (formula reavalia).
 
-           3 cenarios, cada um com comportamento exato:
+           3 cenarios:
+           A — "Sem Produto" (__NONE__ ou cadastro real): description="Sem Produto",
+               qty=cfg.product.defaultQty (do cadastro), manualUnlink=true.
+           B — Produto manual: qty=cfg.product.defaultQty, manualUnlink=true.
+           C — Voltar selecao auto: manualUnlink=false (handler do botao Voltar).
+               Backend recalc escolhe produto + processItem seta qty=newProduct.defaultQty.
 
-           Cenario A — Sem Produto (sentinel __NONE__ ou Product real "Sem Produto"):
-             productId=Sem Produto, description="Sem Produto", qty=0,
-             previousQty=item.qty (snapshot), manualUnlink=true.
-
-           Cenario B — Produto manual (qualquer outro, mesmo que falhe na regra):
-             productId=cfg.product.id, qty=previousQty se houver senao mantem,
-             previousQty=null, manualUnlink=true (auto-select RESPEITA escolha).
-
-           Cenario C — Voltar selecao auto (handler do botao "↩ voltar selecao auto"):
-             manualUnlink=false, qty=previousQty se houver, previousQty=null.
-             Esta logica esta no botao do indicator (nao no onPick).
-
-           5 REGRAS INVIOVEIS:
-           1. Escolha manual via picker SEMPRE seta manualUnlink=true. NUNCA
-              false aqui — o auto-select substituiria o produto escolhido pelo
-              otimo da regra (Bug 1 de v1.11.35).
-           2. Snapshot previousQty restaura qty em A->B e A->C. NUNCA esquecer.
-           3. Snapshot eh salvo SO ao escolher Sem Produto (A). B e C limpam.
-           4. Auto-select PULA items com manualUnlink=true (backend recalc PASSO 0).
-           5. FORMULA PREVALECE: se item.formulaExpr existe, NUNCA sobrescreve qty.
-              A formula reavalia no recalc do backend com o produto novo. Snapshot
-              e defaultQty so se aplicam em items SEM formula. (v1.11.38)
-
-           ANTES DE MEXER: leia checklist em pool_budget_rules.md secao 16.
+           Doc completo: memory/pool_budget_rules.md secao 16.
            ═══════════════════════════════════════════════════════════════ */
         onPick={(cfg) => {
           setShowCatalogPick(false);
           const cfgDesc = (cfg.product?.description || cfg.service?.name || '').trim().toLowerCase();
-          // CENARIO A — "Sem Produto" (sentinel __NONE__ ou Product real)
+          const hasFormula = !!(item.formulaExpr && item.formulaExpr.trim());
+          // qty SEMPRE vem do defaultQty do produto do cadastro. Sem formula = busca, com formula = nao toca.
+          const newQty: number | undefined = hasFormula
+            ? undefined
+            : (typeof cfg.product?.defaultQty === 'number' ? cfg.product.defaultQty : undefined);
+          // CENARIO A — Sem Produto
           if (cfg.id === '__NONE__' || cfgDesc === 'sem produto') {
             onUpdate({
               catalogConfigId: cfg.id === '__NONE__' ? null : cfg.id,
@@ -1381,34 +1369,18 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
               description: 'Sem Produto',
               unit: cfg.product?.unit || '',
               unitPriceCents: cfg.product?.salePriceCents ?? 0,
-              qty: 0,
-              previousQty: item.qty,
+              ...(newQty !== undefined ? { qty: newQty } : {}),
               manualUnlink: true,
             } as any);
-            setQty(0);
+            if (newQty !== undefined) setQty(newQty);
             setDesc('Sem Produto');
             setPrice(((cfg.product?.salePriceCents ?? 0) / 100).toFixed(2));
             return;
           }
-          // CENARIO B — Produto manual (regras 1, 2, 3 do bloco acima + REGRA #5):
-          // - manualUnlink=true SEMPRE (mesmo se produto passa na regra).
-          // - REGRA #5: se item tem formulaExpr, a FORMULA prevalece — NAO sobrescreve
-          //   qty (backend recalc reavalia a formula com novo produto vinculado).
-          // - Sem formula: qty: 1=snapshot previousQty (vindo de A), 2=defaultQty do
-          //   produto escolhido (cadastro), 3=mantem qty atual.
-          // - previousQty=null limpa o snapshot apos uso.
+          // CENARIO B — Produto manual: qty = cfg.product.defaultQty (BUSCA do cadastro)
           const newDesc = cfg.product?.description || cfg.service?.name || item.description;
           const newUnit = cfg.product?.unit || cfg.service?.unit || item.unit;
           const newPriceCents = cfg.product?.salePriceCents ?? cfg.service?.priceCents ?? item.unitPriceCents;
-          const hasFormula = !!(item.formulaExpr && item.formulaExpr.trim());
-          const productDefaultQty = typeof cfg.product?.defaultQty === 'number' && cfg.product.defaultQty > 0
-            ? cfg.product.defaultQty
-            : undefined;
-          const snapshotQty = typeof item.previousQty === 'number' && item.previousQty > 0
-            ? item.previousQty
-            : undefined;
-          // Se tem formula, NAO seta qty (recalc reavalia). Senao, snapshot > defaultQty.
-          const restoredQty = hasFormula ? undefined : (snapshotQty ?? productDefaultQty);
           onUpdate({
             catalogConfigId: cfg.id,
             productId: cfg.product?.id ?? null,
@@ -1416,13 +1388,12 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             description: newDesc,
             unit: newUnit,
             unitPriceCents: newPriceCents,
-            ...(restoredQty !== undefined ? { qty: restoredQty } : {}),
-            previousQty: null,
+            ...(newQty !== undefined ? { qty: newQty } : {}),
             manualUnlink: true,
           } as any);
           setDesc(newDesc);
           setPrice((newPriceCents / 100).toFixed(2));
-          if (restoredQty !== undefined) setQty(restoredQty);
+          if (newQty !== undefined) setQty(newQty);
         }}
       />
     )}

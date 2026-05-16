@@ -736,27 +736,16 @@ export class PoolBudgetService {
 
           // REGRA #5 (formula prevalece): se item tem formulaExpr, NAO toca qty.
           //   Recalc PASSO 1 reavalia formula com novo produto vinculado.
-          // Senao, ao trocar produto:
-          //   - Prioridade 1: snapshot previousQty (vindo de Sem Produto). Restaura
-          //     qty anterior + limpa snapshot.
-          //   - Prioridade 2: se qty atual == 0 (zero da Sem Produto sem snapshot),
-          //     usa target.defaultQty (novo produto cadastrado).
-          //   - Prioridade 3: mantem qty atual (operador talvez setou manualmente).
+          // Senao: SEMPRE qty = targetDefaultQty do novo produto (BUSCA do cadastro,
+          //   sem snapshot, sem fallback hardcoded). Sistema busca a informacao —
+          //   nao cria. Se cadastro tem defaultQty=1, qty=1. Se=2, qty=2.
           const hasFormula = !!(it.formulaExpr && it.formulaExpr.trim());
-          const itPreviousQty = (it as any).previousQty as number | null | undefined;
           const targetDefaultQty = target.type === 'product'
             ? (bestProduct as any)?.defaultQty as number | null | undefined
             : null;
-          const itQty = (it as any).qty as number | null | undefined;
           let newQty: number | undefined;
-          let clearSnapshot = false;
-          if (!hasFormula) {
-            if (typeof itPreviousQty === 'number' && itPreviousQty > 0) {
-              newQty = itPreviousQty;
-              clearSnapshot = true;
-            } else if ((itQty == null || itQty === 0) && typeof targetDefaultQty === 'number' && targetDefaultQty > 0) {
-              newQty = targetDefaultQty;
-            }
+          if (!hasFormula && typeof targetDefaultQty === 'number') {
+            newQty = targetDefaultQty;
           }
 
           await this.prisma.poolBudgetItem.update({
@@ -768,7 +757,7 @@ export class PoolBudgetService {
               unitPriceCents: target.priceCents || it.unitPriceCents,
               unit: target.unit,
               ...(newQty !== undefined ? { qty: newQty } : {}),
-              ...(clearSnapshot ? { previousQty: null } : {}),
+              previousQty: null,
             },
           });
         };
