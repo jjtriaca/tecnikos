@@ -1158,28 +1158,21 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
               {item.autoSelectRule.indicator.label}: <span className="font-semibold tabular-nums">{formatIndicatorValue(item.indicatorValue, item.indicatorUnit)}</span>
             </span>
             {item.manualUnlink ? (
-              // CENARIO C — Voltar selecao auto (regras 2 e 3 + REGRA #5):
-              // - manualUnlink=false (auto-select volta a operar).
-              // - REGRA #5: se item tem formulaExpr, formula prevalece — NAO seta qty.
-              // - Sem formula: prioridade qty = previousQty (snapshot) > 1 (fallback robusto).
-              //   Garante que qty NUNCA fica 0 (Sem Produto tem defaultQty=0 — sem fallback,
-              //   ficaria preso em 0 ate proxima edicao manual).
-              // - previousQty=null limpa o snapshot apos uso.
+              // CENARIO C — Voltar selecao auto:
+              // SIMPLES: so envia manualUnlink=false + previousQty=null.
+              // NAO envia qty — backend recalc PASSO 0 escolhe o produto novo pela regra
+              // e busca defaultQty desse produto cadastrado (processItem detecta itQty=0
+              // do Sem Produto e seta qty=targetDefaultQty). Sem fallbacks hardcoded no
+              // frontend — toda a logica de qty fica no backend, buscando defaultQty do
+              // produto que sera vinculado.
               <button type="button"
                 onClick={() => {
-                  const hasFormula = !!(item.formulaExpr && item.formulaExpr.trim());
-                  const restoredQty = hasFormula
-                    ? undefined
-                    : (typeof item.previousQty === 'number' && item.previousQty > 0
-                        ? item.previousQty
-                        : 1);
                   onUpdate({
                     manualUnlink: false,
-                    ...(restoredQty !== undefined ? { qty: restoredQty } : {}),
                     previousQty: null,
                   } as any);
                 }}
-                title="Clique pra voltar a selecao automatica — o sistema vai reaplicar a regra e escolher o produto otimo. Sua escolha manual sera substituida."
+                title="Clique pra voltar a selecao automatica — o sistema vai reaplicar a regra, escolher o produto otimo e usar a quantidade padrao desse produto."
                 className="ml-auto text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-orange-300 bg-orange-50 hover:bg-orange-100 hover:border-orange-500 text-orange-800 transition cursor-pointer font-medium">
                 ↩ voltar selecao auto
               </button>
@@ -1195,18 +1188,8 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             item.manualUnlink ? (
               <button type="button"
                 onClick={() => {
-                  // REGRA #5: formula prevalece. Sem formula: snapshot > 1 (fallback).
-                  const hasFormula = !!(item.formulaExpr && item.formulaExpr.trim());
-                  const restoredQty = hasFormula
-                    ? undefined
-                    : (typeof item.previousQty === 'number' && item.previousQty > 0
-                        ? item.previousQty
-                        : 1);
-                  onUpdate({
-                    manualUnlink: false,
-                    ...(restoredQty !== undefined ? { qty: restoredQty } : {}),
-                    previousQty: null,
-                  } as any);
+                  // Backend busca defaultQty do produto vinculado pela regra (recalc PASSO 0).
+                  onUpdate({ manualUnlink: false, previousQty: null } as any);
                 }}
                 title="Clique pra voltar a selecao automatica."
                 className="mt-1 text-[10px] inline-flex items-center gap-1 px-2 py-0.5 rounded border border-orange-300 bg-orange-50 hover:bg-orange-100 hover:border-orange-500 text-orange-800 transition cursor-pointer font-medium">
