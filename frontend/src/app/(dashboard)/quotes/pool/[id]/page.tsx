@@ -2684,20 +2684,9 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
       },
     },
   },
-  {
-    icon: '💦',
-    label: 'Cascata (operador escolhe)',
-    description: 'Filtra candidatos pelo Tipo "Cascata" no catalogo, mas NAO escolhe automaticamente. O operador clica em 🔍 e escolhe a cascata desejada na lista pre-filtrada. Ideal pra item estetico sem criterio objetivo. Salva no template sem produto pre-selecionado.',
-    rule: {
-      filterPoolType: 'Cascata',
-      filterCategoria: null,
-      filterDescription: null,
-      where: null,
-      orderBy: null,
-      manualSelection: true,
-      indicator: null,
-    },
-  },
+  // REMOVIDO v1.11.49: template "💦 Cascata (operador escolhe)" era redundante.
+  // Mesma config (filterPoolType + manualSelection) pode ser feita em 2 cliques na secao
+  // Candidatos: escolhe Tipo no dropdown + marca toggle "Apenas filtrar — nao escolher automaticamente".
   {
     icon: '💦',
     label: 'Kit Cascata (mais barato disponivel)',
@@ -2858,6 +2847,46 @@ function AutoSelectModal({
       { max: 999, label: 'Ruim', color: 'red' },
     ]
   );
+
+  // Tooltip do "?" nos templates: hover mostra; click no "?" fixa ate clicar fora.
+  const [pinnedTemplateLabel, setPinnedTemplateLabel] = useState<string | null>(null);
+  const pinnedPopoverRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!pinnedTemplateLabel) return;
+    const handler = (e: MouseEvent) => {
+      if (pinnedPopoverRef.current && !pinnedPopoverRef.current.contains(e.target as Node)) {
+        setPinnedTemplateLabel(null);
+      }
+    };
+    // setTimeout(0) evita capturar o proprio click que fixou o popover
+    const timer = setTimeout(() => document.addEventListener('mousedown', handler), 0);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('mousedown', handler);
+    };
+  }, [pinnedTemplateLabel]);
+
+  // Aplica template: copia rule pros states locais. Limpa tooltip fixado.
+  const applyAutoSelectTemplate = (t: typeof AUTOSELECT_TEMPLATES[number]) => {
+    setPinnedTemplateLabel(null);
+    setFilterPoolType(t.rule.filterPoolType || '');
+    setFilterCategoria(t.rule.filterCategoria || '');
+    setFilterDescription(t.rule.filterDescription || '');
+    setWhere(t.rule.where || '');
+    setOrderBy(t.rule.orderBy || 'priceCents asc');
+    setManualSelection(!!t.rule.manualSelection);
+    if (t.rule.indicator) {
+      setHasIndicator(true);
+      setIndLabel(t.rule.indicator.label);
+      setIndExpr(t.rule.indicator.expr);
+      setIndUnit(t.rule.indicator.unit || '');
+      // Clone profundo dos levels — array compartilhado com o template, sem clone qualquer edicao mutaria o template.
+      setIndLevels(t.rule.indicator.levels.map((l) => ({ ...l })));
+    } else {
+      setHasIndicator(false);
+    }
+  };
 
   // Tipos unicos extraidos do catalogo (Product.poolType — campo top-level).
   // Preferido sobre categoriaPlanilha (legado em technicalSpecs).
@@ -3161,32 +3190,46 @@ function AutoSelectModal({
                   <span className="text-xs font-bold uppercase tracking-wide text-violet-900">⚡ Templates prontos <span className="text-violet-700 font-normal normal-case">— clique pra usar uma regra ja configurada</span></span>
                   <span className="text-violet-700 text-xs group-open:rotate-180 transition-transform">▼</span>
                 </summary>
-                <div className="px-4 pb-3 pt-1 grid grid-cols-1 md:grid-cols-3 gap-2">
-                  {AUTOSELECT_TEMPLATES.map((t) => (
-                    <button key={t.label} type="button" onClick={() => {
-                      setFilterPoolType(t.rule.filterPoolType || '');
-                      setFilterCategoria(t.rule.filterCategoria || '');
-                      setFilterDescription(t.rule.filterDescription || '');
-                      setWhere(t.rule.where || '');
-                      setOrderBy(t.rule.orderBy || 'priceCents asc');
-                      setManualSelection(!!t.rule.manualSelection);
-                      if (t.rule.indicator) {
-                        setHasIndicator(true);
-                        setIndLabel(t.rule.indicator.label);
-                        setIndExpr(t.rule.indicator.expr);
-                        setIndUnit(t.rule.indicator.unit || '');
-                        // Clone profundo dos levels — array do template eh shared, sem clone qualquer
-                        // edicao via UI no state mutaria o template tambem (causa visual estranho ao trocar templates).
-                        setIndLevels(t.rule.indicator.levels.map((l) => ({ ...l })));
-                      } else {
-                        // Template sem indicator desativa o anterior pra UI ficar consistente com a regra aplicada
-                        setHasIndicator(false);
-                      }
-                    }} className="text-left rounded border border-violet-300 bg-white hover:border-violet-500 hover:bg-violet-50 px-3 py-2 transition">
-                      <div className="text-sm font-semibold text-violet-900">{t.icon} {t.label}</div>
-                      <div className="text-[11px] text-slate-700 mt-0.5">{t.description}</div>
-                    </button>
-                  ))}
+                <div className="px-4 pb-3 pt-1 flex flex-wrap gap-1.5">
+                  {AUTOSELECT_TEMPLATES.map((t) => {
+                    const isPinned = pinnedTemplateLabel === t.label;
+                    return (
+                      <div
+                        key={t.label}
+                        className="relative inline-flex"
+                        ref={isPinned ? pinnedPopoverRef : null}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => applyAutoSelectTemplate(t)}
+                          className="inline-flex items-center gap-1 rounded-l border border-violet-300 border-r-0 bg-white hover:bg-violet-50 hover:border-violet-500 px-2.5 py-1.5 text-xs font-semibold text-violet-900 transition"
+                        >
+                          <span>{t.icon}</span>
+                          <span>{t.label}</span>
+                        </button>
+                        <div className="group/help relative inline-flex">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPinnedTemplateLabel(isPinned ? null : t.label);
+                            }}
+                            aria-label={`Sobre ${t.label}`}
+                            className="inline-flex items-center justify-center rounded-r border border-violet-300 bg-violet-100 hover:bg-violet-200 px-2 text-violet-700 text-xs font-bold cursor-help transition"
+                          >
+                            ?
+                          </button>
+                          <div
+                            className={`absolute top-full right-0 mt-1 z-50 w-72 rounded-lg border border-violet-300 bg-white shadow-lg p-2.5 text-[11px] text-slate-700 leading-snug normal-case font-normal text-left ${
+                              isPinned ? '' : 'invisible group-hover/help:visible pointer-events-none'
+                            }`}
+                          >
+                            {t.description}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </details>
 

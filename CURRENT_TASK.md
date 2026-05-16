@@ -1,10 +1,14 @@
 # TAREFA ATUAL
 
-## Versao: v1.11.47 (em prod)
-## Ultima sessao: 203 (15-16/05/2026)
+## Versao: v1.11.48 (em prod)
+## Ultima sessao: 204 (16/05/2026)
 
-## 🟦 PENDENTE — Sessao 204
-- **Bug `totalCents` no auto-select** (descoberto v1.11.47): backend `processItem` ([pool-budget.service.ts](backend/src/pool-budget/pool-budget.service.ts) ~linha 745) atualiza `productId`, `description`, `unitPriceCents`, `unit`, `qty` ao trocar produto pelo auto-select — mas NAO recalcula `totalCents = qty * unitPriceCents`. Quando o operador clica "↩ voltar selecao auto" vindo de Sem Produto (totalCents=0), o produto novo eh vinculado, qty volta a 3, mas totalCents fica 0. Solucao: incluir `totalCents: Math.round(newQty * target.priceCents)` na chamada `prisma.poolBudgetItem.update` do `processItem`. Item L23 do orcamento ORCP-00001 esta com qty=3 e totalCents=0 ate fix.
+## v1.11.48 — Pool budget: fix totalCents stale no processItem (auto-select PASSO 0)
+- **Bug** (sessao 203, v1.11.47): backend `processItem` ([pool-budget.service.ts](backend/src/pool-budget/pool-budget.service.ts)) atualizava productId/description/unitPriceCents/unit/qty ao trocar produto, mas NAO recalculava `totalCents`. PASSO 1/2 so atualizam totalCents pra items COM formula (via persistItem). Items SEM formula ficavam com totalCents stale. Sintoma: "↩ voltar selecao auto" vindo de Sem Produto (totalCents=0) deixava totalCents=0 mesmo apos vincular produto novo com preco — ex: L23 do orcamento ORCP-00001 ficou qty=3, totalCents=0.
+- **Fix**: no `processItem`, computa `finalUnitPrice` e `finalQty` e seta `totalCents: Math.round(finalQty * finalUnitPrice)` so quando `!hasFormula` (items com formula continuam sendo cobertos pelo persistItem do PASSO 1/2). Pos-fix: proxima vez que o operador disparar recalc na L23 (qualquer mutacao na etapa), totalCents corrige automaticamente.
+
+## 🟦 PENDENTE — Sessao 205
+- (nada urgente)
 
 ## RECAP SESSAO 203 — v1.11.16 → v1.11.47 (31 versoes deployadas)
 
