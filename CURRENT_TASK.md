@@ -1,7 +1,78 @@
 # TAREFA ATUAL
 
-## Versao: v1.11.16 (em prod)
-## Ultima sessao: 202 (15/05/2026)
+## Versao: v1.11.47 (em prod)
+## Ultima sessao: 203 (15-16/05/2026)
+
+## 🟦 PENDENTE — Sessao 204
+- **Bug `totalCents` no auto-select** (descoberto v1.11.47): backend `processItem` ([pool-budget.service.ts](backend/src/pool-budget/pool-budget.service.ts) ~linha 745) atualiza `productId`, `description`, `unitPriceCents`, `unit`, `qty` ao trocar produto pelo auto-select — mas NAO recalcula `totalCents = qty * unitPriceCents`. Quando o operador clica "↩ voltar selecao auto" vindo de Sem Produto (totalCents=0), o produto novo eh vinculado, qty volta a 3, mas totalCents fica 0. Solucao: incluir `totalCents: Math.round(newQty * target.priceCents)` na chamada `prisma.poolBudgetItem.update` do `processItem`. Item L23 do orcamento ORCP-00001 esta com qty=3 e totalCents=0 ate fix.
+
+## RECAP SESSAO 203 — v1.11.16 → v1.11.47 (31 versoes deployadas)
+
+### Trabalhos principais (Modulo Piscina — auto-selecao e Sem Produto)
+
+**Sistema de filtros e tipo de produto**
+- `Product.poolType String?` indexado — campo top-level (substitui `technicalSpecs.categoriaPlanilha`, mantido por compat). Backfill heuristico em 171 produtos SLS por regex de descricao (Cascata 9, Aquecedor 24, Conjunto de filtragem 12, Quadro eletrico 10, etc).
+- AutoSelectModal: dropdown "Tipo (Piscina)" alimentado por DISTINCT do catalogo. Chavinha "Apenas filtrar — nao escolher automaticamente" (regra `manualSelection: true`).
+- Lista de produtos (`/products`): 6 filtros (Tipo, Categoria, Marca, Usado em, Finalidade, Status), Categoria/Marca/Tipo viraram dropdown com DISTINCT do backend.
+
+**Cross-line reference unificado**
+- `prod(LX, "spec")` no `where` e `indicator.expr` das regras (substitui sibling*). Mesmo padrao do FormulaModal. Helper inline "📐 Inserir prod(L?, ...)" no campo where do AutoSelectModal — picker de linhas com specs disponiveis.
+- Templates de tubo refeitos pra usar `prod(LREF, "tuboEntradaMm")` com placeholder.
+- Sibling vars: fix de auto-referencia em 4 logicas (buildSiblingVars, Fase B do recalc, computeSiblingsForItem, computeIndicatorSiblings) — todas excluem o proprio item.
+- `linkedCellRef` (legado, mantido por compat) — substituido por `prod()` na expressao.
+
+**"Sem Produto" universal**
+- `Product.isSystemProduct Boolean` — protege contra delete/edit. TenantMigrator `ensureSemProdutoInAllTenants` cria automaticamente em todos tenants no startup.
+- Catalog picker: opcao "🚫 Sem Produto" SEMPRE no topo (independe de filtros). Cadastro real filtrado fora da lista (sem duplicacao).
+- Botao "↩ voltar selecao auto" laranja quando `manualUnlink=true` — clica e o backend recalc reescolhe pela regra.
+
+**Quantidade padrao do produto**
+- `Product.defaultQty Float? @default(1)` — qty padrao no orcamento. Backfill: 388 produtos em SLS de NULL pra 1. Sem Produto = 1 (era 0, era um bug do INSERT antes da migration de default 1).
+- Frontend cadastro novo produto inicia com `defaultQty=1` (editavel pra 0, 0.5, etc).
+- Linha amarela `bg-amber-50` + ⚠ quando qty != defaultQty (sem formula) OU qty != qtyCalculated (com formula).
+- Header da etapa fica amarelo (severity) quando alguma linha esta fora do padrao. Indicador "⚠ alerta" mesmo minimizada.
+
+**Engine de auto-selecao — fluxo simplificado**
+- `manualUnlink: true` quando operador escolhe via picker (qualquer produto) — auto-select RESPEITA escolha (mesmo se nao passa na regra).
+- Backend recalc PASSO 0 filtra `manualUnlink: false` na query.
+- processItem ao trocar produto sem formula: SEMPRE `qty = target.defaultQty` (BUSCA do cadastro, sem hardcode/snapshot).
+- REGRA #5: items com formula NUNCA tem qty sobrescrita — formula reavalia.
+- Botao "↩ voltar selecao auto": frontend so envia `{ manualUnlink: false, previousQty: null }`. Backend resolve qty via processItem.
+- Sincronizacao state local com props no RowItem (4 useEffects pra qty/desc/price/slot) — fix do bug "qty volta apos F5 mas nao apos save" (v1.11.47).
+
+**Mensagem detalhada quando sibling* falha**
+- Helper `diagnoseSiblingFailure` no backend: quando `addItem`/`updateItem` falham na avaliacao de formula com sibling, retorna mensagem clara (linhas SEM vinculo / produtos sem o campo).
+- Frontend AutoSelectModal mostra aviso similar em tempo real.
+
+**UI/UX**
+- Etapas vem MINIMIZADAS por padrao. Auto-minimize via IntersectionObserver quando saem do viewport (perder foco no scroll).
+- Catalog picker: filtro TIPO sempre aplicado (agrupamento natural), criterio (where) opcional via checkbox.
+- Versao no sidebar LOCKED em `text-sm + font-semibold + text-slate-100`.
+- Linha amarela com prioridade formula > defaultQty (mutuamente exclusivos).
+
+**Memoria organizada**
+- [pool_budget_rules.md](memory/pool_budget_rules.md) — referencia unica do modulo (15+ secoes, regras invioveis, checklist, fluxos)
+- [feedback_preview_pool_budget.md](memory/feedback_preview_pool_budget.md) — NAO tentar preview no modulo Piscina, deploy direto
+- [feedback_sidebar_version_locked.md](memory/feedback_sidebar_version_locked.md) — versao no sidebar travada
+- [feedback_tenant_vs_geral.md](memory/feedback_tenant_vs_geral.md) — distincao SLS pontual vs codigo geral
+
+### Pendentes ativos (priorizadas)
+
+🟦 **`totalCents` no auto-select** (descoberto v1.11.47) — ver topo.
+
+🟦 **Tracking universal Fases 3-6** (sessao 200): Cadastros, Fiscal, Config/Workflow/Piscina, soft delete + lixeira. ~4-5h.
+
+🟨 **Tabelas com max-w fixo na descricao** (memory/feedback_truncate_descricao.md) — 10 arquivos.
+
+🟨 **Fix detector build Docker silencioso** (memory/feedback_deploy_build_silent.md) — 1h.
+
+🟡 **Canal EMAIL mock** notification.service nao envia real.
+
+🟡 **Sweep ortografico minusculas residuais** (SEO).
+
+🟡 **FinancialInstallment legacy** finance.service.ts:981 + nfe.service.ts:791.
+
+## v1.11.16 — Pool budget: mensagem detalhada quando sibling* falta + fix linha 27 SLS
 
 ## v1.11.16 — Pool budget: mensagem detalhada quando sibling* falta + fix linha 27 SLS
 - **Pedido do Juliano**: "Servico de montagem de cascata" usa formula `siblingTempoMontagemH`. Quando aplica, da erro generico "Variavel ou funcao desconhecida". Quer que o sistema avise *especificamente* qual produto da etapa precisa de cadastro ou qual campo falta.
