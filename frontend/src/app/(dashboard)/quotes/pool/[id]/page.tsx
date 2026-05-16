@@ -1020,6 +1020,15 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
   const [desc, setDesc] = useState(item.description);
   const [slot, setSlot] = useState(item.slotName || "");
 
+  // Sincroniza state local com props quando o item muda (apos load do orcamento).
+  // Sem isso, useState mantem valor inicial — UI mostra qty antigo apos recalc do
+  // backend ate F5. (Bug recorrente — qty=0 apos Voltar selecao auto).
+  // NAO sincroniza durante digitacao (commit eh disparado no onBlur do input).
+  useEffect(() => { setQty(item.qty); }, [item.qty]);
+  useEffect(() => { setPrice((item.unitPriceCents / 100).toFixed(2)); }, [item.unitPriceCents]);
+  useEffect(() => { setDesc(item.description); }, [item.description]);
+  useEffect(() => { setSlot(item.slotName || ""); }, [item.slotName]);
+
   // Sibling vars (v1.10.99+) — pra preview do modal de auto-selecao em items
   // com regra cross-line (ex: tubo le tuboEntradaMm do filtro da mesma etapa).
   // Modo preferido: linkedCellRef da regra (vinculo explicito a uma linha).
