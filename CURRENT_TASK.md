@@ -1,7 +1,15 @@
 # TAREFA ATUAL
 
-## Versao: v1.11.48 (em prod)
+## Versao: v1.11.49 (em prod)
 ## Ultima sessao: 204 (16/05/2026)
+
+## v1.11.49 — AutoSelectModal: cards compactos com tooltip "?" + remove template Cascata redundante
+- **Pedido do Juliano**: cards de templates poluem o modal (9 cards grandes ocupando 3 colunas). Reduzir pra so nome + icone "?" do lado — hover mostra explicacao, click no "?" fixa ate clicar fora.
+- **Redundancia removida**: template "💦 Cascata (operador escolhe)" — ja existia o toggle "Apenas filtrar — nao escolher automaticamente" na secao CANDIDATOS abaixo. Combinar Tipo=Cascata + toggle dava o mesmo resultado em 2 cliques.
+- **Layout** ([page.tsx](frontend/src/app/(dashboard)/quotes/pool/[id]/page.tsx) ~3164): grid 3 colunas → `flex flex-wrap gap-1.5`. Cada card virou pill: botao esquerdo (icone + label, aplica template) + botao "?" direito (azulado, hover/click mostra descricao em popover).
+- **Comportamento "?"**: hover via `group/help` + `group-hover/help:visible` (puro CSS). Click fixa via state `pinnedTemplateLabel`; `useEffect` registra listener `mousedown` global (com `setTimeout(0)` pra nao capturar o proprio click) que fecha ao clicar fora do container `pinnedPopoverRef`.
+- Helper `applyAutoSelectTemplate(t)` extraido do inline onClick — limpa `pinnedTemplateLabel` antes de aplicar (fecha tooltip ao escolher).
+- **Templates restantes (8)**: 🌊 Filtro, 🔥 Aquecedor, 🚿 Tubo, 💦 Kit Cascata, 🛁 Kit SPA, ⚡ Disjuntor, 🔌 Quadro, 💡 Fonte iluminacao. Kit Cascata e Kit SPA tem estrutura similar (filterDescription + orderBy priceCents) mas atendem produtos especificos diferentes — mantidos como atalhos rapidos.
 
 ## v1.11.48 — Pool budget: fix totalCents stale no processItem (auto-select PASSO 0)
 - **Bug** (sessao 203, v1.11.47): backend `processItem` ([pool-budget.service.ts](backend/src/pool-budget/pool-budget.service.ts)) atualizava productId/description/unitPriceCents/unit/qty ao trocar produto, mas NAO recalculava `totalCents`. PASSO 1/2 so atualizam totalCents pra items COM formula (via persistItem). Items SEM formula ficavam com totalCents stale. Sintoma: "↩ voltar selecao auto" vindo de Sem Produto (totalCents=0) deixava totalCents=0 mesmo apos vincular produto novo com preco — ex: L23 do orcamento ORCP-00001 ficou qty=3, totalCents=0.

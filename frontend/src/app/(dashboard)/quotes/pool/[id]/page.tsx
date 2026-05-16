@@ -1166,34 +1166,39 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             <span>
               {item.autoSelectRule.indicator.label}: <span className="font-semibold tabular-nums">{formatIndicatorValue(item.indicatorValue, item.indicatorUnit)}</span>
             </span>
-            {item.manualUnlink ? (
-              // CENARIO C — Voltar selecao auto:
-              // SIMPLES: so envia manualUnlink=false + previousQty=null.
-              // NAO envia qty — backend recalc PASSO 0 escolhe o produto novo pela regra
-              // e busca defaultQty desse produto cadastrado (processItem detecta itQty=0
-              // do Sem Produto e seta qty=targetDefaultQty). Sem fallbacks hardcoded no
-              // frontend — toda a logica de qty fica no backend, buscando defaultQty do
-              // produto que sera vinculado.
-              <button type="button"
-                onClick={() => {
-                  onUpdate({
-                    manualUnlink: false,
-                    previousQty: null,
-                  } as any);
-                }}
-                title="Clique pra voltar a selecao automatica — o sistema vai reaplicar a regra, escolher o produto otimo e usar a quantidade padrao desse produto."
-                className="ml-auto text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-orange-300 bg-orange-50 hover:bg-orange-100 hover:border-orange-500 text-orange-800 transition cursor-pointer font-medium">
-                ↩ voltar selecao auto
-              </button>
-            ) : (
-              <span className="ml-auto text-[10px] opacity-70 flex items-center gap-1" title="Produto escolhido automaticamente pela regra de auto-selecao. Se voce trocar manualmente, vira botao 'Voltar pra selecao automatica'.">
-                ✨ selecao automatica
-              </span>
+            {/* Quando rule.manualSelection=true, o engine NAO escolhe automaticamente —
+                o operador escolhe na mao. Badge/botao "selecao automatica" seria enganoso. */}
+            {!item.autoSelectRule.manualSelection && (
+              item.manualUnlink ? (
+                // CENARIO C — Voltar selecao auto:
+                // SIMPLES: so envia manualUnlink=false + previousQty=null.
+                // NAO envia qty — backend recalc PASSO 0 escolhe o produto novo pela regra
+                // e busca defaultQty desse produto cadastrado (processItem detecta itQty=0
+                // do Sem Produto e seta qty=targetDefaultQty). Sem fallbacks hardcoded no
+                // frontend — toda a logica de qty fica no backend, buscando defaultQty do
+                // produto que sera vinculado.
+                <button type="button"
+                  onClick={() => {
+                    onUpdate({
+                      manualUnlink: false,
+                      previousQty: null,
+                    } as any);
+                  }}
+                  title="Clique pra voltar a selecao automatica — o sistema vai reaplicar a regra, escolher o produto otimo e usar a quantidade padrao desse produto."
+                  className="ml-auto text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-orange-300 bg-orange-50 hover:bg-orange-100 hover:border-orange-500 text-orange-800 transition cursor-pointer font-medium">
+                  ↩ voltar selecao auto
+                </button>
+              ) : (
+                <span className="ml-auto text-[10px] opacity-70 flex items-center gap-1" title="Produto escolhido automaticamente pela regra de auto-selecao. Se voce trocar manualmente, vira botao 'Voltar pra selecao automatica'.">
+                  ✨ selecao automatica
+                </span>
+              )
             )}
           </div>
         ) : (
-          // Sem indicator: badge/botao em linha propria (caso edge — regra sem indicator)
-          item.autoSelectRule && (item.autoSelectRule.where || item.autoSelectRule.filterPoolType || item.autoSelectRule.filterDescription || item.autoSelectRule.filterCategoria) && (
+          // Sem indicator: badge/botao em linha propria (caso edge — regra sem indicator).
+          // manualSelection=true: NAO renderiza nada (operador escolhe na mao, "selecao automatica" eh enganoso).
+          item.autoSelectRule && !item.autoSelectRule.manualSelection && (item.autoSelectRule.where || item.autoSelectRule.filterPoolType || item.autoSelectRule.filterDescription || item.autoSelectRule.filterCategoria) && (
             item.manualUnlink ? (
               <button type="button"
                 onClick={() => {
