@@ -1,7 +1,11 @@
 # TAREFA ATUAL
 
-## Versao: v1.11.49 (em prod)
+## Versao: v1.11.50 (em prod)
 ## Ultima sessao: 204 (16/05/2026)
+
+## v1.11.50 — Pool budget: esconde badge "✨ selecao automatica" quando rule.manualSelection=true
+- **Pedido do Juliano**: quando "Apenas filtrar — nao escolher automaticamente" esta marcado, a badge "selecao automatica" na linha eh enganosa (o engine nao escolhe, o operador que escolhe). Esconder.
+- **Fix** ([page.tsx](frontend/src/app/(dashboard)/quotes/pool/[id]/page.tsx) ~1153): em ambos os blocos (com e sem indicator), envolvido o render de `↩ voltar selecao auto` / `✨ selecao automatica` em `!item.autoSelectRule.manualSelection`. Quando regra eh manualSelection: bloco do indicator continua mostrando label/valor, so o badge/botao do canto direito some. Bloco sem indicator nao renderiza nada (badge era a unica coisa la).
 
 ## v1.11.49 — AutoSelectModal: cards compactos com tooltip "?" + remove template Cascata redundante
 - **Pedido do Juliano**: cards de templates poluem o modal (9 cards grandes ocupando 3 colunas). Reduzir pra so nome + icone "?" do lado — hover mostra explicacao, click no "?" fixa ate clicar fora.
