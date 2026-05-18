@@ -43,6 +43,7 @@ interface SelectedEquipment {
   copAt50Capacity?: number;
   loadRatio: number;
   isAdequate: boolean;
+  quantity: number;
 }
 
 interface MonthlyConsumption {
@@ -130,6 +131,18 @@ const UTILIZACAO_SEMANA_OPTIONS = [
   { v: "FIM_DE_SEMANA", label: "So Fins de Semana" },
 ];
 
+// Normaliza valor pra enum aceito pelo backend (uppercase, sem espacos extras, fallback default)
+function normEnum(value: any, allowed: string[], fallback: string): string {
+  if (typeof value !== "string") return fallback;
+  const v = value.toUpperCase().trim().replace(/ /g, "_");
+  // Mapeamentos legados conhecidos
+  if (allowed.includes(v)) return v;
+  if (v === "BAIXO" && allowed.includes("FRACO")) return "FRACO";
+  if (v === "ABERTO" && allowed.includes("ABERTA")) return "ABERTA";
+  if (v === "FECHADO" && allowed.includes("FECHADA")) return "FECHADA";
+  return fallback;
+}
+
 // ============ Componente ============
 
 type TabKey = "bomba" | "solar" | "comparativo";
@@ -187,12 +200,12 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
     setCidade(env.cidade ?? "");
     setTempAguaDesejada(Number(env.temperaturaAguaDesejada) || 30);
     setTempAguaInicial(typeof env.temperaturaInicialAgua === "number" ? env.temperaturaInicialAgua : "");
-    setVento(env.velocidadeVento || "MODERADO");
-    setTipoConstrucao(env.tipoConstrucao || "ABERTA");
-    setTipoPiscina(env.tipoPiscina || "PRIVATIVA");
+    setVento(normEnum(env.velocidadeVento, ["INTERNA", "NULO", "FRACO", "MODERADO", "FORTE"], "MODERADO"));
+    setTipoConstrucao(normEnum(env.tipoConstrucao, ["ABERTA", "FECHADA"], "ABERTA"));
+    setTipoPiscina(normEnum(env.tipoPiscina, ["PRIVATIVA", "COLETIVA"], "PRIVATIVA"));
     setCapaTermica(env.capaTermica === true || env.capaTermica === "SIM");
-    setUtilizacaoAno(env.utilizacaoAno || "ANO_TODO");
-    setUtilizacaoSemana(env.utilizacaoSemana || "MES_TODO");
+    setUtilizacaoAno(normEnum(env.utilizacaoAno, ["ANO_TODO", "VERAO", "INVERNO"], "ANO_TODO"));
+    setUtilizacaoSemana(normEnum(env.utilizacaoSemana, ["MES_TODO", "FIM_DE_SEMANA"], "MES_TODO"));
     setHidromassagensQtd(Number(env.hidromassagensQtd) || 0);
     setCascataLarguraCm(Number(env.cascataLarguraCm) || 0);
     setBordaInfinitaM(Number(env.bordaInfinitaM) || 0);
@@ -237,12 +250,12 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
         cidade: cidade || undefined,
         temperaturaAguaDesejada: Number(tempAguaDesejada),
         temperaturaInicialAgua: tempAguaInicial === "" ? undefined : Number(tempAguaInicial),
-        velocidadeVento: vento,
-        tipoConstrucao,
-        tipoPiscina,
+        velocidadeVento: normEnum(vento, ["INTERNA", "NULO", "FRACO", "MODERADO", "FORTE"], "MODERADO"),
+        tipoConstrucao: normEnum(tipoConstrucao, ["ABERTA", "FECHADA"], "ABERTA"),
+        tipoPiscina: normEnum(tipoPiscina, ["PRIVATIVA", "COLETIVA"], "PRIVATIVA"),
         capaTermica,
-        utilizacaoAno,
-        utilizacaoSemana,
+        utilizacaoAno: normEnum(utilizacaoAno, ["ANO_TODO", "VERAO", "INVERNO"], "ANO_TODO"),
+        utilizacaoSemana: normEnum(utilizacaoSemana, ["MES_TODO", "FIM_DE_SEMANA"], "MES_TODO"),
         hidromassagensQtd: Number(hidromassagensQtd),
         cascataLarguraCm: Number(cascataLarguraCm),
         bordaInfinitaM: Number(bordaInfinitaM),
@@ -276,12 +289,12 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
         cidade: cidade || undefined,
         tempAguaDesejada: Number(tempAguaDesejada),
         tempAguaInicial: tempAguaInicial === "" ? undefined : Number(tempAguaInicial),
-        vento,
-        tipoConstrucao,
-        tipoPiscina,
+        vento: normEnum(vento, ["INTERNA", "NULO", "FRACO", "MODERADO", "FORTE"], "MODERADO"),
+        tipoConstrucao: normEnum(tipoConstrucao, ["ABERTA", "FECHADA"], "ABERTA"),
+        tipoPiscina: normEnum(tipoPiscina, ["PRIVATIVA", "COLETIVA"], "PRIVATIVA"),
         capaTermica,
-        utilizacaoAno,
-        utilizacaoSemana,
+        utilizacaoAno: normEnum(utilizacaoAno, ["ANO_TODO", "VERAO", "INVERNO"], "ANO_TODO"),
+        utilizacaoSemana: normEnum(utilizacaoSemana, ["MES_TODO", "FIM_DE_SEMANA"], "MES_TODO"),
         hidromassagensQtd: Number(hidromassagensQtd),
         cascataLarguraCm: Number(cascataLarguraCm),
         bordaInfinitaM: Number(bordaInfinitaM),
@@ -604,8 +617,20 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                 {report?.selectedEquipment ? (
                   <div className="flex items-start gap-4 rounded-xl border-2 border-emerald-200 bg-emerald-50 p-4">
                     <div className="flex-1">
-                      <div className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Modelo recomendado</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Modelo recomendado</div>
+                        {report.selectedEquipment.quantity > 1 && (
+                          <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                            ⚡ {report.selectedEquipment.quantity}× UNIDADES EM PARALELO
+                          </span>
+                        )}
+                      </div>
                       <div className="mt-1 text-xl font-bold text-emerald-900">{report.selectedEquipment.modelName}</div>
+                      {report.selectedEquipment.quantity > 1 && (
+                        <div className="mt-1 text-[11px] text-amber-800">
+                          Nenhum modelo unico cobre a demanda. Sistema sugere {report.selectedEquipment.quantity} unidades do maior modelo disponivel operando em paralelo. Capacidade combinada = {report.selectedEquipment.kcalHNominal?.toLocaleString("pt-BR")} Kcal/h.
+                        </div>
+                      )}
                       <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
                         <SmallStat label="Capacidade" value={`${report.selectedEquipment.kcalHNominal?.toLocaleString("pt-BR")} Kcal/h`} />
                         {report.selectedEquipment.kwNominal && <SmallStat label="Potencia termica" value={`${report.selectedEquipment.kwNominal} kW`} />}

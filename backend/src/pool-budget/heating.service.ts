@@ -154,7 +154,9 @@ export interface HeatingReport {
   calorNecessarioBtuH: number;
 
   // Equipamento (preenchido pelo selectEquipment se passado)
-  selectedEquipment?: EquipmentSpecs & { loadRatio: number; isAdequate: boolean };
+  // quantity = 1 normalmente, >1 quando sistema sugere multiplos do maior modelo
+  // (fallback automatico quando nenhum unico cobre a demanda).
+  selectedEquipment?: EquipmentSpecs & { loadRatio: number; isAdequate: boolean; quantity: number };
 
   // Performance (preenchido se selectedEquipment passado)
   timeToHeatHours?: number; // tempo total ate temp desejada (descontando perdas continuas)
@@ -361,10 +363,11 @@ export class HeatingService {
     }>,
     qtotalMaxKw: number,
     _mode: UtilizacaoAno,
-  ): (EquipmentSpecs & { loadRatio: number; isAdequate: boolean }) | undefined {
+  ): (EquipmentSpecs & { loadRatio: number; isAdequate: boolean; quantity: number }) | undefined {
     if (candidates.length === 0) return undefined;
     const qtotalKcalH = qtotalMaxKw * CONVERSIONS.KWH_TO_KCAL;
 
+    // 1. Tenta candidatos UNICOS (quantity=1)
     const scored = candidates
       .filter((c) => c.kcalHNominal > 0)
       .map((c) => {
@@ -373,23 +376,51 @@ export class HeatingService {
         const isAdequate =
           loadRatio <= EQUIPMENT_SELECTION.MAX_LOAD_RATIO &&
           loadRatio >= EQUIPMENT_SELECTION.MIN_LOAD_RATIO;
-        return { ...c, loadRatio, isAdequate };
+        return { ...c, loadRatio, isAdequate, quantity: 1 };
       })
       .sort((a, b) => {
-        // Prioriza adequados (folga 30-70%). Depois ordena por loadRatio mais alto
-        // dentro do limite (equipamento menor que ainda atende).
         if (a.isAdequate && !b.isAdequate) return -1;
         if (!a.isAdequate && b.isAdequate) return 1;
         if (a.isAdequate && b.isAdequate) {
           return b.loadRatio - a.loadRatio; // maior loadRatio (equip menor)
         }
-        // Ambos inadequados: prioriza o que esta MAIS PROXIMO do limite max
         const da = Math.abs(a.loadRatio - EQUIPMENT_SELECTION.MAX_LOAD_RATIO);
         const db = Math.abs(b.loadRatio - EQUIPMENT_SELECTION.MAX_LOAD_RATIO);
         return da - db;
       });
 
-    return scored[0];
+    const best = scored[0];
+
+    // 2. Se NENHUM unico eh adequado E a piscina pede mais que o maior modelo:
+    //    cria candidato VIRTUAL multiplicando o maior modelo disponivel (2x, 3x, etc)
+    //    ate cobrir a demanda com folga adequada (loadRatio <= MAX_LOAD_RATIO).
+    if (best && !best.isAdequate && best.loadRatio > EQUIPMENT_SELECTION.MAX_LOAD_RATIO) {
+      // Pega o MAIOR modelo unico disponivel
+      const largest = [...candidates].sort((a, b) => b.kcalHNominal - a.kcalHNominal)[0];
+      if (largest && largest.kcalHNominal > 0) {
+        // Calcula quantos precisamos pra cobrir com folga (target = MAX_LOAD_RATIO)
+        const idealQty = Math.ceil(qtotalKcalH / (largest.kcalHNominal * EQUIPMENT_SELECTION.MAX_LOAD_RATIO));
+        const qty = Math.max(2, Math.min(20, idealQty)); // limita 2..20
+        const capTotalKcalH = largest.kcalHNominal * qty;
+        const loadRatio = qtotalKcalH / capTotalKcalH;
+        return {
+          ...largest,
+          modelName: `${qty}× ${largest.modelName}`,
+          kcalHNominal: capTotalKcalH,
+          btuH: largest.btuH ? largest.btuH * qty : undefined,
+          kwNominal: largest.kwNominal ? largest.kwNominal * qty : undefined,
+          consumoMaxW: largest.consumoMaxW ? largest.consumoMaxW * qty : undefined,
+          consumoMedioW: largest.consumoMedioW ? largest.consumoMedioW * qty : undefined,
+          ratedInputPowerKW: largest.ratedInputPowerKW ? largest.ratedInputPowerKW * qty : undefined,
+          loadRatio,
+          isAdequate: loadRatio >= EQUIPMENT_SELECTION.MIN_LOAD_RATIO && loadRatio <= EQUIPMENT_SELECTION.MAX_LOAD_RATIO,
+          quantity: qty,
+          // COPs e curva sao do modelo unitario — caracteristica fisica nao muda com qty
+        };
+      }
+    }
+
+    return best;
   }
 
   // ----- 4. Tempo de aquecimento + COP -----
