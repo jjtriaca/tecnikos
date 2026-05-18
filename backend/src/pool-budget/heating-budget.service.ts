@@ -210,6 +210,9 @@ export class HeatingBudgetService {
           copMax: Number(specs.copMax) || undefined,
           copAt50Air26: Number(specs.copAt50Air26) || undefined,
           copAt50Air15: Number(specs.copAt50Air15) || undefined,
+          copCurveA: Number(specs.copCurveA) || undefined,
+          copCurveB: Number(specs.copCurveB) || undefined,
+          copCurveC: Number(specs.copCurveC) || undefined,
           copNominal: Number(specs.copNominal) || undefined,
           copAt50Capacity: Number(specs.copAt50Capacity) || undefined,
         };

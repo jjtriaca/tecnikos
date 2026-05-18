@@ -101,6 +101,13 @@ export interface EquipmentSpecs {
   copMax?: number; // COP maximo em condicao ideal (ar 26°C, carga baixa) — valor "de marketing"
   copAt50Air26?: number; // COP em 50% capacidade, ar 26°C (verao tipico)
   copAt50Air15?: number; // COP em 50% capacidade, ar 15°C (inverno brasileiro — uso real)
+  // Curva COP vs carga (polinomio quadratico: COP(x) = A·x² + B·x + C, onde x = carga 0..1).
+  // Calibrada por modelo na TAB006 (Specification rows 38-40). Pra X23-40C: A=15.49, B=-37.51, C=29.88.
+  // Em carga < 20% usa copMax direto (compressor partindo).
+  // Se ausente, fallback usa COP linear interpolado entre copMax e copAt50Air15.
+  copCurveA?: number;
+  copCurveB?: number;
+  copCurveC?: number;
   // Legados (compat)
   copNominal?: number;
   copAt50Capacity?: number;
@@ -346,6 +353,9 @@ export class HeatingService {
       copMax?: number;
       copAt50Air26?: number;
       copAt50Air15?: number;
+      copCurveA?: number;
+      copCurveB?: number;
+      copCurveC?: number;
       copNominal?: number;
       copAt50Capacity?: number;
     }>,
@@ -420,33 +430,48 @@ export class HeatingService {
   // ----- 5. Consumo mensal + custos -----
 
   /**
-   * Calcula consumo mensal de energia (kWh) e custo (R$/mes) baseado no equipamento
-   * selecionado, horas de operacao por dia, taxa de funcionamento e tarifa de energia.
+   * Calcula consumo mensal de energia (kWh) e custo (R$/mes) baseado em fisica:
    *
-   * Formula simplificada (TAB006 Hoja1):
-   *   consumoKwhDia = ratedInputPowerKW × horas × taxa
-   *   consumoKwhMes = consumoKwhDia × dias_no_mes
-   *   custoMes = consumoKwhMes × R$/kWh
+   * Modelo TAB006 (Specification rows 55-66):
+   *   Para cada mes:
+   *     carga_mensal = Qtotal_mes_kW / capacidade_termica_kW    (clamped 0..1.3)
+   *     COP_mes = polinomio_quadratico(carga)                    (A·x² + B·x + C)
+   *     consumo_eletrico_kW = Qtotal_mes_kW / COP_mes
+   *     kWh_mes = consumo_kW × horas_funcionamento × dias_no_mes
    *
-   * Pra perdas mensais mais altas (inverno), aumenta o consumo proporcional ao Qtotal/Qmedia.
+   * Vantagens vs modelo antigo (kW × horas × taxa):
+   * - COP varia com carga (inverno = carga alta = COP baixo = consumo dispara)
+   * - Consumo ja vem do balanco fisico (perda termica / COP), nao chute fixo
+   * - Quando perda > capacidade (sobrecarga), reflete realidade (consumo alto)
+   *
+   * Fallback se nao tiver coefs A/B/C: interpolacao linear entre copMax (em
+   * carga 20%) e copAt50 (em carga 100%) — menos preciso mas funcional.
    */
   computeMonthlyConsumption(
     monthly: MonthlyHeatLoss[],
-    qtotalAvgKw: number,
-    ratedInputPowerKW: number,
+    capacidadeTermicaKw: number,
     hoursPerDay: number,
-    taxaFuncionamento: number,
     tariff: TariffInput,
+    copCurve: { A?: number; B?: number; C?: number; copMax?: number; copAt50?: number },
   ): MonthlyConsumption[] {
     const monthNames = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
     const monthDays = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
     return monthly.map((m) => {
-      // Escala consumo pelo Qtotal do mes relativo a media
-      const monthScale = qtotalAvgKw > 0 ? m.qtotalKw / qtotalAvgKw : 1;
-      const kwhDia = ratedInputPowerKW * hoursPerDay * taxaFuncionamento * monthScale;
-      const kwhMes = kwhDia * monthDays[m.monthIndex];
-      const custoBRLCents = Math.round((kwhMes * tariff.kwhBRLCents));
+      // Carga = perda_termica / capacidade. Cap em 130% (TAB006 limit).
+      const cargaRaw = capacidadeTermicaKw > 0 ? m.qtotalKw / capacidadeTermicaKw : 0;
+      const carga = Math.max(0, Math.min(1.3, cargaRaw));
+
+      // COP do mes via polinomio quadratico ou fallback linear
+      const copMes = this.copFromCarga(carga, copCurve);
+
+      // Consumo eletrico medio (kW) = perda termica / COP
+      const consumoKwMedio = copMes > 0 ? m.qtotalKw / copMes : m.qtotalKw;
+
+      // kWh do mes = kW × horas × dias
+      const kwhMes = consumoKwMedio * hoursPerDay * monthDays[m.monthIndex];
+      const custoBRLCents = Math.round(kwhMes * tariff.kwhBRLCents);
+
       return {
         monthIndex: m.monthIndex,
         monthName: monthNames[m.monthIndex],
@@ -454,6 +479,27 @@ export class HeatingService {
         custoBRLCents,
       };
     });
+  }
+
+  /**
+   * COP em funcao da carga (0..1.3). Usa polinomio quadratico quando coefs
+   * A/B/C presentes (TAB006). Senao, interpolacao linear entre copMax (carga 20%)
+   * e copAt50 (carga 100%).
+   *
+   * Em carga < 20% (compressor partindo, sem demanda): retorna copMax direto.
+   */
+  private copFromCarga(carga: number, curve: { A?: number; B?: number; C?: number; copMax?: number; copAt50?: number }): number {
+    const copMax = curve.copMax ?? 20;
+    if (carga < 0.20) return copMax;
+    if (curve.A != null && curve.B != null && curve.C != null) {
+      // Polinomio quadratico calibrado por modelo (TAB006)
+      const cop = curve.A * carga * carga + curve.B * carga + curve.C;
+      return Math.max(2, cop); // garante COP minimo razoavel
+    }
+    // Fallback linear: lerp(copMax @20%, copAt50 @100%)
+    const copAt50 = curve.copAt50 ?? 7;
+    const ratio = (carga - 0.20) / (1.0 - 0.20);
+    return copMax + (copAt50 - copMax) * Math.min(1, ratio);
   }
 
   // ----- 6. Comparativo de custos por fonte -----
@@ -560,19 +606,28 @@ export class HeatingService {
         // copAt50Capacity (legado) tipicamente ja eh o valor de ar 15°C.
         report.copEstimated = sel.copAt50Air15 ?? sel.copAt50Capacity ?? sel.copNominal ?? 0;
 
-        // 5. Consumo + custo
+        // 5. Consumo + custo (modelo TAB006: carga mensal × COP polinomial)
         if (options.tariff) {
           const hoursPerDay = inputs.horasFuncionamentoDia ?? HEATING_OPERATION_DEFAULTS.hoursPerDay;
-          const taxa = inputs.taxaFuncionamento ?? HEATING_OPERATION_DEFAULTS.taxaFuncionamento;
-          const ratedKw = sel.ratedInputPowerKW ?? (sel.consumoMedioW ? sel.consumoMedioW / 1000 : 0);
-          if (ratedKw > 0) {
-            const consumption = this.computeMonthlyConsumption(monthly, qtotalAvgKw, ratedKw, hoursPerDay, taxa, options.tariff);
+          const capacidadeKw = sel.kwNominal ?? (sel.kcalHNominal ? sel.kcalHNominal / CONVERSIONS.KWH_TO_KCAL : 0);
+          if (capacidadeKw > 0) {
+            const copCurve = {
+              A: sel.copCurveA,
+              B: sel.copCurveB,
+              C: sel.copCurveC,
+              copMax: sel.copMax,
+              copAt50: sel.copAt50Air15 ?? sel.copAt50Capacity ?? sel.copNominal,
+            };
+            const consumption = this.computeMonthlyConsumption(monthly, capacidadeKw, hoursPerDay, options.tariff, copCurve);
             report.monthlyConsumption = consumption;
             report.annualKwh = round1(consumption.reduce((s, c) => s + c.kwhConsumido, 0));
             report.annualCostBRLCents = consumption.reduce((s, c) => s + c.custoBRLCents, 0);
 
             // Custo de aquecimento inicial (1 vez, energia pra subir tempIni → tempDesejada)
-            const initialKwh = ratedKw * (report.timeToHeatHours ?? 0);
+            // Carga estimada durante o aquecimento = ~100% (turbo full pra subir rapido).
+            const copInicial = this.copFromCarga(1.0, copCurve);
+            const ratedKwInicial = capacidadeKw / Math.max(1, copInicial);
+            const initialKwh = ratedKwInicial * (report.timeToHeatHours ?? 0);
             report.initialHeatingCostBRLCents = Math.round(initialKwh * options.tariff.kwhBRLCents);
 
             // 6. Comparativo

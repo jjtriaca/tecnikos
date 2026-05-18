@@ -30,6 +30,9 @@ SET "technicalSpecs" = COALESCE("technicalSpecs", '{}'::jsonb) || jsonb_build_ob
   'copMax', 22.8,
   'copAt50Air26', 14.6,
   'copAt50Air15', 7.2,
+  'copCurveA', 16.553,
+  'copCurveB', -38.9205,
+  'copCurveC', 29.922,
   'tipoEquipamento', 'BOMBA_CALOR'
 ),
 "poolType" = COALESCE("poolType", 'Bomba de Calor'),
@@ -47,6 +50,9 @@ SET "technicalSpecs" = COALESCE("technicalSpecs", '{}'::jsonb) || jsonb_build_ob
   'copMax', 22.5,
   'copAt50Air26', 14.5,
   'copAt50Air15', 7.3,
+  'copCurveA', 15.947,
+  'copCurveB', -37.8295,
+  'copCurveC', 29.428,
   'tipoEquipamento', 'BOMBA_CALOR'
 ),
 "poolType" = COALESCE("poolType", 'Bomba de Calor'),
@@ -64,6 +70,9 @@ SET "technicalSpecs" = COALESCE("technicalSpecs", '{}'::jsonb) || jsonb_build_ob
   'copMax', 16.4,
   'copAt50Air26', 13.5,
   'copAt50Air15', 7.0,
+  'copCurveA', 0.8333,
+  'copCurveB', -10.25,
+  'copCurveC', 18.4167,
   'tipoEquipamento', 'BOMBA_CALOR'
 ),
 "poolType" = COALESCE("poolType", 'Bomba de Calor'),
@@ -81,6 +90,9 @@ SET "technicalSpecs" = COALESCE("technicalSpecs", '{}'::jsonb) || jsonb_build_ob
   'copMax', 22.2,
   'copAt50Air26', 14.1,
   'copAt50Air15', 7.3,
+  'copCurveA', 15.7955,
+  'copCurveB', -38.0568,
+  'copCurveC', 29.1795,
   'tipoEquipamento', 'BOMBA_CALOR'
 ),
 "poolType" = COALESCE("poolType", 'Bomba de Calor'),
@@ -98,6 +110,9 @@ SET "technicalSpecs" = COALESCE("technicalSpecs", '{}'::jsonb) || jsonb_build_ob
   'copMax', 23.0,
   'copAt50Air26', 15.0,
   'copAt50Air15', 7.5,
+  'copCurveA', 15.4924,
+  'copCurveB', -37.5114,
+  'copCurveC', 29.8826,
   'tipoEquipamento', 'BOMBA_CALOR'
 ),
 "poolType" = COALESCE("poolType", 'Bomba de Calor'),

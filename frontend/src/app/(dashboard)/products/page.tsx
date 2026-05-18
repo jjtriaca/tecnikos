@@ -327,6 +327,10 @@ interface ProductForm {
   specCopMax: string;          // COP maximo em condicao ideal (marketing — ar 26°C, carga baixa)
   specCopAt50Air26: string;    // COP em 50% carga, ar 26°C (verao tipico)
   specCopAt50Air15: string;    // COP em 50% carga, ar 15°C (inverno BR — usado no calculo)
+  // Coeficientes do polinomio COP(carga) = A·x² + B·x + C (TAB006 Tholz)
+  specCopCurveA: string;
+  specCopCurveB: string;
+  specCopCurveC: string;
   // =================================================================
   specPotenciaCv: string;     // CV (motores)
   specVoltagem: string;       // V (eletricos)
@@ -375,6 +379,9 @@ const EMPTY_FORM: ProductForm = {
   specCopMax: "",
   specCopAt50Air26: "",
   specCopAt50Air15: "",
+  specCopCurveA: "",
+  specCopCurveB: "",
+  specCopCurveC: "",
   specPotenciaCv: "",
   specVoltagem: "",
   specAmperagem: "",
@@ -423,6 +430,9 @@ function productToForm(p: Product): ProductForm {
     specCopMax: numericSpecToStr(p.technicalSpecs?.copMax),
     specCopAt50Air26: numericSpecToStr(p.technicalSpecs?.copAt50Air26),
     specCopAt50Air15: numericSpecToStr(p.technicalSpecs?.copAt50Air15),
+    specCopCurveA: numericSpecToStr(p.technicalSpecs?.copCurveA),
+    specCopCurveB: numericSpecToStr(p.technicalSpecs?.copCurveB),
+    specCopCurveC: numericSpecToStr(p.technicalSpecs?.copCurveC),
     specPotenciaCv: numericSpecToStr(p.technicalSpecs?.potenciaCv),
     specVoltagem: numericSpecToStr(p.technicalSpecs?.voltagem),
     specAmperagem: numericSpecToStr(p.technicalSpecs?.amperagem),
@@ -460,6 +470,9 @@ function buildTechnicalSpecs(f: ProductForm, existing?: Record<string, any>): Re
   setOrUnset("copMax", f.specCopMax);
   setOrUnset("copAt50Air26", f.specCopAt50Air26);
   setOrUnset("copAt50Air15", f.specCopAt50Air15);
+  setOrUnset("copCurveA", f.specCopCurveA);
+  setOrUnset("copCurveB", f.specCopCurveB);
+  setOrUnset("copCurveC", f.specCopCurveC);
   // tipoEquipamento eh string (select), tratado abaixo
   if (f.specTipoEquipamento.trim() === "") delete merged.tipoEquipamento;
   else merged.tipoEquipamento = f.specTipoEquipamento.trim();
@@ -1830,12 +1843,39 @@ export default function ProductsPage() {
                         <input type="number" step="0.1" value={form.specCopAt50Air26} onChange={(e) => setField("specCopAt50Air26", e.target.value)} placeholder="Ex: 15.0" className={inputClass} />
                       </div>
                       <div>
-                        <FieldLabel tone="cyan" help="COP em 50% capacidade com ar a 15°C — operacao de inverno BR. USADO PRA CALCULO conservador de consumo no Simulador. Pra Tholz X23-40C = 7.5.">
+                        <FieldLabel tone="cyan" help="COP em 50% capacidade com ar a 15°C — operacao de inverno BR. USADO PRA CALCULO conservador de consumo no Simulador (fallback). Pra Tholz X23-40C = 7.5.">
                           COP 50% inverno (ar 15°C) ✓
                         </FieldLabel>
                         <input type="number" step="0.1" value={form.specCopAt50Air15} onChange={(e) => setField("specCopAt50Air15", e.target.value)} placeholder="Ex: 7.5" className={inputClass} />
                       </div>
                     </div>
+
+                    {/* Curva COP vs Carga (polinomio quadratico) — precisa pra calculo TAB006-style */}
+                    <h5 className="text-[11px] font-bold text-slate-500 uppercase mb-2 mt-4">Curva COP × Carga — Polinomio quadratico</h5>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <FieldLabel help="Coeficiente A do polinomio COP(carga) = A·carga² + B·carga + C. Onde 'carga' eh a fracao de uso (0..1.3) e COP eh o resultado. Permite calculo TAB006-style: meses com carga alta tem COP baixo. Pra Tholz X23-40C: A=15.49.">
+                          A (coef carga²)
+                        </FieldLabel>
+                        <input type="number" step="0.001" value={form.specCopCurveA} onChange={(e) => setField("specCopCurveA", e.target.value)} placeholder="Ex: 15.49" className={inputClass} />
+                      </div>
+                      <div>
+                        <FieldLabel help="Coeficiente B do polinomio COP(carga) = A·carga² + B·carga + C. Tipicamente NEGATIVO (COP cai com aumento de carga). Pra Tholz X23-40C: B=-37.51.">
+                          B (coef carga)
+                        </FieldLabel>
+                        <input type="number" step="0.001" value={form.specCopCurveB} onChange={(e) => setField("specCopCurveB", e.target.value)} placeholder="Ex: -37.51" className={inputClass} />
+                      </div>
+                      <div>
+                        <FieldLabel help="Coeficiente C do polinomio COP(carga) = A·carga² + B·carga + C. Intercepto. Pra Tholz X23-40C: C=29.88.">
+                          C (intercepto)
+                        </FieldLabel>
+                        <input type="number" step="0.001" value={form.specCopCurveC} onChange={(e) => setField("specCopCurveC", e.target.value)} placeholder="Ex: 29.88" className={inputClass} />
+                      </div>
+                    </div>
+                    <p className="mt-2 text-[11px] text-slate-500">
+                      <strong>Opcional</strong> — se preenchidos, o Simulador calcula consumo mensal por curva (TAB006-style). Senao, usa interpolacao linear entre COP maximo e COP 50% inverno (menos preciso). Valores TAB006:
+                      X23-09C: A=16.55 B=-38.92 C=29.92 · X23-14C: A=15.95 B=-37.83 C=29.43 · X23-18C: A=0.83 B=-10.25 C=18.42 · X23-26C: A=15.80 B=-38.06 C=29.18 · X23-40C: A=15.49 B=-37.51 C=29.88
+                    </p>
                   </div>
 
                   <div className="rounded-xl border border-slate-200 bg-white p-5">
