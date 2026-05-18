@@ -331,6 +331,12 @@ interface ProductForm {
   specCopCurveA: string;
   specCopCurveB: string;
   specCopCurveC: string;
+  // Specs especificas por tipo de equipamento (F6.2 — agregadas pelo Simulador)
+  specQtdJatos: string;            // Hidromassagem/SPA — qtde de jatos do kit
+  specCascataComprimentoCm: string; // Cascata — comprimento do bocal em cm
+  specBordaAlturaQuedaM: string;    // Borda Infinita — altura da queda d'agua
+  specBordaVazaoLminPorM: string;   // Borda Infinita — vazao de transbordamento
+  specBordaHorasAtivaDia: string;   // Borda Infinita — horas/dia que a bomba fica ativa
   // =================================================================
   specPotenciaCv: string;     // CV (motores)
   specVoltagem: string;       // V (eletricos)
@@ -382,6 +388,11 @@ const EMPTY_FORM: ProductForm = {
   specCopCurveA: "",
   specCopCurveB: "",
   specCopCurveC: "",
+  specQtdJatos: "",
+  specCascataComprimentoCm: "",
+  specBordaAlturaQuedaM: "",
+  specBordaVazaoLminPorM: "",
+  specBordaHorasAtivaDia: "",
   specPotenciaCv: "",
   specVoltagem: "",
   specAmperagem: "",
@@ -433,6 +444,11 @@ function productToForm(p: Product): ProductForm {
     specCopCurveA: numericSpecToStr(p.technicalSpecs?.copCurveA),
     specCopCurveB: numericSpecToStr(p.technicalSpecs?.copCurveB),
     specCopCurveC: numericSpecToStr(p.technicalSpecs?.copCurveC),
+    specQtdJatos: numericSpecToStr(p.technicalSpecs?.qtdJatos),
+    specCascataComprimentoCm: numericSpecToStr(p.technicalSpecs?.cascataComprimentoCm),
+    specBordaAlturaQuedaM: numericSpecToStr(p.technicalSpecs?.bordaAlturaQuedaM),
+    specBordaVazaoLminPorM: numericSpecToStr(p.technicalSpecs?.bordaVazaoLminPorM),
+    specBordaHorasAtivaDia: numericSpecToStr(p.technicalSpecs?.bordaHorasAtivaDia),
     specPotenciaCv: numericSpecToStr(p.technicalSpecs?.potenciaCv),
     specVoltagem: numericSpecToStr(p.technicalSpecs?.voltagem),
     specAmperagem: numericSpecToStr(p.technicalSpecs?.amperagem),
@@ -473,6 +489,11 @@ function buildTechnicalSpecs(f: ProductForm, existing?: Record<string, any>): Re
   setOrUnset("copCurveA", f.specCopCurveA);
   setOrUnset("copCurveB", f.specCopCurveB);
   setOrUnset("copCurveC", f.specCopCurveC);
+  setOrUnset("qtdJatos", f.specQtdJatos);
+  setOrUnset("cascataComprimentoCm", f.specCascataComprimentoCm);
+  setOrUnset("bordaAlturaQuedaM", f.specBordaAlturaQuedaM);
+  setOrUnset("bordaVazaoLminPorM", f.specBordaVazaoLminPorM);
+  setOrUnset("bordaHorasAtivaDia", f.specBordaHorasAtivaDia);
   // tipoEquipamento eh string (select), tratado abaixo
   if (f.specTipoEquipamento.trim() === "") delete merged.tipoEquipamento;
   else merged.tipoEquipamento = f.specTipoEquipamento.trim();
@@ -1777,6 +1798,60 @@ export default function ProductsPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Specs especificas por tipo de equipamento — alimentam o Simulador automatico (F6.2) */}
+                  {/^cascata/i.test(form.poolType) && (
+                    <div className="rounded-xl border border-slate-200 bg-white p-5">
+                      <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">🌊 Cascata — Spec especifica</h4>
+                      <div className="max-w-sm">
+                        <FieldLabel tone="cyan" help="Comprimento do bocal de cascata em centimetros. O Simulador de Aquecimento agrega a soma de qty × comprimento das linhas de Cascata pra calcular a perda termica extra. Ex: Cascata Inox 100cm = 100.">
+                          Comprimento do bocal (cm) ✓
+                        </FieldLabel>
+                        <input type="number" step="1" value={form.specCascataComprimentoCm} onChange={(e) => setField("specCascataComprimentoCm", e.target.value)} placeholder="Ex: 100, 150, 200" className={inputClass} />
+                      </div>
+                    </div>
+                  )}
+
+                  {(/^kit spa/i.test(form.poolType) || /hidromassagem/i.test(form.poolType) || /\bjato/i.test(form.poolType)) && (
+                    <div className="rounded-xl border border-slate-200 bg-white p-5">
+                      <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">🛁 SPA / Hidromassagem — Spec especifica</h4>
+                      <div className="max-w-sm">
+                        <FieldLabel tone="cyan" help="Quantidade de jatos do kit. Simulador agrega qty × jatos das linhas pra calcular perda extra (cada jato adiciona ~150 Kcal/h). Ex: Kit SPA Master = 8 jatos.">
+                          Quantidade de jatos ✓
+                        </FieldLabel>
+                        <input type="number" step="1" min="0" value={form.specQtdJatos} onChange={(e) => setField("specQtdJatos", e.target.value)} placeholder="Ex: 4, 6, 8" className={inputClass} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/borda/i.test(form.poolType) && (
+                    <div className="rounded-xl border border-slate-200 bg-white p-5">
+                      <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">💧 Borda Infinita — Specs especificas</h4>
+                      <div className="text-[11px] text-slate-500 mb-3">
+                        Estes campos alimentam o Simulador automaticamente. O comprimento total vira da soma das qty das linhas de Borda Infinita das etapas. Altura/vazao/horas sao do primeiro produto encontrado.
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                          <FieldLabel tone="cyan" help="Altura da queda d'agua da borda ate o reservatorio. Maior altura = mais area de filme exposta ao ar = mais evaporacao. Canaleta nivelada: ~0.1m. Cascata baixa: 0.5m. Cascata alta: 1.5m.">
+                            Altura de queda (m) ✓
+                          </FieldLabel>
+                          <input type="number" step="0.05" min="0.05" max="3" value={form.specBordaAlturaQuedaM} onChange={(e) => setField("specBordaAlturaQuedaM", e.target.value)} placeholder="Ex: 0.5" className={inputClass} />
+                        </div>
+                        <div>
+                          <FieldLabel tone="cyan" help="Vazao da bomba de transbordamento por metro linear. Mais vazao = filme mais espesso/largo = mais evaporacao. Tipico: 20-40 L/min/m (bomba 0.5cv). Plateua acima de 60.">
+                            Vazao (L/min por metro) ✓
+                          </FieldLabel>
+                          <input type="number" step="5" min="5" max="120" value={form.specBordaVazaoLminPorM} onChange={(e) => setField("specBordaVazaoLminPorM", e.target.value)} placeholder="Ex: 30" className={inputClass} />
+                        </div>
+                        <div>
+                          <FieldLabel tone="cyan" help="Quantas horas por dia a bomba da borda fica ligada. 24h = sempre. Reduza se a bomba desliga (capa fechada/noite). Multiplica a perda diaria por (horas/24).">
+                            Horas/dia ativa ✓
+                          </FieldLabel>
+                          <input type="number" step="1" min="0" max="24" value={form.specBordaHorasAtivaDia} onChange={(e) => setField("specBordaHorasAtivaDia", e.target.value)} placeholder="Ex: 24" className={inputClass} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="rounded-xl border border-slate-200 bg-white p-5">
                     <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">🔥 Aquecimento — Bombas de Calor, Solar, Trocadores</h4>

@@ -22,6 +22,16 @@ const DEFAULT_TARIFF: TariffInput = {
   gnM3BRLCents: 850, // R$ 8.50/m³
 };
 
+/** Extras agregados das linhas das etapas (F6.2). undefined = nao tem linha relevante. */
+interface AggregatedExtras {
+  cascataLarguraCm?: number;
+  hidromassagensQtd?: number;
+  bordaInfinitaM?: number;
+  bordaInfinitaAlturaM?: number;
+  bordaInfinitaVazaoLminPorM?: number;
+  bordaInfinitaHorasAtivaDia?: number;
+}
+
 @Injectable()
 export class HeatingBudgetService {
   private readonly logger = new Logger(HeatingBudgetService.name);
@@ -79,10 +89,23 @@ export class HeatingBudgetService {
   async computeAndSaveReport(budgetId: string, companyId: string): Promise<HeatingReport> {
     const budget = await this.prisma.poolBudget.findFirst({
       where: { id: budgetId, companyId, deletedAt: null },
+      include: {
+        items: {
+          include: {
+            product: { select: { id: true, poolType: true, technicalSpecs: true } },
+          },
+        },
+      },
     });
     if (!budget) throw new NotFoundException('Orcamento nao encontrado');
 
-    const inputs = this.extractInputs(budget);
+    // Agrega extras dos produtos vinculados nas linhas das etapas (F6.2):
+    // - Hidromassagens (sum qty × qtdJatos)
+    // - Cascata (sum qty × cascataComprimentoCm)
+    // - Borda infinita (sum qty + specs do primeiro produto)
+    const aggregated = this.aggregateExtrasFromItems(budget.items as any);
+
+    const inputs = this.extractInputs(budget, aggregated);
     const tariff = await this.getEnergyTariff(companyId);
     const candidates = await this.fetchBombaCalorCandidates(companyId);
 
@@ -153,9 +176,14 @@ export class HeatingBudgetService {
 
   /**
    * Extrai inputs do simulador do PoolBudget. Le poolDimensions + environmentParams.
-   * Aplica defaults pra campos faltantes.
+   * Quando `aggregated` eh passado (das linhas das etapas), seus valores SOBRESCREVEM
+   * os do environmentParams — operador nao precisa redigitar manualmente o que ja
+   * esta no catalogo via produtos vinculados nas etapas.
    */
-  private extractInputs(budget: { poolDimensions: any; environmentParams: any }): HeatingInputs {
+  private extractInputs(
+    budget: { poolDimensions: any; environmentParams: any },
+    aggregated?: AggregatedExtras,
+  ): HeatingInputs {
     const dims = (budget.poolDimensions ?? {}) as Record<string, any>;
     const env = (budget.environmentParams ?? {}) as Record<string, any>;
 
@@ -168,6 +196,15 @@ export class HeatingBudgetService {
 
     const uf = this.parseUF(env.uf);
     const cidade = typeof env.cidade === 'string' ? env.cidade : undefined;
+
+    // Extras: prioridade linhas (aggregated) > env (manual) > 0
+    const hidromassagensQtd = aggregated?.hidromassagensQtd ?? (Number(env.hidromassagensQtd) || 0);
+    const cascataLarguraCm = aggregated?.cascataLarguraCm ?? (Number(env.cascataLarguraCm) || 0);
+    const bordaInfinitaM = aggregated?.bordaInfinitaM ?? (Number(env.bordaInfinitaM) || 0);
+    // Borda specs (altura/vazao/horas): linhas > env > defaults do constants
+    const bordaInfinitaAlturaM = aggregated?.bordaInfinitaAlturaM ?? (Number(env.bordaInfinitaAlturaM) || undefined);
+    const bordaInfinitaVazaoLminPorM = aggregated?.bordaInfinitaVazaoLminPorM ?? (Number(env.bordaInfinitaVazaoLminPorM) || undefined);
+    const bordaInfinitaHorasAtivaDia = aggregated?.bordaInfinitaHorasAtivaDia ?? (Number(env.bordaInfinitaHorasAtivaDia) || undefined);
 
     return {
       areaM2,
@@ -182,15 +219,86 @@ export class HeatingBudgetService {
       capaTermica: this.parseBoolean(env.capaTermica),
       utilizacaoAno: this.parseUtilizacaoAno(env.utilizacaoAno),
       utilizacaoSemana: this.parseUtilizacaoSemana(env.utilizacaoSemana),
-      hidromassagensQtd: Number(env.hidromassagensQtd) || 0,
-      cascataLarguraCm: Number(env.cascataLarguraCm) || 0,
-      bordaInfinitaM: Number(env.bordaInfinitaM) || 0,
-      bordaInfinitaAlturaM: Number(env.bordaInfinitaAlturaM) || undefined,
-      bordaInfinitaVazaoLminPorM: Number(env.bordaInfinitaVazaoLminPorM) || undefined,
-      bordaInfinitaHorasAtivaDia: Number(env.bordaInfinitaHorasAtivaDia) || undefined,
+      hidromassagensQtd,
+      cascataLarguraCm,
+      bordaInfinitaM,
+      bordaInfinitaAlturaM,
+      bordaInfinitaVazaoLminPorM,
+      bordaInfinitaHorasAtivaDia,
       horasFuncionamentoDia: Number(env.horasFuncionamentoDia) || HEATING_OPERATION_DEFAULTS.hoursPerDay,
       taxaFuncionamento: Number(env.taxaFuncionamento) || HEATING_OPERATION_DEFAULTS.taxaFuncionamento,
     };
+  }
+
+  /**
+   * Agrega extras dos produtos vinculados nas linhas das etapas (F6.2).
+   * - Cascata: sum(qty × produto.cascataComprimentoCm) — qty em UN, comprimento total em cm
+   * - Hidromassagem/SPA: sum(qty × produto.qtdJatos) — qtde total de jatos
+   * - Borda Infinita: sum(qty) = comprimento total em metros; specs (altura/vazao/horas)
+   *   vem do PRIMEIRO produto encontrado (todas as bordas tendem a ter mesmas specs).
+   *
+   * Retorna undefined em campo se nao tiver nenhuma linha relevante (deixa env decidir).
+   * O matching de poolType eh case-insensitive + substring (cobre "Bomba de Calor",
+   * "Kit SPA", "Cascata Inox", etc).
+   */
+  private aggregateExtrasFromItems(items: Array<{ qty: number; product?: { poolType: string | null; technicalSpecs: any } | null }>): AggregatedExtras {
+    const out: AggregatedExtras = {};
+
+    let cascataTotal = 0; let cascataCount = 0;
+    let hidroTotal = 0; let hidroCount = 0;
+    let bordaTotal = 0; let bordaCount = 0;
+    let bordaFirstAltura: number | undefined;
+    let bordaFirstVazao: number | undefined;
+    let bordaFirstHoras: number | undefined;
+
+    for (const it of items || []) {
+      const product = it.product;
+      if (!product) continue;
+      const pt = (product.poolType || '').toLowerCase();
+      const specs = (product.technicalSpecs ?? {}) as Record<string, any>;
+      const qty = Number(it.qty) || 0;
+      if (qty <= 0) continue;
+
+      // Cascata
+      if (pt.includes('cascata')) {
+        const cm = Number(specs.cascataComprimentoCm) || 0;
+        if (cm > 0) {
+          cascataTotal += qty * cm;
+          cascataCount++;
+        }
+      }
+      // Hidromassagem / SPA
+      else if (pt.includes('hidromassagem') || pt.includes('spa') || pt.includes('jato')) {
+        const jatos = Number(specs.qtdJatos) || 0;
+        if (jatos > 0) {
+          hidroTotal += qty * jatos;
+          hidroCount++;
+        }
+      }
+      // Borda Infinita
+      else if (pt.includes('borda')) {
+        // qty da linha = comprimento em metros
+        bordaTotal += qty;
+        bordaCount++;
+        // Primeiro produto define specs (altura/vazao/horas)
+        if (bordaCount === 1) {
+          if (typeof specs.bordaAlturaQuedaM === 'number') bordaFirstAltura = specs.bordaAlturaQuedaM;
+          if (typeof specs.bordaVazaoLminPorM === 'number') bordaFirstVazao = specs.bordaVazaoLminPorM;
+          if (typeof specs.bordaHorasAtivaDia === 'number') bordaFirstHoras = specs.bordaHorasAtivaDia;
+        }
+      }
+    }
+
+    if (cascataCount > 0) out.cascataLarguraCm = cascataTotal;
+    if (hidroCount > 0) out.hidromassagensQtd = hidroTotal;
+    if (bordaCount > 0) {
+      out.bordaInfinitaM = bordaTotal;
+      if (bordaFirstAltura != null) out.bordaInfinitaAlturaM = bordaFirstAltura;
+      if (bordaFirstVazao != null) out.bordaInfinitaVazaoLminPorM = bordaFirstVazao;
+      if (bordaFirstHoras != null) out.bordaInfinitaHorasAtivaDia = bordaFirstHoras;
+    }
+
+    return out;
   }
 
   /** Busca produtos com poolType=Bomba de Calor + technicalSpecs.kcalHNominal preenchido. */
