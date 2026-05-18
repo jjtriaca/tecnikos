@@ -59,10 +59,11 @@ export interface HeatingInputs {
   hidromassagensQtd?: number;
   cascataLarguraCm?: number;
   bordaInfinitaM?: number;
-  // Borda infinita: altura de queda da agua e vazao de transbordamento.
-  // Sem isso, usa defaults razoaveis (0.5m altura, 30 L/min/m vazao).
+  // Borda infinita: altura de queda da agua, vazao e horas/dia que a bomba fica ativa.
+  // Defaults: 0.5m altura, 30 L/min/m vazao, 24h ativa.
   bordaInfinitaAlturaM?: number;
   bordaInfinitaVazaoLminPorM?: number;
+  bordaInfinitaHorasAtivaDia?: number;
 
   // Operacao
   horasFuncionamentoDia?: number; // default 15
@@ -96,7 +97,11 @@ export interface EquipmentSpecs {
   consumoMaxW?: number; // W medio em maxima carga
   consumoMedioW?: number; // W medio em uso normal
   ratedInputPowerKW?: number; // kW medio (TAB006 Specification line 29)
-  // COP (Coefficient of Performance)
+  // COP (Coefficient of Performance) — varia com condicao
+  copMax?: number; // COP maximo em condicao ideal (ar 26°C, carga baixa) — valor "de marketing"
+  copAt50Air26?: number; // COP em 50% capacidade, ar 26°C (verao tipico)
+  copAt50Air15?: number; // COP em 50% capacidade, ar 15°C (inverno brasileiro — uso real)
+  // Legados (compat)
   copNominal?: number;
   copAt50Capacity?: number;
 }
@@ -249,12 +254,17 @@ export class HeatingService {
     const bordaM = Number(inputs.bordaInfinitaM) || 0;
     const alturaQuedaM = Number(inputs.bordaInfinitaAlturaM) || BORDA_INFINITA.DEFAULT_ALTURA_M;
     const vazaoLminPorM = Number(inputs.bordaInfinitaVazaoLminPorM) || BORDA_INFINITA.DEFAULT_VAZAO_LMIN_M;
+    const horasAtivaDia = Number(inputs.bordaInfinitaHorasAtivaDia) || BORDA_INFINITA.DEFAULT_HORAS_ATIVA_DIA;
     // Area do filme de queda d'agua (m²). Multiplicador captura texturizacao/turbulencia.
     const areaFilmeM2 = bordaM * alturaQuedaM * BORDA_INFINITA.FILME_FACTOR;
     // Fator vazao: vazao baixa = filme fino, vazao alta plateua.
     const vazaoFactor = bordaM > 0
       ? Math.max(BORDA_INFINITA.VAZAO_FACTOR_MIN, Math.min(BORDA_INFINITA.VAZAO_FACTOR_MAX, vazaoLminPorM / BORDA_INFINITA.VAZAO_REFERENCIA_LMIN_M))
       : 0;
+    // Fator tempo: se a bomba da borda fica ligada so X horas/dia, a perda diaria
+    // (e portanto a media horaria que vai no calculo de Qtotal contínuo) cai
+    // proporcionalmente. 24h = sempre ligada, sem reducao.
+    const tempoBordaFactor = Math.max(0, Math.min(1, horasAtivaDia / 24));
 
     const result: MonthlyHeatLoss[] = [];
     for (let m = 0; m < 12; m++) {
@@ -279,7 +289,7 @@ export class HeatingService {
         3600;
 
       // Borda infinita: mesma fisica mas sem capa (filme exposto) + multiplicador
-      // de vazao. Vento se aplica igual (sem cobertura).
+      // de vazao + fator de horas ativas/dia (bomba ligada 24h vs partido).
       const qsBordaKw = areaFilmeM2 > 0
         ? (BETA_INV *
             WATER_PROPS.densityKgPerL *
@@ -287,7 +297,8 @@ export class HeatingService {
             ventoFactor *
             deltaP *
             areaFilmeM2 *
-            vazaoFactor /
+            vazaoFactor *
+            tempoBordaFactor /
             3600)
         : 0;
 
@@ -332,6 +343,9 @@ export class HeatingService {
       consumoMaxW?: number;
       consumoMedioW?: number;
       ratedInputPowerKW?: number;
+      copMax?: number;
+      copAt50Air26?: number;
+      copAt50Air15?: number;
       copNominal?: number;
       copAt50Capacity?: number;
     }>,
@@ -542,7 +556,9 @@ export class HeatingService {
         report.timeToHeatHours = time.hours;
         report.degreesPerHour = time.degreesPerHour;
         report.timeToHeatInfeasible = time.isInfeasible;
-        report.copEstimated = sel.copAt50Capacity ?? sel.copNominal ?? 0;
+        // COP usado nos calculos de consumo: prioriza ar 15°C (inverno BR, conservador).
+        // copAt50Capacity (legado) tipicamente ja eh o valor de ar 15°C.
+        report.copEstimated = sel.copAt50Air15 ?? sel.copAt50Capacity ?? sel.copNominal ?? 0;
 
         // 5. Consumo + custo
         if (options.tariff) {

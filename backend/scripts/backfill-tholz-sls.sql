@@ -13,6 +13,13 @@
 
 SET search_path TO tenant_sls;
 
+-- ==== COPs (TAB006 Specification rows 9, 10, 16, 17) ====
+-- Cada modelo tem 3 COPs relevantes:
+--   copMax       = COP maximo em condicao ideal (ar 26°C, carga baixa) — "marketing"
+--   copAt50Air26 = COP em 50% capacidade, ar 26°C (verao tipico)
+--   copAt50Air15 = COP em 50% capacidade, ar 15°C (inverno BR — USADO NO CALCULO)
+-- O calculo de consumo usa copAt50Air15 (conservador, garante que estimativa nao subestime).
+
 -- ==== Tholz X23-09C: 9.5 kW = 8168 Kcal/h = 30000 BTU/h ====
 UPDATE "Product"
 SET "technicalSpecs" = COALESCE("technicalSpecs", '{}'::jsonb) || jsonb_build_object(
@@ -20,7 +27,9 @@ SET "technicalSpecs" = COALESCE("technicalSpecs", '{}'::jsonb) || jsonb_build_ob
   'btuH', 30000,
   'kwNominal', 9.5,
   'ratedInputPowerKW', 0.97,
-  'copAt50Capacity', 7.2,
+  'copMax', 22.8,
+  'copAt50Air26', 14.6,
+  'copAt50Air15', 7.2,
   'tipoEquipamento', 'BOMBA_CALOR'
 ),
 "poolType" = COALESCE("poolType", 'Bomba de Calor'),
@@ -35,7 +44,9 @@ SET "technicalSpecs" = COALESCE("technicalSpecs", '{}'::jsonb) || jsonb_build_ob
   'btuH', 50000,
   'kwNominal', 13.48,
   'ratedInputPowerKW', 0.955,
-  'copAt50Capacity', 7.3,
+  'copMax', 22.5,
+  'copAt50Air26', 14.5,
+  'copAt50Air15', 7.3,
   'tipoEquipamento', 'BOMBA_CALOR'
 ),
 "poolType" = COALESCE("poolType", 'Bomba de Calor'),
@@ -50,7 +61,9 @@ SET "technicalSpecs" = COALESCE("technicalSpecs", '{}'::jsonb) || jsonb_build_ob
   'btuH', 65000,
   'kwNominal', 18.49,
   'ratedInputPowerKW', 1.465,
-  'copAt50Capacity', 7.0,
+  'copMax', 16.4,
+  'copAt50Air26', 13.5,
+  'copAt50Air15', 7.0,
   'tipoEquipamento', 'BOMBA_CALOR'
 ),
 "poolType" = COALESCE("poolType", 'Bomba de Calor'),
@@ -65,7 +78,9 @@ SET "technicalSpecs" = COALESCE("technicalSpecs", '{}'::jsonb) || jsonb_build_ob
   'btuH', 90000,
   'kwNominal', 25.5,
   'ratedInputPowerKW', 2.04,
-  'copAt50Capacity', 7.3,
+  'copMax', 22.2,
+  'copAt50Air26', 14.1,
+  'copAt50Air15', 7.3,
   'tipoEquipamento', 'BOMBA_CALOR'
 ),
 "poolType" = COALESCE("poolType", 'Bomba de Calor'),
@@ -80,7 +95,9 @@ SET "technicalSpecs" = COALESCE("technicalSpecs", '{}'::jsonb) || jsonb_build_ob
   'btuH', 140000,
   'kwNominal', 40,
   'ratedInputPowerKW', 3.145,
-  'copAt50Capacity', 7.5,
+  'copMax', 23.0,
+  'copAt50Air26', 15.0,
+  'copAt50Air15', 7.5,
   'tipoEquipamento', 'BOMBA_CALOR'
 ),
 "poolType" = COALESCE("poolType", 'Bomba de Calor'),

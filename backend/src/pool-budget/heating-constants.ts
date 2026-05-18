@@ -472,6 +472,9 @@ export const BORDA_INFINITA = {
   // Defaults pra quando user nao preenche altura/vazao
   DEFAULT_ALTURA_M: 0.5,
   DEFAULT_VAZAO_LMIN_M: 30,
+  // Horas/dia que a bomba da borda fica ligada. 24h = sempre ativa.
+  // Se ligada so quando piscina em uso (~8-12h), perda diaria cai proporcionalmente.
+  DEFAULT_HORAS_ATIVA_DIA: 24,
 };
 
 // ============ FATORES DE CONVERSAO ============

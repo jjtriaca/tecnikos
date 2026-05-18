@@ -36,6 +36,9 @@ interface SelectedEquipment {
   consumoMaxW?: number;
   consumoMedioW?: number;
   ratedInputPowerKW?: number;
+  copMax?: number;
+  copAt50Air26?: number;
+  copAt50Air15?: number;
   copNominal?: number;
   copAt50Capacity?: number;
   loadRatio: number;
@@ -155,6 +158,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
   const [bordaInfinitaM, setBordaInfinitaM] = useState<number>(0);
   const [bordaInfinitaAlturaM, setBordaInfinitaAlturaM] = useState<number>(0.5);
   const [bordaInfinitaVazaoLminPorM, setBordaInfinitaVazaoLminPorM] = useState<number>(30);
+  const [bordaInfinitaHorasAtivaDia, setBordaInfinitaHorasAtivaDia] = useState<number>(24);
   const [horasFuncionamentoDia, setHorasFuncionamentoDia] = useState<number>(15);
   const [taxaFuncionamento, setTaxaFuncionamento] = useState<number>(0.5);
   const [observacoes, setObservacoes] = useState<string>("");
@@ -186,6 +190,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
     setBordaInfinitaM(Number(env.bordaInfinitaM) || 0);
     setBordaInfinitaAlturaM(Number(env.bordaInfinitaAlturaM) || 0.5);
     setBordaInfinitaVazaoLminPorM(Number(env.bordaInfinitaVazaoLminPorM) || 30);
+    setBordaInfinitaHorasAtivaDia(Number(env.bordaInfinitaHorasAtivaDia) || 24);
     setHorasFuncionamentoDia(Number(env.horasFuncionamentoDia) || 15);
     setTaxaFuncionamento(Number(env.taxaFuncionamento) || 0.5);
     setObservacoes(typeof env.heatingObservacoes === "string" ? env.heatingObservacoes : "");
@@ -227,6 +232,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
         bordaInfinitaM: Number(bordaInfinitaM),
         bordaInfinitaAlturaM: Number(bordaInfinitaAlturaM),
         bordaInfinitaVazaoLminPorM: Number(bordaInfinitaVazaoLminPorM),
+        bordaInfinitaHorasAtivaDia: Number(bordaInfinitaHorasAtivaDia),
         horasFuncionamentoDia: Number(horasFuncionamentoDia),
         taxaFuncionamento: Number(taxaFuncionamento),
         heatingObservacoes: observacoes,
@@ -385,25 +391,29 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                   </Field>
                 </div>
 
-                {/* Borda infinita: 3 sub-campos com modelo fisico (area de filme + vazao + vento) */}
+                {/* Borda infinita: 4 sub-campos com modelo fisico */}
                 <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
                   <div className="text-xs font-semibold text-slate-700 mb-2">💧 Borda infinita</div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <Field label="Comprimento (m)" hint="Total do trecho transbordante">
                       <NumInput value={bordaInfinitaM} onChange={setBordaInfinitaM} step={0.5} min={0} />
                     </Field>
-                    <Field label="Altura de queda (m)" hint="Da borda ate o reservatorio inferior">
+                    <Field label="Altura de queda (m)" hint="Da borda ate reservatorio">
                       <NumInput value={bordaInfinitaAlturaM} onChange={setBordaInfinitaAlturaM} step={0.1} min={0.1} max={3} />
                     </Field>
                     <Field label="Vazao (L/min por metro)" hint="Tipico: 20-40 (bomba 0.5cv)">
                       <NumInput value={bordaInfinitaVazaoLminPorM} onChange={setBordaInfinitaVazaoLminPorM} step={5} min={5} max={120} />
                     </Field>
+                    <Field label="Horas/dia ativa" hint="24=sempre. Reduza se bomba desliga (capa fechada/noite)">
+                      <NumInput value={bordaInfinitaHorasAtivaDia} onChange={setBordaInfinitaHorasAtivaDia} step={1} min={0} max={24} />
+                    </Field>
                   </div>
                   {bordaInfinitaM > 0 && (
                     <div className="mt-2 text-[11px] text-slate-500">
-                      Perda calculada com fisica termodinamica sobre area do filme de queda
-                      ({(bordaInfinitaM * bordaInfinitaAlturaM * 1.5).toFixed(1)} m²) +
-                      vento da piscina. Maior altura/vazao = maior perda.
+                      Area de filme: {(bordaInfinitaM * bordaInfinitaAlturaM * 1.5).toFixed(1)} m² ·
+                      Fator vazao: {Math.max(0.5, Math.min(2, bordaInfinitaVazaoLminPorM / 30)).toFixed(2)} ·
+                      Fator tempo: {(bordaInfinitaHorasAtivaDia / 24).toFixed(2)} ({bordaInfinitaHorasAtivaDia}h/24h).
+                      Maior altura/vazao/tempo = maior perda. Vento global da piscina aplicado.
                     </div>
                   )}
                 </div>
@@ -490,10 +500,41 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                     <div className="flex-1">
                       <div className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Modelo recomendado</div>
                       <div className="mt-1 text-xl font-bold text-emerald-900">{report.selectedEquipment.modelName}</div>
-                      <div className="mt-2 grid grid-cols-3 gap-3 text-sm">
+                      <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
                         <SmallStat label="Capacidade" value={`${report.selectedEquipment.kcalHNominal?.toLocaleString("pt-BR")} Kcal/h`} />
-                        {report.selectedEquipment.kwNominal && <SmallStat label="Potencia" value={`${report.selectedEquipment.kwNominal} kW`} />}
-                        {report.selectedEquipment.copAt50Capacity && <SmallStat label="COP medio" value={String(report.selectedEquipment.copAt50Capacity)} />}
+                        {report.selectedEquipment.kwNominal && <SmallStat label="Potencia termica" value={`${report.selectedEquipment.kwNominal} kW`} />}
+                        {report.selectedEquipment.ratedInputPowerKW && <SmallStat label="Consumo medio" value={`${report.selectedEquipment.ratedInputPowerKW} kW`} />}
+                      </div>
+
+                      {/* COP em 3 condicoes */}
+                      <div className="mt-3 rounded-lg bg-white border border-emerald-200 p-2">
+                        <div className="text-[10px] uppercase tracking-wider font-semibold text-emerald-700 mb-1.5">Coeficiente de Performance (COP)</div>
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          {report.selectedEquipment.copMax !== undefined && report.selectedEquipment.copMax > 0 && (
+                            <div className="rounded bg-slate-50 px-2 py-1.5">
+                              <div className="text-[10px] text-slate-500">Maximo (marketing)</div>
+                              <div className="font-bold text-slate-700 tabular-nums">{report.selectedEquipment.copMax}</div>
+                              <div className="text-[9px] text-slate-400">ar 26°C, carga baixa</div>
+                            </div>
+                          )}
+                          {report.selectedEquipment.copAt50Air26 !== undefined && report.selectedEquipment.copAt50Air26 > 0 && (
+                            <div className="rounded bg-amber-50 px-2 py-1.5">
+                              <div className="text-[10px] text-amber-700">Verao (50% carga)</div>
+                              <div className="font-bold text-amber-900 tabular-nums">{report.selectedEquipment.copAt50Air26}</div>
+                              <div className="text-[9px] text-amber-700/70">ar 26°C real</div>
+                            </div>
+                          )}
+                          {report.selectedEquipment.copAt50Air15 !== undefined && report.selectedEquipment.copAt50Air15 > 0 && (
+                            <div className="rounded bg-cyan-50 px-2 py-1.5 ring-1 ring-cyan-200">
+                              <div className="text-[10px] text-cyan-700">Inverno (50% carga) ✓</div>
+                              <div className="font-bold text-cyan-900 tabular-nums">{report.selectedEquipment.copAt50Air15}</div>
+                              <div className="text-[9px] text-cyan-700/70">ar 15°C — usado no calculo</div>
+                            </div>
+                          )}
+                        </div>
+                        <div className="mt-1.5 text-[10px] text-slate-500">
+                          O COP de marketing eh teorico em condicao ideal. Pra calculo conservador de consumo no Brasil, usamos o COP em ar 15°C.
+                        </div>
                       </div>
                       <div className="mt-2 text-xs text-emerald-700">
                         Carga: <strong>{(report.selectedEquipment.loadRatio * 100).toFixed(0)}%</strong>

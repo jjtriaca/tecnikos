@@ -153,6 +153,7 @@ export class HeatingBudgetService {
       bordaInfinitaM: Number(env.bordaInfinitaM) || 0,
       bordaInfinitaAlturaM: Number(env.bordaInfinitaAlturaM) || undefined,
       bordaInfinitaVazaoLminPorM: Number(env.bordaInfinitaVazaoLminPorM) || undefined,
+      bordaInfinitaHorasAtivaDia: Number(env.bordaInfinitaHorasAtivaDia) || undefined,
       horasFuncionamentoDia: Number(env.horasFuncionamentoDia) || HEATING_OPERATION_DEFAULTS.hoursPerDay,
       taxaFuncionamento: Number(env.taxaFuncionamento) || HEATING_OPERATION_DEFAULTS.taxaFuncionamento,
     };
@@ -192,6 +193,9 @@ export class HeatingBudgetService {
           consumoMaxW: Number(specs.consumoMaxW) || undefined,
           consumoMedioW: Number(specs.consumoMedioW) || undefined,
           ratedInputPowerKW: Number(specs.ratedInputPowerKW) || undefined,
+          copMax: Number(specs.copMax) || undefined,
+          copAt50Air26: Number(specs.copAt50Air26) || undefined,
+          copAt50Air15: Number(specs.copAt50Air15) || undefined,
           copNominal: Number(specs.copNominal) || undefined,
           copAt50Capacity: Number(specs.copAt50Capacity) || undefined,
         };
