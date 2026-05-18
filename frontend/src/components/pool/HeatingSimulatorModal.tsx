@@ -153,6 +153,8 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
   const [hidromassagensQtd, setHidromassagensQtd] = useState<number>(0);
   const [cascataLarguraCm, setCascataLarguraCm] = useState<number>(0);
   const [bordaInfinitaM, setBordaInfinitaM] = useState<number>(0);
+  const [bordaInfinitaAlturaM, setBordaInfinitaAlturaM] = useState<number>(0.5);
+  const [bordaInfinitaVazaoLminPorM, setBordaInfinitaVazaoLminPorM] = useState<number>(30);
   const [horasFuncionamentoDia, setHorasFuncionamentoDia] = useState<number>(15);
   const [taxaFuncionamento, setTaxaFuncionamento] = useState<number>(0.5);
   const [observacoes, setObservacoes] = useState<string>("");
@@ -182,6 +184,8 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
     setHidromassagensQtd(Number(env.hidromassagensQtd) || 0);
     setCascataLarguraCm(Number(env.cascataLarguraCm) || 0);
     setBordaInfinitaM(Number(env.bordaInfinitaM) || 0);
+    setBordaInfinitaAlturaM(Number(env.bordaInfinitaAlturaM) || 0.5);
+    setBordaInfinitaVazaoLminPorM(Number(env.bordaInfinitaVazaoLminPorM) || 30);
     setHorasFuncionamentoDia(Number(env.horasFuncionamentoDia) || 15);
     setTaxaFuncionamento(Number(env.taxaFuncionamento) || 0.5);
     setObservacoes(typeof env.heatingObservacoes === "string" ? env.heatingObservacoes : "");
@@ -221,6 +225,8 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
         hidromassagensQtd: Number(hidromassagensQtd),
         cascataLarguraCm: Number(cascataLarguraCm),
         bordaInfinitaM: Number(bordaInfinitaM),
+        bordaInfinitaAlturaM: Number(bordaInfinitaAlturaM),
+        bordaInfinitaVazaoLminPorM: Number(bordaInfinitaVazaoLminPorM),
         horasFuncionamentoDia: Number(horasFuncionamentoDia),
         taxaFuncionamento: Number(taxaFuncionamento),
         heatingObservacoes: observacoes,
@@ -370,16 +376,36 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                   </Field>
                 </div>
 
-                <div className="mt-3 grid grid-cols-3 gap-3">
-                  <Field label="Hidromassagens (qtd)" hint="+150 Kcal/h cada">
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <Field label="Hidromassagens (qtd)" hint="+150 Kcal/h cada (estimativa)">
                     <NumInput value={hidromassagensQtd} onChange={setHidromassagensQtd} step={1} min={0} />
                   </Field>
-                  <Field label="Cascata (cm)" hint="+50 Kcal/h por cm">
+                  <Field label="Cascata (cm de largura)" hint="+50 Kcal/h por cm (estimativa)">
                     <NumInput value={cascataLarguraCm} onChange={setCascataLarguraCm} step={1} min={0} />
                   </Field>
-                  <Field label="Borda infinita (m)" hint="+1000 Kcal/h por metro">
-                    <NumInput value={bordaInfinitaM} onChange={setBordaInfinitaM} step={0.5} min={0} />
-                  </Field>
+                </div>
+
+                {/* Borda infinita: 3 sub-campos com modelo fisico (area de filme + vazao + vento) */}
+                <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <div className="text-xs font-semibold text-slate-700 mb-2">💧 Borda infinita</div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <Field label="Comprimento (m)" hint="Total do trecho transbordante">
+                      <NumInput value={bordaInfinitaM} onChange={setBordaInfinitaM} step={0.5} min={0} />
+                    </Field>
+                    <Field label="Altura de queda (m)" hint="Da borda ate o reservatorio inferior">
+                      <NumInput value={bordaInfinitaAlturaM} onChange={setBordaInfinitaAlturaM} step={0.1} min={0.1} max={3} />
+                    </Field>
+                    <Field label="Vazao (L/min por metro)" hint="Tipico: 20-40 (bomba 0.5cv)">
+                      <NumInput value={bordaInfinitaVazaoLminPorM} onChange={setBordaInfinitaVazaoLminPorM} step={5} min={5} max={120} />
+                    </Field>
+                  </div>
+                  {bordaInfinitaM > 0 && (
+                    <div className="mt-2 text-[11px] text-slate-500">
+                      Perda calculada com fisica termodinamica sobre area do filme de queda
+                      ({(bordaInfinitaM * bordaInfinitaAlturaM * 1.5).toFixed(1)} m²) +
+                      vento da piscina. Maior altura/vazao = maior perda.
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-3 grid grid-cols-2 gap-3">

@@ -151,6 +151,8 @@ export class HeatingBudgetService {
       hidromassagensQtd: Number(env.hidromassagensQtd) || 0,
       cascataLarguraCm: Number(env.cascataLarguraCm) || 0,
       bordaInfinitaM: Number(env.bordaInfinitaM) || 0,
+      bordaInfinitaAlturaM: Number(env.bordaInfinitaAlturaM) || undefined,
+      bordaInfinitaVazaoLminPorM: Number(env.bordaInfinitaVazaoLminPorM) || undefined,
       horasFuncionamentoDia: Number(env.horasFuncionamentoDia) || HEATING_OPERATION_DEFAULTS.hoursPerDay,
       taxaFuncionamento: Number(env.taxaFuncionamento) || HEATING_OPERATION_DEFAULTS.taxaFuncionamento,
     };

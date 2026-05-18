@@ -10,6 +10,7 @@
 
 import { Injectable } from '@nestjs/common';
 import {
+  BORDA_INFINITA,
   CLIMATE_BY_UF,
   CLIMATE_DATA,
   ClimateCity,
@@ -58,6 +59,10 @@ export interface HeatingInputs {
   hidromassagensQtd?: number;
   cascataLarguraCm?: number;
   bordaInfinitaM?: number;
+  // Borda infinita: altura de queda da agua e vazao de transbordamento.
+  // Sem isso, usa defaults razoaveis (0.5m altura, 30 L/min/m vazao).
+  bordaInfinitaAlturaM?: number;
+  bordaInfinitaVazaoLminPorM?: number;
 
   // Operacao
   horasFuncionamentoDia?: number; // default 15
@@ -231,15 +236,25 @@ export class HeatingService {
     // NOTA: tipoPiscina (PRIVATIVA/COLETIVA) nao afeta a perda termica fisica.
     // Mantido no DTO so pra UI/PDF (info documental).
 
-    // Extras (rule-of-thumb planilha original) — em Kcal/h, convertidos pra kW
+    // Extras simples (rule-of-thumb planilha original) — em Kcal/h convertidos pra kW.
+    // Sao constantes (nao variam com clima do mes).
     const hidroQty = Number(inputs.hidromassagensQtd) || 0;
     const cascataCm = Number(inputs.cascataLarguraCm) || 0;
-    const bordaM = Number(inputs.bordaInfinitaM) || 0;
-    const extrasKcalH =
+    const extrasFixosKcalH =
       hidroQty * EXTRAS_KCAL_H.hidromassagemEach +
-      cascataCm * EXTRAS_KCAL_H.cascataPerCm +
-      bordaM * EXTRAS_KCAL_H.bordaInfinitaPerM;
-    const extrasKw = extrasKcalH / CONVERSIONS.KWH_TO_KCAL; // kcal/h ÷ 860 = kW
+      cascataCm * EXTRAS_KCAL_H.cascataPerCm;
+    const extrasFixosKw = extrasFixosKcalH / CONVERSIONS.KWH_TO_KCAL;
+
+    // Borda infinita: modelo fisico (depende de Tar/umidade do mes — varia mes a mes).
+    const bordaM = Number(inputs.bordaInfinitaM) || 0;
+    const alturaQuedaM = Number(inputs.bordaInfinitaAlturaM) || BORDA_INFINITA.DEFAULT_ALTURA_M;
+    const vazaoLminPorM = Number(inputs.bordaInfinitaVazaoLminPorM) || BORDA_INFINITA.DEFAULT_VAZAO_LMIN_M;
+    // Area do filme de queda d'agua (m²). Multiplicador captura texturizacao/turbulencia.
+    const areaFilmeM2 = bordaM * alturaQuedaM * BORDA_INFINITA.FILME_FACTOR;
+    // Fator vazao: vazao baixa = filme fino, vazao alta plateua.
+    const vazaoFactor = bordaM > 0
+      ? Math.max(BORDA_INFINITA.VAZAO_FACTOR_MIN, Math.min(BORDA_INFINITA.VAZAO_FACTOR_MAX, vazaoLminPorM / BORDA_INFINITA.VAZAO_REFERENCIA_LMIN_M))
+      : 0;
 
     const result: MonthlyHeatLoss[] = [];
     for (let m = 0; m < 12; m++) {
@@ -252,8 +267,7 @@ export class HeatingService {
       // Diferenca de pressao (driver da evaporacao)
       const deltaP = Math.max(0, pb - pq);
 
-      // Qs (kW) = (1/β) × ρ × γ × ventoFactor × deltaP × As / 3600
-      // Aplicar capaFactor sobre evaporacao
+      // Qs principal (superficie da piscina). capaFactor aplicado.
       const qsKw =
         BETA_INV *
         WATER_PROPS.densityKgPerL *
@@ -264,10 +278,26 @@ export class HeatingService {
         capaFactor /
         3600;
 
-      // Outras perdas (TAB006 R17): 20% adicional
+      // Borda infinita: mesma fisica mas sem capa (filme exposto) + multiplicador
+      // de vazao. Vento se aplica igual (sem cobertura).
+      const qsBordaKw = areaFilmeM2 > 0
+        ? (BETA_INV *
+            WATER_PROPS.densityKgPerL *
+            WATER_PROPS.latentHeatKjPerKg *
+            ventoFactor *
+            deltaP *
+            areaFilmeM2 *
+            vazaoFactor /
+            3600)
+        : 0;
+
+      // Extras (hidromassagem + cascata fixos) + borda (varia por mes)
+      const extrasMesKw = extrasFixosKw + qsBordaKw;
+
+      // Outras perdas (TAB006 R17): 20% sobre evaporacao principal
       const qsExtraKw = qsKw * OTHER_LOSSES_FACTOR;
 
-      const qtotalKw = qsKw + qsExtraKw + extrasKw;
+      const qtotalKw = qsKw + qsExtraKw + extrasMesKw;
 
       result.push({
         monthIndex: m,
@@ -275,7 +305,7 @@ export class HeatingService {
         humidity,
         qsKw: round1(qsKw),
         qsExtraKw: round1(qsExtraKw),
-        qsExtrasKw: round1(extrasKw),
+        qsExtrasKw: round1(extrasMesKw),
         qtotalKw: round1(qtotalKw),
       });
     }

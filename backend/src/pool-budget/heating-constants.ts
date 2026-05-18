@@ -429,18 +429,49 @@ export const BETA_INV = 1 / 133.32; // ~ 0.0075 (1/mmHg em Pa)
 // TAB006 Calculacao R17-R18: Qs' = Qs × 0.2 (20% adicional).
 export const OTHER_LOSSES_FACTOR = 0.2;
 
-// ============ FATORES DE EXTRAS (rule-of-thumb Tholz/AstralPool) ============
+// ============ FATORES DE EXTRAS ============
 //
-// Adicionados ao Qtotal (mes a mes) — calor consumido por elementos especiais.
-// Fonte: Planilha original Tholz X-23 (CALCULOS!D7, ultimas 3 parcelas).
+// Hidromassagem e cascata: rule-of-thumb da planilha original Tholz/AstralPool
+// (CALCULOS!D7, parcelas finais). Simples mas razoavel pra esses elementos.
+//
+// Borda infinita: NAO usar rule-of-thumb fixo de 1000 Kcal/h/m. Eh muito impreciso
+// porque a perda real depende de altura de queda, vazao, e vento. Usamos modelo
+// fisico (computeBordaInfinitaKw no heating.service) que aplica a mesma formula
+// Qs da superficie sobre a area de filme da cascata, com multiplicador de vazao.
 
 export const EXTRAS_KCAL_H = {
-  // Cada hidromassagem: +150 Kcal/h
+  // Cada hidromassagem: +150 Kcal/h (rule-of-thumb)
   hidromassagemEach: 150,
-  // Cada cm de cascata: +50 Kcal/h
+  // Cada cm de cascata: +50 Kcal/h (rule-of-thumb)
   cascataPerCm: 50,
-  // Cada metro de borda infinita: +1000 Kcal/h
-  bordaInfinitaPerM: 1000,
+};
+
+// ============ BORDA INFINITA — modelo fisico ============
+//
+// Quando a agua transborda pela borda infinita, forma um filme/cortina caindo.
+// A area desse filme expoe agua quente ao ar, gerando perda de calor por:
+// - Evaporacao adicional (mesma fisica de Qs da superficie, mas sem capa)
+// - Conducao com o ar (incluida no fator de outras perdas)
+//
+// area_filme = comprimento × altura_queda × filme_factor (textura/turbulencia)
+// Qs_borda = ρ × γ × ventoFactor × ΔP × area_filme × vazao_factor / 3600  [kW]
+//
+// Defaults razoaveis se usuario nao especifica:
+// - altura_queda: 0.5 m (queda baixa, borda nivel)
+// - vazao: 30 L/min/m (vazao tipica de bomba de 0.5 cv)
+
+export const BORDA_INFINITA = {
+  // Multiplicador na area do filme (texturizacao da queda d'agua expande area real)
+  FILME_FACTOR: 1.5,
+  // Vazao de referencia em L/min por metro linear de borda
+  VAZAO_REFERENCIA_LMIN_M: 30,
+  // Vazao minima factor (vazao baixa = filme fino, menos area)
+  VAZAO_FACTOR_MIN: 0.5,
+  // Vazao maxima factor (vazao alta plateua — agua escorre rapido sem aumentar area util)
+  VAZAO_FACTOR_MAX: 2.0,
+  // Defaults pra quando user nao preenche altura/vazao
+  DEFAULT_ALTURA_M: 0.5,
+  DEFAULT_VAZAO_LMIN_M: 30,
 };
 
 // ============ FATORES DE CONVERSAO ============
