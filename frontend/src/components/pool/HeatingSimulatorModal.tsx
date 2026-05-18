@@ -764,7 +764,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                     {/* 4 cards de totais */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                       <BigStat label="Consumo anual" value={(report.annualKwh ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} unit="kWh/ano" emphasis="cyan" />
-                      <BigStat label="Consumo medio mensal" value={((report.annualKwh ?? 0) / 12).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} unit="kWh/mes" emphasis="cyan" />
+                      <BigStat label="Custo medio mensal" value={fmtBRL(Math.round((report.annualCostBRLCents ?? 0) / 12))} unit="por mes" emphasis="orange" />
                       <BigStat label="Custo anual operacao" value={fmtBRL(report.annualCostBRLCents ?? 0)} unit="por ano" emphasis="orange" />
                       <BigStat label="Custo aquec. inicial" value={fmtBRL(report.initialHeatingCostBRLCents ?? 0)} unit="1a vez" emphasis="emerald" />
                     </div>
