@@ -323,6 +323,15 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
     setQuickWidth(Number(dims.width) || 0);
   }
 
+  // Estado do bloco colapsavel "Dados do projeto" (F6.4) — inicia colapsado pra
+  // apresentacao limpa com cliente (so pills resumidas).
+  const [projectExpanded, setProjectExpanded] = useState<boolean>(false);
+
+  // Helper pra mostrar enums humanamente
+  const labelVento: Record<string, string> = { NULO: "Sem vento", FRACO: "Fraco", MODERADO: "Moderado", FORTE: "Forte", INTERNA: "Interna" };
+  const labelUtilAno: Record<string, string> = { ANO_TODO: "Ano todo", VERAO: "Verao", INVERNO: "Inverno" };
+  const labelUtilSem: Record<string, string> = { MES_TODO: "Mes todo", FIM_DE_SEMANA: "So fim de semana" };
+
   if (!open) return null;
 
   return (
@@ -378,182 +387,225 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
 
           {activeTab === "bomba" && (
             <div className="space-y-4">
-              {/* SECAO 1 — Dados da obra (read-only OU editavel em quickMode) */}
-              <Section title="1. Dados da obra" icon="📋">
-                {quickMode ? (
-                  <>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <Field label="Volume (m³)" hint="Editavel — nao altera o orcamento">
-                        <NumInput value={quickVolume} onChange={setQuickVolume} step={0.5} min={0.1} />
-                      </Field>
-                      <Field label="Area superficie (m²)" hint="Espelho d'agua">
-                        <NumInput value={quickArea} onChange={setQuickArea} step={0.5} min={0.1} />
-                      </Field>
-                      <Field label="Comprimento (m)" hint="Informativo">
-                        <NumInput value={quickLength} onChange={setQuickLength} step={0.5} min={0} />
-                      </Field>
-                      <Field label="Largura (m)" hint="Informativo">
-                        <NumInput value={quickWidth} onChange={setQuickWidth} step={0.5} min={0} />
-                      </Field>
-                    </div>
-                    <div className="mt-2 flex items-center justify-between">
-                      <div className="text-[11px] text-amber-700">
-                        ⚡ Modo Calculo Rapido — alteracoes aqui NAO sao salvas no orcamento.
+              {/* CABECALHO COLAPSAVEL — Dados do projeto (F6.4)
+                  Quando minimizado: pills compactas com infos chave pra apresentacao limpa
+                  Quando expandido + quickMode: inputs editaveis (simulacao livre)
+                  Quando expandido + nao quickMode: read-only com link pra Editar dados */}
+              <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+                <button type="button" onClick={() => setProjectExpanded(!projectExpanded)}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50 transition">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span className="text-base">📋</span>
+                    <span className="text-sm font-bold text-slate-900">Dados do projeto</span>
+                    {!projectExpanded && (
+                      <div className="flex flex-wrap gap-1.5 ml-3">
+                        <Pill icon="📐" text={`${(budget.poolDimensions?.volume ?? 0).toFixed(0)} m³ · ${(budget.poolDimensions?.area ?? 0).toFixed(0)} m²`} tone="slate" />
+                        <Pill icon="📍" text={uf ? `${uf}${cidade ? ` — ${cidade}` : ""}` : "Sem localizacao"} tone={uf ? "cyan" : "amber"} />
+                        <Pill icon="🌡" text={`${tempAguaDesejada}°C`} tone="orange" />
+                        <Pill icon="⛅" text={labelVento[vento] || vento} tone="slate" />
+                        <Pill icon={capaTermica ? "🧱" : "☀"} text={capaTermica ? "Com capa" : "Sem capa"} tone={capaTermica ? "emerald" : "amber"} />
+                        <Pill icon="📅" text={labelUtilAno[utilizacaoAno] || utilizacaoAno} tone="slate" />
+                        {(hidromassagensQtd > 0 || cascataLarguraCm > 0 || bordaInfinitaM > 0) && (
+                          <Pill icon="✨" text={[
+                            hidromassagensQtd > 0 ? `${hidromassagensQtd} jato${hidromassagensQtd > 1 ? "s" : ""}` : null,
+                            cascataLarguraCm > 0 ? `cascata ${cascataLarguraCm}cm` : null,
+                            bordaInfinitaM > 0 ? `borda ${bordaInfinitaM}m` : null,
+                          ].filter(Boolean).join(" · ")} tone="cyan" />
+                        )}
                       </div>
-                      <button onClick={restoreFromBudget} type="button"
-                        className="text-[11px] text-cyan-700 hover:text-cyan-900 hover:underline">
-                        ↩ Restaurar dados do orcamento
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                      <ReadField label="Volume" value={`${(budget.poolDimensions?.volume ?? 0).toFixed(2)} m³`} />
-                      <ReadField label="Area superficie" value={`${(budget.poolDimensions?.area ?? 0).toFixed(2)} m²`} />
-                      <ReadField label="Comprimento" value={`${budget.poolDimensions?.length ?? "—"} m`} />
-                      <ReadField label="Largura" value={`${budget.poolDimensions?.width ?? "—"} m`} />
-                    </div>
-                    <div className="mt-2 text-[11px] text-slate-500">
-                      Dados puxados das dimensoes do orcamento. Use o toggle "⚡ Calculo rapido" no header pra editar e simular sem salvar.
-                    </div>
-                  </>
-                )}
-              </Section>
+                    )}
+                  </div>
+                  <span className="text-slate-400 text-xs">{projectExpanded ? "▲ recolher" : "▼ expandir"}</span>
+                </button>
 
-              {/* SECAO 2 — Localizacao e clima */}
-              <Section title="2. Localizacao e clima" icon="📍">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <Field label="Estado (UF)">
-                    <select value={uf} onChange={(e) => { setUf(e.target.value); setCidade(""); }}
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none">
-                      <option value="">Selecione...</option>
-                      {cities.map((c) => (
-                        <option key={c.uf} value={c.uf}>{c.uf} — {c.ufName}</option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Cidade-clima" hint={!uf ? "Selecione UF primeiro" : "Capital usada se nao especificada"}>
-                    <select value={cidade} onChange={(e) => setCidade(e.target.value)} disabled={!uf}
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none disabled:bg-slate-50">
-                      <option value="">{availableCities[0] ? `${availableCities[0]} (capital)` : "—"}</option>
-                      {availableCities.slice(1).map((c) => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  </Field>
-                </div>
-                {report?.cityResolved && (
-                  <div className="mt-3 rounded-lg bg-cyan-50 border border-cyan-200 px-3 py-2 text-xs text-cyan-900">
-                    Cidade-clima em uso: <strong>{report.cityResolved.name} / {report.cityResolved.uf}</strong>
+                {projectExpanded && (
+                  <div className="border-t border-slate-200 p-4 space-y-4 bg-slate-50">
+                    {/* === Bloco 1: Dados da obra === */}
+                    <div className="rounded-lg border border-slate-200 bg-white p-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2 flex items-center justify-between">
+                        <span>📐 Dados da obra</span>
+                        {!quickMode && <span className="text-[10px] text-slate-400 normal-case font-normal">Vem das dimensoes do orcamento</span>}
+                      </div>
+                      {quickMode ? (
+                        <>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <Field label="Volume (m³)"><NumInput value={quickVolume} onChange={setQuickVolume} step={0.5} min={0.1} /></Field>
+                            <Field label="Area (m²)"><NumInput value={quickArea} onChange={setQuickArea} step={0.5} min={0.1} /></Field>
+                            <Field label="Comprimento (m)"><NumInput value={quickLength} onChange={setQuickLength} step={0.5} min={0} /></Field>
+                            <Field label="Largura (m)"><NumInput value={quickWidth} onChange={setQuickWidth} step={0.5} min={0} /></Field>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between">
+                            <div className="text-[11px] text-amber-700">⚡ Modo Calculo Rapido — alteracoes NAO sao salvas.</div>
+                            <button onClick={restoreFromBudget} type="button" className="text-[11px] text-cyan-700 hover:underline">↩ Restaurar dados do orcamento</button>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                          <ReadField label="Volume" value={`${(budget.poolDimensions?.volume ?? 0).toFixed(2)} m³`} />
+                          <ReadField label="Area superficie" value={`${(budget.poolDimensions?.area ?? 0).toFixed(2)} m²`} />
+                          <ReadField label="Comprimento" value={`${budget.poolDimensions?.length ?? "—"} m`} />
+                          <ReadField label="Largura" value={`${budget.poolDimensions?.width ?? "—"} m`} />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* === Bloco 2: Localizacao e clima === */}
+                    <div className="rounded-lg border border-slate-200 bg-white p-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2 flex items-center justify-between">
+                        <span>📍 Localizacao e clima</span>
+                        {!quickMode && <span className="text-[10px] text-slate-400 normal-case font-normal">Edite via "Editar dados" do orcamento</span>}
+                      </div>
+                      {quickMode ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <Field label="Estado (UF)">
+                            <select value={uf} onChange={(e) => { setUf(e.target.value); setCidade(""); }}
+                              className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm">
+                              <option value="">Selecione...</option>
+                              {cities.map((c) => <option key={c.uf} value={c.uf}>{c.uf} — {c.ufName}</option>)}
+                            </select>
+                          </Field>
+                          <Field label="Cidade-clima">
+                            <select value={cidade} onChange={(e) => setCidade(e.target.value)} disabled={!uf}
+                              className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-50">
+                              <option value="">{availableCities[0] ? `${availableCities[0]} (capital)` : "—"}</option>
+                              {availableCities.slice(1).map((c) => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </Field>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                          <ReadField label="Estado" value={uf || "—"} />
+                          <ReadField label="Cidade-clima" value={cidade || (report?.cityResolved?.name ? `${report.cityResolved.name} (capital)` : "—")} />
+                        </div>
+                      )}
+                      {report?.cityResolved && (
+                        <div className="mt-2 text-[11px] text-cyan-700">Cidade-clima em uso: <strong>{report.cityResolved.name} / {report.cityResolved.uf}</strong></div>
+                      )}
+                    </div>
+
+                    {/* === Bloco 3: Dados de uso === */}
+                    <div className="rounded-lg border border-slate-200 bg-white p-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2 flex items-center justify-between">
+                        <span>🌡 Dados de uso</span>
+                        {!quickMode && <span className="text-[10px] text-slate-400 normal-case font-normal">Edite via "Editar dados" do orcamento</span>}
+                      </div>
+                      {quickMode ? (
+                        <>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <Field label="Temp. agua desejada (°C)"><NumInput value={tempAguaDesejada} onChange={setTempAguaDesejada} step={1} min={20} max={42} /></Field>
+                            <Field label="Temp. agua inicial (°C)">
+                              <input type="number" value={tempAguaInicial === "" ? "" : String(tempAguaInicial)}
+                                onChange={(e) => setTempAguaInicial(e.target.value === "" ? "" : Number(e.target.value))}
+                                className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm" />
+                            </Field>
+                            <Field label="Velocidade vento">
+                              <select value={vento} onChange={(e) => setVento(e.target.value)} className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm">
+                                {VENTO_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+                              </select>
+                            </Field>
+                            <Field label="Tipo construcao">
+                              <select value={tipoConstrucao} onChange={(e) => setTipoConstrucao(e.target.value)} className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm">
+                                {TIPO_CONSTRUCAO_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+                              </select>
+                            </Field>
+                            <Field label="Capa termica">
+                              <label className="flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm cursor-pointer">
+                                <input type="checkbox" checked={capaTermica} onChange={(e) => setCapaTermica(e.target.checked)} className="rounded border-slate-300 text-cyan-600" />
+                                <span>{capaTermica ? "Sim" : "Nao"}</span>
+                              </label>
+                            </Field>
+                            <Field label="Tipo piscina">
+                              <select value={tipoPiscina} onChange={(e) => setTipoPiscina(e.target.value)} className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm">
+                                {TIPO_PISCINA_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+                              </select>
+                            </Field>
+                            <Field label="Utilizacao ano">
+                              <select value={utilizacaoAno} onChange={(e) => setUtilizacaoAno(e.target.value)} className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm">
+                                {UTILIZACAO_ANO_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+                              </select>
+                            </Field>
+                            <Field label="Utilizacao semana">
+                              <select value={utilizacaoSemana} onChange={(e) => setUtilizacaoSemana(e.target.value)} className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm">
+                                {UTILIZACAO_SEMANA_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+                              </select>
+                            </Field>
+                          </div>
+                          {/* Extras editaveis em quickMode */}
+                          <div className="mt-3 grid grid-cols-2 gap-3">
+                            <Field label="Hidromassagens (qtd jatos)"><NumInput value={hidromassagensQtd} onChange={setHidromassagensQtd} step={1} min={0} /></Field>
+                            <Field label="Cascata (cm de largura)"><NumInput value={cascataLarguraCm} onChange={setCascataLarguraCm} step={1} min={0} /></Field>
+                          </div>
+                          <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                            <div className="text-xs font-semibold text-slate-700 mb-2">💧 Borda infinita</div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                              <Field label="Comprimento (m)"><NumInput value={bordaInfinitaM} onChange={setBordaInfinitaM} step={0.5} min={0} /></Field>
+                              <Field label="Altura queda (m)"><NumInput value={bordaInfinitaAlturaM} onChange={setBordaInfinitaAlturaM} step={0.1} min={0.1} max={3} /></Field>
+                              <Field label="Vazao (L/min·m)"><NumInput value={bordaInfinitaVazaoLminPorM} onChange={setBordaInfinitaVazaoLminPorM} step={5} min={5} max={120} /></Field>
+                              <Field label="Horas/dia ativa"><NumInput value={bordaInfinitaHorasAtivaDia} onChange={setBordaInfinitaHorasAtivaDia} step={1} min={0} max={24} /></Field>
+                            </div>
+                          </div>
+                          <div className="mt-3 grid grid-cols-2 gap-3">
+                            <Field label="Horas funcionamento/dia"><NumInput value={horasFuncionamentoDia} onChange={setHorasFuncionamentoDia} step={1} min={1} max={24} /></Field>
+                            <Field label="Taxa funcionamento (0-1)"><NumInput value={taxaFuncionamento} onChange={setTaxaFuncionamento} step={0.1} min={0.1} max={1} /></Field>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                            <ReadField label="Temp. desejada" value={`${tempAguaDesejada}°C`} />
+                            <ReadField label="Temp. inicial" value={tempAguaInicial === "" ? "auto (clima)" : `${tempAguaInicial}°C`} />
+                            <ReadField label="Vento" value={labelVento[vento] || vento} />
+                            <ReadField label="Construcao" value={tipoConstrucao === "ABERTA" ? "Aberta" : "Fechada"} />
+                            <ReadField label="Capa termica" value={capaTermica ? "Sim" : "Nao"} />
+                            <ReadField label="Tipo piscina" value={tipoPiscina === "PRIVATIVA" ? "Privativa" : "Coletiva"} />
+                            <ReadField label="Utilizacao ano" value={labelUtilAno[utilizacaoAno] || utilizacaoAno} />
+                            <ReadField label="Utilizacao semana" value={labelUtilSem[utilizacaoSemana] || utilizacaoSemana} />
+                          </div>
+                          {/* Extras agregados das linhas */}
+                          {(hidromassagensQtd > 0 || cascataLarguraCm > 0 || bordaInfinitaM > 0) && (
+                            <div className="mt-3 rounded-lg border border-cyan-200 bg-cyan-50 p-3">
+                              <div className="text-[11px] font-semibold text-cyan-900 mb-1.5">✨ Extras (agregados das linhas das etapas)</div>
+                              <div className="grid grid-cols-3 gap-3 text-xs">
+                                <div>
+                                  <div className="text-[10px] text-cyan-700">Hidromassagens</div>
+                                  <div className="font-bold text-cyan-900">{hidromassagensQtd} jato(s)</div>
+                                </div>
+                                <div>
+                                  <div className="text-[10px] text-cyan-700">Cascata (largura total)</div>
+                                  <div className="font-bold text-cyan-900">{cascataLarguraCm} cm</div>
+                                </div>
+                                <div>
+                                  <div className="text-[10px] text-cyan-700">Borda infinita</div>
+                                  <div className="font-bold text-cyan-900">{bordaInfinitaM} m · {bordaInfinitaAlturaM}m queda · {bordaInfinitaHorasAtivaDia}h/dia</div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+
+                    {/* Botao de acao (so em quickMode) */}
+                    {quickMode && (
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={handleSaveAndRecompute} disabled={saving || loading || !uf}
+                          className="rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition bg-amber-600 hover:bg-amber-700 disabled:bg-slate-300 disabled:cursor-not-allowed">
+                          {saving ? "Calculando..." : "⚡ Calcular (nao salva)"}
+                        </button>
+                      </div>
+                    )}
+                    {!quickMode && (
+                      <div className="flex items-center justify-between text-[11px] text-slate-500">
+                        <span>Edite os dados no orcamento (botao "Editar dados" no header). O Simulador recalcula automaticamente.</span>
+                        <button type="button" onClick={handleSaveAndRecompute} disabled={saving || loading}
+                          className="text-[11px] text-cyan-700 hover:underline disabled:text-slate-400">
+                          {saving ? "Recalculando..." : "↻ Recalcular agora"}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
-              </Section>
-
-              {/* SECAO 3 — Dados de uso */}
-              <Section title="3. Dados de uso" icon="🌡️">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <Field label="Temp. agua desejada (°C)">
-                    <NumInput value={tempAguaDesejada} onChange={setTempAguaDesejada} step={1} min={20} max={42} />
-                  </Field>
-                  <Field label="Temp. agua inicial (°C)" hint="Vazio = usa estimativa do clima">
-                    <input type="number" value={tempAguaInicial === "" ? "" : String(tempAguaInicial)}
-                      onChange={(e) => setTempAguaInicial(e.target.value === "" ? "" : Number(e.target.value))}
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none" />
-                  </Field>
-                  <Field label="Velocidade vento">
-                    <select value={vento} onChange={(e) => setVento(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none">
-                      {VENTO_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Tipo construcao">
-                    <select value={tipoConstrucao} onChange={(e) => setTipoConstrucao(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none">
-                      {TIPO_CONSTRUCAO_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Capa termica">
-                    <label className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm cursor-pointer hover:bg-slate-50">
-                      <input type="checkbox" checked={capaTermica} onChange={(e) => setCapaTermica(e.target.checked)}
-                        className="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500" />
-                      <span>{capaTermica ? "Sim, com capa" : "Sem capa"}</span>
-                    </label>
-                  </Field>
-                  <Field label="Tipo piscina">
-                    <select value={tipoPiscina} onChange={(e) => setTipoPiscina(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none">
-                      {TIPO_PISCINA_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Utilizacao no ano">
-                    <select value={utilizacaoAno} onChange={(e) => setUtilizacaoAno(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none">
-                      {UTILIZACAO_ANO_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="Utilizacao na semana">
-                    <select value={utilizacaoSemana} onChange={(e) => setUtilizacaoSemana(e.target.value)}
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none">
-                      {UTILIZACAO_SEMANA_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
-                    </select>
-                  </Field>
-                </div>
-
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  <Field label="Hidromassagens (qtd)" hint="+150 Kcal/h cada (estimativa)">
-                    <NumInput value={hidromassagensQtd} onChange={setHidromassagensQtd} step={1} min={0} />
-                  </Field>
-                  <Field label="Cascata (cm de largura)" hint="+50 Kcal/h por cm (estimativa)">
-                    <NumInput value={cascataLarguraCm} onChange={setCascataLarguraCm} step={1} min={0} />
-                  </Field>
-                </div>
-
-                {/* Borda infinita: 4 sub-campos com modelo fisico */}
-                <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <div className="text-xs font-semibold text-slate-700 mb-2">💧 Borda infinita</div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <Field label="Comprimento (m)" hint="Total do trecho transbordante">
-                      <NumInput value={bordaInfinitaM} onChange={setBordaInfinitaM} step={0.5} min={0} />
-                    </Field>
-                    <Field label="Altura de queda (m)" hint="Da borda ate reservatorio">
-                      <NumInput value={bordaInfinitaAlturaM} onChange={setBordaInfinitaAlturaM} step={0.1} min={0.1} max={3} />
-                    </Field>
-                    <Field label="Vazao (L/min por metro)" hint="Tipico: 20-40 (bomba 0.5cv)">
-                      <NumInput value={bordaInfinitaVazaoLminPorM} onChange={setBordaInfinitaVazaoLminPorM} step={5} min={5} max={120} />
-                    </Field>
-                    <Field label="Horas/dia ativa" hint="24=sempre. Reduza se bomba desliga (capa fechada/noite)">
-                      <NumInput value={bordaInfinitaHorasAtivaDia} onChange={setBordaInfinitaHorasAtivaDia} step={1} min={0} max={24} />
-                    </Field>
-                  </div>
-                  {bordaInfinitaM > 0 && (
-                    <div className="mt-2 text-[11px] text-slate-500">
-                      Area de filme: {(bordaInfinitaM * bordaInfinitaAlturaM * 1.5).toFixed(1)} m² ·
-                      Fator vazao: {Math.max(0.5, Math.min(2, bordaInfinitaVazaoLminPorM / 30)).toFixed(2)} ·
-                      Fator tempo: {(bordaInfinitaHorasAtivaDia / 24).toFixed(2)} ({bordaInfinitaHorasAtivaDia}h/24h).
-                      Maior altura/vazao/tempo = maior perda. Vento global da piscina aplicado.
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  <Field label="Horas funcionamento/dia" hint="Tempo medio de operacao (h)">
-                    <NumInput value={horasFuncionamentoDia} onChange={setHorasFuncionamentoDia} step={1} min={1} max={24} />
-                  </Field>
-                  <Field label="Taxa funcionamento (0-1)" hint="Fracao de carga media (0.5 = 50%, padrao inverter)">
-                    <NumInput value={taxaFuncionamento} onChange={setTaxaFuncionamento} step={0.1} min={0.1} max={1} />
-                  </Field>
-                </div>
-
-                <div className="mt-4 flex items-center justify-end gap-2">
-                  <button onClick={handleSaveAndRecompute} disabled={saving || loading || !uf}
-                    className={`rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition disabled:bg-slate-300 disabled:cursor-not-allowed ${
-                      quickMode ? "bg-amber-600 hover:bg-amber-700" : "bg-cyan-600 hover:bg-cyan-700"
-                    }`}>
-                    {saving ? "Calculando..." : (quickMode ? "⚡ Calcular (nao salva)" : "💾 Salvar e calcular")}
-                  </button>
-                </div>
-              </Section>
+              </div>
 
               {/* SECAO 4 — Dimensionamento */}
               <Section title="4. Dimensionamento" icon="📊">
@@ -895,6 +947,21 @@ function SmallStat({ label, value }: { label: string; value: string }) {
 
 function fmtBRL(cents: number): string {
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function Pill({ icon, text, tone }: { icon: string; text: string; tone: "slate" | "cyan" | "amber" | "orange" | "emerald" }) {
+  const tones = {
+    slate: "bg-slate-100 text-slate-700 border-slate-200",
+    cyan: "bg-cyan-50 text-cyan-800 border-cyan-200",
+    amber: "bg-amber-50 text-amber-800 border-amber-200",
+    orange: "bg-orange-50 text-orange-800 border-orange-200",
+    emerald: "bg-emerald-50 text-emerald-800 border-emerald-200",
+  };
+  return (
+    <span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border ${tones[tone]}`}>
+      <span>{icon}</span><span className="font-medium">{text}</span>
+    </span>
+  );
 }
 
 function ComparativoChart({ comparativo }: { comparativo: ComparativoFonte[] }) {
