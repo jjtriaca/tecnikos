@@ -318,8 +318,6 @@ interface ProductForm {
   // Specs tecnicas (Modulo Piscina) — strings pra inputs, viram numero no payload
   specVazaoM3h: string;       // m³/h (filtros, bombas)
   specTuboEntradaMm: string;  // mm (todos equipamentos hidraulicos — chave do auto-select de tubos)
-  specKcalHMin: string;       // kcal/h minimo (aquecedores)
-  specKcalHMax: string;       // kcal/h maximo (aquecedores)
   // ====== Specs detalhadas do Simulador de Aquecimento (F3+) ======
   specTipoEquipamento: string; // 'BOMBA_CALOR' | 'SOLAR' | 'GAS_GLP' | 'GAS_GN' | 'ELETRICO' | ''
   specKcalHNominal: string;    // kcal/h nominal (capacidade real, alimenta auto-select preciso)
@@ -369,8 +367,6 @@ const EMPTY_FORM: ProductForm = {
   defaultQty: "1",
   specVazaoM3h: "",
   specTuboEntradaMm: "",
-  specKcalHMin: "",
-  specKcalHMax: "",
   specTipoEquipamento: "",
   specKcalHNominal: "",
   specKwNominal: "",
@@ -419,8 +415,6 @@ function productToForm(p: Product): ProductForm {
     defaultQty: (p as any).defaultQty != null ? String((p as any).defaultQty) : "",
     specVazaoM3h: numericSpecToStr(p.technicalSpecs?.vazaoM3h),
     specTuboEntradaMm: numericSpecToStr(p.technicalSpecs?.tuboEntradaMm),
-    specKcalHMin: numericSpecToStr(p.technicalSpecs?.kcalHMin),
-    specKcalHMax: numericSpecToStr(p.technicalSpecs?.kcalHMax),
     specTipoEquipamento: typeof p.technicalSpecs?.tipoEquipamento === 'string' ? p.technicalSpecs.tipoEquipamento : "",
     specKcalHNominal: numericSpecToStr(p.technicalSpecs?.kcalHNominal),
     specKwNominal: numericSpecToStr(p.technicalSpecs?.kwNominal),
@@ -459,8 +453,6 @@ function buildTechnicalSpecs(f: ProductForm, existing?: Record<string, any>): Re
   };
   setOrUnset("vazaoM3h", f.specVazaoM3h);
   setOrUnset("tuboEntradaMm", f.specTuboEntradaMm);
-  setOrUnset("kcalHMin", f.specKcalHMin);
-  setOrUnset("kcalHMax", f.specKcalHMax);
   setOrUnset("kcalHNominal", f.specKcalHNominal);
   setOrUnset("kwNominal", f.specKwNominal);
   setOrUnset("btuH", f.specBtuH);
@@ -1776,8 +1768,8 @@ export default function ProductsPage() {
                   <div className="rounded-xl border border-slate-200 bg-white p-5">
                     <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">🔥 Aquecimento — Bombas de Calor, Solar, Trocadores</h4>
 
-                    {/* Tipo + Faixa de aplicacao (legado, ainda usado) */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                    {/* Tipo + Capacidade nominal — usados no Simulador */}
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-4">
                       <div>
                         <FieldLabel help="Tipo do equipamento de aquecimento. Filtra candidatos no Simulador de Aquecimento. Bomba de Calor eh o padrao mais comum (alta eficiencia).">
                           Tipo de equipamento
@@ -1792,37 +1784,20 @@ export default function ProductsPage() {
                         </select>
                       </div>
                       <div>
-                        <FieldLabel help="Faixa MINIMA de Kcal/h que esse modelo cobre. Usado pelo template legado de auto-select (kcalHMax >= volume * 600). Pra calculo termodinamico preciso, use Kcal/h Nominal abaixo.">
-                          Kcal/h minimo (faixa)
-                        </FieldLabel>
-                        <input type="number" step="100" value={form.specKcalHMin} onChange={(e) => setField("specKcalHMin", e.target.value)} placeholder="Ex: 8000" className={inputClass} />
-                      </div>
-                      <div>
-                        <FieldLabel help="Faixa MAXIMA de Kcal/h que esse modelo cobre. Usado pelo template legado de auto-select.">
-                          Kcal/h maximo (faixa)
-                        </FieldLabel>
-                        <input type="number" step="100" value={form.specKcalHMax} onChange={(e) => setField("specKcalHMax", e.target.value)} placeholder="Ex: 20000" className={inputClass} />
-                      </div>
-                    </div>
-
-                    {/* Capacidade nominal — usados no Simulador */}
-                    <h5 className="text-[11px] font-bold text-slate-500 uppercase mb-2 mt-2">Capacidade nominal (Simulador de Aquecimento)</h5>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                      <div>
-                        <FieldLabel help="Capacidade nominal de aquecimento em Kcal/h. Eh o numero principal usado pelo Simulador pra selecionar o modelo correto (kcalHNominal >= calorNecessarioKcalH). Ex Tholz X23-40C = 34.400.">
-                          Kcal/h nominal
+                        <FieldLabel tone="cyan" help="Capacidade nominal de aquecimento em Kcal/h — NUMERO PRINCIPAL DO CALCULO. Usado pelo Simulador pra selecionar o modelo (kcalHNominal >= calorNecessarioKcalH). Ex Tholz X23-40C = 34.400 Kcal/h.">
+                          Kcal/h nominal ✓
                         </FieldLabel>
                         <input type="number" step="100" value={form.specKcalHNominal} onChange={(e) => setField("specKcalHNominal", e.target.value)} placeholder="Ex: 34400" className={inputClass} />
                       </div>
                       <div>
-                        <FieldLabel help="Potencia termica nominal em kW. Equivale a Kcal/h ÷ 860. Mostrado na UI do Simulador como informativo.">
-                          kW termico
+                        <FieldLabel help="Potencia termica equivalente em kW. Apenas INFORMATIVO no relatorio do Simulador. Equivale a Kcal/h ÷ 860.">
+                          kW termico (info)
                         </FieldLabel>
                         <input type="number" step="0.1" value={form.specKwNominal} onChange={(e) => setField("specKwNominal", e.target.value)} placeholder="Ex: 40" className={inputClass} />
                       </div>
                       <div>
-                        <FieldLabel help="Capacidade em BTU/h. Equivale a Kcal/h × 3.9683. Comum em datasheets de bombas de calor importadas.">
-                          BTU/h
+                        <FieldLabel help="Capacidade em BTU/h. Apenas INFORMATIVO no relatorio (comum em datasheets importados). Calculo do Simulador NAO usa este campo — usa Kcal/h nominal. Equivale a Kcal/h × 3.9683.">
+                          BTU/h (info)
                         </FieldLabel>
                         <input type="number" step="1000" value={form.specBtuH} onChange={(e) => setField("specBtuH", e.target.value)} placeholder="Ex: 140000" className={inputClass} />
                       </div>

@@ -1557,7 +1557,8 @@ function AddItemModal({ catalog, defaultSection, onClose, onSubmit }: {
                     if (specs.vazaoM3h) specBadges.push(`${specs.vazaoM3h}m³/h`);
                     if (specs.pesoKg) specBadges.push(`${specs.pesoKg}kg`);
                     if (specs.eficiencia) specBadges.push(`${specs.eficiencia}%ef`);
-                    if (specs.kcalHMax) specBadges.push(`${specs.kcalHMax}kcal/h`);
+                    if (specs.kcalHNominal) specBadges.push(`${specs.kcalHNominal}kcal/h`);
+                    else if (specs.kcalHMax) specBadges.push(`${specs.kcalHMax}kcal/h`); // legacy fallback
                   }
                   const isSelected = catalogConfigId === c.id;
                   return (
@@ -2626,7 +2627,7 @@ const ORDER_BY_PRESETS: Array<{ value: string; label: string }> = [
   { value: 'priceCents desc', label: 'Mais caro primeiro' },
   { value: 'vazaoM3h desc', label: 'Maior vazao primeiro' },
   { value: 'vazaoM3h asc', label: 'Menor vazao primeiro' },
-  { value: 'kcalHMax desc', label: 'Maior aquecimento primeiro' },
+  { value: 'kcalHNominal desc', label: 'Maior aquecimento primeiro' },
 ];
 
 // Templates completos de auto-selecao — clique em 1 e popula filterCategoria+where+orderBy+indicator
@@ -2677,29 +2678,10 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
       },
     },
   },
-  {
-    icon: '🔥',
-    label: 'Aquecedor por Kcal/h (~600 kcal/m³h — legado)',
-    description: 'Regra empirica antiga (kcalHMax >= volume * 600). Use o template "Bomba de Calor (preciso)" pra calculo termodinamico nacional.',
-    rule: {
-      filterCategoria: null,
-      filterDescription: 'Aquecedor',
-      where: 'kcalHMax >= volume * 600',
-      orderBy: 'priceCents asc',
-      indicator: {
-        label: 'Capacidade aquec.',
-        expr: 'kcalHMax / volume',
-        unit: 'kcal/m³h',
-        levels: [
-          { max: 400, label: 'Subdim.', color: 'red' },
-          { max: 600, label: 'Justo', color: 'orange' },
-          { max: 900, label: 'Adequado', color: 'yellow' },
-          { max: 1500, label: 'Bom', color: 'green' },
-          { max: 99999, label: 'Excelente', color: 'emerald' },
-        ],
-      },
-    },
-  },
+  // Template legado "Aquecedor por Kcal/h (~600 kcal/m³h)" removido em v1.11.57.
+  // Substituido pelo "Bomba de Calor (preciso — termodinamico)" acima que usa
+  // calorNecessarioKcalH calculado por fisica termodinamica + dados climaticos.
+
   // 3 templates de tubo — mesma logica matematica, filterDescription distinto pra
   // garantir que o auto-select pegue o tipo de tubo certo (filtragem nao deve
   // pegar tubo de cascata mesmo que ambos tenham tuboEntradaMm igual).
@@ -2828,10 +2810,10 @@ const INDICATOR_TEMPLATES: Array<{ label: string; preset: { label: string; expr:
     },
   },
   {
-    label: 'Aquecimento (kcalHMax / volume)',
+    label: 'Aquecimento (kcalHNominal / volume)',
     preset: {
       label: 'Aquecimento',
-      expr: 'kcalHMax / volume',
+      expr: 'kcalHNominal / volume',
       unit: 'kcal/m³h',
       levels: [
         { max: 200, label: 'Insuficiente', color: 'red' },
@@ -3390,7 +3372,7 @@ function AutoSelectModal({
                     )}
                   </div>
                   <div className="text-[11px] text-slate-700 leading-snug">
-                    Vars: orcamento (volume, area, areaParedeEFundo, dias, ...) + technicalSpecs do candidato (vazaoM3h, kcalHMin, tuboEntradaMm, ...).
+                    Vars: orcamento (volume, area, areaParedeEFundo, dias, calorNecessarioKcalH, ...) + technicalSpecs do candidato (vazaoM3h, kcalHNominal, tuboEntradaMm, ...).
                     Pra ler spec de outra linha: <code className="bg-slate-100 px-1 rounded">prod(L3, "tuboEntradaMm")</code> (use o botao acima).
                     Operadores: <code className="bg-slate-100 px-1 rounded text-slate-900">+ − × ÷ ( ) &gt;= &lt;= &gt; &lt; == != &amp;&amp; ||</code>
                   </div>
