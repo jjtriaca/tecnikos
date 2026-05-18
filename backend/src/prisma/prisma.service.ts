@@ -47,6 +47,7 @@ const TENANT_MODEL_DELEGATES = new Set([
   'poolCatalogConfig', 'poolBudgetTemplate', 'poolBudget', 'poolBudgetItem',
   'poolProject', 'poolProjectStage', 'poolProjectEntry', 'poolProjectPhoto',
   'poolPrintLayout', 'poolPrintPage', 'poolModuleConfig', 'poolPaymentTerm',
+  'energyTariff',
 ]);
 
 /**

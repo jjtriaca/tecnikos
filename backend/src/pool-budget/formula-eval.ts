@@ -32,12 +32,19 @@ export const ALLOWED_VARS = [
   'escavacao',        // m³ - volume de escavacao (terra removida)
   // Prazo
   'dias',
-  // Aquecimento (aba CAPA da planilha original)
+  // Aquecimento (aba CAPA da planilha original + simulador F1)
   'tempLocal',     // °C - temperatura media local
   'tempAgua',      // °C - temperatura agua desejada
-  'vento',         // 1=BAIXO, 2=MODERADO, 3=FORTE
+  'vento',         // 0=NULO, 1=BAIXO/FRACO, 2=MODERADO, 3=FORTE
   'capa',          // 0=NAO, 1=SIM
   'construcao',    // 1=ABERTA, 2=FECHADA
+  'hidromassagens',  // qtd unidades
+  'cascataCm',       // largura cascata em cm
+  'bordaInfinitaM',  // metros de borda infinita
+  // Var calculada pelo HeatingService apos computeReport (kcal/h necessario na pior condicao)
+  // Permite expressoes como: `kcalHNominal >= calorNecessarioKcalH` em regras de auto-select
+  // de bomba de calor.
+  'calorNecessarioKcalH',
 ] as const;
 const ALLOWED_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
 const CELL_REF_FUNCTIONS = ['qty', 'total', 'unitPrice'] as const;
@@ -192,7 +199,10 @@ export function evaluateFormula(
 }
 
 // Mapeia strings da UI pra numeros (vento/capa/construcao).
-const VENTO_MAP: Record<string, number> = { BAIXO: 1, MODERADO: 2, FORTE: 3 };
+// Vento: 0=NULO/sem vento, 1=BAIXO/FRACO, 2=MODERADO, 3=FORTE
+const VENTO_MAP: Record<string, number> = {
+  NULO: 0, BAIXO: 1, FRACO: 1, MODERADO: 2, FORTE: 3,
+};
 const CAPA_MAP: Record<string, number> = { SIM: 1, NAO: 0, NÃO: 0 };
 const CONSTRUCAO_MAP: Record<string, number> = { ABERTA: 1, FECHADA: 2 };
 
@@ -225,6 +235,22 @@ export function extractEnvVars(environmentParams: any): FormulaVars {
   else if (typeof e.capaTermica === 'number') vars.capa = e.capaTermica;
   if (typeof e.tipoConstrucao === 'string') vars.construcao = CONSTRUCAO_MAP[e.tipoConstrucao.toUpperCase()] ?? 0;
   else if (typeof e.tipoConstrucao === 'number') vars.construcao = e.tipoConstrucao;
+  // Extras (simulador de aquecimento F1)
+  if (typeof e.hidromassagensQtd === 'number') vars.hidromassagens = e.hidromassagensQtd;
+  if (typeof e.cascataLarguraCm === 'number') vars.cascataCm = e.cascataLarguraCm;
+  if (typeof e.bordaInfinitaM === 'number') vars.bordaInfinitaM = e.bordaInfinitaM;
+  return vars;
+}
+
+// Le calorNecessarioKcalH do heatingReport cacheado (resultado do Simulador de Aquecimento).
+// Permite que regras de auto-select de Bomba de Calor referenciem essa variavel:
+//   where: 'kcalHNominal >= calorNecessarioKcalH'
+//   indicator.expr: '(kcalHNominal - calorNecessarioKcalH) / calorNecessarioKcalH * 100'
+export function extractHeatingVars(heatingReport: any): FormulaVars {
+  if (!heatingReport || typeof heatingReport !== 'object') return {};
+  const r = heatingReport as Record<string, any>;
+  const vars: FormulaVars = {};
+  if (typeof r.calorNecessarioKcalH === 'number') vars.calorNecessarioKcalH = r.calorNecessarioKcalH;
   return vars;
 }
 

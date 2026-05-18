@@ -272,6 +272,7 @@ model Company {
   poolPrintLayouts    PoolPrintLayout[]
   poolPaymentTerms    PoolPaymentTerm[]
   poolModuleConfig    PoolModuleConfig?
+  energyTariffs       EnergyTariff[]
 }
 
 model User {
@@ -3519,6 +3520,11 @@ model PoolBudget {
   // Ordem de exibicao das etapas (PoolSection). null = ordem padrao SECTION_ORDER do front
   sectionOrder String[] @default([])
 
+  // Cache do relatorio do Simulador de Aquecimento (Trocador de Calor / Bomba de Calor).
+  // Recomputado quando inputs de aquecimento mudam (uf/cidade/temp/vento/capa/extras).
+  // Estrutura: ver HeatingReport em backend/src/pool-budget/heating.service.ts
+  heatingReport Json?
+
   // Forma de pagamento (separado do paymentTerms texto livre acima — futuro: deprecar texto livre)
   paymentTermId String?
 
@@ -3658,6 +3664,26 @@ model PoolPaymentTerm {
 
   @@unique([companyId, name])
   @@index([companyId, isActive, deletedAt])
+}
+
+// Tarifa de energia para o Simulador de Aquecimento (Trocador de Calor).
+// Singleton por tenant — 1 registro ativo (isActive=true) por vez, historico via validFrom/validTo.
+// Usado em /settings/energy-tariff. Defaults vem do codigo se nenhum registro existir.
+model EnergyTariff {
+  id            String    @id @default(uuid())
+  companyId     String
+  kwhBRLCents   Int       @default(115) // R$/kWh em centavos (ex: 115 = R$ 1.15)
+  glpKgBRLCents Int       @default(850) // R$/Kg GLP
+  gnM3BRLCents  Int       @default(850) // R$/m3 GN
+  isActive      Boolean   @default(true)
+  validFrom     DateTime  @default(now())
+  validTo       DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, isActive])
 }
 
 // Obra (projeto/execucao) - gerada de orcamento aprovado

@@ -20,7 +20,75 @@
 - **Fix**: no `processItem`, computa `finalUnitPrice` e `finalQty` e seta `totalCents: Math.round(finalQty * finalUnitPrice)` so quando `!hasFormula` (items com formula continuam sendo cobertos pelo persistItem do PASSO 1/2). Pos-fix: proxima vez que o operador disparar recalc na L23 (qualquer mutacao na etapa), totalCents corrige automaticamente.
 
 ## 🟦 PENDENTE — Sessao 205
-- (nada urgente)
+
+### 🔥 NOVA FRENTE: Simulador de Aquecimento (Trocador de Calor)
+- **Plano completo**: [memory/project_heating_simulator_plan.md](memory/project_heating_simulator_plan.md) — LER ANTES de implementar
+- **Origem**: usuario passou 3 fontes (planilha original Tholz X-23 + TAB006 Tholz X23-3 oficial + PDF AstralPool)
+- **Decisoes consolidadas** (sessao 205):
+  - Botao "Aquecimento" no orcamento → modal full-screen com abas (Trocador MVP / Solar futuro / Comparativo)
+  - **Metodo HIBRIDO**: fisica termodinamica (TAB006) + extras hidromassagem/cascata/borda (rule-of-thumb)
+  - **Dados climaticos nacionais**: 27 UFs + cidades-polo embarcadas como constante TS
+  - Tarifas (R$/kWh, GLP, GN) em /settings/energy-tariff (per-tenant)
+  - Comparativo de custos por fonte **incluso no MVP**
+
+#### F1 — Backend (COMPLETO, aguardando deploy)
+- [heating-constants.ts](backend/src/pool-budget/heating-constants.ts): 27 UFs + ~35 cidades (capitais + Primavera do Leste, Maringa, Londrina, Foz Iguacu, Caxias Sul, Joinville, Itajai, Blumenau, Campinas, Ribeirao Preto, Sao Jose do Rio Preto). Formula de Magnus pra pressao saturada (erro <0.3%). Constantes fisicas/extras/conversoes.
+- [heating.service.ts](backend/src/pool-budget/heating.service.ts): funcoes puras de calculo (computeMonthlyHeatLoss, selectEquipment, computeTimeToHeat, computeMonthlyConsumption, computeComparativo, computeReport).
+- [heating-budget.service.ts](backend/src/pool-budget/heating-budget.service.ts): wrapper com integracao Prisma (extrai inputs do PoolBudget, busca candidatos Bomba de Calor + tarifa, salva cache).
+- **Endpoints**:
+  - `GET /pool-budgets/heating/cities` — lista UF+cidades disponiveis
+  - `GET /pool-budgets/:id/heating-report` — cache ou recomputa
+  - `POST /pool-budgets/:id/heating-report/recompute` — forca recalculo
+  - `GET /settings/energy-tariff` — retorna tarifa ativa do tenant (ou defaults)
+  - `PUT /settings/energy-tariff` — upsert (desativa anterior, cria nova ativa)
+- **Schema**: `EnergyTariff` model novo (per-tenant singleton via isActive); `PoolBudget.heatingReport Json?` cache.
+- **Migration**: [20260518150000_heating_simulator/migration.sql](backend/prisma/migrations/20260518150000_heating_simulator/migration.sql) — TenantMigrator replica automaticamente nos schemas tenant_*.
+- **formula-eval**: novo var `calorNecessarioKcalH` + suporte a hidromassagens/cascataCm/bordaInfinitaM nos environmentParams. Vento ganhou nivel NULO.
+- **Validacao matematica**: TAB006 esperado 45.5 kW, calculado 46.9 kW (erro 3% ✓ dentro de <5%). Mensais batem dentro de 1-3%. Comparativo cidades coerente (Curitiba 18.9 > Maringa 18.2 > Florianopolis 16.8 > Itajai 16.5 > Cuiaba 16.2).
+- **Calibracao**: margem seguranca SAFETY_MARGIN.ANO_TODO=1.10 (ajustada do 1.25 inicial pra bater TAB006), removido tipoPiscinaFactor (TAB006 nao usa), mantido capaFactor 0.6375 (planilha original).
+- **Build local**: typecheck OK (EXIT 0).
+
+#### F2 — Frontend modal + inputs (COMPLETO, aguardando deploy)
+- [components/pool/HeatingSimulatorModal.tsx](frontend/src/components/pool/HeatingSimulatorModal.tsx): modal full-screen com 3 abas internas (Bomba de Calor / Solar placeholder / Comparativo placeholder).
+- **Aba Bomba de Calor — 5 secoes**:
+  1. **Dados da obra** (read-only): volume, area, dim
+  2. **Localizacao e clima**: UF dropdown (27 estados) + Cidade dropdown filtrada (lista cidades-polo do UF, capital default)
+  3. **Dados de uso** (editaveis): temp agua desejada/inicial, vento (4 niveis), tipo construcao, capa termica, tipo piscina, utilizacao ano/semana, hidromassagens, cascata cm, borda inf m
+  4. **Dimensionamento**: 3 cards grandes (Kcal/h / kW / Btu/h) + tabela mensal compacta (12 meses) com Qtotal kW destacando mes critico
+  5. **Equipamento selecionado**: card com nome do modelo + capacidade + COP + tempo elevacao 1°C. Aviso se nenhum produto cadastrado tem poolType=Bomba de Calor + technicalSpecs.kcalHNominal
+- **Botao "🔥 Aquecimento"** no header do orcamento, ao lado de "Editar dados" (so versao expandida, ja que o header colapsado eh barra fina). Estilo orange-50/orange-700, mesmo padrao visual dos outros botoes.
+- Wire-up: GET `/heating/cities` na abertura, GET `/heating-report` (cache), PUT `/pool-budgets/:id` (environmentParams) + POST `/heating-report/recompute` no submit.
+
+#### F3 — Tarifas + auto-select preciso + backfill Tholz (COMPLETO, aguardando deploy)
+- **Tela `/settings/energy-tariff`** ([page.tsx](frontend/src/app/(dashboard)/settings/energy-tariff/page.tsx)): form simples com 3 campos (R$/kWh, R$/Kg GLP, R$/m³ GN) em reais (converte pra centavos). Banner amarelo quando usa defaults do sistema. Box azul com explicacao de uso. Adicionado no Sidebar em Configuracoes.
+- **Template auto-select novo "🔥 Bomba de Calor (preciso — termodinamico)"** (page.tsx do orcamento): usa `where: kcalHNominal >= calorNecessarioKcalH and kcalHNominal <= calorNecessarioKcalH * 3.33` + indicator "Folga aquec." mostrando % de folga (Insuficiente / Justo / Adequado / Folgado / Super-dim). Template antigo (kcalHMax >= volume * 600) renomeado pra "legado".
+- **Backend**: `extractHeatingVars(heatingReport)` injeta `calorNecessarioKcalH` nos vars do auto-select (PASSO 0 do recalc) e indicator. PoolBudget.findUnique no recalculateTotals agora seleciona `heatingReport`.
+- **Backfill SQL** ([scripts/backfill-tholz-sls.sql](backend/scripts/backfill-tholz-sls.sql)): popula `technicalSpecs.kcalHNominal/btuH/kwNominal/ratedInputPowerKW/copAt50Capacity/tipoEquipamento` nos produtos Tholz X23 (09C/14C/18C/26C/40C) e seta `poolType = 'Bomba de Calor'`. Idempotente. Rodar manualmente no Hetzner apos deploy.
+
+#### F4 — Tabela mensal consumo/custo + Aba Comparativo (COMPLETO, aguardando deploy)
+- **Secao 6 do modal — "Consumo mensal e custos estimados"** (HeatingSimulatorModal.tsx):
+  - 3 BigStats: Consumo anual (kWh), Custo anual operacao (R$), Custo aquecimento inicial (R$)
+  - Tabela 12 meses: Mes / Qtotal kW / Consumo kWh / Custo R$ — destaque do mes critico
+  - Linha "Total anual" no rodape
+  - Link pra /settings/energy-tariff se nao configurada
+- **Secao 7 — "Observacoes"**: textarea livre salvo em `environmentParams.heatingObservacoes`
+- **Novos inputs operacionais**: horasFuncionamentoDia (default 15), taxaFuncionamento (default 0.5, fracao de carga inverter)
+- **Aba "Comparativo"** habilitada:
+  - Barras horizontais ordenadas por menor custo (Bomba de Calor sempre destacada com badge "RECOMENDADO")
+  - Cada fonte com emoji + valor anual + consumo + % vs Bomba
+  - Cards de economia anual em R$ e % vs cada fonte (GLP, GN, Eletrico)
+  - Box informativo explicando a metodologia
+- **Backend ja entrega** `monthlyConsumption[]`, `annualKwh`, `annualCostBRLCents`, `initialHeatingCostBRLCents`, `comparativo[]` via `HeatingService.computeReport` (F1).
+- **Backend typecheck OK** (`tsc --noEmit` EXIT 0).
+
+#### F5 — Pendente
+- F5 (2-3h): Bloco no PDF (PoolPrintLayout) — replicar tabela mensal + comparativo no print do orcamento
+
+### Outras pendentes
+🟨 **Tabelas com max-w fixo na descricao** (memory/feedback_truncate_descricao.md) — 10 arquivos
+🟨 **Fix detector build Docker silencioso** (memory/feedback_deploy_build_silent.md) — 1h
+🟦 **Tracking universal Fases 3-6** (sessao 200): Cadastros, Fiscal, Config/Workflow/Piscina, soft delete + lixeira. ~4-5h
+🟡 Canal EMAIL mock, FinancialInstallment legacy, Sweep ortografico
 
 ## RECAP SESSAO 203 — v1.11.16 → v1.11.47 (31 versoes deployadas)
 

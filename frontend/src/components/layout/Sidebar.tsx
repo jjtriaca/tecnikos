@@ -151,6 +151,7 @@ const NAV_ITEMS: NavItem[] = [
     { label: "Fluxo de Atendimento", href: "/workflow" },
     { label: "Notificações", href: "/notifications" },
     { label: "Boleto Bancário", href: "/settings/boleto" },
+    { label: "Tarifas de Energia", href: "/settings/energy-tariff" },
   ] },
   { label: "SaaS Admin", href: "/ctrl-zr8k2x", icon: icons.saas, roles: ["ADMIN"], hidden: true, children: [
     { label: "Dashboard SaaS", href: "/ctrl-zr8k2x" },

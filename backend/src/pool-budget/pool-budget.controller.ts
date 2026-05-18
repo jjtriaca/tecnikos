@@ -11,6 +11,8 @@ import {
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { PoolBudgetService } from './pool-budget.service';
+import { HeatingBudgetService } from './heating-budget.service';
+import { HeatingService } from './heating.service';
 import { CreatePoolBudgetDto } from './dto/create-pool-budget.dto';
 import { UpdatePoolBudgetDto } from './dto/update-pool-budget.dto';
 import { QueryPoolBudgetDto } from './dto/query-pool-budget.dto';
@@ -24,7 +26,33 @@ import { AuthenticatedUser } from '../auth/auth.types';
 @ApiTags('Pool Budgets')
 @Controller('pool-budgets')
 export class PoolBudgetController {
-  constructor(private readonly service: PoolBudgetService) {}
+  constructor(
+    private readonly service: PoolBudgetService,
+    private readonly heatingBudget: HeatingBudgetService,
+    private readonly heating: HeatingService,
+  ) {}
+
+  // ============ Simulador de Aquecimento ============
+
+  @ApiOperation({ summary: 'Lista UFs + cidades disponiveis para o simulador de aquecimento' })
+  @Get('heating/cities')
+  listHeatingCities() {
+    return this.heating.listAvailableCities();
+  }
+
+  @ApiOperation({ summary: 'Retorna relatorio do simulador (cache ou recomputa)' })
+  @Get(':id/heating-report')
+  getHeatingReport(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.heatingBudget.getReport(id, user.companyId);
+  }
+
+  @ApiOperation({ summary: 'Recomputa o relatorio do simulador e salva em cache' })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/heating-report/recompute')
+  recomputeHeatingReport(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.heatingBudget.computeAndSaveReport(id, user.companyId);
+  }
 
   @ApiOperation({ summary: 'Cria orçamento de piscina (auto-aplica template se enviado)' })
   @RequireVerification()

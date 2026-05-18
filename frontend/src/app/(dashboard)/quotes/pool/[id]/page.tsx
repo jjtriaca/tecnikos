@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import PartnerCombobox from "@/components/PartnerCombobox";
+import { HeatingSimulatorModal } from "@/components/pool/HeatingSimulatorModal";
 
 type AutoSelectRule = {
   filterPoolType?: string | null;
@@ -317,6 +318,7 @@ export default function PoolBudgetDetailPage() {
   const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false);
   const [showEditHeader, setShowEditHeader] = useState(false);
   const [showPaymentTerms, setShowPaymentTerms] = useState(false);
+  const [showHeatingSimulator, setShowHeatingSimulator] = useState(false);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const { widths: colWidths, setWidth: setColWidth, reset: resetColWidths } = useColumnWidths();
 
@@ -600,6 +602,11 @@ export default function PoolBudgetDetailPage() {
                       ✏️ Editar dados
                     </Link>
                   )}
+                  <button onClick={() => setShowHeatingSimulator(true)}
+                    className="text-[11px] text-orange-700 hover:text-white hover:bg-orange-600 px-2 py-0.5 rounded border border-orange-300 bg-orange-50 transition"
+                    title="Simulador de Aquecimento (Trocador de Calor)">
+                    🔥 Aquecimento
+                  </button>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
                   <span className="font-mono text-slate-600">{budget.code || "—"}</span>
@@ -962,6 +969,14 @@ export default function PoolBudgetDetailPage() {
           onSaved={async () => { setShowEditHeader(false); await load(); }}
         />
       )}
+
+      <HeatingSimulatorModal
+        budget={budget}
+        open={showHeatingSimulator}
+        onClose={() => setShowHeatingSimulator(false)}
+        onSaved={async () => { await load(); }}
+      />
+
 
       {showPaymentTerms && (
         <PaymentTermsModal
@@ -2641,8 +2656,31 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
   },
   {
     icon: '🔥',
-    label: 'Aquecedor por Kcal/h (~600 kcal/m³h)',
-    description: 'Aquecedor (bomba de calor, solar ou trocador) com capacidade Kcal/h suficiente pra aquecer o volume da piscina. Indicador 5 niveis baseado em kcalH por m³.',
+    label: 'Bomba de Calor (preciso — termodinamico)',
+    description: 'Seleciona Bomba de Calor com base no Simulador de Aquecimento. Usa calorNecessarioKcalH calculado por fisica termodinamica + dados climaticos do UF/cidade configurados em "🔥 Aquecimento". Folga ideal 30-70%.',
+    rule: {
+      filterCategoria: null,
+      filterDescription: 'Bomba',
+      where: 'kcalHNominal >= calorNecessarioKcalH and kcalHNominal <= calorNecessarioKcalH * 3.33',
+      orderBy: 'kcalHNominal asc',
+      indicator: {
+        label: 'Folga aquec.',
+        expr: '(kcalHNominal - calorNecessarioKcalH) / calorNecessarioKcalH * 100',
+        unit: '%',
+        levels: [
+          { max: 0, label: 'Insuficiente', color: 'red' },
+          { max: 30, label: 'Justo', color: 'orange' },
+          { max: 70, label: 'Adequado', color: 'emerald' },
+          { max: 150, label: 'Folgado', color: 'yellow' },
+          { max: 99999, label: 'Super-dim.', color: 'red' },
+        ],
+      },
+    },
+  },
+  {
+    icon: '🔥',
+    label: 'Aquecedor por Kcal/h (~600 kcal/m³h — legado)',
+    description: 'Regra empirica antiga (kcalHMax >= volume * 600). Use o template "Bomba de Calor (preciso)" pra calculo termodinamico nacional.',
     rule: {
       filterCategoria: null,
       filterDescription: 'Aquecedor',
