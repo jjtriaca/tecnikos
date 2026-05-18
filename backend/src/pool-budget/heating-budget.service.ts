@@ -97,6 +97,20 @@ export class HeatingBudgetService {
   }
 
   /**
+   * Simulacao "calculo rapido" — recebe todos os inputs no body, computa o
+   * relatorio mas NAO salva no banco. Util pra testar cenarios hipoteticos
+   * (mudanca de UF, capa, borda, etc) sem mexer no orcamento.
+   *
+   * Usa candidatos e tarifa do tenant (igual computeAndSaveReport) pra que
+   * o equipamento selecionado e custo mensal sejam realistas.
+   */
+  async simulate(companyId: string, inputs: HeatingInputs): Promise<HeatingReport> {
+    const tariff = await this.getEnergyTariff(companyId);
+    const candidates = await this.fetchBombaCalorCandidates(companyId);
+    return this.heating.computeReport(inputs, { candidates, tariff });
+  }
+
+  /**
    * Retorna o report cacheado se valido, senao recomputa.
    * "Valido" = computado nas ultimas 24h E os inputs nao mudaram desde a computacao.
    * Por simplicidade no F1: sempre recomputa quando solicitado via GET (cache visivel

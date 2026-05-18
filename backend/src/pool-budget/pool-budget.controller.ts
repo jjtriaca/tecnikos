@@ -17,6 +17,7 @@ import { CreatePoolBudgetDto } from './dto/create-pool-budget.dto';
 import { UpdatePoolBudgetDto } from './dto/update-pool-budget.dto';
 import { QueryPoolBudgetDto } from './dto/query-pool-budget.dto';
 import { CreateBudgetItemDto, UpdateBudgetItemDto } from './dto/budget-item.dto';
+import { HeatingSimulateDto } from './dto/heating-simulate.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -52,6 +53,13 @@ export class PoolBudgetController {
   @Post(':id/heating-report/recompute')
   recomputeHeatingReport(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.heatingBudget.computeAndSaveReport(id, user.companyId);
+  }
+
+  @ApiOperation({ summary: 'Simulacao do simulador — calculo rapido sem salvar (modo livre)' })
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post('heating/simulate')
+  simulateHeating(@Body() dto: HeatingSimulateDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.heatingBudget.simulate(user.companyId, dto as any);
   }
 
   @ApiOperation({ summary: 'Cria orçamento de piscina (auto-aplica template se enviado)' })

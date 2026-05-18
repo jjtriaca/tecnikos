@@ -142,6 +142,14 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
   const [report, setReport] = useState<HeatingReport | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Modo "Calculo rapido": permite editar dados da obra (volume/area/dim) e
+  // calcular sem salvar no orcamento. Util pra simular cenarios hipoteticos.
+  const [quickMode, setQuickMode] = useState<boolean>(false);
+  const [quickVolume, setQuickVolume] = useState<number>(0);
+  const [quickArea, setQuickArea] = useState<number>(0);
+  const [quickLength, setQuickLength] = useState<number>(0);
+  const [quickWidth, setQuickWidth] = useState<number>(0);
+
   // State dos inputs (sincronizado com environmentParams)
   const [uf, setUf] = useState<string>("");
   const [cidade, setCidade] = useState<string>("");
@@ -194,7 +202,14 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
     setHorasFuncionamentoDia(Number(env.horasFuncionamentoDia) || 15);
     setTaxaFuncionamento(Number(env.taxaFuncionamento) || 0.5);
     setObservacoes(typeof env.heatingObservacoes === "string" ? env.heatingObservacoes : "");
-  }, [open, budget.environmentParams]);
+    // Pre-carrega dados da obra do orcamento (usado no quickMode)
+    const dims = budget.poolDimensions ?? {};
+    setQuickVolume(Number(dims.volume) || 0);
+    setQuickArea(Number(dims.area) || 0);
+    setQuickLength(Number(dims.length) || 0);
+    setQuickWidth(Number(dims.width) || 0);
+    setQuickMode(false); // reseta toda vez que abre
+  }, [open, budget.environmentParams, budget.poolDimensions]);
 
   // Carrega report ao abrir (cache do backend)
   useEffect(() => {
@@ -210,8 +225,9 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
   const ufData = useMemo(() => cities.find((c) => c.uf === uf), [cities, uf]);
   const availableCities = ufData?.cities ?? [];
 
-  // Salva environmentParams + recomputa report
+  // Salva environmentParams + recomputa report (modo normal)
   async function handleSaveAndRecompute() {
+    if (quickMode) return handleSimulate();
     setSaving(true);
     setError(null);
     try {
@@ -248,6 +264,51 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
     }
   }
 
+  // Simulacao "calculo rapido" — envia inputs livres pro backend SEM salvar.
+  async function handleSimulate() {
+    setSaving(true);
+    setError(null);
+    try {
+      const inputs = {
+        areaM2: Number(quickArea),
+        volumeM3: Number(quickVolume),
+        uf,
+        cidade: cidade || undefined,
+        tempAguaDesejada: Number(tempAguaDesejada),
+        tempAguaInicial: tempAguaInicial === "" ? undefined : Number(tempAguaInicial),
+        vento,
+        tipoConstrucao,
+        tipoPiscina,
+        capaTermica,
+        utilizacaoAno,
+        utilizacaoSemana,
+        hidromassagensQtd: Number(hidromassagensQtd),
+        cascataLarguraCm: Number(cascataLarguraCm),
+        bordaInfinitaM: Number(bordaInfinitaM),
+        bordaInfinitaAlturaM: Number(bordaInfinitaAlturaM),
+        bordaInfinitaVazaoLminPorM: Number(bordaInfinitaVazaoLminPorM),
+        bordaInfinitaHorasAtivaDia: Number(bordaInfinitaHorasAtivaDia),
+        horasFuncionamentoDia: Number(horasFuncionamentoDia),
+        taxaFuncionamento: Number(taxaFuncionamento),
+      };
+      const r = await api.post<HeatingReport>(`/pool-budgets/heating/simulate`, inputs);
+      setReport(r);
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Restaura dados da obra do orcamento (apaga overrides do quickMode)
+  function restoreFromBudget() {
+    const dims = budget.poolDimensions ?? {};
+    setQuickVolume(Number(dims.volume) || 0);
+    setQuickArea(Number(dims.area) || 0);
+    setQuickLength(Number(dims.length) || 0);
+    setQuickWidth(Number(dims.width) || 0);
+  }
+
   if (!open) return null;
 
   return (
@@ -255,17 +316,30 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
       <div className="flex-1 bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-gradient-to-r from-orange-50 via-amber-50 to-yellow-50">
-          <div>
+          <div className="flex-1 min-w-0">
             <h2 className="text-lg font-bold text-slate-900">🔥 Simulador de Aquecimento</h2>
-            <p className="text-xs text-slate-600">
+            <p className="text-xs text-slate-600 truncate">
               <span className="font-mono">{budget.code || "—"}</span> · {budget.clientPartner?.name || "—"} · {budget.title}
             </p>
           </div>
-          <button onClick={onClose}
-            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition">
-            ✕
-          </button>
+          <div className="flex items-center gap-3">
+            {/* Toggle Calculo Rapido */}
+            <label className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-300 bg-white hover:bg-amber-50 cursor-pointer transition">
+              <input type="checkbox" checked={quickMode} onChange={(e) => setQuickMode(e.target.checked)}
+                className="rounded border-amber-400 text-amber-600 focus:ring-amber-500" />
+              <span className="text-xs font-semibold text-amber-900">⚡ Calculo rapido</span>
+            </label>
+            <button onClick={onClose}
+              className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition">
+              ✕
+            </button>
+          </div>
         </div>
+        {quickMode && (
+          <div className="bg-amber-100 border-b border-amber-300 px-6 py-2 text-xs text-amber-900">
+            <strong>⚡ Modo Calculo Rapido ativo</strong> — voce pode editar dados da obra (volume/area/dim) pra simular cenarios. Alteracoes NAO sao salvas no orcamento. Para fechar, desative o toggle.
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex border-b border-slate-200 bg-slate-50 px-4">
@@ -290,17 +364,47 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
 
           {activeTab === "bomba" && (
             <div className="space-y-4">
-              {/* SECAO 1 — Dados da obra (read-only) */}
+              {/* SECAO 1 — Dados da obra (read-only OU editavel em quickMode) */}
               <Section title="1. Dados da obra" icon="📋">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                  <ReadField label="Volume" value={`${(budget.poolDimensions?.volume ?? 0).toFixed(2)} m³`} />
-                  <ReadField label="Area superficie" value={`${(budget.poolDimensions?.area ?? 0).toFixed(2)} m²`} />
-                  <ReadField label="Comprimento" value={`${budget.poolDimensions?.length ?? "—"} m`} />
-                  <ReadField label="Largura" value={`${budget.poolDimensions?.width ?? "—"} m`} />
-                </div>
-                <div className="mt-2 text-[11px] text-slate-500">
-                  Dados puxados das dimensoes do orcamento. Pra editar, use o botao "Editar dados".
-                </div>
+                {quickMode ? (
+                  <>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <Field label="Volume (m³)" hint="Editavel — nao altera o orcamento">
+                        <NumInput value={quickVolume} onChange={setQuickVolume} step={0.5} min={0.1} />
+                      </Field>
+                      <Field label="Area superficie (m²)" hint="Espelho d'agua">
+                        <NumInput value={quickArea} onChange={setQuickArea} step={0.5} min={0.1} />
+                      </Field>
+                      <Field label="Comprimento (m)" hint="Informativo">
+                        <NumInput value={quickLength} onChange={setQuickLength} step={0.5} min={0} />
+                      </Field>
+                      <Field label="Largura (m)" hint="Informativo">
+                        <NumInput value={quickWidth} onChange={setQuickWidth} step={0.5} min={0} />
+                      </Field>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between">
+                      <div className="text-[11px] text-amber-700">
+                        ⚡ Modo Calculo Rapido — alteracoes aqui NAO sao salvas no orcamento.
+                      </div>
+                      <button onClick={restoreFromBudget} type="button"
+                        className="text-[11px] text-cyan-700 hover:text-cyan-900 hover:underline">
+                        ↩ Restaurar dados do orcamento
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                      <ReadField label="Volume" value={`${(budget.poolDimensions?.volume ?? 0).toFixed(2)} m³`} />
+                      <ReadField label="Area superficie" value={`${(budget.poolDimensions?.area ?? 0).toFixed(2)} m²`} />
+                      <ReadField label="Comprimento" value={`${budget.poolDimensions?.length ?? "—"} m`} />
+                      <ReadField label="Largura" value={`${budget.poolDimensions?.width ?? "—"} m`} />
+                    </div>
+                    <div className="mt-2 text-[11px] text-slate-500">
+                      Dados puxados das dimensoes do orcamento. Use o toggle "⚡ Calculo rapido" no header pra editar e simular sem salvar.
+                    </div>
+                  </>
+                )}
               </Section>
 
               {/* SECAO 2 — Localizacao e clima */}
@@ -429,8 +533,10 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
 
                 <div className="mt-4 flex items-center justify-end gap-2">
                   <button onClick={handleSaveAndRecompute} disabled={saving || loading || !uf}
-                    className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-cyan-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition">
-                    {saving ? "Calculando..." : "💾 Salvar e calcular"}
+                    className={`rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition disabled:bg-slate-300 disabled:cursor-not-allowed ${
+                      quickMode ? "bg-amber-600 hover:bg-amber-700" : "bg-cyan-600 hover:bg-cyan-700"
+                    }`}>
+                    {saving ? "Calculando..." : (quickMode ? "⚡ Calcular (nao salva)" : "💾 Salvar e calcular")}
                   </button>
                 </div>
               </Section>
