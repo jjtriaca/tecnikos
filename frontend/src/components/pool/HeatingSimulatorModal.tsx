@@ -70,6 +70,7 @@ interface HeatingReport {
   selectedEquipment?: SelectedEquipment;
   timeToHeatHours?: number;
   degreesPerHour?: number;
+  timeToHeatInfeasible?: boolean;
   copEstimated?: number;
   monthlyConsumption?: MonthlyConsumption[];
   annualKwh?: number;
@@ -474,12 +475,18 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                           ? <span className="ml-2 text-emerald-700">✓ Folga adequada (30-70%)</span>
                           : <span className="ml-2 text-amber-700">⚠ Fora da faixa ideal</span>}
                       </div>
-                      {report.timeToHeatHours !== undefined && report.timeToHeatHours > 0 && (
-                        <div className="mt-2 text-xs text-emerald-800">
+                      {report.timeToHeatInfeasible ? (
+                        <div className="mt-2 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-900">
+                          <strong>⛔ Equipamento nao consegue aquecer a piscina nas condicoes atuais.</strong>
+                          <div className="mt-0.5">A perda termica continua (evaporacao + extras como borda infinita) excede a capacidade do modelo selecionado. Considere: reduzir a temperatura desejada, adicionar capa termica, ou escolher equipamento de maior capacidade.</div>
+                        </div>
+                      ) : report.timeToHeatHours !== undefined && report.timeToHeatHours > 0 && isFinite(report.timeToHeatHours) ? (
+                        <div className={`mt-2 text-xs ${report.timeToHeatHours > 48 ? "text-amber-800" : "text-emerald-800"}`}>
                           Tempo de elevacao: <strong>{Math.floor(report.timeToHeatHours)}h {Math.round((report.timeToHeatHours % 1) * 60)}min</strong>
                           {report.degreesPerHour && <> · {report.degreesPerHour.toFixed(2)} °C/h</>}
+                          {report.timeToHeatHours > 48 && <span className="ml-2">⚠ Tempo elevado — folga apertada, perdas continuas pesam.</span>}
                         </div>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 ) : (

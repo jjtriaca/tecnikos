@@ -140,8 +140,9 @@ export interface HeatingReport {
   selectedEquipment?: EquipmentSpecs & { loadRatio: number; isAdequate: boolean };
 
   // Performance (preenchido se selectedEquipment passado)
-  timeToHeatHours?: number; // tempo total ate temp desejada
+  timeToHeatHours?: number; // tempo total ate temp desejada (descontando perdas continuas)
   degreesPerHour?: number; // °C/h em media
+  timeToHeatInfeasible?: boolean; // true se perda >= capacidade (equipamento nao aquece)
   copEstimated?: number;
 
   // Consumo + custo
@@ -349,13 +350,27 @@ export class HeatingService {
    *   SHC = 4.2 kJ/(kg·°C) (calor especifico da agua)
    *   capacidadeBtuH ≈ capacidadeKcalH × 3.9683
    */
-  computeTimeToHeat(volumeM3: number, deltaT: number, capacidadeKcalH: number): { hours: number; degreesPerHour: number } {
-    if (capacidadeKcalH <= 0 || deltaT <= 0) return { hours: 0, degreesPerHour: 0 };
+  computeTimeToHeat(
+    volumeM3: number,
+    deltaT: number,
+    capacidadeKcalH: number,
+    perdaKcalH: number = 0,
+  ): { hours: number; degreesPerHour: number; isInfeasible: boolean } {
+    if (capacidadeKcalH <= 0 || deltaT <= 0) return { hours: 0, degreesPerHour: 0, isInfeasible: false };
+
+    // Capacidade efetiva = capacidade total - perda termica continua durante o aquecimento.
+    // O aquecedor cobre as perdas primeiro; o que sobra eleva a temperatura.
+    // Se perda >= capacidade → impossivel aquecer (equipamento subdimensionado).
+    const capacidadeEfetivaKcalH = capacidadeKcalH - perdaKcalH;
+    if (capacidadeEfetivaKcalH <= 0) {
+      return { hours: Infinity, degreesPerHour: 0, isInfeasible: true };
+    }
+
     const energiaKj = WATER_PROPS.specificHeatKjPerKgC * volumeM3 * 1000 * deltaT;
-    // capacidade Kcal/h → kW (÷860) → kJ/s × 3600 = kJ/h
-    const capacidadeKjH = (capacidadeKcalH / CONVERSIONS.KWH_TO_KCAL) * 3600;
+    // capacidade Kcal/h → kJ/h: (Kcal/h ÷ 860) = kW, × 3600 = kJ/h
+    const capacidadeKjH = (capacidadeEfetivaKcalH / CONVERSIONS.KWH_TO_KCAL) * 3600;
     const hours = energiaKj / capacidadeKjH;
-    return { hours: round2(hours), degreesPerHour: round2(deltaT / hours) };
+    return { hours: round2(hours), degreesPerHour: round2(deltaT / hours), isInfeasible: false };
   }
 
   // ----- 5. Consumo mensal + custos -----
@@ -486,11 +501,17 @@ export class HeatingService {
         report.selectedEquipment = sel;
 
         // 4. Tempo de aquecimento + COP
+        // Usa Qtotal medio como perda durante o aquecimento (estimativa pratica).
+        // Quando borda infinita/cascata estao ligadas, a perda continua reduz a
+        // capacidade efetiva do equipamento e o tempo pode subir muito (ou ficar
+        // infeasible se a carga passar de 100% no mes critico).
         const tempIni = inputs.tempAguaInicial ?? this.getDefaultTempInicial(inputs.uf, inputs.cidade);
         const deltaT = Math.max(0, inputs.tempAguaDesejada - tempIni);
-        const time = this.computeTimeToHeat(inputs.volumeM3, deltaT, sel.kcalHNominal ?? 0);
+        const perdaMediaKcalH = qtotalAvgKw * CONVERSIONS.KWH_TO_KCAL;
+        const time = this.computeTimeToHeat(inputs.volumeM3, deltaT, sel.kcalHNominal ?? 0, perdaMediaKcalH);
         report.timeToHeatHours = time.hours;
         report.degreesPerHour = time.degreesPerHour;
+        report.timeToHeatInfeasible = time.isInfeasible;
         report.copEstimated = sel.copAt50Capacity ?? sel.copNominal ?? 0;
 
         // 5. Consumo + custo

@@ -1,7 +1,15 @@
 # TAREFA ATUAL
 
-## Versao: v1.11.50 (em prod)
-## Ultima sessao: 204 (16/05/2026)
+## Versao: v1.11.52 (em prod)
+## Ultima sessao: 205 (18/05/2026)
+
+## v1.11.52 — fix(energy-tariff): toast(message, type) assinatura correta
+- Deploy v1.11.51 falhou silenciosamente (build frontend errou): `toast({type,message})` invalido — assinatura real eh `toast(message, type)`. Mesmo padrao do incidente do `feedback_deploy_build_silent.md` — script declarou sucesso, commitou+pushou v1.11.51 mas prod ficou em v1.11.50.
+- Fix: 4 chamadas em [settings/energy-tariff/page.tsx](frontend/src/app/(dashboard)/settings/energy-tariff/page.tsx) (catch + handleSave) ajustadas.
+- Pos-deploy: rodado `backend/scripts/backfill-tholz-sls.sql` no tenant_sls — 5 produtos Tholz X23 atualizados com kcalHNominal/kwNominal/copAt50Capacity/tipoEquipamento (09C=8168, 14C=11590, 18C=15901, 26C=21930, 40C=34400 Kcal/h).
+
+## v1.11.51 — feat(pool): Simulador de Aquecimento (Trocador) — F1-F4
+- Versao publicada como tag mas codigo nao chegou em prod por causa do build falhando (substituida por v1.11.52). Ver release v1.11.52 pra detalhes.
 
 ## v1.11.50 — Pool budget: esconde badge "✨ selecao automatica" quando rule.manualSelection=true
 - **Pedido do Juliano**: quando "Apenas filtrar — nao escolher automaticamente" esta marcado, a badge "selecao automatica" na linha eh enganosa (o engine nao escolhe, o operador que escolhe). Esconder.
