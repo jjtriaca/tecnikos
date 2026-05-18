@@ -865,6 +865,7 @@ export default function PoolBudgetDetailPage() {
                           isLast={idx === items.length - 1}
                           dimensions={budget.poolDimensions}
                           environmentParams={budget.environmentParams}
+                          heatingReport={(budget as any).heatingReport}
                           dias={budget.estimatedDurationDays ?? 0}
                           allItems={budget.items}
                           catalog={catalog}
@@ -1012,7 +1013,7 @@ export default function PoolBudgetDetailPage() {
   );
 }
 
-function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentParams, dias, allItems, catalog, onUpdate, onRemove, onMove }: {
+function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentParams, heatingReport, dias, allItems, catalog, onUpdate, onRemove, onMove }: {
   item: BudgetItem;
   seq?: number;
   locked: boolean;
@@ -1020,6 +1021,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
   isLast?: boolean;
   dimensions?: any;
   environmentParams?: any;
+  heatingReport?: any;
   dias?: number;
   allItems?: BudgetItem[];
   catalog?: CatalogConfig[];
@@ -1335,6 +1337,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         catalog={catalog}
         dimensions={dimensions}
         environmentParams={environmentParams}
+        heatingReport={heatingReport}
         siblingVars={siblingVars}
         sectionItems={(allItems || [])
           .filter((it) => it.poolSection === item.poolSection && it.id !== item.id)
@@ -2829,6 +2832,7 @@ function AutoSelectModal({
   catalog,
   dimensions,
   environmentParams,
+  heatingReport,
   siblingVars,
   itemDescription,
   currentProductName,
@@ -2841,6 +2845,9 @@ function AutoSelectModal({
   catalog: CatalogConfig[];
   dimensions: any;
   environmentParams?: any;
+  // Cache do simulador de aquecimento — usado pra extrair calorNecessarioKcalH
+  // nas regras de auto-select de Bomba de Calor.
+  heatingReport?: any;
   // Vars 'sibling*' calculadas dos outros items da mesma etapa — replica
   // backend pra preview do modal mostrar candidatos certos quando regra
   // referencia o equipamento da linha vizinha (ex: tubo usa siblingTuboMm).
@@ -2969,11 +2976,14 @@ function AutoSelectModal({
       escavacao: Number(dimensions?.escavacaoM3) || 0,
       tempLocal: Number(environmentParams?.temperaturaMediaLocal ?? environmentParams?.temperatura) || 0,
       tempAgua: Number(environmentParams?.temperaturaAguaDesejada) || 0,
+      // Calor necessario do simulador de aquecimento (v1.11.69) — usado pelo
+      // template "Bomba de Calor (preciso)" pra filtrar candidatos.
+      calorNecessarioKcalH: Number(heatingReport?.calorNecessarioKcalH) || 0,
       // Sibling vars resolvidas: linkedCellRef se definido, senao siblingVars genericos.
       ...effectiveSiblingVars,
     };
     return v;
-  }, [dimensions, environmentParams, effectiveSiblingVars]);
+  }, [dimensions, environmentParams, heatingReport, effectiveSiblingVars]);
 
   // Map cellRef -> specs do produto vinculado, alimenta substituicao de prod(LX, "spec") nas regras
   const cellRefSpecs = useMemo(() => {
