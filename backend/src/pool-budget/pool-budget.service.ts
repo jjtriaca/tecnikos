@@ -22,6 +22,7 @@ import {
   PoolFormulaConfig,
   PoolConditionConfig,
 } from './pool-formula.service';
+import { HeatingBudgetService } from './heating-budget.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -44,6 +45,7 @@ export class PoolBudgetService {
     private readonly audit: AuditService,
     private readonly codeGenerator: CodeGeneratorService,
     private readonly formulaService: PoolFormulaService,
+    private readonly heatingBudget: HeatingBudgetService,
   ) {}
 
   private async assertModuleActive(companyId: string) {
@@ -552,7 +554,7 @@ export class PoolBudgetService {
   async recalculateTotals(budgetId: string) {
     const HOURS_PER_DAY = 8;
 
-    const budget = await this.prisma.poolBudget.findUnique({
+    let budget = await this.prisma.poolBudget.findUnique({
       where: { id: budgetId },
       select: {
         discountCents: true,
@@ -565,6 +567,29 @@ export class PoolBudgetService {
         companyId: true,
       },
     });
+
+    // F6.x: Auto-computa heatingReport quando nao existe — necessario pro auto-select
+    // de Bomba de Calor preciso (regra usa calorNecessarioKcalH). Sem isso, regras tipo
+    // "kcalHNominal >= calorNecessarioKcalH and kcalHNominal <= calorNecessarioKcalH * 3.33"
+    // falham (0 <= 0 eh false pra kcalHNominal positivo).
+    const dims = (budget?.poolDimensions ?? {}) as Record<string, any>;
+    if (!budget?.heatingReport && budget?.companyId && Number(dims.area) > 0 && Number(dims.volume) > 0) {
+      try {
+        await this.heatingBudget.computeAndSaveReport(budgetId, budget.companyId);
+        // Refresca budget pra ter heatingReport atualizado
+        budget = await this.prisma.poolBudget.findUnique({
+          where: { id: budgetId },
+          select: {
+            discountCents: true, discountPercent: true, taxesPercent: true,
+            startDate: true, poolDimensions: true, environmentParams: true,
+            heatingReport: true, companyId: true,
+          },
+        });
+      } catch (err) {
+        this.logger.debug(`Auto-compute heatingReport falhou (sem dimensoes/clima?): ${(err as Error)?.message}`);
+      }
+    }
+
     const dimensionVars = {
       ...extractDimensionVars(budget?.poolDimensions),
       ...extractEnvVars(budget?.environmentParams),
@@ -1276,6 +1301,10 @@ export class PoolBudgetService {
       );
     }
 
+    // Invalida cache do heatingReport quando dimensoes ou environmentParams mudam.
+    // Forca recompute na proxima vez (recalculateTotals ou Simulador).
+    const shouldInvalidateHeating = dto.poolDimensions !== undefined || dto.environmentParams !== undefined;
+
     const updated = await this.prisma.poolBudget.update({
       where: { id },
       data: {
@@ -1301,6 +1330,8 @@ export class PoolBudgetService {
         earlyPaymentDiscountPct: dto.earlyPaymentDiscountPct,
         sectionOrder: dto.sectionOrder,
         paymentTermId: dto.paymentTermId,
+        // Limpa cache do simulador quando dimensoes/clima mudam — recompute lazy
+        ...(shouldInvalidateHeating ? { heatingReport: Prisma.DbNull } : {}),
       },
     });
 
@@ -1308,7 +1339,8 @@ export class PoolBudgetService {
       dto.discountCents !== undefined ||
       dto.discountPercent !== undefined ||
       dto.taxesPercent !== undefined ||
-      dto.startDate !== undefined
+      dto.startDate !== undefined ||
+      shouldInvalidateHeating
     ) {
       await this.recalculateTotals(id);
     }
