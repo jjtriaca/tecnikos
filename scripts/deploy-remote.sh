@@ -126,9 +126,34 @@ BACKUP_SIZE=$(ssh "${SERVER}" "du -h ${BACKUP_DIR}/${BACKUP_FILE} | cut -f1" 2>/
 echo -e "  ${GREEN}✓${NC} Backup: ${BACKUP_FILE} (${BACKUP_SIZE})"
 
 # ── 6. Build no servidor ─────────────────────────────────────
+# Captura exit code do `docker compose build` corretamente. Antes usava
+# `... build ... 2>&1 | tail -5` no shell remoto que mascarava o erro: o tail
+# no fim do pipe zerava o exit code, set -e nao detectava, e o deploy seguia
+# mesmo com build falhando (incidentes v1.10.82, v1.11.11, v1.11.51 — 3 vezes).
+#
+# Fix: usa `tee` local pra mostrar log em tempo real E capturar pra arquivo,
+# `${PIPESTATUS[0]}` pega o exit code do ssh (nao do tee), e `set +e` evita
+# abortar antes da mensagem detalhada.
 echo ""
 echo -e "${YELLOW}[6/9]${NC} Construindo imagens Docker no servidor..."
-ssh "${SERVER}" "cd ${APP_DIR} && tar -xzf deploy.tar.gz && rm deploy.tar.gz && docker compose -f docker-compose.production.yml --env-file .env.production build backend frontend 2>&1 | tail -5"
+BUILD_LOG=$(mktemp)
+set +e
+ssh "${SERVER}" "cd ${APP_DIR} && tar -xzf deploy.tar.gz && rm deploy.tar.gz && docker compose -f docker-compose.production.yml --env-file .env.production build backend frontend 2>&1" | tee "$BUILD_LOG"
+BUILD_EXIT=${PIPESTATUS[0]}
+set -e
+if [ $BUILD_EXIT -ne 0 ]; then
+  echo ""
+  echo -e "  ${RED}✗ BUILD FALHOU${NC} (exit ${BUILD_EXIT})"
+  echo -e "  ${YELLOW}⚠${NC} Ultimas linhas do log:"
+  tail -30 "$BUILD_LOG"
+  rm -f "$BUILD_LOG"
+  echo ""
+  echo -e "  ${YELLOW}⚠${NC} Backup disponível em: ${BACKUP_DIR}/${BACKUP_FILE}"
+  echo -e "  ${YELLOW}⚠${NC} Containers e prod NAO foram tocados. Corrija o erro e tente novamente."
+  echo -e "  ${YELLOW}⚠${NC} version.json local foi bumpado pra ${NEW_VERSION}; o proximo deploy detecta como recovery."
+  exit 1
+fi
+rm -f "$BUILD_LOG"
 echo -e "  ${GREEN}✓${NC} Build concluído"
 
 # ── 7. Migrations ─────────────────────────────────────────────
@@ -174,9 +199,20 @@ done
 if [ "$HEALTH_OK" = true ]; then
   echo -e "  ${GREEN}✓${NC} Versão online: ${GREEN}${LIVE_VERSION}${NC}"
 else
-  echo -e "  ${RED}✗${NC} Health check falhou! Versão online: ${LIVE_VERSION}"
+  # Health falhou = container subiu com imagem antiga (build cache miss?) OU
+  # backend morreu apos start. Em qualquer caso, NAO commitar/pushar — gera
+  # tag+release fantasma de versao que nao esta em prod.
+  # Incidente v1.11.51: build falhou, /health continuou em 1.11.50, mas script
+  # commitou+pushou v1.11.51 como "concluido com sucesso".
+  echo -e "  ${RED}✗ HEALTH CHECK FALHOU${NC} — versão online: ${RED}${LIVE_VERSION}${NC} (esperado ${NEW_VERSION})"
   echo -e "  ${YELLOW}⚠${NC} Backup disponível em: ${BACKUP_DIR}/${BACKUP_FILE}"
   echo -e "  ${YELLOW}⚠${NC} Para rollback manual: ssh ${SERVER} 'cd ${APP_DIR} && gunzip -c ${BACKUP_DIR}/${BACKUP_FILE} | docker exec -i tecnikos_postgres psql -U USER DB'"
+  echo -e "  ${YELLOW}⚠${NC} Logs do backend pra diagnostico:"
+  ssh "${SERVER}" "docker logs --tail 30 tecnikos_backend 2>&1" || true
+  echo ""
+  echo -e "  ${RED}✗${NC} Abortando deploy ANTES de commitar/pushar v${NEW_VERSION}."
+  echo -e "  ${YELLOW}⚠${NC} version.json local ficou em ${NEW_VERSION}; o proximo deploy detecta como recovery."
+  exit 1
 fi
 
 # ── Commit + Push + Tag ──────────────────────────────────────
