@@ -343,6 +343,17 @@ export default function PoolBudgetDetailPage() {
     try {
       const data = await api.get<Budget>(`/pool-budgets/${id}`);
       setBudget(data);
+      // Auto-compute heatingReport quando vazio (v1.11.70) — necessario pro
+      // template "Bomba de Calor (preciso)" funcionar sem o operador precisar
+      // abrir o Simulador antes. Le area+volume das dimensoes; se nao tem,
+      // pula silenciosamente.
+      if (!(data as any).heatingReport && Number(data.poolDimensions?.area) > 0 && Number(data.poolDimensions?.volume) > 0) {
+        api.post<any>(`/pool-budgets/${id}/heating-report/recompute`)
+          .then((report) => {
+            setBudget((prev) => prev ? ({ ...prev, heatingReport: report } as any) : prev);
+          })
+          .catch(() => { /* silent */ });
+      }
     } catch (err: any) {
       toast(err?.payload?.message || "Erro ao carregar orcamento", "error");
     } finally {
@@ -2663,6 +2674,7 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
     label: 'Bomba de Calor (preciso — termodinamico)',
     description: 'Seleciona Bomba de Calor com base no Simulador de Aquecimento. Usa calorNecessarioKcalH calculado por fisica termodinamica + dados climaticos do UF/cidade configurados em "🔥 Aquecimento". Folga ideal 30-70%.',
     rule: {
+      filterPoolType: 'Aquecedor',
       filterCategoria: null,
       filterDescription: 'Bomba',
       where: 'kcalHNominal >= calorNecessarioKcalH and kcalHNominal <= calorNecessarioKcalH * 3.33',
