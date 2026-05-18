@@ -156,7 +156,9 @@ export interface HeatingReport {
   // Equipamento (preenchido pelo selectEquipment se passado)
   // quantity = 1 normalmente, >1 quando sistema sugere multiplos do maior modelo
   // (fallback automatico quando nenhum unico cobre a demanda).
-  selectedEquipment?: EquipmentSpecs & { loadRatio: number; isAdequate: boolean; quantity: number };
+  // fromItemCellRef indica que o equipamento veio da linha do orcamento (LX) —
+  // operador escolheu via picker/auto-select da linha, nao do auto-select global.
+  selectedEquipment?: EquipmentSpecs & { loadRatio: number; isAdequate: boolean; quantity: number; fromItemCellRef?: string };
 
   // Performance (preenchido se selectedEquipment passado)
   timeToHeatHours?: number; // tempo total ate temp desejada (descontando perdas continuas)
@@ -363,6 +365,7 @@ export class HeatingService {
     }>,
     qtotalMaxKw: number,
     _mode: UtilizacaoAno,
+    options?: { skipVirtualMultiplier?: boolean },
   ): (EquipmentSpecs & { loadRatio: number; isAdequate: boolean; quantity: number }) | undefined {
     if (candidates.length === 0) return undefined;
     const qtotalKcalH = qtotalMaxKw * CONVERSIONS.KWH_TO_KCAL;
@@ -394,7 +397,8 @@ export class HeatingService {
     // 2. Se NENHUM unico eh adequado E a piscina pede mais que o maior modelo:
     //    cria candidato VIRTUAL multiplicando o maior modelo disponivel (2x, 3x, etc)
     //    ate cobrir a demanda com folga adequada (loadRatio <= MAX_LOAD_RATIO).
-    if (best && !best.isAdequate && best.loadRatio > EQUIPMENT_SELECTION.MAX_LOAD_RATIO) {
+    //    Skip quando equipamento veio da linha (operador ja escolheu — nao inflar).
+    if (!options?.skipVirtualMultiplier && best && !best.isAdequate && best.loadRatio > EQUIPMENT_SELECTION.MAX_LOAD_RATIO) {
       // Pega o MAIOR modelo unico disponivel
       const largest = [...candidates].sort((a, b) => b.kcalHNominal - a.kcalHNominal)[0];
       if (largest && largest.kcalHNominal > 0) {
@@ -581,6 +585,10 @@ export class HeatingService {
     options?: {
       candidates?: Parameters<HeatingService['selectEquipment']>[0];
       tariff?: TariffInput;
+      // Quando true, NAO multiplica virtualmente o equipamento mesmo se nenhum
+      // unico cobrir a demanda. Usado quando equipamento veio da linha do
+      // orcamento (operador ja escolheu — sistema nao deve inflar).
+      skipVirtualMultiplier?: boolean;
     },
   ): HeatingReport {
     const { resolved } = this.getClimateData(inputs.uf, inputs.cidade);
@@ -617,7 +625,9 @@ export class HeatingService {
 
     // 3. Selecao do equipamento
     if (options?.candidates && options.candidates.length > 0) {
-      const sel = this.selectEquipment(options.candidates, qtotalMaxKw, inputs.utilizacaoAno);
+      const sel = this.selectEquipment(options.candidates, qtotalMaxKw, inputs.utilizacaoAno, {
+        skipVirtualMultiplier: options.skipVirtualMultiplier,
+      });
       if (sel) {
         report.selectedEquipment = sel;
 

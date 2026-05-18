@@ -92,7 +92,7 @@ export class HeatingBudgetService {
       include: {
         items: {
           include: {
-            product: { select: { id: true, poolType: true, technicalSpecs: true } },
+            product: { select: { id: true, description: true, model: true, poolType: true, technicalSpecs: true } },
           },
         },
       },
@@ -107,9 +107,26 @@ export class HeatingBudgetService {
 
     const inputs = this.extractInputs(budget, aggregated);
     const tariff = await this.getEnergyTariff(companyId);
-    const candidates = await this.fetchBombaCalorCandidates(companyId);
 
-    const report = this.heating.computeReport(inputs, { candidates, tariff });
+    // F6.3: equipamento vem da linha "Bomba de Calor" da etapa (operador escolheu
+    // via picker ou auto-select da linha). Se nao tiver, fallback pro auto-select
+    // global do simulador com candidatos do catalogo.
+    const fromItem = this.extractEquipmentFromItems(budget.items as any);
+    const candidates = fromItem
+      ? [fromItem] // forca selectEquipment a usar SO esse candidato
+      : await this.fetchBombaCalorCandidates(companyId);
+
+    const report = this.heating.computeReport(inputs, {
+      candidates,
+      tariff,
+      // Quando vem da linha (operador escolheu), nao inflar virtualmente
+      skipVirtualMultiplier: !!fromItem,
+    });
+
+    // Marca origem do equipamento no report (UI mostra badge "da linha LX")
+    if (fromItem && report.selectedEquipment) {
+      (report.selectedEquipment as any).fromItemCellRef = fromItem._cellRef;
+    }
 
     await this.prisma.poolBudget.update({
       where: { id: budgetId },
@@ -117,6 +134,65 @@ export class HeatingBudgetService {
     });
 
     return report;
+  }
+
+  /**
+   * Procura linha do orcamento com produto poolType ~ "Bomba de Calor" / "Aquecedor"
+   * e usa esse produto como candidato unico do simulador. Quando qty > 1, multiplica
+   * as capacidades (operador adicionou Nx do mesmo modelo manualmente).
+   *
+   * Retorna undefined se nao tem nenhuma linha de bomba de calor vinculada ao catalogo.
+   */
+  private extractEquipmentFromItems(items: Array<{ qty: number; cellRef?: string | null; product?: { id: string; description?: string | null; model?: string | null; poolType: string | null; technicalSpecs: any } | null }>): (Parameters<HeatingService['selectEquipment']>[0][number] & { _cellRef?: string }) | undefined {
+    if (!items || items.length === 0) return undefined;
+    // Filtra linhas com produto vinculado tipo bomba de calor / aquecedor
+    const candidates = items
+      .filter((it) => {
+        if (!it.product) return false;
+        const pt = (it.product.poolType || '').toLowerCase();
+        return pt.includes('bomba') || pt.includes('aquecedor');
+      })
+      .filter((it) => {
+        // Garante que tem kcalHNominal pra poder usar no calculo
+        const specs = (it.product?.technicalSpecs ?? {}) as Record<string, any>;
+        return Number(specs.kcalHNominal) > 0;
+      });
+    if (candidates.length === 0) return undefined;
+
+    // Se tiver mais de uma linha, pega a com maior capacidade total (qty × kcalHNominal)
+    candidates.sort((a, b) => {
+      const aSpecs = (a.product!.technicalSpecs ?? {}) as Record<string, any>;
+      const bSpecs = (b.product!.technicalSpecs ?? {}) as Record<string, any>;
+      const aCap = (Number(a.qty) || 1) * (Number(aSpecs.kcalHNominal) || 0);
+      const bCap = (Number(b.qty) || 1) * (Number(bSpecs.kcalHNominal) || 0);
+      return bCap - aCap;
+    });
+    const chosen = candidates[0];
+    const product = chosen.product!;
+    const specs = (product.technicalSpecs ?? {}) as Record<string, any>;
+    const qty = Math.max(1, Number(chosen.qty) || 1);
+
+    return {
+      productId: product.id,
+      modelName: qty > 1
+        ? `${qty}× ${product.model || product.description || 'Bomba de Calor'}`
+        : (product.model || product.description || 'Bomba de Calor'),
+      kcalHNominal: (Number(specs.kcalHNominal) || 0) * qty,
+      btuH: specs.btuH ? Number(specs.btuH) * qty : undefined,
+      kwNominal: specs.kwNominal ? Number(specs.kwNominal) * qty : undefined,
+      consumoMaxW: specs.consumoMaxW ? Number(specs.consumoMaxW) * qty : undefined,
+      consumoMedioW: specs.consumoMedioW ? Number(specs.consumoMedioW) * qty : undefined,
+      ratedInputPowerKW: specs.ratedInputPowerKW ? Number(specs.ratedInputPowerKW) * qty : undefined,
+      copMax: Number(specs.copMax) || undefined,
+      copAt50Air26: Number(specs.copAt50Air26) || undefined,
+      copAt50Air15: Number(specs.copAt50Air15) || undefined,
+      copCurveA: Number(specs.copCurveA) || undefined,
+      copCurveB: Number(specs.copCurveB) || undefined,
+      copCurveC: Number(specs.copCurveC) || undefined,
+      copNominal: Number(specs.copNominal) || undefined,
+      copAt50Capacity: Number(specs.copAt50Capacity) || undefined,
+      _cellRef: chosen.cellRef ?? undefined,
+    };
   }
 
   // ============ Defaults do tenant (Simulador) ============

@@ -44,6 +44,7 @@ interface SelectedEquipment {
   loadRatio: number;
   isAdequate: boolean;
   quantity: number;
+  fromItemCellRef?: string;
 }
 
 interface MonthlyConsumption {
@@ -617,8 +618,15 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                 {report?.selectedEquipment ? (
                   <div className="flex items-start gap-4 rounded-xl border-2 border-emerald-200 bg-emerald-50 p-4">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <div className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Modelo recomendado</div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+                          {report.selectedEquipment.fromItemCellRef ? "Equipamento da linha do orcamento" : "Modelo recomendado"}
+                        </div>
+                        {report.selectedEquipment.fromItemCellRef && (
+                          <span className="inline-flex items-center gap-1 bg-cyan-100 text-cyan-900 border border-cyan-300 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                            📎 {report.selectedEquipment.fromItemCellRef}
+                          </span>
+                        )}
                         {report.selectedEquipment.quantity > 1 && (
                           <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full text-[10px] font-bold">
                             ⚡ {report.selectedEquipment.quantity}× UNIDADES EM PARALELO
@@ -701,9 +709,10 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
               <Section title="6. Consumo mensal e custos estimados" icon="💰">
                 {report?.monthlyConsumption && report.monthlyConsumption.length > 0 ? (
                   <>
-                    {/* 3 cards de totais */}
-                    <div className="grid grid-cols-3 gap-3 mb-4">
+                    {/* 4 cards de totais */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                       <BigStat label="Consumo anual" value={(report.annualKwh ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} unit="kWh/ano" emphasis="cyan" />
+                      <BigStat label="Consumo medio mensal" value={((report.annualKwh ?? 0) / 12).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} unit="kWh/mes" emphasis="cyan" />
                       <BigStat label="Custo anual operacao" value={fmtBRL(report.annualCostBRLCents ?? 0)} unit="por ano" emphasis="orange" />
                       <BigStat label="Custo aquec. inicial" value={fmtBRL(report.initialHeatingCostBRLCents ?? 0)} unit="1a vez" emphasis="emerald" />
                     </div>
