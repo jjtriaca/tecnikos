@@ -34,7 +34,7 @@ export default function EnergyTariffPage() {
         setGlpBRL((t.glpKgBRLCents / 100).toFixed(2));
         setGnBRL((t.gnM3BRLCents / 100).toFixed(2));
       })
-      .catch((e) => toast({ type: "error", message: String(e?.message ?? e) }))
+      .catch((e) => toast(String(e?.message ?? e), "error"))
       .finally(() => setLoading(false));
   }, [toast]);
 
@@ -43,7 +43,7 @@ export default function EnergyTariffPage() {
     const glp = Math.round(Number(glpBRL.replace(",", ".")) * 100);
     const gn = Math.round(Number(gnBRL.replace(",", ".")) * 100);
     if (!kwh || !glp || !gn) {
-      toast({ type: "error", message: "Preencha as 3 tarifas com valores maiores que zero." });
+      toast("Preencha as 3 tarifas com valores maiores que zero.", "error");
       return;
     }
     setSaving(true);
@@ -54,9 +54,9 @@ export default function EnergyTariffPage() {
         gnM3BRLCents: gn,
       });
       setTariff({ ...saved, isDefault: false });
-      toast({ type: "success", message: "Tarifas salvas com sucesso." });
+      toast("Tarifas salvas com sucesso.", "success");
     } catch (e: any) {
-      toast({ type: "error", message: String(e?.message ?? e) });
+      toast(String(e?.message ?? e), "error");
     } finally {
       setSaving(false);
     }
