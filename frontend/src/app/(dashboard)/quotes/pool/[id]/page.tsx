@@ -596,11 +596,11 @@ export default function PoolBudgetDetailPage() {
                   <h1 className="text-xl md:text-2xl font-bold text-slate-900 truncate">{budget.title}</h1>
                   <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${status.cls}`}>{status.label}</span>
                   {!isLocked && (
-                    <button type="button" onClick={() => setShowEditHeader(true)}
+                    <Link href={`/quotes/pool/new?edit=${budget.id}`}
                       className="text-[11px] text-slate-500 hover:text-cyan-700 hover:bg-cyan-50 px-2 py-0.5 rounded border border-slate-200"
-                      title="Editar dados gerais + aquecimento">
+                      title="Editar tudo (cliente, dimensoes, clima, capa, validade)">
                       ✏️ Editar dados
-                    </button>
+                    </Link>
                   )}
                   <button onClick={() => setShowHeatingSimulator(true)}
                     className="text-[11px] text-orange-700 hover:text-white hover:bg-orange-600 px-2 py-0.5 rounded border border-orange-300 bg-orange-50 transition"

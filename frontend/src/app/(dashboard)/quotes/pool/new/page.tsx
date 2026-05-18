@@ -61,7 +61,54 @@ export default function NewPoolBudgetPage() {
     capaTermica: true,                // true=SIM | false=NAO
     tipoConstrucao: "ABERTA",         // ABERTA | FECHADA
     regiaoSolar: "MT",
+    // Simulador de Aquecimento — campos novos (F6.1)
+    uf: "",                           // UF dropdown (Estado)
+    cidade: "",                       // Cidade-clima (dropdown filtrado por UF)
+    temperaturaInicialAgua: "" as number | "",
+    tipoPiscina: "PRIVATIVA",         // PRIVATIVA | COLETIVA
+    utilizacaoAno: "ANO_TODO",        // ANO_TODO | VERAO | INVERNO
+    utilizacaoSemana: "MES_TODO",     // MES_TODO | FIM_DE_SEMANA
+    temBordaInfinita: false,
+    bordaInfinitaAlturaM: 0.5,
+    bordaInfinitaVazaoLminPorM: 30,
+    bordaInfinitaHorasAtivaDia: 24,
   });
+
+  // Cidades-climaticas pra dropdown (carregadas via API)
+  const [heatingCities, setHeatingCities] = useState<Array<{ uf: string; ufName: string; cities: string[] }>>([]);
+  useEffect(() => {
+    api.get<Array<{ uf: string; ufName: string; cities: string[] }>>("/pool-budgets/heating/cities")
+      .then(setHeatingCities)
+      .catch(() => { /* silent */ });
+  }, []);
+
+  // Carrega defaults do tenant pra novos orcamentos (apos isEditMode estar disponivel)
+  useEffect(() => {
+    if (isEditMode) return; // edit nao sobrescreve
+    api.get<{ defaultEnvironmentParams: any }>("/pool-budgets/heating/defaults")
+      .then((r) => {
+        const d = r?.defaultEnvironmentParams;
+        if (!d) return;
+        setForm((f) => ({
+          ...f,
+          temperaturaMediaLocal: d.temperaturaMediaLocal ?? d.temperatura ?? f.temperaturaMediaLocal,
+          velocidadeVento: d.velocidadeVento || f.velocidadeVento,
+          temperaturaAguaDesejada: d.temperaturaAguaDesejada ?? f.temperaturaAguaDesejada,
+          capaTermica: typeof d.capaTermica === "boolean" ? d.capaTermica : f.capaTermica,
+          tipoConstrucao: d.tipoConstrucao || f.tipoConstrucao,
+          uf: d.uf || f.uf,
+          cidade: d.cidade || f.cidade,
+          tipoPiscina: d.tipoPiscina || f.tipoPiscina,
+          utilizacaoAno: d.utilizacaoAno || f.utilizacaoAno,
+          utilizacaoSemana: d.utilizacaoSemana || f.utilizacaoSemana,
+          temBordaInfinita: !!d.temBordaInfinita,
+          bordaInfinitaAlturaM: d.bordaInfinitaAlturaM ?? f.bordaInfinitaAlturaM,
+          bordaInfinitaVazaoLminPorM: d.bordaInfinitaVazaoLminPorM ?? f.bordaInfinitaVazaoLminPorM,
+          bordaInfinitaHorasAtivaDia: d.bordaInfinitaHorasAtivaDia ?? f.bordaInfinitaHorasAtivaDia,
+        }));
+      })
+      .catch(() => { /* silent */ });
+  }, [isEditMode]);
 
   useEffect(() => {
     Promise.all([
@@ -115,6 +162,17 @@ export default function NewPoolBudgetPage() {
           tipoConstrucao: b.environmentParams?.tipoConstrucao || "ABERTA",
           regiaoSolar: b.environmentParams?.regiaoSolar || "MT",
           solicitante: (b.environmentParams as any)?.solicitante || "",
+          // Simulador de Aquecimento (F6.1)
+          uf: b.environmentParams?.uf || "",
+          cidade: b.environmentParams?.cidade || "",
+          temperaturaInicialAgua: typeof b.environmentParams?.temperaturaInicialAgua === "number" ? b.environmentParams.temperaturaInicialAgua : "",
+          tipoPiscina: b.environmentParams?.tipoPiscina || "PRIVATIVA",
+          utilizacaoAno: b.environmentParams?.utilizacaoAno || "ANO_TODO",
+          utilizacaoSemana: b.environmentParams?.utilizacaoSemana || "MES_TODO",
+          temBordaInfinita: !!b.environmentParams?.temBordaInfinita,
+          bordaInfinitaAlturaM: b.environmentParams?.bordaInfinitaAlturaM ?? 0.5,
+          bordaInfinitaVazaoLminPorM: b.environmentParams?.bordaInfinitaVazaoLminPorM ?? 30,
+          bordaInfinitaHorasAtivaDia: b.environmentParams?.bordaInfinitaHorasAtivaDia ?? 24,
         }));
         if (b.clientPartner) setClient(b.clientPartner);
       })
@@ -261,6 +319,17 @@ export default function NewPoolBudgetPage() {
           regiaoSolar: form.regiaoSolar,
           // CAPA fields (capa do orcamento — vai pra impressao via {solicitante})
           solicitante: form.solicitante || client?.name || "",
+          // Simulador de Aquecimento (F6.1)
+          uf: form.uf || undefined,
+          cidade: form.cidade || undefined,
+          temperaturaInicialAgua: form.temperaturaInicialAgua === "" ? undefined : Number(form.temperaturaInicialAgua),
+          tipoPiscina: form.tipoPiscina,
+          utilizacaoAno: form.utilizacaoAno,
+          utilizacaoSemana: form.utilizacaoSemana,
+          temBordaInfinita: form.temBordaInfinita,
+          bordaInfinitaAlturaM: form.temBordaInfinita ? form.bordaInfinitaAlturaM : undefined,
+          bordaInfinitaVazaoLminPorM: form.temBordaInfinita ? form.bordaInfinitaVazaoLminPorM : undefined,
+          bordaInfinitaHorasAtivaDia: form.temBordaInfinita ? form.bordaInfinitaHorasAtivaDia : undefined,
         },
       };
       let resultId: string;
@@ -604,61 +673,186 @@ export default function NewPoolBudgetPage() {
 
         </div>
 
-        {/* Parametros de aquecimento (aba CAPA da planilha original) */}
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h3 className="text-sm font-semibold text-slate-700 mb-1">Parametros de aquecimento</h3>
-          <p className="text-xs text-slate-500 mb-4">Usados pra calcular kcal/h e dimensionar trocador de calor / aquecedor solar.</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
-                Temperatura media local (°C)
-              </label>
-              <input type="number" step="0.1" value={form.temperaturaMediaLocal}
-                onChange={(e) => setForm({ ...form, temperaturaMediaLocal: parseFloat(e.target.value) || 0 })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+        {/* Parametros de aquecimento — Simulador de Aquecimento (F6.1) */}
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-700">🔥 Parametros de aquecimento</h3>
+            <p className="text-xs text-slate-500">Usados pelo Simulador de Aquecimento pra calcular kcal/h, dimensionar bomba de calor e estimar consumo/custos.</p>
+          </div>
+
+          {/* === Localizacao e clima === */}
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="text-[11px] font-semibold text-slate-600 uppercase mb-2">📍 Localizacao e clima</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] text-slate-500 mb-1">Estado (UF)</label>
+                <select value={form.uf} onChange={(e) => setForm({ ...form, uf: e.target.value, cidade: "" })}
+                  className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm">
+                  <option value="">Selecione...</option>
+                  {heatingCities.map((c) => <option key={c.uf} value={c.uf}>{c.uf} — {c.ufName}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] text-slate-500 mb-1">Cidade-clima</label>
+                {(() => {
+                  const ufData = heatingCities.find((c) => c.uf === form.uf);
+                  const avail = ufData?.cities ?? [];
+                  return (
+                    <select value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} disabled={!form.uf}
+                      className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm disabled:bg-slate-50">
+                      <option value="">{avail[0] ? `${avail[0]} (capital)` : "—"}</option>
+                      {avail.slice(1).map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  );
+                })()}
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
-                Velocidade do vento local
-              </label>
-              <select value={form.velocidadeVento}
-                onChange={(e) => setForm({ ...form, velocidadeVento: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
-                <option value="BAIXO">BAIXO (1)</option>
-                <option value="MODERADO">MODERADO (2)</option>
-                <option value="FORTE">FORTE (3)</option>
-              </select>
+          </div>
+
+          {/* === Dados de uso === */}
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <div className="text-[11px] font-semibold text-slate-600 uppercase mb-2">🌡 Dados de uso</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-[10px] text-slate-500 mb-1">Temp. desejada (°C)</label>
+                <input type="number" step="1" min="20" max="42" value={form.temperaturaAguaDesejada}
+                  onChange={(e) => setForm({ ...form, temperaturaAguaDesejada: parseFloat(e.target.value) || 0 })}
+                  className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="block text-[10px] text-slate-500 mb-1">Temp. inicial (°C)</label>
+                <input type="number" step="1" value={form.temperaturaInicialAgua === "" ? "" : String(form.temperaturaInicialAgua)}
+                  onChange={(e) => setForm({ ...form, temperaturaInicialAgua: e.target.value === "" ? "" : parseFloat(e.target.value) })}
+                  placeholder="auto"
+                  className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+              </div>
+              <div>
+                <label className="block text-[10px] text-slate-500 mb-1">Velocidade vento</label>
+                <select value={form.velocidadeVento} onChange={(e) => setForm({ ...form, velocidadeVento: e.target.value })}
+                  className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm">
+                  <option value="NULO">Nulo</option>
+                  <option value="FRACO">Fraco (~7 km/h)</option>
+                  <option value="MODERADO">Moderado (~15 km/h)</option>
+                  <option value="FORTE">Forte (~22 km/h)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] text-slate-500 mb-1">Tipo construcao</label>
+                <select value={form.tipoConstrucao} onChange={(e) => setForm({ ...form, tipoConstrucao: e.target.value })}
+                  className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm">
+                  <option value="ABERTA">Aberta (externa)</option>
+                  <option value="FECHADA">Fechada (coberta)</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
-                Temperatura agua desejada (°C)
-              </label>
-              <input type="number" step="0.1" value={form.temperaturaAguaDesejada}
-                onChange={(e) => setForm({ ...form, temperaturaAguaDesejada: parseFloat(e.target.value) || 0 })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+              <div>
+                <label className="block text-[10px] text-slate-500 mb-1">Capa termica</label>
+                <label className="flex items-center gap-2 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm cursor-pointer hover:bg-slate-50">
+                  <input type="checkbox" checked={form.capaTermica} onChange={(e) => setForm({ ...form, capaTermica: e.target.checked })}
+                    className="rounded border-slate-300 text-cyan-600" />
+                  <span>{form.capaTermica ? "Sim" : "Nao"}</span>
+                </label>
+              </div>
+              <div>
+                <label className="block text-[10px] text-slate-500 mb-1">Tipo piscina</label>
+                <select value={form.tipoPiscina} onChange={(e) => setForm({ ...form, tipoPiscina: e.target.value })}
+                  className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm">
+                  <option value="PRIVATIVA">Privativa</option>
+                  <option value="COLETIVA">Coletiva</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] text-slate-500 mb-1">Utilizacao ano</label>
+                <select value={form.utilizacaoAno} onChange={(e) => setForm({ ...form, utilizacaoAno: e.target.value })}
+                  className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm">
+                  <option value="ANO_TODO">Ano todo</option>
+                  <option value="VERAO">So verao</option>
+                  <option value="INVERNO">So inverno</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] text-slate-500 mb-1">Utilizacao semana</label>
+                <select value={form.utilizacaoSemana} onChange={(e) => setForm({ ...form, utilizacaoSemana: e.target.value })}
+                  className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm">
+                  <option value="MES_TODO">Mes todo</option>
+                  <option value="FIM_DE_SEMANA">So fim de semana</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
-                Usa capa termica
-              </label>
-              <select value={form.capaTermica ? "SIM" : "NAO"}
-                onChange={(e) => setForm({ ...form, capaTermica: e.target.value === "SIM" })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
-                <option value="SIM">SIM (1)</option>
-                <option value="NAO">NAO (0)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
-                Tipo de construcao
-              </label>
-              <select value={form.tipoConstrucao}
-                onChange={(e) => setForm({ ...form, tipoConstrucao: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white">
-                <option value="ABERTA">ABERTA (1)</option>
-                <option value="FECHADA">FECHADA (2)</option>
-              </select>
-            </div>
+          </div>
+
+          {/* === Borda Infinita === */}
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.temBordaInfinita}
+                onChange={(e) => setForm({ ...form, temBordaInfinita: e.target.checked })}
+                className="rounded border-slate-300 text-cyan-600" />
+              <span className="text-[11px] font-semibold text-slate-700 uppercase">💧 Tem borda infinita?</span>
+            </label>
+            {form.temBordaInfinita && (
+              <>
+                <div className="mt-3 grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10px] text-slate-500 mb-1">Altura queda (m)</label>
+                    <input type="number" step="0.05" min="0.05" max="3" value={form.bordaInfinitaAlturaM}
+                      onChange={(e) => setForm({ ...form, bordaInfinitaAlturaM: parseFloat(e.target.value) || 0.5 })}
+                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                    <div className="text-[9px] text-slate-500 mt-0.5">Canaleta=0.1, cascata pequena=0.5</div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-500 mb-1">Vazao (L/min por metro)</label>
+                    <input type="number" step="5" min="5" max="120" value={form.bordaInfinitaVazaoLminPorM}
+                      onChange={(e) => setForm({ ...form, bordaInfinitaVazaoLminPorM: parseFloat(e.target.value) || 30 })}
+                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                    <div className="text-[9px] text-slate-500 mt-0.5">Tipico 20-40 (bomba 0.5cv)</div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-500 mb-1">Horas/dia ativa</label>
+                    <input type="number" step="1" min="0" max="24" value={form.bordaInfinitaHorasAtivaDia}
+                      onChange={(e) => setForm({ ...form, bordaInfinitaHorasAtivaDia: parseFloat(e.target.value) || 24 })}
+                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                    <div className="text-[9px] text-slate-500 mt-0.5">24=sempre. Reduza se bomba desliga</div>
+                  </div>
+                </div>
+                <div className="mt-2 text-[10px] text-slate-500">
+                  Comprimento total da borda = soma das linhas com produto tipo "Borda Infinita" das etapas (configurar nos itens do orcamento).
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* === Salvar como padrao === */}
+          <div className="flex justify-end">
+            <button type="button"
+              onClick={async () => {
+                try {
+                  await api.put("/pool-budgets/heating/defaults", {
+                    defaultEnvironmentParams: {
+                      temperaturaMediaLocal: form.temperaturaMediaLocal,
+                      velocidadeVento: form.velocidadeVento,
+                      temperaturaAguaDesejada: form.temperaturaAguaDesejada,
+                      capaTermica: form.capaTermica,
+                      tipoConstrucao: form.tipoConstrucao,
+                      uf: form.uf || undefined,
+                      cidade: form.cidade || undefined,
+                      tipoPiscina: form.tipoPiscina,
+                      utilizacaoAno: form.utilizacaoAno,
+                      utilizacaoSemana: form.utilizacaoSemana,
+                      temBordaInfinita: form.temBordaInfinita,
+                      bordaInfinitaAlturaM: form.bordaInfinitaAlturaM,
+                      bordaInfinitaVazaoLminPorM: form.bordaInfinitaVazaoLminPorM,
+                      bordaInfinitaHorasAtivaDia: form.bordaInfinitaHorasAtivaDia,
+                    },
+                  });
+                  toast("Dados de aquecimento salvos como padrao do tenant", "success");
+                } catch (err: any) {
+                  toast(err?.payload?.message || "Erro ao salvar padrao", "error");
+                }
+              }}
+              className="text-[11px] text-cyan-700 hover:text-cyan-900 hover:underline">
+              💾 Salvar dados de aquecimento como padrao do tenant
+            </button>
           </div>
         </div>
 
