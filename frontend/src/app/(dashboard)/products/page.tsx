@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { fmtCurrency } from "@/components/ui/CurrencyInput";
+import { FieldLabel } from "@/components/ui/HelpHint";
 import FilterBar from "@/components/ui/FilterBar";
 import SortableHeader from "@/components/ui/SortableHeader";
 import DraggableHeader from "@/components/ui/DraggableHeader";
@@ -319,6 +320,16 @@ interface ProductForm {
   specTuboEntradaMm: string;  // mm (todos equipamentos hidraulicos — chave do auto-select de tubos)
   specKcalHMin: string;       // kcal/h minimo (aquecedores)
   specKcalHMax: string;       // kcal/h maximo (aquecedores)
+  // ====== Specs detalhadas do Simulador de Aquecimento (F3+) ======
+  specTipoEquipamento: string; // 'BOMBA_CALOR' | 'SOLAR' | 'GAS_GLP' | 'GAS_GN' | 'ELETRICO' | ''
+  specKcalHNominal: string;    // kcal/h nominal (capacidade real, alimenta auto-select preciso)
+  specKwNominal: string;       // kW termico (capacidade)
+  specBtuH: string;            // BTU/h (capacidade)
+  specRatedInputPowerKW: string; // kW consumo eletrico medio (em 15°C ambiente)
+  specCopMax: string;          // COP maximo em condicao ideal (marketing — ar 26°C, carga baixa)
+  specCopAt50Air26: string;    // COP em 50% carga, ar 26°C (verao tipico)
+  specCopAt50Air15: string;    // COP em 50% carga, ar 15°C (inverno BR — usado no calculo)
+  // =================================================================
   specPotenciaCv: string;     // CV (motores)
   specVoltagem: string;       // V (eletricos)
   specAmperagem: string;      // A (eletricos)
@@ -360,6 +371,14 @@ const EMPTY_FORM: ProductForm = {
   specTuboEntradaMm: "",
   specKcalHMin: "",
   specKcalHMax: "",
+  specTipoEquipamento: "",
+  specKcalHNominal: "",
+  specKwNominal: "",
+  specBtuH: "",
+  specRatedInputPowerKW: "",
+  specCopMax: "",
+  specCopAt50Air26: "",
+  specCopAt50Air15: "",
   specPotenciaCv: "",
   specVoltagem: "",
   specAmperagem: "",
@@ -402,6 +421,14 @@ function productToForm(p: Product): ProductForm {
     specTuboEntradaMm: numericSpecToStr(p.technicalSpecs?.tuboEntradaMm),
     specKcalHMin: numericSpecToStr(p.technicalSpecs?.kcalHMin),
     specKcalHMax: numericSpecToStr(p.technicalSpecs?.kcalHMax),
+    specTipoEquipamento: typeof p.technicalSpecs?.tipoEquipamento === 'string' ? p.technicalSpecs.tipoEquipamento : "",
+    specKcalHNominal: numericSpecToStr(p.technicalSpecs?.kcalHNominal),
+    specKwNominal: numericSpecToStr(p.technicalSpecs?.kwNominal),
+    specBtuH: numericSpecToStr(p.technicalSpecs?.btuH),
+    specRatedInputPowerKW: numericSpecToStr(p.technicalSpecs?.ratedInputPowerKW),
+    specCopMax: numericSpecToStr(p.technicalSpecs?.copMax),
+    specCopAt50Air26: numericSpecToStr(p.technicalSpecs?.copAt50Air26),
+    specCopAt50Air15: numericSpecToStr(p.technicalSpecs?.copAt50Air15),
     specPotenciaCv: numericSpecToStr(p.technicalSpecs?.potenciaCv),
     specVoltagem: numericSpecToStr(p.technicalSpecs?.voltagem),
     specAmperagem: numericSpecToStr(p.technicalSpecs?.amperagem),
@@ -434,6 +461,16 @@ function buildTechnicalSpecs(f: ProductForm, existing?: Record<string, any>): Re
   setOrUnset("tuboEntradaMm", f.specTuboEntradaMm);
   setOrUnset("kcalHMin", f.specKcalHMin);
   setOrUnset("kcalHMax", f.specKcalHMax);
+  setOrUnset("kcalHNominal", f.specKcalHNominal);
+  setOrUnset("kwNominal", f.specKwNominal);
+  setOrUnset("btuH", f.specBtuH);
+  setOrUnset("ratedInputPowerKW", f.specRatedInputPowerKW);
+  setOrUnset("copMax", f.specCopMax);
+  setOrUnset("copAt50Air26", f.specCopAt50Air26);
+  setOrUnset("copAt50Air15", f.specCopAt50Air15);
+  // tipoEquipamento eh string (select), tratado abaixo
+  if (f.specTipoEquipamento.trim() === "") delete merged.tipoEquipamento;
+  else merged.tipoEquipamento = f.specTipoEquipamento.trim();
   setOrUnset("potenciaCv", f.specPotenciaCv);
   setOrUnset("voltagem", f.specVoltagem);
   setOrUnset("amperagem", f.specAmperagem);
@@ -1703,11 +1740,11 @@ export default function ProductsPage() {
                   </div>
 
                   <div className="rounded-xl border border-slate-200 bg-white p-5">
-                    <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">
-                      ⏱ Tempo de instalacao
-                    </h4>
+                    <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">⏱ Tempo de instalacao</h4>
                     <div className="max-w-sm">
-                      <label className={labelClass}>Tempo padrao de montagem (horas)</label>
+                      <FieldLabel help="Tempo padrao de montagem/instalacao desse equipamento. Usado pra calcular automaticamente o servico de montagem no orcamento de piscina. Equipamentos pequenos vs grandes podem ter tempos bem diferentes.">
+                        Tempo padrao de montagem (horas)
+                      </FieldLabel>
                       <input
                         type="number" step="0.5" min="0"
                         value={form.specTempoMontagemH}
@@ -1715,139 +1752,145 @@ export default function ProductsPage() {
                         placeholder="Ex: 4 (filtro pequeno), 10 (aquecedor grande)"
                         className={inputClass}
                       />
-                      <p className="mt-1 text-[11px] text-slate-600">
-                        Tempo padrao de montagem/instalacao desse equipamento. Usado pra calcular automaticamente o servico
-                        de montagem no orcamento de piscina. Equipamentos pequenos vs grandes podem ter tempos bem diferentes.
-                      </p>
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-slate-200 bg-white p-5">
-                    <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">
-                      🚿 Hidraulico — Filtros, Bombas, Aquecedores, SPA, Cascata
-                    </h4>
+                    <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">🚿 Hidraulico — Filtros, Bombas, Aquecedores, SPA, Cascata</h4>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className={labelClass}>Vazao (m³/h)</label>
-                        <input
-                          type="number" step="0.1"
-                          value={form.specVazaoM3h}
-                          onChange={(e) => setField("specVazaoM3h", e.target.value)}
-                          placeholder="Ex: 9"
-                          className={inputClass}
-                        />
-                        <p className="mt-1 text-[11px] text-slate-600">
-                          Vazao do equipamento. Usada pra calcular tempo de filtragem da piscina.
-                        </p>
+                        <FieldLabel help="Vazao do equipamento (litros por hora dividido por 1000). Usada pra calcular tempo de filtragem da piscina (volume / vazao).">
+                          Vazao (m³/h)
+                        </FieldLabel>
+                        <input type="number" step="0.1" value={form.specVazaoM3h} onChange={(e) => setField("specVazaoM3h", e.target.value)} placeholder="Ex: 9" className={inputClass} />
                       </div>
                       <div>
-                        <label className={labelClass}>Tubo de entrada (mm)</label>
-                        <input
-                          type="number" step="1"
-                          value={form.specTuboEntradaMm}
-                          onChange={(e) => setField("specTuboEntradaMm", e.target.value)}
-                          placeholder="Ex: 50, 60, 75"
-                          className={inputClass}
-                        />
-                        <p className="mt-1 text-[11px] text-slate-600">
-                          Diametro da conexao hidraulica. Auto-selecao de tubos usa esse campo pra escolher o tubo correto.
-                        </p>
+                        <FieldLabel help="Diametro da conexao hidraulica em milimetros. Auto-selecao de tubos usa esse campo pra escolher o tubo correto (mesma medida do equipamento principal da etapa).">
+                          Tubo de entrada (mm)
+                        </FieldLabel>
+                        <input type="number" step="1" value={form.specTuboEntradaMm} onChange={(e) => setField("specTuboEntradaMm", e.target.value)} placeholder="Ex: 50, 60, 75" className={inputClass} />
                       </div>
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-slate-200 bg-white p-5">
-                    <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">
-                      🔥 Aquecimento — Bombas de calor, Solar, Trocadores
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className={labelClass}>Kcal/h minimo</label>
-                        <input
-                          type="number" step="100"
-                          value={form.specKcalHMin}
-                          onChange={(e) => setField("specKcalHMin", e.target.value)}
-                          placeholder="Ex: 8000"
-                          className={inputClass}
-                        />
-                      </div>
-                      <div>
-                        <label className={labelClass}>Kcal/h maximo</label>
-                        <input
-                          type="number" step="100"
-                          value={form.specKcalHMax}
-                          onChange={(e) => setField("specKcalHMax", e.target.value)}
-                          placeholder="Ex: 20000"
-                          className={inputClass}
-                        />
-                      </div>
-                    </div>
-                  </div>
+                    <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">🔥 Aquecimento — Bombas de Calor, Solar, Trocadores</h4>
 
-                  <div className="rounded-xl border border-slate-200 bg-white p-5">
-                    <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">
-                      ⚡ Eletrico — Bombas, Motores, Equipamentos
-                    </h4>
+                    {/* Tipo + Faixa de aplicacao (legado, ainda usado) */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                       <div>
-                        <label className={labelClass}>Potencia (CV)</label>
-                        <input
-                          type="number" step="0.1"
-                          value={form.specPotenciaCv}
-                          onChange={(e) => setField("specPotenciaCv", e.target.value)}
-                          placeholder="Ex: 0.75"
-                          className={inputClass}
-                        />
+                        <FieldLabel help="Tipo do equipamento de aquecimento. Filtra candidatos no Simulador de Aquecimento. Bomba de Calor eh o padrao mais comum (alta eficiencia).">
+                          Tipo de equipamento
+                        </FieldLabel>
+                        <select value={form.specTipoEquipamento} onChange={(e) => setField("specTipoEquipamento", e.target.value)} className={inputClass}>
+                          <option value="">— Nao definido —</option>
+                          <option value="BOMBA_CALOR">Bomba de Calor</option>
+                          <option value="SOLAR">Solar (coletor)</option>
+                          <option value="GAS_GLP">Aquecedor a Gas GLP</option>
+                          <option value="GAS_GN">Aquecedor a Gas Natural</option>
+                          <option value="ELETRICO">Eletrico (resistencia)</option>
+                        </select>
                       </div>
                       <div>
-                        <label className={labelClass}>Voltagem (V)</label>
-                        <input
-                          type="number" step="1"
-                          value={form.specVoltagem}
-                          onChange={(e) => setField("specVoltagem", e.target.value)}
-                          placeholder="Ex: 220"
-                          className={inputClass}
-                        />
+                        <FieldLabel help="Faixa MINIMA de Kcal/h que esse modelo cobre. Usado pelo template legado de auto-select (kcalHMax >= volume * 600). Pra calculo termodinamico preciso, use Kcal/h Nominal abaixo.">
+                          Kcal/h minimo (faixa)
+                        </FieldLabel>
+                        <input type="number" step="100" value={form.specKcalHMin} onChange={(e) => setField("specKcalHMin", e.target.value)} placeholder="Ex: 8000" className={inputClass} />
                       </div>
                       <div>
-                        <label className={labelClass}>Amperagem (A)</label>
-                        <input
-                          type="number" step="0.1"
-                          value={form.specAmperagem}
-                          onChange={(e) => setField("specAmperagem", e.target.value)}
-                          placeholder="Ex: 5.1"
-                          className={inputClass}
-                        />
+                        <FieldLabel help="Faixa MAXIMA de Kcal/h que esse modelo cobre. Usado pelo template legado de auto-select.">
+                          Kcal/h maximo (faixa)
+                        </FieldLabel>
+                        <input type="number" step="100" value={form.specKcalHMax} onChange={(e) => setField("specKcalHMax", e.target.value)} placeholder="Ex: 20000" className={inputClass} />
+                      </div>
+                    </div>
+
+                    {/* Capacidade nominal — usados no Simulador */}
+                    <h5 className="text-[11px] font-bold text-slate-500 uppercase mb-2 mt-2">Capacidade nominal (Simulador de Aquecimento)</h5>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                      <div>
+                        <FieldLabel help="Capacidade nominal de aquecimento em Kcal/h. Eh o numero principal usado pelo Simulador pra selecionar o modelo correto (kcalHNominal >= calorNecessarioKcalH). Ex Tholz X23-40C = 34.400.">
+                          Kcal/h nominal
+                        </FieldLabel>
+                        <input type="number" step="100" value={form.specKcalHNominal} onChange={(e) => setField("specKcalHNominal", e.target.value)} placeholder="Ex: 34400" className={inputClass} />
+                      </div>
+                      <div>
+                        <FieldLabel help="Potencia termica nominal em kW. Equivale a Kcal/h ÷ 860. Mostrado na UI do Simulador como informativo.">
+                          kW termico
+                        </FieldLabel>
+                        <input type="number" step="0.1" value={form.specKwNominal} onChange={(e) => setField("specKwNominal", e.target.value)} placeholder="Ex: 40" className={inputClass} />
+                      </div>
+                      <div>
+                        <FieldLabel help="Capacidade em BTU/h. Equivale a Kcal/h × 3.9683. Comum em datasheets de bombas de calor importadas.">
+                          BTU/h
+                        </FieldLabel>
+                        <input type="number" step="1000" value={form.specBtuH} onChange={(e) => setField("specBtuH", e.target.value)} placeholder="Ex: 140000" className={inputClass} />
+                      </div>
+                    </div>
+
+                    {/* Consumo eletrico */}
+                    <h5 className="text-[11px] font-bold text-slate-500 uppercase mb-2 mt-2">Consumo eletrico</h5>
+                    <div className="grid grid-cols-1 sm:grid-cols-1 gap-4 mb-4 max-w-sm">
+                      <div>
+                        <FieldLabel help="Consumo eletrico MEDIO em kW (em ar 15°C, 50% capacidade). Usado pra estimar custo mensal e anual de operacao. Ex Tholz X23-40C = 3.145 kW.">
+                          Consumo medio (kW)
+                        </FieldLabel>
+                        <input type="number" step="0.1" value={form.specRatedInputPowerKW} onChange={(e) => setField("specRatedInputPowerKW", e.target.value)} placeholder="Ex: 3.145" className={inputClass} />
+                      </div>
+                    </div>
+
+                    {/* COPs */}
+                    <h5 className="text-[11px] font-bold text-slate-500 uppercase mb-2 mt-2">COP (Coeficiente de Performance)</h5>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <FieldLabel help="COP MAXIMO em condicao ideal (ar 26°C, carga baixa). Eh o numero de marketing — 'Bomba COP 23' = esse valor. Nao representa operacao tipica.">
+                          COP maximo (marketing)
+                        </FieldLabel>
+                        <input type="number" step="0.1" value={form.specCopMax} onChange={(e) => setField("specCopMax", e.target.value)} placeholder="Ex: 23.0" className={inputClass} />
+                      </div>
+                      <div>
+                        <FieldLabel help="COP em 50% capacidade com ar a 26°C — operacao tipica de verao. Pra Tholz X23-40C = 15.">
+                          COP 50% verao (ar 26°C)
+                        </FieldLabel>
+                        <input type="number" step="0.1" value={form.specCopAt50Air26} onChange={(e) => setField("specCopAt50Air26", e.target.value)} placeholder="Ex: 15.0" className={inputClass} />
+                      </div>
+                      <div>
+                        <FieldLabel tone="cyan" help="COP em 50% capacidade com ar a 15°C — operacao de inverno BR. USADO PRA CALCULO conservador de consumo no Simulador. Pra Tholz X23-40C = 7.5.">
+                          COP 50% inverno (ar 15°C) ✓
+                        </FieldLabel>
+                        <input type="number" step="0.1" value={form.specCopAt50Air15} onChange={(e) => setField("specCopAt50Air15", e.target.value)} placeholder="Ex: 7.5" className={inputClass} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200 bg-white p-5">
+                    <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">⚡ Eletrico — Bombas, Motores, Equipamentos</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                      <div>
+                        <FieldLabel help="Potencia do motor em CV (cavalo-vapor). 1 CV ≈ 0.736 kW.">Potencia (CV)</FieldLabel>
+                        <input type="number" step="0.1" value={form.specPotenciaCv} onChange={(e) => setField("specPotenciaCv", e.target.value)} placeholder="Ex: 0.75" className={inputClass} />
+                      </div>
+                      <div>
+                        <FieldLabel help="Tensao de operacao em Volts. 220V eh padrao residencial BR, 380V eh trifasico industrial.">Voltagem (V)</FieldLabel>
+                        <input type="number" step="1" value={form.specVoltagem} onChange={(e) => setField("specVoltagem", e.target.value)} placeholder="Ex: 220" className={inputClass} />
+                      </div>
+                      <div>
+                        <FieldLabel help="Corrente nominal em Amperes. Usado pra dimensionar disjuntor e fiacao.">Amperagem (A)</FieldLabel>
+                        <input type="number" step="0.1" value={form.specAmperagem} onChange={(e) => setField("specAmperagem", e.target.value)} placeholder="Ex: 5.1" className={inputClass} />
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className={labelClass}>Tipo eletrico</label>
-                        <select
-                          value={form.specBifTrif}
-                          onChange={(e) => setField("specBifTrif", e.target.value)}
-                          className={inputClass}
-                        >
+                        <FieldLabel help="Tipo de alimentacao eletrica. Influencia disjuntor, quadro de distribuicao e fiacao.">Tipo eletrico</FieldLabel>
+                        <select value={form.specBifTrif} onChange={(e) => setField("specBifTrif", e.target.value)} className={inputClass}>
                           <option value="">— Nao se aplica —</option>
                           <option value="Bif">Bifasico (220V — 2 fases)</option>
                           <option value="Trif">Trifasico (220V/380V — 3 fases)</option>
                         </select>
-                        <p className="mt-1 text-[11px] text-slate-600">
-                          Influencia disjuntor, quadro de distribuicao e fiacao.
-                        </p>
                       </div>
                       <div>
-                        <label className={labelClass}>Espacos no quadro</label>
-                        <input
-                          type="number" step="1" min="0"
-                          value={form.specBifTrifConta}
-                          onChange={(e) => setField("specBifTrifConta", e.target.value)}
-                          placeholder="Ex: 2 (Bif) ou 3 (Trif)"
-                          className={inputClass}
-                        />
-                        <p className="mt-1 text-[11px] text-slate-600">
-                          Quantos modulos/espacos o disjuntor ou contactor desse equipamento ocupa no quadro. Usado pra dimensionar quadro automaticamente.
-                        </p>
+                        <FieldLabel help="Quantos modulos/espacos o disjuntor ou contactor desse equipamento ocupa no quadro. Usado pra dimensionar quadro automaticamente.">Espacos no quadro</FieldLabel>
+                        <input type="number" step="1" min="0" value={form.specBifTrifConta} onChange={(e) => setField("specBifTrifConta", e.target.value)} placeholder="Ex: 2 (Bif) ou 3 (Trif)" className={inputClass} />
                       </div>
                     </div>
                   </div>
