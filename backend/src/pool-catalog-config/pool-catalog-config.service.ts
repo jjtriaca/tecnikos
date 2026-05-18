@@ -136,6 +136,13 @@ export class PoolCatalogConfigService {
 
     const where: Prisma.PoolCatalogConfigWhereInput = {
       companyId,
+      // Soft-delete cascade: exclui configs cujo Product/Service vinculado foi apagado.
+      // Bug ate v1.11.66: produtos deletados continuavam aparecendo no catalog picker
+      // porque PoolCatalogConfig nao era invalidado quando o produto era soft-deletado.
+      AND: [
+        { OR: [{ productId: null }, { product: { deletedAt: null } }] },
+        { OR: [{ serviceId: null }, { service: { deletedAt: null } }] },
+      ],
       ...(filters.poolSection ? { poolSection: filters.poolSection } : {}),
       ...(filters.isActive !== undefined ? { isActive: filters.isActive } : {}),
       ...(filters.onlyProducts ? { productId: { not: null } } : {}),
