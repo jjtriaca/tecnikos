@@ -62,6 +62,24 @@ export class PoolBudgetController {
     return this.heatingBudget.simulate(user.companyId, dto as any);
   }
 
+  @ApiOperation({ summary: 'Lista candidatos disponiveis (Bomba de Calor/Aquecedor) pra dropdown' })
+  @Get('heating/candidates')
+  listHeatingCandidates(@CurrentUser() user: AuthenticatedUser) {
+    return this.heatingBudget.listCandidates(user.companyId);
+  }
+
+  @ApiOperation({ summary: 'Override manual do equipamento selecionado — salva no environmentParams + recomputa' })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Put(':id/heating-report/equipment')
+  selectHeatingEquipment(
+    @Param('id') id: string,
+    @Body() body: { productId: string | null; quantity?: number },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.heatingBudget.selectEquipmentOverride(id, user.companyId, body?.productId ?? null, body?.quantity ?? 1);
+  }
+
   @ApiOperation({ summary: 'Retorna environmentParams padrao do tenant (herdado em novos orcamentos)' })
   @Get('heating/defaults')
   getHeatingDefaults(@CurrentUser() user: AuthenticatedUser) {

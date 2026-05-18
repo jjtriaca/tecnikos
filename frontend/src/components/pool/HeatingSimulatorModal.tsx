@@ -45,6 +45,14 @@ interface SelectedEquipment {
   isAdequate: boolean;
   quantity: number;
   fromItemCellRef?: string;
+  fromOverride?: boolean;
+}
+
+interface HeatingCandidate {
+  productId: string;
+  modelName: string;
+  kcalHNominal: number;
+  kwNominal?: number;
 }
 
 interface MonthlyConsumption {
@@ -156,6 +164,12 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
   const [report, setReport] = useState<HeatingReport | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Candidatos pra dropdown de selecao manual do equipamento
+  const [candidates, setCandidates] = useState<HeatingCandidate[]>([]);
+  const [showEquipmentPicker, setShowEquipmentPicker] = useState<boolean>(false);
+  const [equipmentQty, setEquipmentQty] = useState<number>(1);
+  const [changingEquipment, setChangingEquipment] = useState<boolean>(false);
+
   // Modo "Calculo rapido": permite editar dados da obra (volume/area/dim) e
   // calcular sem salvar no orcamento. Util pra simular cenarios hipoteticos.
   const [quickMode, setQuickMode] = useState<boolean>(false);
@@ -191,7 +205,37 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
     api.get<HeatingCity[]>("/pool-budgets/heating/cities")
       .then(setCities)
       .catch((e) => setError(String(e?.message ?? e)));
+    // Carrega candidatos disponiveis pro dropdown de selecao manual
+    api.get<HeatingCandidate[]>("/pool-budgets/heating/candidates")
+      .then(setCandidates)
+      .catch(() => setCandidates([]));
   }, [open]);
+
+  // Sincroniza equipmentQty com o quantity atual do selectedEquipment
+  useEffect(() => {
+    if (report?.selectedEquipment?.quantity) {
+      setEquipmentQty(report.selectedEquipment.quantity);
+    }
+  }, [report?.selectedEquipment?.quantity]);
+
+  // Troca o equipamento via override manual
+  async function changeEquipment(productId: string | null, qty: number = 1) {
+    setChangingEquipment(true);
+    setError(null);
+    try {
+      const r = await api.put<HeatingReport>(`/pool-budgets/${budget.id}/heating-report/equipment`, {
+        productId,
+        quantity: qty,
+      });
+      setReport(r);
+      setShowEquipmentPicker(false);
+      onSaved?.();
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+    } finally {
+      setChangingEquipment(false);
+    }
+  }
 
   // Carrega inputs do budget ao abrir
   useEffect(() => {
@@ -672,8 +716,14 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <div className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
-                          {report.selectedEquipment.fromItemCellRef ? "Equipamento da linha do orcamento" : "Modelo recomendado"}
+                          {report.selectedEquipment.fromOverride ? "Equipamento (escolha manual)" :
+                            report.selectedEquipment.fromItemCellRef ? "Equipamento da linha do orcamento" : "Modelo recomendado"}
                         </div>
+                        {report.selectedEquipment.fromOverride && (
+                          <span className="inline-flex items-center gap-1 bg-violet-100 text-violet-900 border border-violet-300 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                            ✋ MANUAL
+                          </span>
+                        )}
                         {report.selectedEquipment.fromItemCellRef && (
                           <span className="inline-flex items-center gap-1 bg-cyan-100 text-cyan-900 border border-cyan-300 px-2 py-0.5 rounded-full text-[10px] font-bold">
                             📎 {report.selectedEquipment.fromItemCellRef}
@@ -685,7 +735,67 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                           </span>
                         )}
                       </div>
-                      <div className="mt-1 text-xl font-bold text-emerald-900">{report.selectedEquipment.modelName}</div>
+                      {/* Dropdown clickable no nome do modelo */}
+                      <div className="mt-1 relative inline-block w-full">
+                        <button type="button" onClick={() => setShowEquipmentPicker(!showEquipmentPicker)}
+                          className="flex items-center gap-2 text-xl font-bold text-emerald-900 hover:text-emerald-700 transition w-full text-left">
+                          <span>{report.selectedEquipment.modelName}</span>
+                          <span className="text-sm text-emerald-700">{showEquipmentPicker ? "▲" : "▼"}</span>
+                        </button>
+                        {showEquipmentPicker && (
+                          <div className="absolute z-50 left-0 right-0 mt-2 rounded-xl border-2 border-emerald-200 bg-white shadow-xl p-3 max-h-96 overflow-y-auto">
+                            <div className="text-[11px] font-semibold uppercase text-slate-500 mb-2">Trocar equipamento</div>
+                            {report.selectedEquipment.fromOverride && (
+                              <button type="button" onClick={() => changeEquipment(null)} disabled={changingEquipment}
+                                className="w-full text-left px-3 py-2 mb-2 rounded-lg border border-violet-300 bg-violet-50 hover:bg-violet-100 text-sm font-semibold text-violet-900 disabled:opacity-50">
+                                ↺ Voltar pra selecao automatica
+                              </button>
+                            )}
+                            {/* Selector de quantidade */}
+                            <div className="flex items-center gap-2 mb-3 px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200">
+                              <span className="text-[11px] text-slate-600">Quantidade em paralelo:</span>
+                              <div className="flex items-center gap-1">
+                                {[1, 2, 3, 4, 5, 6].map((n) => (
+                                  <button key={n} type="button" onClick={() => setEquipmentQty(n)}
+                                    className={`w-7 h-7 rounded text-xs font-bold transition ${
+                                      equipmentQty === n ? "bg-emerald-600 text-white" : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-100"
+                                    }`}>
+                                    {n}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            {/* Lista de candidatos */}
+                            <div className="space-y-1">
+                              {candidates.length === 0 && (
+                                <div className="text-xs text-slate-500 px-2 py-3">
+                                  Nenhum produto cadastrado tipo Bomba de Calor com kcalHNominal preenchido.
+                                </div>
+                              )}
+                              {[...candidates].sort((a, b) => a.kcalHNominal - b.kcalHNominal).map((c) => {
+                                const isSelected = c.productId === report.selectedEquipment?.productId && (report.selectedEquipment?.quantity ?? 1) === equipmentQty;
+                                return (
+                                  <button key={c.productId} type="button" onClick={() => changeEquipment(c.productId, equipmentQty)} disabled={changingEquipment}
+                                    className={`w-full text-left px-3 py-2 rounded-lg border transition disabled:opacity-50 ${
+                                      isSelected ? "bg-emerald-50 border-emerald-300" : "bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300"
+                                    }`}>
+                                    <div className="text-sm font-semibold text-slate-900">
+                                      {equipmentQty > 1 ? `${equipmentQty}× ${c.modelName}` : c.modelName}
+                                    </div>
+                                    <div className="text-[11px] text-slate-500">
+                                      {(c.kcalHNominal * equipmentQty).toLocaleString("pt-BR")} Kcal/h
+                                      {c.kwNominal && <> · {(c.kwNominal * equipmentQty).toFixed(1)} kW termico</>}
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {changingEquipment && (
+                              <div className="mt-2 text-center text-[11px] text-slate-500">Recalculando...</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       {report.selectedEquipment.quantity > 1 && (
                         <div className="mt-1 text-[11px] text-amber-800">
                           Nenhum modelo unico cobre a demanda. Sistema sugere {report.selectedEquipment.quantity} unidades do maior modelo disponivel operando em paralelo. Capacidade combinada = {report.selectedEquipment.kcalHNominal?.toLocaleString("pt-BR")} Kcal/h.

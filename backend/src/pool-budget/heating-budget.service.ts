@@ -86,6 +86,51 @@ export class HeatingBudgetService {
    * (produtos com poolType=Bomba de Calor) e tarifa, e salva o resultado em
    * PoolBudget.heatingReport.
    */
+  /**
+   * Override manual do equipamento (F6.x — operador clica no dropdown do card
+   * pra trocar a bomba de calor selecionada). Salva no environmentParams.heatingOverride
+   * e recomputa o report. Passar productId=null limpa o override (volta pra auto-select).
+   */
+  async selectEquipmentOverride(
+    budgetId: string,
+    companyId: string,
+    productId: string | null,
+    quantity: number = 1,
+  ): Promise<HeatingReport> {
+    const budget = await this.prisma.poolBudget.findFirst({
+      where: { id: budgetId, companyId, deletedAt: null },
+      select: { environmentParams: true },
+    });
+    if (!budget) throw new NotFoundException('Orcamento nao encontrado');
+
+    const env = (budget.environmentParams ?? {}) as Record<string, any>;
+    const newEnv = { ...env };
+    if (productId) {
+      newEnv.heatingOverride = { productId, quantity: Math.max(1, Math.min(20, quantity)) };
+    } else {
+      delete newEnv.heatingOverride;
+    }
+    await this.prisma.poolBudget.update({
+      where: { id: budgetId },
+      data: { environmentParams: newEnv as any, heatingReport: null as any },
+    });
+    return this.computeAndSaveReport(budgetId, companyId);
+  }
+
+  /**
+   * Lista candidatos disponiveis pra dropdown de selecao manual (F6.x).
+   * Retorna todos os Bomba de Calor / Aquecedor com kcalHNominal preenchido.
+   */
+  async listCandidates(companyId: string): Promise<Array<{ productId: string; modelName: string; kcalHNominal: number; kwNominal?: number }>> {
+    const list = await this.fetchBombaCalorCandidates(companyId);
+    return list.map((c) => ({
+      productId: c.productId,
+      modelName: c.modelName,
+      kcalHNominal: c.kcalHNominal,
+      kwNominal: c.kwNominal,
+    }));
+  }
+
   async computeAndSaveReport(budgetId: string, companyId: string): Promise<HeatingReport> {
     const budget = await this.prisma.poolBudget.findFirst({
       where: { id: budgetId, companyId, deletedAt: null },
@@ -108,24 +153,36 @@ export class HeatingBudgetService {
     const inputs = this.extractInputs(budget, aggregated);
     const tariff = await this.getEnergyTariff(companyId);
 
-    // F6.3: equipamento vem da linha "Bomba de Calor" da etapa (operador escolheu
-    // via picker ou auto-select da linha). Se nao tiver, fallback pro auto-select
-    // global do simulador com candidatos do catalogo.
-    const fromItem = this.extractEquipmentFromItems(budget.items as any);
-    const candidates = fromItem
-      ? [fromItem] // forca selectEquipment a usar SO esse candidato
+    // Prioridade do equipamento:
+    // 1. Override manual (operador clicou no dropdown do card) — environmentParams.heatingOverride
+    // 2. Linha "Bomba de Calor" da etapa (F6.3)
+    // 3. Auto-select global do simulador
+    const env = (budget.environmentParams ?? {}) as Record<string, any>;
+    const override = env.heatingOverride as { productId: string; quantity: number } | undefined;
+    const fromOverride = override?.productId
+      ? await this.extractEquipmentFromOverride(companyId, override.productId, Number(override.quantity) || 1)
+      : undefined;
+    const fromItem = !fromOverride ? this.extractEquipmentFromItems(budget.items as any) : undefined;
+    const candidates = fromOverride
+      ? [fromOverride]
+      : fromItem
+      ? [fromItem]
       : await this.fetchBombaCalorCandidates(companyId);
 
     const report = this.heating.computeReport(inputs, {
       candidates,
       tariff,
-      // Quando vem da linha (operador escolheu), nao inflar virtualmente
-      skipVirtualMultiplier: !!fromItem,
+      // Override ou linha — operador escolheu, nao inflar virtualmente
+      skipVirtualMultiplier: !!(fromOverride || fromItem),
     });
 
-    // Marca origem do equipamento no report (UI mostra badge "da linha LX")
-    if (fromItem && report.selectedEquipment) {
-      (report.selectedEquipment as any).fromItemCellRef = fromItem._cellRef;
+    // Marca origem do equipamento no report
+    if (report.selectedEquipment) {
+      if (fromOverride) {
+        (report.selectedEquipment as any).fromOverride = true;
+      } else if (fromItem) {
+        (report.selectedEquipment as any).fromItemCellRef = fromItem._cellRef;
+      }
     }
 
     await this.prisma.poolBudget.update({
@@ -134,6 +191,46 @@ export class HeatingBudgetService {
     });
 
     return report;
+  }
+
+  /**
+   * Busca um produto especifico por ID (override manual do operador no dropdown
+   * do card "Modelo recomendado"). Multiplica capacidades pela quantity se >1.
+   */
+  private async extractEquipmentFromOverride(
+    companyId: string,
+    productId: string,
+    quantity: number,
+  ): Promise<(Parameters<HeatingService['selectEquipment']>[0][number]) | undefined> {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, companyId, deletedAt: null },
+      select: { id: true, description: true, model: true, technicalSpecs: true },
+    });
+    if (!product) return undefined;
+    const specs = (product.technicalSpecs ?? {}) as Record<string, any>;
+    const kcalH = Number(specs.kcalHNominal);
+    if (!kcalH || kcalH <= 0) return undefined;
+    const qty = Math.max(1, Math.min(20, Number(quantity) || 1));
+    return {
+      productId: product.id,
+      modelName: qty > 1
+        ? `${qty}× ${product.model || product.description || 'Bomba de Calor'}`
+        : (product.model || product.description || 'Bomba de Calor'),
+      kcalHNominal: kcalH * qty,
+      btuH: specs.btuH ? Number(specs.btuH) * qty : undefined,
+      kwNominal: specs.kwNominal ? Number(specs.kwNominal) * qty : undefined,
+      consumoMaxW: specs.consumoMaxW ? Number(specs.consumoMaxW) * qty : undefined,
+      consumoMedioW: specs.consumoMedioW ? Number(specs.consumoMedioW) * qty : undefined,
+      ratedInputPowerKW: specs.ratedInputPowerKW ? Number(specs.ratedInputPowerKW) * qty : undefined,
+      copMax: Number(specs.copMax) || undefined,
+      copAt50Air26: Number(specs.copAt50Air26) || undefined,
+      copAt50Air15: Number(specs.copAt50Air15) || undefined,
+      copCurveA: Number(specs.copCurveA) || undefined,
+      copCurveB: Number(specs.copCurveB) || undefined,
+      copCurveC: Number(specs.copCurveC) || undefined,
+      copNominal: Number(specs.copNominal) || undefined,
+      copAt50Capacity: Number(specs.copAt50Capacity) || undefined,
+    };
   }
 
   /**
