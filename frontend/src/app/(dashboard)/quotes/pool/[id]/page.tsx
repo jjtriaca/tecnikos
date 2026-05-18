@@ -596,11 +596,11 @@ export default function PoolBudgetDetailPage() {
                   <h1 className="text-xl md:text-2xl font-bold text-slate-900 truncate">{budget.title}</h1>
                   <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${status.cls}`}>{status.label}</span>
                   {!isLocked && (
-                    <Link href={`/quotes/pool/new?edit=${budget.id}`}
+                    <button type="button" onClick={() => setShowEditHeader(true)}
                       className="text-[11px] text-slate-500 hover:text-cyan-700 hover:bg-cyan-50 px-2 py-0.5 rounded border border-slate-200"
-                      title="Editar tudo (cliente, dimensoes, capa, validade)">
+                      title="Editar dados gerais + aquecimento">
                       ✏️ Editar dados
-                    </Link>
+                    </button>
                   )}
                   <button onClick={() => setShowHeatingSimulator(true)}
                     className="text-[11px] text-orange-700 hover:text-white hover:bg-orange-600 px-2 py-0.5 rounded border border-orange-300 bg-orange-50 transition"
@@ -3919,6 +3919,7 @@ function EditBudgetHeaderModal({ budget, onClose, onSaved }: {
   onSaved: () => void;
 }) {
   const { toast } = useToast();
+  const env = (budget.environmentParams ?? {}) as any;
   const [title, setTitle] = useState(budget.title);
   const [clientPartnerId, setClientPartnerId] = useState(budget.clientPartner?.id || "");
   const [validityDays, setValidityDays] = useState(budget.validityDays);
@@ -3928,8 +3929,62 @@ function EditBudgetHeaderModal({ budget, onClose, onSaved }: {
   const [perimeter, setPerimeter] = useState<number>(Number(budget.poolDimensions?.perimeter) || 0);
   const [saving, setSaving] = useState(false);
 
+  // ====== Dados de aquecimento (env params) ======
+  const normEnv = (v: any, allowed: string[], fb: string): string => {
+    if (typeof v !== "string") return fb;
+    const u = v.toUpperCase().trim().replace(/ /g, "_");
+    if (allowed.includes(u)) return u;
+    if (u === "BAIXO" && allowed.includes("FRACO")) return "FRACO";
+    if (u === "ABERTO" && allowed.includes("ABERTA")) return "ABERTA";
+    if (u === "FECHADO" && allowed.includes("FECHADA")) return "FECHADA";
+    return fb;
+  };
+  const [cities, setCities] = useState<Array<{ uf: string; ufName: string; cities: string[] }>>([]);
+  const [uf, setUf] = useState<string>(env.uf || "");
+  const [cidade, setCidade] = useState<string>(env.cidade || "");
+  const [tempAguaDesejada, setTempAguaDesejada] = useState<number>(Number(env.temperaturaAguaDesejada) || 30);
+  const [tempAguaInicial, setTempAguaInicial] = useState<string>(typeof env.temperaturaInicialAgua === "number" ? String(env.temperaturaInicialAgua) : "");
+  const [vento, setVento] = useState<string>(normEnv(env.velocidadeVento, ["INTERNA", "NULO", "FRACO", "MODERADO", "FORTE"], "MODERADO"));
+  const [tipoConstrucao, setTipoConstrucao] = useState<string>(normEnv(env.tipoConstrucao, ["ABERTA", "FECHADA"], "ABERTA"));
+  const [tipoPiscina, setTipoPiscina] = useState<string>(normEnv(env.tipoPiscina, ["PRIVATIVA", "COLETIVA"], "PRIVATIVA"));
+  const [capaTermica, setCapaTermica] = useState<boolean>(env.capaTermica === true || env.capaTermica === "SIM");
+  const [utilizacaoAno, setUtilizacaoAno] = useState<string>(normEnv(env.utilizacaoAno, ["ANO_TODO", "VERAO", "INVERNO"], "ANO_TODO"));
+  const [utilizacaoSemana, setUtilizacaoSemana] = useState<string>(normEnv(env.utilizacaoSemana, ["MES_TODO", "FIM_DE_SEMANA"], "MES_TODO"));
+  // Toggle borda infinita
+  const [temBordaInfinita, setTemBordaInfinita] = useState<boolean>(!!env.temBordaInfinita || Number(env.bordaInfinitaM) > 0);
+  const [bordaAlturaM, setBordaAlturaM] = useState<number>(Number(env.bordaInfinitaAlturaM) || 0.5);
+  const [bordaVazaoLminPorM, setBordaVazaoLminPorM] = useState<number>(Number(env.bordaInfinitaVazaoLminPorM) || 30);
+  const [bordaHorasAtivaDia, setBordaHorasAtivaDia] = useState<number>(Number(env.bordaInfinitaHorasAtivaDia) || 24);
+
   const area = length * width;
   const volume = length * width * depth;
+
+  // Carrega cidades-clima na abertura
+  useEffect(() => {
+    api.get<Array<{ uf: string; ufName: string; cities: string[] }>>("/pool-budgets/heating/cities")
+      .then(setCities)
+      .catch(() => { /* silent */ });
+  }, []);
+
+  function buildEnvironmentParams() {
+    return {
+      ...(budget.environmentParams ?? {}),
+      uf,
+      cidade: cidade || undefined,
+      temperaturaAguaDesejada: Number(tempAguaDesejada),
+      temperaturaInicialAgua: tempAguaInicial === "" ? undefined : Number(tempAguaInicial),
+      velocidadeVento: vento,
+      tipoConstrucao,
+      tipoPiscina,
+      capaTermica,
+      utilizacaoAno,
+      utilizacaoSemana,
+      temBordaInfinita,
+      bordaInfinitaAlturaM: temBordaInfinita ? Number(bordaAlturaM) : undefined,
+      bordaInfinitaVazaoLminPorM: temBordaInfinita ? Number(bordaVazaoLminPorM) : undefined,
+      bordaInfinitaHorasAtivaDia: temBordaInfinita ? Number(bordaHorasAtivaDia) : undefined,
+    };
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -3948,6 +4003,7 @@ function EditBudgetHeaderModal({ budget, onClose, onSaved }: {
         clientPartnerId,
         validityDays,
         poolDimensions: newDimensions,
+        environmentParams: buildEnvironmentParams(),
       });
       toast("Dados atualizados", "success");
       onSaved();
@@ -3958,9 +4014,21 @@ function EditBudgetHeaderModal({ budget, onClose, onSaved }: {
     }
   }
 
+  async function saveAsDefault() {
+    try {
+      await api.put("/pool-budgets/heating/defaults", { defaultEnvironmentParams: buildEnvironmentParams() });
+      toast("Dados de aquecimento salvos como padrao do tenant", "success");
+    } catch (err: any) {
+      toast(err?.payload?.message || "Erro ao salvar padrao", "error");
+    }
+  }
+
+  const ufData = cities.find((c) => c.uf === uf);
+  const availableCities = ufData?.cities ?? [];
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="w-full max-w-xl rounded-xl bg-white p-6 shadow-xl space-y-4 max-h-[92vh] overflow-y-auto">
+      <div className="w-full max-w-3xl rounded-xl bg-white p-6 shadow-xl space-y-4 max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Editar dados do orcamento</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-xl leading-none">✕</button>
@@ -4031,7 +4099,155 @@ function EditBudgetHeaderModal({ budget, onClose, onSaved }: {
               className="w-32 rounded-lg border border-slate-300 px-3 py-2 text-sm" />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          {/* ============ AQUECIMENTO ============ */}
+          <div className="border-t border-slate-200 pt-4 mt-4">
+            <h3 className="text-sm font-semibold text-orange-900 mb-3 flex items-center gap-2">
+              🔥 Dados de Aquecimento <span className="text-[10px] font-normal text-slate-500">(usados pelo Simulador)</span>
+            </h3>
+
+            {/* Localizacao e clima */}
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 mb-3">
+              <div className="text-[11px] font-semibold text-slate-600 uppercase mb-2">📍 Localizacao e clima</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] text-slate-500 mb-1">Estado (UF)</label>
+                  <select value={uf} onChange={(e) => { setUf(e.target.value); setCidade(""); }}
+                    className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm">
+                    <option value="">Selecione...</option>
+                    {cities.map((c) => <option key={c.uf} value={c.uf}>{c.uf} — {c.ufName}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-500 mb-1">Cidade-clima</label>
+                  <select value={cidade} onChange={(e) => setCidade(e.target.value)} disabled={!uf}
+                    className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm disabled:bg-slate-50">
+                    <option value="">{availableCities[0] ? `${availableCities[0]} (capital)` : "—"}</option>
+                    {availableCities.slice(1).map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Dados de uso */}
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 mb-3">
+              <div className="text-[11px] font-semibold text-slate-600 uppercase mb-2">🌡 Dados de uso</div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-[10px] text-slate-500 mb-1">Temp. desejada (°C)</label>
+                  <input type="number" step="1" min="20" max="42" value={tempAguaDesejada}
+                    onChange={(e) => setTempAguaDesejada(parseFloat(e.target.value) || 30)}
+                    className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-500 mb-1">Temp. inicial (°C)</label>
+                  <input type="number" step="1" value={tempAguaInicial}
+                    onChange={(e) => setTempAguaInicial(e.target.value)} placeholder="auto"
+                    className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-500 mb-1">Velocidade vento</label>
+                  <select value={vento} onChange={(e) => setVento(e.target.value)}
+                    className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm">
+                    <option value="NULO">Nulo</option>
+                    <option value="FRACO">Fraco (~7 km/h)</option>
+                    <option value="MODERADO">Moderado (~15 km/h)</option>
+                    <option value="FORTE">Forte (~22 km/h)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-500 mb-1">Tipo construcao</label>
+                  <select value={tipoConstrucao} onChange={(e) => setTipoConstrucao(e.target.value)}
+                    className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm">
+                    <option value="ABERTA">Aberta (externa)</option>
+                    <option value="FECHADA">Fechada (coberta)</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+                <div>
+                  <label className="block text-[10px] text-slate-500 mb-1">Capa termica</label>
+                  <label className="flex items-center gap-2 rounded border border-slate-300 bg-white px-2 py-1.5 text-sm cursor-pointer hover:bg-slate-50">
+                    <input type="checkbox" checked={capaTermica} onChange={(e) => setCapaTermica(e.target.checked)}
+                      className="rounded border-slate-300 text-cyan-600" />
+                    <span>{capaTermica ? "Sim" : "Nao"}</span>
+                  </label>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-500 mb-1">Tipo piscina</label>
+                  <select value={tipoPiscina} onChange={(e) => setTipoPiscina(e.target.value)}
+                    className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm">
+                    <option value="PRIVATIVA">Privativa</option>
+                    <option value="COLETIVA">Coletiva</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-500 mb-1">Utilizacao ano</label>
+                  <select value={utilizacaoAno} onChange={(e) => setUtilizacaoAno(e.target.value)}
+                    className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm">
+                    <option value="ANO_TODO">Ano todo</option>
+                    <option value="VERAO">So verao</option>
+                    <option value="INVERNO">So inverno</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] text-slate-500 mb-1">Utilizacao semana</label>
+                  <select value={utilizacaoSemana} onChange={(e) => setUtilizacaoSemana(e.target.value)}
+                    className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm">
+                    <option value="MES_TODO">Mes todo</option>
+                    <option value="FIM_DE_SEMANA">So fim de semana</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Borda Infinita */}
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={temBordaInfinita} onChange={(e) => setTemBordaInfinita(e.target.checked)}
+                  className="rounded border-slate-300 text-cyan-600" />
+                <span className="text-[11px] font-semibold text-slate-700 uppercase">💧 Tem borda infinita?</span>
+              </label>
+              {temBordaInfinita && (
+                <div className="mt-3 grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10px] text-slate-500 mb-1">Altura queda (m)</label>
+                    <input type="number" step="0.05" min="0.05" max="3" value={bordaAlturaM}
+                      onChange={(e) => setBordaAlturaM(parseFloat(e.target.value) || 0.5)}
+                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                    <div className="text-[9px] text-slate-500 mt-0.5">Canaleta=0.1, cascata pequena=0.5, alta=1.5</div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-500 mb-1">Vazao (L/min por metro)</label>
+                    <input type="number" step="5" min="5" max="120" value={bordaVazaoLminPorM}
+                      onChange={(e) => setBordaVazaoLminPorM(parseFloat(e.target.value) || 30)}
+                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                    <div className="text-[9px] text-slate-500 mt-0.5">Tipico 20-40 (bomba 0.5cv)</div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-500 mb-1">Horas/dia ativa</label>
+                    <input type="number" step="1" min="0" max="24" value={bordaHorasAtivaDia}
+                      onChange={(e) => setBordaHorasAtivaDia(parseFloat(e.target.value) || 24)}
+                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                    <div className="text-[9px] text-slate-500 mt-0.5">24=sempre. Reduza se bomba desliga</div>
+                  </div>
+                </div>
+              )}
+              {temBordaInfinita && (
+                <div className="mt-2 text-[10px] text-slate-500">
+                  Comprimento total da borda = soma das linhas com produto tipo "Borda Infinita" das etapas (configurar nos itens do orcamento).
+                </div>
+              )}
+            </div>
+
+            <div className="mt-3 flex justify-end">
+              <button type="button" onClick={saveAsDefault}
+                className="text-[11px] text-cyan-700 hover:text-cyan-900 hover:underline">
+                💾 Salvar dados de aquecimento como padrao do tenant
+              </button>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
             <button type="button" onClick={onClose}
               className="rounded-lg border border-slate-300 px-4 py-2 text-sm">Cancelar</button>
             <button type="submit" disabled={saving}

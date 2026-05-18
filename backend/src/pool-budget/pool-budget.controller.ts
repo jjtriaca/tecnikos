@@ -62,6 +62,20 @@ export class PoolBudgetController {
     return this.heatingBudget.simulate(user.companyId, dto as any);
   }
 
+  @ApiOperation({ summary: 'Retorna environmentParams padrao do tenant (herdado em novos orcamentos)' })
+  @Get('heating/defaults')
+  getHeatingDefaults(@CurrentUser() user: AuthenticatedUser) {
+    return this.heatingBudget.getDefaultEnvironmentParams(user.companyId).then((env) => ({ defaultEnvironmentParams: env }));
+  }
+
+  @ApiOperation({ summary: 'Salva environmentParams padrao do tenant (usado em novos orcamentos)' })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Put('heating/defaults')
+  saveHeatingDefaults(@Body() body: { defaultEnvironmentParams: any }, @CurrentUser() user: AuthenticatedUser) {
+    return this.heatingBudget.saveDefaultEnvironmentParams(user.companyId, body?.defaultEnvironmentParams ?? {});
+  }
+
   @ApiOperation({ summary: 'Cria orçamento de piscina (auto-aplica template se enviado)' })
   @RequireVerification()
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)

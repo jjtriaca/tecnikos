@@ -96,6 +96,26 @@ export class HeatingBudgetService {
     return report;
   }
 
+  // ============ Defaults do tenant (Simulador) ============
+
+  /** Retorna o defaultEnvironmentParams do tenant (Json). null se nao configurado. */
+  async getDefaultEnvironmentParams(companyId: string): Promise<any> {
+    const cfg = await this.prisma.poolModuleConfig.findUnique({
+      where: { companyId },
+      select: { defaultEnvironmentParams: true },
+    });
+    return cfg?.defaultEnvironmentParams ?? null;
+  }
+
+  /** Salva o defaultEnvironmentParams do tenant. Idempotente — upsert. */
+  async saveDefaultEnvironmentParams(companyId: string, env: any) {
+    return this.prisma.poolModuleConfig.upsert({
+      where: { companyId },
+      create: { companyId, defaultEnvironmentParams: env },
+      update: { defaultEnvironmentParams: env },
+    });
+  }
+
   /**
    * Simulacao "calculo rapido" — recebe todos os inputs no body, computa o
    * relatorio mas NAO salva no banco. Util pra testar cenarios hipoteticos

@@ -96,6 +96,21 @@ export class PoolBudgetService {
       .generateCode(companyId, 'POOL_BUDGET')
       .catch(() => null);
 
+    // Heranca de environmentParams: DTO > defaults do tenant > vazio
+    // Pra simulador de aquecimento — operador clica "Salvar como padrao" no modal
+    // de editar dados, e novos orcamentos herdam UF/cidade/temp/capa/vento/etc.
+    let envParams = dto.environmentParams as Record<string, any> | undefined;
+    if (!envParams || Object.keys(envParams).length === 0) {
+      const cfg = await this.prisma.poolModuleConfig.findUnique({
+        where: { companyId },
+        select: { defaultEnvironmentParams: true },
+      });
+      const defaults = cfg?.defaultEnvironmentParams as Record<string, any> | null;
+      if (defaults && Object.keys(defaults).length > 0) {
+        envParams = defaults;
+      }
+    }
+
     // Se template tem defaults (snapshot v1.10.43+), aplica como base. DTO sobrescreve.
     const tDefaults = (template?.defaults as Record<string, any>) || {};
     const created = await this.prisma.poolBudget.create({
@@ -111,7 +126,7 @@ export class PoolBudgetService {
         notes: dto.notes,
         termsConditions: dto.termsConditions,
         poolDimensions: dto.poolDimensions as unknown as Prisma.InputJsonValue,
-        environmentParams: dto.environmentParams as Prisma.InputJsonValue | undefined,
+        environmentParams: envParams as Prisma.InputJsonValue | undefined,
         validityDays: dto.validityDays ?? tDefaults.validityDays ?? 30,
         discountCents: dto.discountCents,
         discountPercent: dto.discountPercent ?? tDefaults.discountPercent ?? null,

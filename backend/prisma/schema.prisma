@@ -3851,6 +3851,13 @@ model PoolModuleConfig {
   defaultMarkup     Float?   @default(0) // Markup padrao sobre custo
   prefixBudget      String   @default("ORCP")
   prefixProject     String   @default("OBR")
+  // Defaults pro environmentParams de novos orcamentos (Simulador de Aquecimento).
+  // Estrutura: { uf, cidade, temperaturaAguaDesejada, capaTermica, velocidadeVento,
+  // tipoConstrucao, tipoPiscina, utilizacaoAno, utilizacaoSemana, temBordaInfinita,
+  // bordaInfinitaAlturaM, bordaInfinitaVazaoLminPorM, bordaInfinitaHorasAtivaDia }.
+  // Operador clica "Salvar como padrao" no modal "Editar dados" do orcamento e
+  // os valores ficam aqui pra futuros orcamentos do mesmo tenant.
+  defaultEnvironmentParams Json?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
