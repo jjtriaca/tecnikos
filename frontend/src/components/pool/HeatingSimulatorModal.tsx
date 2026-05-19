@@ -180,6 +180,59 @@ function normEnum(value: any, allowed: string[], fallback: string): string {
 
 // ============ Componente ============
 
+// ============ Tipos do Simulador Solar (Fase 5) ============
+
+interface SolarCollectorCandidate {
+  productId: string;
+  modelName: string;
+  areaM2: number;
+  kwhPorM2: number;
+  eficiencia: number;
+  salePriceCents?: number;
+}
+
+interface SolarMonthlyRow {
+  monthIndex: number;
+  monthName: string;
+  tempAmbiente: number;
+  radSol: number;
+  perdaCorrigidaPorDia: number;
+  ganhoDia: number;
+  tempInicial1d: number;
+  tempFinal1d: number;
+  tempFinal2d: number;
+  tempFinal3d: number;
+  tempFinal4d: number;
+}
+
+interface SolarReport {
+  computedAt: string;
+  resolved: { uf?: string; cidade?: string; name: string };
+  areaPiscinaM2: number;
+  m2ColetorNecessario: number;
+  qtdColetores: number;
+  qtdInicial: number;
+  numBaterias: number;
+  coletoresPorBateria: number;
+  vazaoTotalM3h: number;
+  areaTotalColetoresM2: number;
+  percentualCobertura: number;
+  selectedCollector: {
+    productId?: string;
+    modelName: string;
+    areaM2: number;
+    kwhPorM2: number;
+    eficiencia: number;
+    kcalHTotal: number;
+  };
+  monthly: SolarMonthlyRow[];
+  monthlyAvgGanho: number;
+  monthlyMinTempFinal: number;
+  monthlyMaxTempFinal: number;
+  energiaSolarKcalH: number;
+  kcalPara1Grau: number;
+}
+
 type TabKey = "solar" | "bomba" | "comparativo";
 
 export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props) {
@@ -189,6 +242,15 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
   const [saving, setSaving] = useState(false);
   const [report, setReport] = useState<HeatingReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // ===== Estado do Simulador Solar (Fase 5) =====
+  const [solarReport, setSolarReport] = useState<SolarReport | null>(null);
+  const [solarLoading, setSolarLoading] = useState(false);
+  const [solarRecomputing, setSolarRecomputing] = useState(false);
+  const [solarCollectors, setSolarCollectors] = useState<SolarCollectorCandidate[]>([]);
+  const [solarExtraPct, setSolarExtraPct] = useState(0);
+  const [solarSelectedCollectorId, setSolarSelectedCollectorId] = useState<string | null>(null);
+  const [selectedMonthIdx, setSelectedMonthIdx] = useState<number>(5); // Junho default (mes critico)
 
   // Candidatos pra dropdown de selecao manual do equipamento
   const [candidates, setCandidates] = useState<HeatingCandidate[]>([]);
@@ -245,7 +307,45 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
     api.get<HeatingCandidate[]>("/pool-budgets/heating/candidates")
       .then(setCandidates)
       .catch(() => setCandidates([]));
-  }, [open]);
+    // Solar: carrega coletores e report cacheado
+    api.get<SolarCollectorCandidate[]>("/pool-budgets/solar/collectors")
+      .then((cs) => {
+        setSolarCollectors(cs);
+        // se o orcamento ja tem solarOverride.collectorProductId, marca
+        const env = budget.environmentParams ?? {};
+        const solOv = (env as any).solarOverride ?? {};
+        if (solOv.collectorProductId) setSolarSelectedCollectorId(solOv.collectorProductId);
+        else if (cs.length > 0) setSolarSelectedCollectorId(cs[cs.length - 1].productId); // padrao = ultimo
+        if (typeof solOv.extraColetoresPct === "number") setSolarExtraPct(solOv.extraColetoresPct);
+      })
+      .catch(() => setSolarCollectors([]));
+    setSolarLoading(true);
+    api.get<SolarReport | null>(`/pool-budgets/${budget.id}/solar-report`)
+      .then((r) => setSolarReport(r))
+      .catch(() => setSolarReport(null))
+      .finally(() => setSolarLoading(false));
+  }, [open, budget.id, budget.environmentParams]);
+
+  // Recompute solar — chamado quando o operador muda coletor/extra/temp ou clica botao
+  async function recomputeSolar(extraPct?: number, collectorId?: string | null) {
+    setSolarRecomputing(true);
+    setError(null);
+    try {
+      const body: { extraColetoresPct?: number; collectorProductId?: string; tempDesejada?: number } = {
+        extraColetoresPct: extraPct ?? solarExtraPct,
+        tempDesejada: Number(tempAguaDesejada),
+      };
+      const cid = collectorId === undefined ? solarSelectedCollectorId : collectorId;
+      if (cid) body.collectorProductId = cid;
+      const r = await api.post<SolarReport>(`/pool-budgets/${budget.id}/solar-report/recompute`, body);
+      setSolarReport(r);
+      onSaved?.();
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+    } finally {
+      setSolarRecomputing(false);
+    }
+  }
 
   // Troca o equipamento via override manual
   async function changeEquipment(productId: string | null, qty: number = 1) {
@@ -1090,16 +1190,32 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
           )}
 
           {activeTab === "solar" && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-12 text-center">
-              <div className="text-4xl mb-3">☀️</div>
-              <div className="font-semibold text-amber-900">Aquecimento Solar — em construcao</div>
-              <div className="text-sm mt-1 text-amber-800">
-                Dimensionamento de coletores solares (m², qtd, baterias, vazao) baseado em area da piscina, capa termica, vento e radiacao solar por estado.
-              </div>
-              <div className="text-xs mt-3 text-amber-700">
-                Fase 5 do plano — ver CURRENT_TASK.md
-              </div>
-            </div>
+            <SolarTab
+              budget={budget}
+              report={solarReport}
+              loading={solarLoading}
+              recomputing={solarRecomputing}
+              collectors={solarCollectors}
+              extraPct={solarExtraPct}
+              setExtraPct={setSolarExtraPct}
+              selectedCollectorId={solarSelectedCollectorId}
+              setSelectedCollectorId={setSolarSelectedCollectorId}
+              selectedMonthIdx={selectedMonthIdx}
+              setSelectedMonthIdx={setSelectedMonthIdx}
+              uf={uf}
+              cidade={cidade}
+              setUf={setUf}
+              setCidade={setCidade}
+              availableUfs={cities}
+              availableCities={availableCities}
+              capaTermica={capaTermica}
+              setCapaTermica={setCapaTermica}
+              vento={vento}
+              setVento={setVento}
+              tempAguaDesejada={tempAguaDesejada}
+              setTempAguaDesejada={setTempAguaDesejada}
+              onRecompute={recomputeSolar}
+            />
           )}
 
           {activeTab === "comparativo" && (
@@ -1132,6 +1248,240 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ============ Aba Solar (Fase 5) ============
+
+function SolarTab({
+  budget, report, loading, recomputing, collectors,
+  extraPct, setExtraPct, selectedCollectorId, setSelectedCollectorId,
+  selectedMonthIdx, setSelectedMonthIdx,
+  uf, cidade, setUf, setCidade, availableUfs, availableCities,
+  capaTermica, setCapaTermica, vento, setVento,
+  tempAguaDesejada, setTempAguaDesejada,
+  onRecompute,
+}: {
+  budget: BudgetForHeating;
+  report: SolarReport | null;
+  loading: boolean;
+  recomputing: boolean;
+  collectors: SolarCollectorCandidate[];
+  extraPct: number;
+  setExtraPct: (n: number) => void;
+  selectedCollectorId: string | null;
+  setSelectedCollectorId: (id: string | null) => void;
+  selectedMonthIdx: number;
+  setSelectedMonthIdx: (i: number) => void;
+  uf: string;
+  cidade: string;
+  setUf: (v: string) => void;
+  setCidade: (v: string) => void;
+  availableUfs: HeatingCity[];
+  availableCities: string[];
+  capaTermica: boolean;
+  setCapaTermica: (v: boolean) => void;
+  vento: string;
+  setVento: (v: string) => void;
+  tempAguaDesejada: number;
+  setTempAguaDesejada: (n: number) => void;
+  onRecompute: (extraPct?: number, collectorId?: string | null) => void | Promise<void>;
+}) {
+  const dims = budget.poolDimensions ?? {};
+  const area = Number(dims.area) || 0;
+  const volume = Number(dims.volume) || 0;
+
+  if (loading) {
+    return <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">Carregando dados solares...</div>;
+  }
+
+  const selectedMonth = report?.monthly?.[selectedMonthIdx];
+
+  return (
+    <div className="space-y-4">
+      {/* === 1. Dados do projeto === */}
+      <Section title="1. Dados do projeto" icon="🏊">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+          <ReadField label="Cliente" value={budget.clientPartner?.name ?? "—"} />
+          <ReadField label="Codigo" value={budget.code ?? "—"} />
+          <ReadField label="Area piscina" value={`${area.toFixed(2)} m²`} />
+          <ReadField label="Volume" value={`${volume.toFixed(2)} m³`} />
+        </div>
+      </Section>
+
+      {/* === 2. Localizacao e clima === */}
+      <Section title="2. Localizacao e clima" icon="📍">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <Field label="UF">
+            <select value={uf} onChange={(e) => { setUf(e.target.value); setCidade(""); }}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              <option value="">— Selecione —</option>
+              {availableUfs.map((u) => <option key={u.uf} value={u.uf}>{u.uf} · {u.ufName}</option>)}
+            </select>
+          </Field>
+          <Field label="Cidade">
+            <select value={cidade} onChange={(e) => setCidade(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" disabled={!uf}>
+              <option value="">{uf ? "Padrao do estado" : "Selecione UF primeiro"}</option>
+              {availableCities.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </Field>
+        </div>
+        <div className="mt-2 text-[11px] text-slate-500">
+          Edite valores em <a href="/settings/climate-data" className="text-cyan-700 underline">Configuracoes → Dados Climaticos</a> pra ajustar radiacao solar / temperatura mensal.
+        </div>
+      </Section>
+
+      {/* === 3. Dados de aquecimento === */}
+      <Section title="3. Dados de aquecimento" icon="🔥">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <Field label="Temperatura final desejada (°C)" hint="20 a 40°C — recomendado 28-32°C">
+            <NumInput value={tempAguaDesejada} onChange={setTempAguaDesejada} step={1} min={20} max={40} />
+          </Field>
+          <Field label="Capa termica">
+            <select value={capaTermica ? "SIM" : "NAO"} onChange={(e) => setCapaTermica(e.target.value === "SIM")}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              <option value="SIM">SIM (recomendado)</option>
+              <option value="NAO">NAO (precisa 80% mais coletor)</option>
+            </select>
+          </Field>
+          <Field label="Vento">
+            <select value={vento} onChange={(e) => setVento(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              <option value="FRACO">Fraco</option>
+              <option value="MODERADO">Moderado</option>
+              <option value="FORTE">Forte</option>
+            </select>
+          </Field>
+        </div>
+      </Section>
+
+      {/* === 4. Selecao do coletor === */}
+      <Section title="4. Coletor selecionado" icon="☀️">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <Field label="Modelo do coletor" hint={collectors.length === 0 ? "Cadastre produtos com tipoEquipamento=SOLAR" : `${collectors.length} modelo(s) disponivel(eis)`}>
+            <select value={selectedCollectorId ?? ""} onChange={(e) => setSelectedCollectorId(e.target.value || null)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              <option value="">— Padrao (Solis 4.00) —</option>
+              {collectors.map((c) => (
+                <option key={c.productId} value={c.productId}>
+                  {c.modelName} · {c.areaM2.toFixed(2)} m² · η {(c.eficiencia * 100).toFixed(1)}%
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label={`Extra coletores: +${(extraPct * 10).toFixed(0)}% (J42 da planilha)`} hint="Aumenta a area de coletor pra maior eficiencia / dias frios">
+            <input type="range" min={0} max={10} step={1} value={extraPct}
+              onChange={(e) => setExtraPct(Number(e.target.value))}
+              className="w-full" />
+            <div className="text-[10px] text-slate-500 mt-1">0 = minimo, 10 = +100% (dobro de coletores)</div>
+          </Field>
+        </div>
+        <div className="mt-3 flex justify-end">
+          <button onClick={() => onRecompute()}
+            disabled={recomputing || !uf}
+            className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-700 disabled:bg-slate-300 transition">
+            {recomputing ? "Recalculando..." : "☀️ Recalcular dimensionamento"}
+          </button>
+        </div>
+      </Section>
+
+      {/* === 5. Dimensionamento === */}
+      {report ? (
+        <>
+          <Section title="5. Dimensionamento" icon="📐">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              <BigStat label="m² coletor necessario" value={report.m2ColetorNecessario.toFixed(1)} unit="m²" emphasis="orange" />
+              <BigStat label="Qtd coletores" value={String(report.qtdColetores)} unit="un" emphasis="cyan" />
+              <BigStat label="Num baterias" value={String(report.numBaterias)} unit="bat" emphasis="emerald" />
+              <BigStat label="Vazao total" value={report.vazaoTotalM3h.toFixed(2)} unit="m³/h" emphasis="cyan" />
+              <BigStat label="m² total coletores" value={report.areaTotalColetoresM2.toFixed(2)} unit="m²" emphasis="emerald" />
+              <BigStat label="% area piscina" value={report.percentualCobertura.toFixed(1)} unit="%" emphasis="orange" />
+            </div>
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-600">
+              <div className="bg-slate-50 border border-slate-200 rounded px-3 py-2">
+                <strong>{report.coletoresPorBateria}</strong> coletores por bateria · <strong>{report.selectedCollector.modelName}</strong> ({report.selectedCollector.areaM2.toFixed(2)} m²/un)
+              </div>
+              <div className="bg-slate-50 border border-slate-200 rounded px-3 py-2">
+                Capacidade total: <strong>{report.selectedCollector.kcalHTotal.toLocaleString("pt-BR")}</strong> kcal/h · η <strong>{(report.selectedCollector.eficiencia * 100).toFixed(1)}%</strong>
+              </div>
+            </div>
+          </Section>
+
+          {/* === 6. Tabela mensal === */}
+          <Section title="6. Manutencao da temperatura (12 meses)" icon="📅">
+            <div className="overflow-x-auto">
+              <table className="text-xs tabular-nums w-full">
+                <thead>
+                  <tr className="text-slate-600 border-b border-slate-200">
+                    <th className="text-left p-1.5 font-semibold">Mes</th>
+                    <th className="text-right p-1.5 font-semibold" title="Temp ambiente media">T amb °C</th>
+                    <th className="text-right p-1.5 font-semibold" title="Radiacao solar diaria">RadSol kWh</th>
+                    <th className="text-right p-1.5 font-semibold" title="Ganho de temperatura por dia ensolarado">Ganho/dia °C</th>
+                    <th className="text-right p-1.5 font-semibold" title="Perda noturna estimada">Perda/noite °C</th>
+                    <th className="text-right p-1.5 font-semibold">T fim 1°dia</th>
+                    <th className="text-right p-1.5 font-semibold">T fim 2°dia</th>
+                    <th className="text-right p-1.5 font-semibold">T fim 3°dia</th>
+                    <th className="text-right p-1.5 font-semibold">T fim 4°dia</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.monthly.map((r) => {
+                    const cold = r.tempFinal4d < tempAguaDesejada - 2;
+                    return (
+                      <tr key={r.monthIndex}
+                        className={`border-b border-slate-100 cursor-pointer hover:bg-amber-50 ${selectedMonthIdx === r.monthIndex ? "bg-amber-100" : ""}`}
+                        onClick={() => setSelectedMonthIdx(r.monthIndex)}>
+                        <td className="p-1.5 font-semibold">{r.monthName}</td>
+                        <td className="p-1.5 text-right">{r.tempAmbiente.toFixed(1)}</td>
+                        <td className="p-1.5 text-right">{r.radSol.toFixed(1)}</td>
+                        <td className="p-1.5 text-right text-emerald-700">{r.ganhoDia.toFixed(2)}</td>
+                        <td className="p-1.5 text-right text-rose-600">{r.perdaCorrigidaPorDia.toFixed(2)}</td>
+                        <td className="p-1.5 text-right">{r.tempFinal1d.toFixed(1)}</td>
+                        <td className="p-1.5 text-right">{r.tempFinal2d.toFixed(1)}</td>
+                        <td className="p-1.5 text-right">{r.tempFinal3d.toFixed(1)}</td>
+                        <td className={`p-1.5 text-right font-bold ${cold ? "text-rose-700" : "text-emerald-700"}`}>
+                          {r.tempFinal4d.toFixed(1)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+              <SmallStat label="Ganho medio" value={`${report.monthlyAvgGanho.toFixed(2)} °C/dia`} />
+              <SmallStat label="Pior mes (4° dia)" value={`${report.monthlyMinTempFinal.toFixed(1)} °C`} />
+              <SmallStat label="Melhor mes (4° dia)" value={`${report.monthlyMaxTempFinal.toFixed(1)} °C`} />
+            </div>
+            {selectedMonth && (
+              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                <strong>📌 {selectedMonth.monthName} selecionado:</strong> dia ensolarado ganha {selectedMonth.ganhoDia.toFixed(2)} °C, perde {selectedMonth.perdaCorrigidaPorDia.toFixed(2)} °C/noite. Apos 4 dias com 3 noites de perda, a piscina chega a <strong>{selectedMonth.tempFinal4d.toFixed(1)} °C</strong>.
+              </div>
+            )}
+          </Section>
+
+          {/* === 7. Observacoes === */}
+          <Section title="7. Observacoes" icon="ℹ️">
+            <div className="text-xs text-slate-700 space-y-1.5">
+              <p><strong>Os valores acima sao estimativos e poderao sofrer variacoes caso:</strong></p>
+              <ol className="list-decimal ml-5 space-y-1">
+                <li>Haja alteracao da temperatura media mensal do ambiente.</li>
+                <li>A perda termica da piscina por dia seja acima do tolerado (uso intenso, capa termica nao usada, vento forte).</li>
+                <li>Dias frios e chuvosos poderao reiniciar o ciclo de aquecimento do 1° dia.</li>
+              </ol>
+              <p className="mt-2 text-[11px] text-slate-500">
+                Calculo baseado na metodologia Solis Piscinas + radiacao solar do Atlas Brasileiro de Energia Solar (CRESESB/INPE). Constantes: eficiencia coletor 0.65 padrao, insolacao 5h util/dia, vazao 0.254 m³/h por m² de coletor.
+              </p>
+            </div>
+          </Section>
+        </>
+      ) : (
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+          {uf ? "Clique em 'Recalcular dimensionamento' pra gerar o relatorio solar." : "Selecione UF + cidade pra comecar."}
+        </div>
+      )}
     </div>
   );
 }

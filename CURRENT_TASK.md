@@ -46,7 +46,21 @@
   - DTOs com validacoes (temp 20-40, extra 0-10)
   - 4 endpoints novos no controller
   - tsc clean
-- ⏳ **Fase 5** — UI aba Solar (7 secoes)
+- ✅ **Fase 5** — UI aba Solar (7 secoes)
+  - `HeatingSimulatorModal.tsx`: novo subcomponente `SolarTab` com 7 secoes seguindo a planilha original
+    1. Dados do projeto (cliente, codigo, area, volume) — readonly do orcamento
+    2. Localizacao (UF + cidade — compartilhado com a Bomba)
+    3. Dados de aquecimento (temp 20-40°C, capa SIM/NAO, vento Fraco/Mod/Forte) — compartilhado
+    4. Coletor (dropdown filtra Product.tipoEquipamento=SOLAR + slider J42 extraColetoresPct 0-10) + botao Recalcular
+    5. Dimensionamento: 6 BigStat (m² nec, qtd, baterias, vazao, m² total, % cobertura) + linha resumo capacidade
+    6. Tabela 12 meses: temp amb / radSol / ganho dia / perda noite / temp final 1°-4° dia. Linha selecionavel destaca o mes pra leitura detalhada. Pior/melhor mes em SmallStat
+    7. Observacoes (3 paragrafos padrao da planilha sobre variacoes esperadas)
+  - State novo: `solarReport`, `solarLoading`, `solarRecomputing`, `solarCollectors`, `solarExtraPct`, `solarSelectedCollectorId`, `selectedMonthIdx`
+  - useEffect carrega `/pool-budgets/solar/collectors` + `/pool-budgets/:id/solar-report`
+  - Funcao `recomputeSolar(extraPct?, collectorId?)` chama POST `/solar-report/recompute`
+  - Link "Configuracoes → Dados Climaticos" inline pra ajustes
+  - tsc clean
+- ⏳ **Fase 6** — solarQty bond
 - ⏳ **Fase 6** — solarQty bond
 - ⏳ **Fase 7** — backfill 5 coletores Solis na SLS
 
