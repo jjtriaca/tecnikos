@@ -126,6 +126,10 @@ export class HeatingBudgetService {
     // "2× X23-40C" no simulador e qty=1 da linha original no orcamento.
     if (productId) {
       await this.syncBombaCalorLineToOverride(budgetId, companyId, productId, qty);
+    } else {
+      // "Voltar pra selecao automatica" — limpa formula manual da linha + manualUnlink.
+      // No proximo recalc, processItem aplica auto-select e seta qty=defaultQty do produto.
+      await this.clearBombaCalorLineOverride(budgetId);
     }
 
     return this.computeAndSaveReport(budgetId, companyId);
@@ -175,20 +179,53 @@ export class HeatingBudgetService {
     });
     if (!newProduct) return;
 
-    // Atualiza linha. manualUnlink=true marca que foi o operador escolhendo
-    // (impede auto-select de reescolher na proxima recalc).
+    // Atualiza linha via FORMULA em vez de qty direto (v1.11.88). Razao: a linha
+    // do orcamento eh dirigida por formulas (proximo recalc reavalia). Se setar qty
+    // direto, ele pode ser sobreescrito por defaultQty do produto ou outros fluxos.
+    // Setar formulaExpr = `${qty}` (literal) faz o recalc preservar exatamente o
+    // qty escolhido pelo operador. Suporta decimal naturalmente (ex: '1.5' valido).
+    const formulaExpr = String(qty);
+    const unitPrice = newProduct.salePriceCents ?? line.unitPriceCents;
     await this.prisma.poolBudgetItem.update({
       where: { id: line.id },
       data: {
         productId: newProduct.id,
+        formulaExpr,
         qty,
-        unitPriceCents: newProduct.salePriceCents ?? line.unitPriceCents,
+        qtyCalculated: qty,
+        unitPriceCents: unitPrice,
         unit: newProduct.unit ?? line.unit,
         description: newProduct.model || newProduct.description || line.description,
-        totalCents: Math.round(qty * (newProduct.salePriceCents ?? line.unitPriceCents)),
+        totalCents: Math.round(qty * unitPrice),
         manualUnlink: true,
       },
     });
+  }
+
+  /**
+   * Limpa a sobrescrita manual da linha "Bomba de Calor" quando o operador clica
+   * "Voltar pra selecao automatica" no Simulador. Limpa formulaExpr + manualUnlink
+   * pra que o proximo recalc rode auto-select normal. v1.11.88.
+   */
+  private async clearBombaCalorLineOverride(budgetId: string): Promise<void> {
+    const items = await this.prisma.poolBudgetItem.findMany({
+      where: { budgetId },
+      include: {
+        product: { select: { id: true, poolType: true, technicalSpecs: true } },
+      },
+    });
+    const bombaLines = items.filter((it) => {
+      if (!it.product) return false;
+      const pt = (it.product.poolType || '').toLowerCase();
+      return pt.includes('bomba') || pt.includes('aquecedor');
+    });
+    if (bombaLines.length === 0) return;
+    for (const line of bombaLines) {
+      await this.prisma.poolBudgetItem.update({
+        where: { id: line.id },
+        data: { formulaExpr: null, manualUnlink: false },
+      });
+    }
   }
 
   /**
