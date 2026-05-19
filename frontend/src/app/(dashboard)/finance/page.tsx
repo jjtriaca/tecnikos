@@ -16,6 +16,7 @@ import SortableHeader from "@/components/ui/SortableHeader";
 import DraggableHeader from "@/components/ui/DraggableHeader";
 import Pagination from "@/components/ui/Pagination";
 import CardLast4Input, { isCardPayment as isCardPaymentCheck } from "@/components/ui/CardLast4Input";
+import PartnerCombobox from "@/components/PartnerCombobox";
 import { useTableParams } from "@/hooks/useTableParams";
 import { useTableLayout } from "@/hooks/useTableLayout";
 import type { FilterDefinition, ColumnDefinition } from "@/lib/types/table";
@@ -1137,6 +1138,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
   const [editDesc, setEditDesc] = useState("");
   const [editAccountId, setEditAccountId] = useState("");
   const [editNotes, setEditNotes] = useState("");
+  const [editPartnerId, setEditPartnerId] = useState("");
   const [editSaving, setEditSaving] = useState(false);
 
   // Batch selection
@@ -1306,22 +1308,29 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
     setEditDesc(e.description || "");
     setEditAccountId(e.financialAccount?.id || "");
     setEditNotes(e.notes || "");
+    setEditPartnerId(e.partnerId || e.partner?.id || "");
   }
 
   async function handleSaveEdit() {
     if (!editEntry) return;
     setEditSaving(true);
     try {
+      const originalPartnerId = editEntry.partnerId || editEntry.partner?.id || "";
+      const partnerChanged = editPartnerId !== originalPartnerId;
       await api.patch(`/finance/entries/${editEntry.id}`, {
         description: editDesc || undefined,
         financialAccountId: editAccountId || undefined,
         notes: editNotes || undefined,
+        // So envia partnerId se mudou — evita disparar audit log sem necessidade
+        partnerId: partnerChanged ? (editPartnerId || null) : undefined,
       });
       toast("Lancamento atualizado!", "success");
       setEditEntry(null);
       loadEntries();
-    } catch {
-      toast("Erro ao atualizar.", "error");
+    } catch (err: any) {
+      // Mensagens 400 do backend sao especificas (NFS-e/boleto bloqueando troca)
+      const msg = err?.payload?.message || err?.message || "Erro ao atualizar.";
+      toast(msg, "error");
     } finally {
       setEditSaving(false);
     }
@@ -2603,7 +2612,47 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEditEntry(null)} />
           <div className="relative mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl animate-scale-in">
             <h3 className="text-lg font-bold text-slate-900 mb-4">Editar Lancamento</h3>
+            {/* Avisos de impacto na troca de parceiro — backend tambem valida e bloqueia,
+                mas a UI antecipa pro operador entender por que o campo esta travado. */}
+            {(() => {
+              const boletoStatus = (editEntry as any)?._boleto?.status as string | undefined;
+              const boletoVivo = boletoStatus && ["REGISTERING", "REGISTERED", "PAID", "OVERDUE", "PROTESTED"].includes(boletoStatus);
+              const nfseAuthorized = editEntry?.nfseStatus === "AUTHORIZED";
+              const partnerLocked = nfseAuthorized || boletoVivo;
+              const isPaid = editEntry?.status === "PAID";
+              return (
+                <>
+                  {partnerLocked && (
+                    <div className="mb-3 rounded-lg border border-red-200 bg-red-50 p-2.5 text-xs text-red-900">
+                      <div className="font-semibold mb-0.5">🔒 Parceiro travado</div>
+                      {nfseAuthorized && <div>NFS-e ja emitida — tomador do XML fixado. Cancele a NFS-e antes pra trocar o parceiro.</div>}
+                      {boletoVivo && <div>Boleto {boletoStatus?.toLowerCase()} no banco — sacado ja registrado. Cancele o boleto antes pra trocar.</div>}
+                    </div>
+                  )}
+                  {!partnerLocked && isPaid && (
+                    <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900">
+                      <div className="font-semibold mb-0.5">⚠ Lancamento ja recebido</div>
+                      <div>Trocar parceiro nao altera quem efetivamente pagou — uso esperado eh correcao de cadastro retroativa.</div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
             <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Parceiro</label>
+                <PartnerCombobox
+                  value={editPartnerId}
+                  onChange={(p) => setEditPartnerId(p?.id || "")}
+                  partnerType={editEntry?.type === "PAYABLE" ? "FORNECEDOR" : "CLIENTE"}
+                  placeholder="Buscar parceiro por nome..."
+                  disabled={(() => {
+                    const boletoStatus = (editEntry as any)?._boleto?.status as string | undefined;
+                    const boletoVivo = boletoStatus && ["REGISTERING", "REGISTERED", "PAID", "OVERDUE", "PROTESTED"].includes(boletoStatus);
+                    return editEntry?.nfseStatus === "AUTHORIZED" || !!boletoVivo;
+                  })()}
+                />
+              </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Descricao</label>
                 <input

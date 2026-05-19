@@ -28,7 +28,9 @@ export class AuditService {
       | 'POOL_PROJECT_PHOTO'
       | 'POOL_PRINT_LAYOUT'
       | 'POOL_PRINT_PAGE'
-      | 'POOL_MODULE_CONFIG';
+      | 'POOL_MODULE_CONFIG'
+      // Financeiro
+      | 'FINANCIAL_ENTRY';
     entityId: string;
     action: string;
     actorType: 'USER' | 'SYSTEM';

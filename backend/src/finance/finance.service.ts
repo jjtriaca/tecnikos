@@ -11,6 +11,7 @@ import { FinancialReportService } from './financial-report.service';
 import { CashAccountService } from './cash-account.service';
 import { InstallmentService } from './installment.service';
 import { PaymentInstrumentService } from './payment-instrument.service';
+import { AuditService } from '../common/audit/audit.service';
 import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
 
 const LEDGER_SORTABLE = ['grossCents', 'commissionCents', 'netCents', 'confirmedAt'];
@@ -30,6 +31,7 @@ export class FinanceService {
     private readonly cashAccountService: CashAccountService,
     private readonly installmentService: InstallmentService,
     private readonly paymentInstrumentService: PaymentInstrumentService,
+    private readonly audit: AuditService,
   ) {}
 
   /* ═══════════════════════════════════════════════════════════════
@@ -812,8 +814,35 @@ export class FinanceService {
     return entry;
   }
 
-  async updateEntry(id: string, companyId: string, dto: UpdateFinancialEntryDto) {
+  async updateEntry(id: string, companyId: string, dto: UpdateFinancialEntryDto, actor?: { id?: string; email?: string; name?: string }) {
     const entry = await this.findOneEntry(id, companyId);
+
+    // Trocar parceiro tem implicacoes fiscais/bancarias — bloquear cenarios criticos.
+    // Por que: NFS-e armazena snapshot do tomador no XML (imutavel apos autorizar),
+    // e boleto tem dados do sacado ja enviados ao banco. Trocar partnerId apos esses
+    // eventos cria divergencia entre o documento emitido e o registro financeiro.
+    if (dto.partnerId !== undefined && dto.partnerId !== entry.partnerId) {
+      const guards = await this.prisma.financialEntry.findFirst({
+        where: { id, companyId },
+        select: {
+          nfseEmission: { select: { id: true, status: true } },
+          boletos: { select: { id: true, status: true } },
+        },
+      });
+      if (guards?.nfseEmission && guards.nfseEmission.status === 'AUTHORIZED') {
+        throw new BadRequestException(
+          'Nao foi possivel trocar o parceiro: NFS-e ja foi emitida (AUTHORIZED). Cancele a NFS-e antes pra refazer a emissao com o novo tomador.',
+        );
+      }
+      const boletoVivo = guards?.boletos?.find((b) =>
+        ['REGISTERING', 'REGISTERED', 'PAID', 'OVERDUE', 'PROTESTED'].includes(b.status),
+      );
+      if (boletoVivo) {
+        throw new BadRequestException(
+          `Nao foi possivel trocar o parceiro: ha boleto ${boletoVivo.status.toLowerCase()} no banco. Cancele o boleto antes pra emitir novo com o novo sacado.`,
+        );
+      }
+    }
 
     const data: any = {};
     if (dto.description !== undefined) data.description = dto.description || null;
@@ -826,7 +855,7 @@ export class FinanceService {
     }
     if (dto.dueDate !== undefined) data.dueDate = dto.dueDate ? new Date(dto.dueDate) : null;
 
-    return this.prisma.financialEntry.update({
+    const updated = await this.prisma.financialEntry.update({
       where: { id },
       // withUpdate injeta updatedByUserId/Name do userContext (v1.10.87+ tracking universal)
       data: withUpdate(data),
@@ -835,6 +864,27 @@ export class FinanceService {
         financialAccount: { select: { id: true, code: true, name: true } },
       },
     });
+
+    // Audit log dedicado pra troca de parceiro — registra de quem pra quem.
+    // Util pra investigar trocas suspeitas e rastrear historico cliente.
+    // Fire-and-forget — AuditService.log ja captura erro internamente.
+    if (dto.partnerId !== undefined && dto.partnerId !== entry.partnerId) {
+      const oldName = (entry as any).partner?.name ?? null;
+      const newName = updated.partner?.name ?? null;
+      this.audit.log({
+        companyId,
+        entityType: 'FINANCIAL_ENTRY',
+        entityId: id,
+        action: 'PARTNER_CHANGED',
+        actorType: 'USER',
+        actorId: actor?.id,
+        actorName: actor?.name || actor?.email,
+        before: { partnerId: entry.partnerId ?? null, partnerName: oldName },
+        after: { partnerId: dto.partnerId ?? null, partnerName: newName },
+      });
+    }
+
+    return updated;
   }
 
   /* ═══════════════════════════════════════════════════════════════════

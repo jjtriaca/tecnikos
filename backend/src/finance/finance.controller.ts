@@ -753,7 +753,7 @@ export class FinanceController {
     @Body() dto: UpdateFinancialEntryDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.service.updateEntry(id, user.companyId, dto);
+    return this.service.updateEntry(id, user.companyId, dto, { id: user.id, email: user.email, name: user.name });
   }
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)

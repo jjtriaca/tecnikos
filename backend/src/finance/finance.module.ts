@@ -15,9 +15,10 @@ import { OfxParserService } from './ofx-parser.service';
 import { CsvParserService } from './csv-parser.service';
 import { FinanceController } from './finance.controller';
 import { NfseEmissionModule } from '../nfse-emission/nfse-emission.module';
+import { AuditModule } from '../common/audit/audit.module';
 
 @Module({
-  imports: [forwardRef(() => NfseEmissionModule)],
+  imports: [forwardRef(() => NfseEmissionModule), AuditModule],
   controllers: [FinanceController],
   providers: [
     FinanceService,
