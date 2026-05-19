@@ -1,7 +1,26 @@
 # TAREFA ATUAL
 
-## Versao: v1.11.96 (em prod)
-## Ultima sessao: 206 (19/05/2026)
+## Versao: v1.11.96 (em prod) — sessao 207 (19/05/2026) implementando Simulador Solar em 7 fases
+## Ultima sessao: 207 (19/05/2026)
+
+## Sprint Simulador Solar — em andamento
+
+**Objetivo**: implementar aba Solar no Simulador de Aquecimento (fiel a planilha ANDREIA SANTANA / Solis Piscinas). Decisoes: marca aberta (filtra Product.technicalSpecs.tipoEquipamento=SOLAR), Solar passa a ser a primeira aba, dados climaticos em tabela ClimateData no banco (Opcao C) com seed INMET dos 27 estados + cidade-especifica + botao "Restaurar padrao INMET". Deploy unico apos as 7 fases.
+
+### Log das fases
+
+- ✅ **Fase 0** — Tooltip + reordenar abas + destravar Solar
+  - `quotes/pool/[id]/page.tsx:618` — tooltip "Simulador de Aquecimento (Trocador de Calor)" → "Simulador de Aquecimento"
+  - `HeatingSimulatorModal.tsx` — comentario topo atualizado, TabKey reordenado pra "solar" | "bomba" | "comparativo", activeTab default = solar, abas renderizam Solar primeiro (sem disabled), conteudo placeholder amarelo "em construcao" referenciando Fase 5
+  - tsc clean
+- ⏳ **Fase 1** — banco + seed INMET + CRUD (em fila)
+- ⏳ **Fase 2** — tela admin /settings/climate-data
+- ⏳ **Fase 3** — Bomba ler ClimateData do banco
+- ⏳ **Fase 4** — motor de calculo Solar
+- ⏳ **Fase 5** — UI aba Solar (7 secoes)
+- ⏳ **Fase 6** — solarQty bond
+- ⏳ **Fase 7** — backfill 5 coletores Solis na SLS
+
 
 ## v1.11.81 → v1.11.96 — Simulador de Aquecimento: integracao bidirecional com linha do orcamento
 

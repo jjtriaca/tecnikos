@@ -1,9 +1,6 @@
 "use client";
-// Simulador de Aquecimento (Trocador de Calor / Bomba de Calor).
-// Modal full-screen com abas. F2 inclui:
-//   - Aba "Bomba de Calor" com 5 secoes (Dados da obra, Localizacao, Uso, Dimensionamento, Equipamento)
-//   - Aba "Solar" placeholder
-//   - Aba "Comparativo" placeholder (F4 implementa)
+// Simulador de Aquecimento (Solar / Bomba de Calor).
+// Modal full-screen com abas. Ordem: Solar | Bomba de Calor | Comparativo.
 // Ver memory/project_heating_simulator_plan.md pra contexto.
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -183,10 +180,10 @@ function normEnum(value: any, allowed: string[], fallback: string): string {
 
 // ============ Componente ============
 
-type TabKey = "bomba" | "solar" | "comparativo";
+type TabKey = "solar" | "bomba" | "comparativo";
 
 export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props) {
-  const [activeTab, setActiveTab] = useState<TabKey>("bomba");
+  const [activeTab, setActiveTab] = useState<TabKey>("solar");
   const [cities, setCities] = useState<HeatingCity[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -495,11 +492,11 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
 
         {/* Tabs */}
         <div className="flex border-b border-slate-200 bg-slate-50 px-4">
+          <TabButton active={activeTab === "solar"} onClick={() => setActiveTab("solar")}>
+            ☀️ Solar
+          </TabButton>
           <TabButton active={activeTab === "bomba"} onClick={() => setActiveTab("bomba")}>
             🔥 Bomba de Calor
-          </TabButton>
-          <TabButton active={activeTab === "solar"} onClick={() => setActiveTab("solar")} disabled>
-            ☀️ Solar (em breve)
           </TabButton>
           <TabButton active={activeTab === "comparativo"} onClick={() => setActiveTab("comparativo")}>
             📊 Comparativo
@@ -1093,10 +1090,15 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
           )}
 
           {activeTab === "solar" && (
-            <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-slate-500">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-12 text-center">
               <div className="text-4xl mb-3">☀️</div>
-              <div className="font-semibold text-slate-700">Aquecimento Solar — em breve</div>
-              <div className="text-sm mt-1">Calculo de coletores solares baseado em area + insolacao por estado.</div>
+              <div className="font-semibold text-amber-900">Aquecimento Solar — em construcao</div>
+              <div className="text-sm mt-1 text-amber-800">
+                Dimensionamento de coletores solares (m², qtd, baterias, vazao) baseado em area da piscina, capa termica, vento e radiacao solar por estado.
+              </div>
+              <div className="text-xs mt-3 text-amber-700">
+                Fase 5 do plano — ver CURRENT_TASK.md
+              </div>
             </div>
           )}
 

@@ -615,7 +615,7 @@ export default function PoolBudgetDetailPage() {
                   )}
                   <button onClick={() => setShowHeatingSimulator(true)}
                     className="text-[11px] text-orange-700 hover:text-white hover:bg-orange-600 px-2 py-0.5 rounded border border-orange-300 bg-orange-50 transition"
-                    title="Simulador de Aquecimento (Trocador de Calor)">
+                    title="Simulador de Aquecimento">
                     🔥 Aquecimento
                   </button>
                 </div>
