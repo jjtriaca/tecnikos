@@ -13,11 +13,13 @@ import { UserRole } from '@prisma/client';
 import { PoolBudgetService } from './pool-budget.service';
 import { HeatingBudgetService } from './heating-budget.service';
 import { HeatingService } from './heating.service';
+import { SolarBudgetService } from './solar-budget.service';
 import { CreatePoolBudgetDto } from './dto/create-pool-budget.dto';
 import { UpdatePoolBudgetDto } from './dto/update-pool-budget.dto';
 import { QueryPoolBudgetDto } from './dto/query-pool-budget.dto';
 import { CreateBudgetItemDto, UpdateBudgetItemDto } from './dto/budget-item.dto';
 import { HeatingSimulateDto } from './dto/heating-simulate.dto';
+import { SolarSimulateDto, SolarRecomputeDto } from './dto/solar-simulate.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -31,6 +33,7 @@ export class PoolBudgetController {
     private readonly service: PoolBudgetService,
     private readonly heatingBudget: HeatingBudgetService,
     private readonly heating: HeatingService,
+    private readonly solarBudget: SolarBudgetService,
   ) {}
 
   // ============ Simulador de Aquecimento ============
@@ -79,6 +82,37 @@ export class PoolBudgetController {
   ) {
     return this.heatingBudget.selectEquipmentOverride(id, user.companyId, body?.productId ?? null, body?.quantity ?? 1);
   }
+
+  // ============ Simulador Solar (Fase 4) ============
+
+  @ApiOperation({ summary: 'Lista coletores solares cadastrados no tenant (Product.tipoEquipamento=SOLAR)' })
+  @Get('solar/collectors')
+  listSolarCollectors(@CurrentUser() user: AuthenticatedUser) {
+    return this.solarBudget.listSolarCollectors(user.companyId);
+  }
+
+  @ApiOperation({ summary: 'Simulacao solar — calculo rapido sem salvar' })
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post('solar/simulate')
+  simulateSolar(@Body() dto: SolarSimulateDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.solarBudget.simulate(user.companyId, dto);
+  }
+
+  @ApiOperation({ summary: 'Retorna report solar cacheado em environmentParams.solarReport' })
+  @Get(':id/solar-report')
+  getSolarReport(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.solarBudget.getReport(id, user.companyId);
+  }
+
+  @ApiOperation({ summary: 'Recomputa report solar e salva em environmentParams.solarReport' })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/solar-report/recompute')
+  recomputeSolarReport(@Param('id') id: string, @Body() body: SolarRecomputeDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.solarBudget.computeAndSaveReport(id, user.companyId, body);
+  }
+
+  // ============ Defaults do simulador ============
 
   @ApiOperation({ summary: 'Retorna environmentParams padrao do tenant (herdado em novos orcamentos)' })
   @Get('heating/defaults')

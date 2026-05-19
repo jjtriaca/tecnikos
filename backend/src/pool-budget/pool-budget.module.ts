@@ -7,6 +7,8 @@ import { HeatingBudgetService } from './heating-budget.service';
 import { EnergyTariffController } from './energy-tariff.controller';
 import { ClimateDataController } from './climate-data.controller';
 import { ClimateDataService } from './climate-data.service';
+import { SolarService } from './solar.service';
+import { SolarBudgetService } from './solar-budget.service';
 import { AuditModule } from '../common/audit/audit.module';
 import { CodeGeneratorService } from '../common/code-generator.service';
 
@@ -19,8 +21,10 @@ import { CodeGeneratorService } from '../common/code-generator.service';
     HeatingService,
     HeatingBudgetService,
     ClimateDataService,
+    SolarService,
+    SolarBudgetService,
     CodeGeneratorService,
   ],
-  exports: [PoolBudgetService, PoolFormulaService, HeatingService, HeatingBudgetService, ClimateDataService],
+  exports: [PoolBudgetService, PoolFormulaService, HeatingService, HeatingBudgetService, ClimateDataService, SolarService, SolarBudgetService],
 })
 export class PoolBudgetModule {}
