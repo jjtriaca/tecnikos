@@ -1,7 +1,52 @@
 # TAREFA ATUAL
 
-## Versao: v1.11.72 (em prod)
+## Versao: v1.11.80 (em prod)
 ## Ultima sessao: 206 (19/05/2026)
+
+## v1.11.80 — fix(nfse): endereco do tomador do cadastro do parceiro + local execucao na discriminacao
+- Reversao parcial da v1.11.79. Fisco exige endereco do TOMADOR no campo estruturado (logradouro/numero/CEP/UF/cidade), nao o local do servico. Antes ficava incoerente: dados pessoais do parceiro novo + endereco fisico do parceiro antigo.
+- Agora: tomador estruturado (TUDO inclusive endereco) = do entry.partner. Endereco do servico (vem da ServiceOrder) vai como linha extra na **discriminacao**: "Local de execucao: RUA X, n 123, Bairro, Cidade-UF, CEP". So adiciona quando endereco da OS != endereco do tomador.
+- Caso de uso: SEMENTES BATOVI recebe NFS-e no seu endereco (cadastro) e a discriminacao deixa claro que o servico foi prestado no endereco do MARCELO original.
+
+## v1.11.79 — fix(nfse): preview do modal usa entry.partner (refletir troca)
+- Tentativa 1 de fix: tomador identidade do entry.partner + endereco do servico (OS). Endereco estava errado — substituida por v1.11.80.
+- Mas a parte critica permanece: [nfse-emission.service.ts:528](backend/src/nfse-emission/nfse-emission.service.ts) antes priorizava `entry.serviceOrder.clientPartner` (imutavel) sobre `entry.partner` (atualizado pela troca). Invertido: `entry.partner || entry.serviceOrder?.clientPartner`.
+
+## v1.11.78 — feat(finance): editar parceiro do lancamento + bloqueios fiscais/bancarios
+- Modal "Editar Lancamento" ganha campo **Parceiro** com PartnerCombobox. Permite trocar cliente/fornecedor de um financeiro — util pra correcao retroativa ou cobranca terceirizada (cliente A faz OS, fatura no nome da empresa B).
+- **Bloqueios** ([finance.service.ts:updateEntry](backend/src/finance/finance.service.ts)):
+  - NFS-e AUTHORIZED → BadRequest "cancele a NFS-e antes pra refazer com novo tomador"
+  - Boleto REGISTERING/REGISTERED/PAID/OVERDUE/PROTESTED → BadRequest "cancele o boleto antes pra emitir novo com novo sacado"
+- UI antecipa bloqueios (banner vermelho + campo disabled). Banner amarelo se entry=PAID (correcao retroativa).
+- **Audit log** dedicado: action `PARTNER_CHANGED` em [AuditService](backend/src/common/audit/audit.service.ts) (entityType novo `FINANCIAL_ENTRY`), before/after com partnerId+partnerName+actor.
+- Sync com OS: **NAO sincroniza** — independencia intencional, parceiro do financeiro pode ser diferente do cliente da OS.
+
+## v1.11.77 — feat(pool): reorganiza Dimensionamento + filtro acessorios + manual detect
+- Secao 4 do Simulador antes tinha 3 cards grandes (Calor necessario / Potencia / BTUs) ocupando muito espaco. Agora 1 card horizontal compacto com as 3 metricas inline + cards de extras (cascata/SPA/borda) embaixo, condicionais por status.
+- Bloco "Extras identificados" que estava no topo migrou pra dentro da secao 4. Cards so aparecem se algum extra foi detectado.
+- **aggregateExtrasFromItems** filtra acessorios: "Tubos cascata", "Tubos SPA" sao acessorios (`pt.includes('tubo')`), nao a cascata/SPA real. Evita falsos positivos de FALTA_INFO.
+- **buildExtrasDetected** com 3 caminhos:
+  1. Linha + produto com spec → COMPLETA
+  2. Linha + produto sem spec → FALTANDO_INFO (aviso amarelo apontando campo + cadastro path)
+  3. Sem linha + manual no env > 0 → COMPLETA (caso borda infinita configurada nos Dados do projeto)
+  4. Sem linha + sem manual → NAO_IDENTIFICADA (card oculto)
+
+## v1.11.76 — fix(heating): auto-migrate reports antigos sem extrasDetected
+- Reports computados antes da v1.11.75 nao tinham `extrasDetected`. Frontend detecta isso no load e dispara recompute automatico — bloco aparece logo de cara sem precisar mexer/salvar.
+
+## v1.11.75 — feat(heating): extras identificados nas etapas + defaults por tipoPiscina
+- Bloco "Extras identificados nas etapas" no topo da aba "Bomba de Calor" (depois movido pra secao 4 em v1.11.77). 3 estados visuais: NAO_IDENTIFICADA (cinza), IDENTIFICADA_COMPLETA (verde com produto + horas/sem editavel), IDENTIFICADA_FALTANDO_INFO (amarelo).
+- **Defaults por tipoPiscina**: PRIVATIVA 6h/sem, COLETIVA 42h/sem cascata + hidromassagem. Aplicado backend+frontend via [getExtraDefaultHorasSemana](backend/src/pool-budget/heating-constants.ts).
+- Sistema "inteligente" — apaga linha cascata → status muda pra NAO_IDENTIFICADA + Q cai. Readiciona → volta COMPLETA + Q sobe. Mensagem aponta exatamente qual campo do cadastro preencher quando FALTA_INFO.
+
+## v1.11.74 — feat(heating): cascata/hidromassagem em horas/semana + margem 1.05 + max-load 0.9
+- Cascata e hidromassagem agora com **horas ligada/semana** (peso temporal = horas/168). Default 2h/sem antes; revisado pra 6h em v1.11.75. Antes considerava 24/7 (peso 1.0), inflando o calor necessario.
+- **SAFETY_MARGIN ANO_TODO 1.10 → 1.05**. Aproxima da planilha TAB006 do fabricante (que aplica ~5% interno). Calculo bruto ja inclui pico mensal + outras perdas 20%; margem 10% adicional empurrava sistematicamente pra equipamento maior.
+- **MAX_LOAD_RATIO 0.7 → 0.9**. Antes auto-select rejeitava equipamento com folga < 30%, forcando categoria acima. Carga ate 90% eh pratica usual da industria (TAB006 aceita ate 100%). Niveis do indicator "Folga aquec." recalibrados: Justo <11%, Adequado <50%, Folgado <150%, Super-dim acima.
+
+## v1.11.73 — feat(pool): indicador inteligente "Folga aquec." usa calorNecessarioKcalH
+- Chip novo no AutoSelectModal pra aplicar indicador inteligente em 1 clique. `(kcalHNominal - calorNecessarioKcalH) / calorNecessarioKcalH * 100` em %. Considera clima/capa/vento/extras (vs legado `kcalH/volume` que so olha pra volume).
+- Legado renomeado "Aquecimento generico (so volume — legado)" pra deixar claro que existe alternativa melhor.
 
 ## v1.11.72 — fix(pool): auto-select de bomba de calor — `and`/`or` literal nao evaluava
 - **Sintoma**: Juliano reportou "selecao de bomba de calor automatica nao encontra candidatos mesmo tendo equipamentos corretos". O Simulador (modal) mostrava "Tholz X23-40C" como recomendado, mas a linha do orcamento mantinha o produto antigo ("Bomba Top+9" sem kcalHNominal) vinculado.
@@ -38,11 +83,16 @@ Continuacao do **Simulador de Aquecimento (Trocador)** — F5/F6 + multiplos fix
 
 ## 🟦 PENDENTE — Sessao 206
 
-### Validacao apos fix v1.11.72
-- Juliano testar: abrir ORCP-00001 → linha Bomba de Calor deveria atualizar pra Tholz X23-40C apos qualquer recalc (mudar qty de outra linha, salvar dados, etc).
+### Aquecimento — refinos UI/UX (proximos)
+- **Auto-save com debounce** nos cards de extras (cascata/hidro/borda horas/sem editavel) — hoje precisa clicar Salvar embaixo. Operador espera que mudar horas/sem ja triggar recompute em ~1s.
+- **Cadastro do produto Kit SPA SLS** sem qtdJatos preenchido — operador ajusta no proprio cadastro de produtos (aba Piscina). Mensagem do simulador ja aponta o que falta.
 
 ### F5 do Simulador — ainda pendente
 - **Bloco PDF Aquecimento** no PoolPrintLayout: replicar tabela mensal + comparativo + equipamento no print do orcamento. 2-3h.
+
+### Financeiro — proximos refinos possiveis
+- Migrar entries existentes pra exibir `_boleto` populado (so RECEIVABLE) — verificar se o backend agrega. Atualmente UI mostra coluna BOLETO mas pode estar `--` em entries antigas.
+- Audit log UI: pagina pra consultar `PARTNER_CHANGED` por entityId. Hoje so via SQL.
 
 ### Outras pendentes (estaveis desde v1.11.52)
 🟨 **Tabelas com max-w fixo na descricao** (memory/feedback_truncate_descricao.md) — 10 arquivos
