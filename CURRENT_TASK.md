@@ -66,7 +66,51 @@
   - quotes/pool/[id]/page.tsx: FORMULA_VARS += solarQty+solarNumBaterias. Preview do FormulaModal popula ambos. 2 receitas novas no FORMULA_RECIPES_PISCINA
   - Comportamento: linha "Coletor Solar Solis" com formulaExpr="solarQty" reflete o dimensionamento. Recompute do orcamento reavalia formula apos mudanca no Simulador.
   - tsc clean
-- ⏳ **Fase 7** — backfill 5 coletores Solis na SLS
+- ✅ **Fase 7** — backfill 5 coletores Solis na SLS
+  - Script `backend/scripts/seed-solis-collectors-sls.sql`
+  - DO $$ block idempotente (ON CONFLICT companyId+code DO NOTHING)
+  - 5 modelos da Tabela69 da planilha original:
+    - SOL-200: Solis 2.00x1.12 (2.24m², 95.8 kWh/m², η 0.706) — R$ 350,00
+    - SOL-300: Solis 3.00x1.12 (3.36m², 102.3 kWh/m², η 0.732) — R$ 480,00
+    - SOL-400: Solis 4.00x1.12 (4.48m², 102.3 kWh/m², η 0.732) — R$ 620,00 (modelo padrao)
+    - SOL-500: Solis 5.00x1.12 (5.60m², 102.3 kWh/m², η 0.732) — R$ 780,00
+    - SOL-600: Solis 6.00x1.12 (6.72m², 102.3 kWh/m², η 0.732) — R$ 920,00
+  - Cada um com useInWork=true, useInSale=false, status=ATIVO, technicalSpecs.tipoEquipamento=SOLAR
+  - Precos sao PLACEHOLDER — operador ajusta em /products apos rodar
+  - Rodar manualmente apos deploy: `docker exec -i tecnikos_postgres psql -U tecnikos_user -d tecnikos < backend/scripts/seed-solis-collectors-sls.sql`
+
+---
+
+## Resumo final do Sprint Solar (7 fases)
+
+**Pronto pra deploy.** Resumo das mudancas:
+
+**Backend (NestJS + Prisma + PostgreSQL):**
+- 1 model novo `ClimateData` (UF/cidade + temp/umidade/radSol mensal) com seed INMET de 27 capitais + 10 cidades-polo
+- 1 migration `20260519180000_add_climate_data`
+- 4 services novos: `ClimateDataService`, `SolarService` (motor puro), `SolarBudgetService` (wrapper Prisma)
+- 2 controllers novos: `ClimateDataController` (5 endpoints CRUD), endpoints solar adicionados ao `PoolBudgetController` (collectors, simulate, report, recompute)
+- Bomba de Calor migrada pra usar ClimateData do banco (fallback pro arquivo)
+- formula-eval ganhou `solarQty` e `solarNumBaterias` no padrao var-formula
+- Script SQL pra backfill 5 coletores Solis na SLS
+
+**Frontend (Next.js + Tailwind):**
+- Aba Solar tornou-se a primeira do Simulador, com 7 secoes fieis a planilha
+- Tela admin `/settings/climate-data` (accordion 27 estados, editar + adicionar cidade + restaurar INMET)
+- Tooltip "Simulador de Aquecimento (Trocador de Calor)" → "Simulador de Aquecimento"
+- 2 receitas novas em FORMULA_RECIPES_PISCINA pra solarQty / solarNumBaterias
+- Sidebar com link "Dados Climaticos"
+
+**Sem hardcode disperso.** Todas as constantes do Solar em `solar-constants.ts` referenciando celulas da planilha. Dados climaticos no banco (editaveis via UI). Coletores como Product cadastrados (operador adiciona/remove conforme catalogo).
+
+**Comportamento esperado:**
+1. Operador entra em orcamento de piscina → clica 🔥 Aquecimento
+2. Aba Solar abre primeiro. Operador escolhe UF + cidade, ajusta capa/vento/temp, escolhe coletor
+3. Clica "Recalcular dimensionamento" → ve m² necessario, qtd coletores, baterias, vazao
+4. Tabela 12 meses mostra ganho/perda + temp final ao longo de 4 dias por mes
+5. Se linha "Coletor Solar" no orcamento usa formulaExpr="solarQty", qty atualiza automaticamente
+6. Operador pode editar valores climaticos em /settings/climate-data se quiser ajustar pra cidade especifica
+7. Bomba de Calor continua funcionando normalmente (agora le do banco tambem)
 
 
 ## v1.11.81 → v1.11.96 — Simulador de Aquecimento: integracao bidirecional com linha do orcamento
