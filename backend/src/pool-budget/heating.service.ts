@@ -19,6 +19,7 @@ import {
   EXTRAS_KCAL_H,
   FonteEnergia,
   getExtraDefaultHorasSemana,
+  WINTER_CAPACITY_FACTOR,
   getActiveMonths,
   HEATING_OPERATION_DEFAULTS,
   OTHER_LOSSES_FACTOR,
@@ -691,15 +692,21 @@ export class HeatingService {
       if (sel) {
         report.selectedEquipment = sel;
 
-        // 4. Tempo de aquecimento + COP
-        // Usa Qtotal medio como perda durante o aquecimento (estimativa pratica).
-        // Quando borda infinita/cascata estao ligadas, a perda continua reduz a
-        // capacidade efetiva do equipamento e o tempo pode subir muito (ou ficar
-        // infeasible se a carga passar de 100% no mes critico).
+        // 4. Tempo de aquecimento + COP — v1.11.83 calibrado contra planilha TAB006:
+        // - Aplica WINTER_CAPACITY_FACTOR (0.85) na capacidade nominal (bombas de calor
+        //   inverter perdem capacidade em ar 15°C — inverno BR — vs 26°C nominal).
+        // - Desconta SO os extras (cascata/SPA/borda) da capacidade efetiva. A perda
+        //   da superficie/parede/conducao NAO conta porque durante o aquecimento inicial
+        //   operador fecha a capa termica e o ΔT (agua-ar) eh pequeno (agua comeca fria).
+        //   Modelo anterior descontava qtotalAvgKw inteiro → tempo 2× maior que TAB006.
         const tempIni = inputs.tempAguaInicial ?? this.getDefaultTempInicial(inputs.uf, inputs.cidade);
         const deltaT = Math.max(0, inputs.tempAguaDesejada - tempIni);
-        const perdaMediaKcalH = qtotalAvgKw * CONVERSIONS.KWH_TO_KCAL;
-        const time = this.computeTimeToHeat(inputs.volumeM3, deltaT, sel.kcalHNominal ?? 0, perdaMediaKcalH);
+        const capacidadeEfetivaKcalH = (sel.kcalHNominal ?? 0) * WINTER_CAPACITY_FACTOR;
+        // Extras avg (cascata + hidromassagem + borda): qsExtrasKw vem do monthlyHeatLoss.
+        // Se cliente liga cascata 24/7, o tempo de elevacao reflete o impacto.
+        const extrasAvgKw = monthly.reduce((s, m) => s + (m.qsExtrasKw ?? 0), 0) / monthly.length;
+        const perdaContinuaKcalH = extrasAvgKw * CONVERSIONS.KWH_TO_KCAL;
+        const time = this.computeTimeToHeat(inputs.volumeM3, deltaT, capacidadeEfetivaKcalH, perdaContinuaKcalH);
         report.timeToHeatHours = time.hours;
         report.degreesPerHour = time.degreesPerHour;
         report.timeToHeatInfeasible = time.isInfeasible;

@@ -554,6 +554,14 @@ export const SAFETY_MARGIN = {
 // Qtotal_max / capacidade_kW <= 0.7 (folga >= 30%)
 // Acima de 1.0 (overcapacidade): equipamento subdimensionado.
 
+// Fator de capacidade efetiva em condicoes de inverno (ar ~15°C). Bombas de calor
+// inverter tem capacidade nominal medida em ar 26°C; em ar 15°C (inverno BR), a
+// capacidade real cai pra ~85% da nominal (compressor trabalha mais com menos delta
+// de calor pra absorver). Calibrado contra planilha TAB006 do fabricante Tholz:
+// X23-40C esperado 21,28h, calculado 21,8h (erro <3%). X23-26C esperado 34,70h,
+// calculado 34,4h. v1.11.83.
+export const WINTER_CAPACITY_FACTOR = 0.85;
+
 // MAX_LOAD_RATIO relaxado v1.11.74: 0.7 → 0.9 (rejeitar acima de 90%).
 // Antes (0.7) o auto-select preferia equipamento 40% mais caro pra ter 30% de
 // folga. A planilha TAB006 do fabricante aceita carga ~100%. Carga ate 90% eh
