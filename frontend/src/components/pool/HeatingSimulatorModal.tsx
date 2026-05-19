@@ -196,8 +196,9 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
   // Candidatos pra dropdown de selecao manual do equipamento
   const [candidates, setCandidates] = useState<HeatingCandidate[]>([]);
   const [showEquipmentPicker, setShowEquipmentPicker] = useState<boolean>(false);
-  const [equipmentQty, setEquipmentQty] = useState<number>(1);
   const [changingEquipment, setChangingEquipment] = useState<boolean>(false);
+  // equipmentQty removido em v1.11.84 — agora cada linha do dropdown tem seu proprio
+  // input de quantidade (EquipmentCandidateRow).
 
   // Modo "Calculo rapido": permite editar dados da obra (volume/area/dim) e
   // calcular sem salvar no orcamento. Util pra simular cenarios hipoteticos.
@@ -248,13 +249,6 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
       .then(setCandidates)
       .catch(() => setCandidates([]));
   }, [open]);
-
-  // Sincroniza equipmentQty com o quantity atual do selectedEquipment
-  useEffect(() => {
-    if (report?.selectedEquipment?.quantity) {
-      setEquipmentQty(report.selectedEquipment.quantity);
-    }
-  }, [report?.selectedEquipment?.quantity]);
 
   // Troca o equipamento via override manual
   async function changeEquipment(productId: string | null, qty: number = 1) {
@@ -918,44 +912,26 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                                 ↺ Voltar pra selecao automatica
                               </button>
                             )}
-                            {/* Selector de quantidade */}
-                            <div className="flex items-center gap-2 mb-3 px-2 py-1.5 rounded-lg bg-slate-50 border border-slate-200">
-                              <span className="text-[11px] text-slate-600">Quantidade em paralelo:</span>
-                              <div className="flex items-center gap-1">
-                                {[1, 2, 3, 4, 5, 6].map((n) => (
-                                  <button key={n} type="button" onClick={() => setEquipmentQty(n)}
-                                    className={`w-7 h-7 rounded text-xs font-bold transition ${
-                                      equipmentQty === n ? "bg-emerald-600 text-white" : "bg-white border border-slate-300 text-slate-700 hover:bg-slate-100"
-                                    }`}>
-                                    {n}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                            {/* Lista de candidatos */}
+                            {/* Lista de candidatos com input de quantidade por linha (v1.11.84).
+                                Antes tinha um seletor global de quantidade no topo e duplicava cada
+                                equipamento como "2× X23-09C, 3× X23-09C..." — UI confusa. Agora:
+                                lista simples dos equipamentos UNICOS, cada um com Qtd: [_] ao lado. */}
                             <div className="space-y-1">
                               {candidates.length === 0 && (
                                 <div className="text-xs text-slate-500 px-2 py-3">
                                   Nenhum produto cadastrado tipo Bomba de Calor com kcalHNominal preenchido.
                                 </div>
                               )}
-                              {[...candidates].sort((a, b) => a.kcalHNominal - b.kcalHNominal).map((c) => {
-                                const isSelected = c.productId === report.selectedEquipment?.productId && (report.selectedEquipment?.quantity ?? 1) === equipmentQty;
-                                return (
-                                  <button key={c.productId} type="button" onClick={() => changeEquipment(c.productId, equipmentQty)} disabled={changingEquipment}
-                                    className={`w-full text-left px-3 py-2 rounded-lg border transition disabled:opacity-50 ${
-                                      isSelected ? "bg-emerald-50 border-emerald-300" : "bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300"
-                                    }`}>
-                                    <div className="text-sm font-semibold text-slate-900">
-                                      {equipmentQty > 1 ? `${equipmentQty}× ${c.modelName}` : c.modelName}
-                                    </div>
-                                    <div className="text-[11px] text-slate-500">
-                                      {(c.kcalHNominal * equipmentQty).toLocaleString("pt-BR")} Kcal/h
-                                      {c.kwNominal && <> · {(c.kwNominal * equipmentQty).toFixed(1)} kW termico</>}
-                                    </div>
-                                  </button>
-                                );
-                              })}
+                              {[...candidates].sort((a, b) => a.kcalHNominal - b.kcalHNominal).map((c) => (
+                                <EquipmentCandidateRow
+                                  key={c.productId}
+                                  candidate={c}
+                                  isCurrentSelected={c.productId === report.selectedEquipment?.productId}
+                                  currentSelectedQty={report.selectedEquipment?.quantity ?? 1}
+                                  onSelect={(qty) => changeEquipment(c.productId, qty)}
+                                  disabled={changingEquipment}
+                                />
+                              ))}
                             </div>
                             {changingEquipment && (
                               <div className="mt-2 text-center text-[11px] text-slate-500">Recalculando...</div>
@@ -1224,6 +1200,67 @@ function SmallStat({ label, value }: { label: string; value: string }) {
 
 function fmtBRL(cents: number): string {
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+/** Linha do dropdown "Trocar equipamento" — v1.11.84.
+ *  Mostra equipamento UNICO + input de quantidade local (1-6). Capacidade exibida
+ *  recalcula live conforme operador muda a qtd. Click no botao principal seleciona
+ *  com a qtd atual. Antes era um seletor global de qtd no topo + lista pre-multiplicada
+ *  (UI confusa com duplicatas). */
+function EquipmentCandidateRow({
+  candidate,
+  isCurrentSelected,
+  currentSelectedQty,
+  onSelect,
+  disabled,
+}: {
+  candidate: HeatingCandidate;
+  isCurrentSelected: boolean;
+  currentSelectedQty: number;
+  onSelect: (qty: number) => void;
+  disabled: boolean;
+}) {
+  // Quantidade local: pre-preenchida com qtd atual se este eh o equipamento selecionado.
+  // Senao default 1.
+  const [qty, setQty] = useState<number>(isCurrentSelected ? currentSelectedQty : 1);
+  const totalKcal = candidate.kcalHNominal * qty;
+  const totalKw = (candidate.kwNominal ?? 0) * qty;
+  const isExactlySelected = isCurrentSelected && qty === currentSelectedQty;
+
+  return (
+    <div className={`flex items-stretch gap-1 rounded-lg border transition ${
+      isExactlySelected ? "bg-emerald-50 border-emerald-300" : "bg-white border-slate-200 hover:border-slate-300"
+    }`}>
+      <button
+        type="button"
+        onClick={() => onSelect(qty)}
+        disabled={disabled}
+        className="flex-1 text-left px-3 py-2 disabled:opacity-50 hover:bg-slate-50 rounded-l-lg"
+      >
+        <div className="text-sm font-semibold text-slate-900">
+          {qty > 1 ? `${qty}× ${candidate.modelName}` : candidate.modelName}
+        </div>
+        <div className="text-[11px] text-slate-500">
+          {totalKcal.toLocaleString("pt-BR")} Kcal/h
+          {candidate.kwNominal && <> · {totalKw.toFixed(1)} kW termico</>}
+        </div>
+      </button>
+      <div className="flex items-center gap-1 px-2 border-l border-slate-200 bg-slate-50 rounded-r-lg">
+        <span className="text-[10px] text-slate-500">Qtd</span>
+        <input
+          type="number"
+          value={qty}
+          onChange={(e) => setQty(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+          min={1}
+          max={20}
+          step={1}
+          disabled={disabled}
+          onClick={(e) => e.stopPropagation()}
+          className="w-12 rounded border border-slate-300 bg-white px-1.5 py-1 text-sm font-bold text-slate-900 tabular-nums text-center"
+        />
+      </div>
+    </div>
+  );
 }
 
 /** Card compacto ao lado do "Calor necessario" mostrando contribuicao individual
