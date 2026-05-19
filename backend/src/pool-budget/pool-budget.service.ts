@@ -414,13 +414,16 @@ export class PoolBudgetService {
     const lineProductId = line.product!.id;
     const lineQty = Math.max(1, Math.min(20, Number(line.qty) || 1));
 
-    // v1.11.93: Se a linha esta em "modo auto" (manualUnlink=false e sem formula),
-    // NAO recriar override automaticamente. Senao o "Voltar selecao auto" do simulador
-    // limpa override → este sync detecta linha sem override → recria → loop infinito
-    // no modo auto. O simulador roda auto-select global SEM override quando deve.
-    // Override soh eh sincronizado quando operador EXPLICITAMENTE marcou (manualUnlink
-    // ou formula custom — sinal de escolha intencional do operador).
-    const lineIsManualChoice = (line as any).manualUnlink === true || !!(line as any).formulaExpr;
+    // v1.11.93/94: Se a linha esta em "modo auto" (manualUnlink=false e sem formula
+    // complexa), NAO recriar override automaticamente. Formula LITERAL ("2", "1.5") nao
+    // conta como manual — foi gerada pelo sync simulador→linha como side-effect. So
+    // formula com operadores/variaveis (ex: "ceil(calorNecessarioKcalH/kcalHNominal)")
+    // eh considerada escolha intencional. Sem essa distincao o "voltar auto" da linha
+    // ficava em loop: clear → recriar override → bug do qty=2 persistir.
+    const fExpr = ((line as any).formulaExpr || '').trim();
+    const isLiteralFormula = /^-?\d+(\.\d+)?$/.test(fExpr);
+    const hasComplexFormula = fExpr.length > 0 && !isLiteralFormula;
+    const lineIsManualChoice = (line as any).manualUnlink === true || hasComplexFormula;
     if (!lineIsManualChoice) {
       // Linha em modo auto — se override existe e nao bate com linha, LIMPA override.
       if (override) {
@@ -1656,6 +1659,18 @@ export class PoolBudgetService {
     let qtyCalculated: number | null | undefined = undefined;
     let formulaExpr: string | null | undefined = undefined;
     let autoCalculatedOverride: boolean | undefined = undefined;
+
+    // v1.11.94: "Voltar selecao auto" da linha (manualUnlink: false) — se a linha tem
+    // formula LITERAL ("2", "1.5") foi gerada pelo sync simulador→linha como side-effect.
+    // Limpa pra que o auto-select reescolha qty corretamente via defaultQty do produto.
+    // Formula complexa (com operadores/variaveis) NAO eh tocada — escolha intencional.
+    if (dto.manualUnlink === false && item.formulaExpr) {
+      const trim = item.formulaExpr.trim();
+      const isLiteral = /^-?\d+(\.\d+)?$/.test(trim);
+      if (isLiteral && dto.formulaExpr === undefined) {
+        formulaExpr = null;
+      }
+    }
     if (dto.formulaExpr !== undefined) {
       if (dto.formulaExpr.trim()) {
         const fullBudget = await this.prisma.poolBudget.findUnique({
