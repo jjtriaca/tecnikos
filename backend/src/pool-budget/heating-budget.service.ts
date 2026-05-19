@@ -109,8 +109,9 @@ export class HeatingBudgetService {
 
     const env = (budget.environmentParams ?? {}) as Record<string, any>;
     const newEnv = { ...env };
+    const qty = Math.max(1, Math.min(20, Number(quantity) || 1));
     if (productId) {
-      newEnv.heatingOverride = { productId, quantity: Math.max(1, Math.min(20, quantity)) };
+      newEnv.heatingOverride = { productId, quantity: qty };
     } else {
       delete newEnv.heatingOverride;
     }
@@ -118,7 +119,76 @@ export class HeatingBudgetService {
       where: { id: budgetId },
       data: { environmentParams: newEnv as any, heatingReport: null as any },
     });
+
+    // v1.11.85: Sincronia bidirecional. Quando operador troca o equipamento no
+    // Simulador, ATUALIZA tambem a linha "Bomba de Calor" do orcamento (productId
+    // + qty). Sem isso, simulador e linha ficam dessincronizados — operador veria
+    // "2× X23-40C" no simulador e qty=1 da linha original no orcamento.
+    if (productId) {
+      await this.syncBombaCalorLineToOverride(budgetId, companyId, productId, qty);
+    }
+
     return this.computeAndSaveReport(budgetId, companyId);
+  }
+
+  /**
+   * Sincroniza a linha "Bomba de Calor" do orcamento com o override do simulador.
+   * Acha a linha (poolType ~ bomba/aquecedor com kcalHNominal preenchido) e atualiza
+   * productId + qty + unitPriceCents + description. Se nao existir linha (orcamento
+   * sem etapa de aquecimento), nao faz nada — operador adiciona a linha quando quiser.
+   * v1.11.85.
+   */
+  private async syncBombaCalorLineToOverride(
+    budgetId: string,
+    companyId: string,
+    productId: string,
+    qty: number,
+  ): Promise<void> {
+    const items = await this.prisma.poolBudgetItem.findMany({
+      where: { budgetId },
+      include: {
+        product: { select: { id: true, poolType: true, technicalSpecs: true, description: true, model: true, salePriceCents: true, unit: true } },
+      },
+    });
+    const bombaLines = items.filter((it) => {
+      if (!it.product) return false;
+      const pt = (it.product.poolType || '').toLowerCase();
+      const specs = (it.product.technicalSpecs ?? {}) as Record<string, any>;
+      return (pt.includes('bomba') || pt.includes('aquecedor')) && Number(specs.kcalHNominal) > 0;
+    });
+    if (bombaLines.length === 0) return;
+
+    // Pega a linha com maior capacidade total (mesmo criterio do extractEquipmentFromItems)
+    bombaLines.sort((a, b) => {
+      const aSpecs = (a.product!.technicalSpecs ?? {}) as Record<string, any>;
+      const bSpecs = (b.product!.technicalSpecs ?? {}) as Record<string, any>;
+      const aCap = (Number(a.qty) || 1) * (Number(aSpecs.kcalHNominal) || 0);
+      const bCap = (Number(b.qty) || 1) * (Number(bSpecs.kcalHNominal) || 0);
+      return bCap - aCap;
+    });
+    const line = bombaLines[0];
+
+    // Busca o produto novo pra usar dados atualizados (preco, descricao, unit)
+    const newProduct = await this.prisma.product.findFirst({
+      where: { id: productId, companyId, deletedAt: null },
+      select: { id: true, description: true, model: true, salePriceCents: true, unit: true },
+    });
+    if (!newProduct) return;
+
+    // Atualiza linha. manualUnlink=true marca que foi o operador escolhendo
+    // (impede auto-select de reescolher na proxima recalc).
+    await this.prisma.poolBudgetItem.update({
+      where: { id: line.id },
+      data: {
+        productId: newProduct.id,
+        qty,
+        unitPriceCents: newProduct.salePriceCents ?? line.unitPriceCents,
+        unit: newProduct.unit ?? line.unit,
+        description: newProduct.model || newProduct.description || line.description,
+        totalCents: Math.round(qty * (newProduct.salePriceCents ?? line.unitPriceCents)),
+        manualUnlink: true,
+      },
+    });
   }
 
   /**

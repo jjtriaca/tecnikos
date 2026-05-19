@@ -362,6 +362,71 @@ export class PoolBudgetService {
    * Retorna {} se nao achou ou se houver duplicata. Sempre idempotente: caller
    * decide se aplica.
    */
+  /**
+   * Sincroniza heatingOverride do environmentParams com a linha "Bomba de Calor"
+   * do orcamento. Quando o operador troca a linha (auto-select/catalog picker),
+   * o heatingOverride antigo pode estar apontando pra produto diferente — atualiza.
+   * Se a linha sumiu (apagada), limpa o override pra voltar ao auto-select padrao.
+   * v1.11.85.
+   */
+  private async syncHeatingOverrideFromBombaLine(
+    budgetId: string,
+    budget: { environmentParams: any },
+  ): Promise<void> {
+    const env = (budget.environmentParams ?? {}) as Record<string, any>;
+    const override = env.heatingOverride as { productId: string; quantity: number } | undefined;
+
+    const items = await this.prisma.poolBudgetItem.findMany({
+      where: { budgetId },
+      include: {
+        product: { select: { id: true, poolType: true, technicalSpecs: true } },
+      },
+    });
+    const bombaLines = items.filter((it) => {
+      if (!it.product) return false;
+      const pt = (it.product.poolType || '').toLowerCase();
+      const specs = (it.product.technicalSpecs ?? {}) as Record<string, any>;
+      return (pt.includes('bomba') || pt.includes('aquecedor')) && Number(specs.kcalHNominal) > 0;
+    });
+
+    if (bombaLines.length === 0) {
+      // Linha de bomba sumiu — limpa override pra voltar pro auto-select global
+      if (override) {
+        const newEnv = { ...env };
+        delete newEnv.heatingOverride;
+        await this.prisma.poolBudget.update({
+          where: { id: budgetId },
+          data: { environmentParams: newEnv as any, heatingReport: null as any },
+        });
+      }
+      return;
+    }
+
+    // Pega a linha com maior capacidade total (mesmo criterio do simulador)
+    bombaLines.sort((a, b) => {
+      const aSpecs = (a.product!.technicalSpecs ?? {}) as Record<string, any>;
+      const bSpecs = (b.product!.technicalSpecs ?? {}) as Record<string, any>;
+      const aCap = (Number(a.qty) || 1) * (Number(aSpecs.kcalHNominal) || 0);
+      const bCap = (Number(b.qty) || 1) * (Number(bSpecs.kcalHNominal) || 0);
+      return bCap - aCap;
+    });
+    const line = bombaLines[0];
+    const lineProductId = line.product!.id;
+    const lineQty = Math.max(1, Math.min(20, Number(line.qty) || 1));
+
+    // Se override esta consistente, nao faz nada
+    if (override && override.productId === lineProductId && Number(override.quantity) === lineQty) {
+      return;
+    }
+
+    // Sincroniza override + invalida heatingReport pro proximo recompute
+    const newEnv = { ...env, heatingOverride: { productId: lineProductId, quantity: lineQty } };
+    await this.prisma.poolBudget.update({
+      where: { id: budgetId },
+      data: { environmentParams: newEnv as any, heatingReport: null as any },
+    });
+  }
+
   private async findAutoLinkByDescription(
     description: string,
     companyId: string,
@@ -567,6 +632,24 @@ export class PoolBudgetService {
         companyId: true,
       },
     });
+
+    // v1.11.85: Sincronia linha → simulador. Se o operador mudou a linha "Bomba de
+    // Calor" do orcamento (via auto-select ou catalog picker), o heatingOverride
+    // pode estar apontando pra produto/qty diferente. Sincroniza: pega productId+qty
+    // da linha como verdade, atualiza heatingOverride E invalida heatingReport pra
+    // recomputar na proxima visita.
+    if (budget?.companyId) {
+      await this.syncHeatingOverrideFromBombaLine(budgetId, budget);
+      // Re-le pra capturar mudancas
+      budget = await this.prisma.poolBudget.findUnique({
+        where: { id: budgetId },
+        select: {
+          discountCents: true, discountPercent: true, taxesPercent: true,
+          startDate: true, poolDimensions: true, environmentParams: true,
+          heatingReport: true, companyId: true,
+        },
+      });
+    }
 
     // F6.x: Auto-computa heatingReport quando nao existe — necessario pro auto-select
     // de Bomba de Calor preciso (regra usa calorNecessarioKcalH). Sem isso, regras tipo
