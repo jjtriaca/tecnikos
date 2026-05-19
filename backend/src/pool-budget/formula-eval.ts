@@ -45,6 +45,10 @@ export const ALLOWED_VARS = [
   // Permite expressoes como: `kcalHNominal >= calorNecessarioKcalH` em regras de auto-select
   // de bomba de calor.
   'calorNecessarioKcalH',
+  // v1.11.95: Quantity do equipamento escolhido no Simulador (selectedEquipment.quantity).
+  // Permite linha do orcamento amarrar ao Simulador via formula="bombaCalorQty" — quando
+  // operador troca Quant no Simulador (override) OU volta pra auto, a formula reavalia.
+  'bombaCalorQty',
 ] as const;
 const ALLOWED_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
 const CELL_REF_FUNCTIONS = ['qty', 'total', 'unitPrice'] as const;
@@ -251,6 +255,15 @@ export function extractHeatingVars(heatingReport: any): FormulaVars {
   const r = heatingReport as Record<string, any>;
   const vars: FormulaVars = {};
   if (typeof r.calorNecessarioKcalH === 'number') vars.calorNecessarioKcalH = r.calorNecessarioKcalH;
+  // v1.11.95: bombaCalorQty = quantity do equipamento selecionado no Simulador. Linhas
+  // com formula="bombaCalorQty" se atualizam automaticamente quando user muda Quant
+  // ou clica "voltar auto" no Simulador.
+  const selectedQty = Number(r?.selectedEquipment?.quantity);
+  if (Number.isFinite(selectedQty) && selectedQty > 0) {
+    vars.bombaCalorQty = selectedQty;
+  } else {
+    vars.bombaCalorQty = 1; // fallback se ainda nao computou
+  }
   return vars;
 }
 

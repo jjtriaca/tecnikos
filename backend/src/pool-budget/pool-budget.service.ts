@@ -414,16 +414,13 @@ export class PoolBudgetService {
     const lineProductId = line.product!.id;
     const lineQty = Math.max(1, Math.min(20, Number(line.qty) || 1));
 
-    // v1.11.93/94: Se a linha esta em "modo auto" (manualUnlink=false e sem formula
-    // complexa), NAO recriar override automaticamente. Formula LITERAL ("2", "1.5") nao
-    // conta como manual — foi gerada pelo sync simulador→linha como side-effect. So
-    // formula com operadores/variaveis (ex: "ceil(calorNecessarioKcalH/kcalHNominal)")
-    // eh considerada escolha intencional. Sem essa distincao o "voltar auto" da linha
-    // ficava em loop: clear → recriar override → bug do qty=2 persistir.
-    const fExpr = ((line as any).formulaExpr || '').trim();
-    const isLiteralFormula = /^-?\d+(\.\d+)?$/.test(fExpr);
-    const hasComplexFormula = fExpr.length > 0 && !isLiteralFormula;
-    const lineIsManualChoice = (line as any).manualUnlink === true || hasComplexFormula;
+    // v1.11.95: Se manualUnlink=false, sempre considera modo auto — a linha eh dirigida
+    // pelo Simulador via formula="bombaCalorQty" (formula referencia o quantity selecionado).
+    // Quando override muda (Quant trocada no Simulador), formula reavalia e qty da linha
+    // atualiza. Nao precisa de sync explicito linha→simulador — eh unidirecional simulador
+    // dirige linha via formula. Override soh eh criado se operador escolheu MANUALMENTE
+    // o equipamento (manualUnlink=true).
+    const lineIsManualChoice = (line as any).manualUnlink === true;
     if (!lineIsManualChoice) {
       // Linha em modo auto — se override existe e nao bate com linha, LIMPA override.
       if (override) {
@@ -1660,15 +1657,30 @@ export class PoolBudgetService {
     let formulaExpr: string | null | undefined = undefined;
     let autoCalculatedOverride: boolean | undefined = undefined;
 
-    // v1.11.94: "Voltar selecao auto" da linha (manualUnlink: false) — se a linha tem
-    // formula LITERAL ("2", "1.5") foi gerada pelo sync simulador→linha como side-effect.
-    // Limpa pra que o auto-select reescolha qty corretamente via defaultQty do produto.
-    // Formula complexa (com operadores/variaveis) NAO eh tocada — escolha intencional.
-    if (dto.manualUnlink === false && item.formulaExpr) {
-      const trim = item.formulaExpr.trim();
-      const isLiteral = /^-?\d+(\.\d+)?$/.test(trim);
-      if (isLiteral && dto.formulaExpr === undefined) {
-        formulaExpr = null;
+    // v1.11.95: "Voltar selecao auto" da linha (manualUnlink: false) em linha de bomba
+    // de calor: tambem limpa heatingOverride no env do orcamento. Assim o Simulador
+    // tambem volta pro modo auto (sem multiplicador). A formula da linha (bombaCalorQty)
+    // continua intacta — reavalia automaticamente apos o override ser limpo.
+    if (dto.manualUnlink === false) {
+      const product = item.productId ? await this.prisma.product.findUnique({
+        where: { id: item.productId },
+        select: { poolType: true },
+      }) : null;
+      const pt = (product?.poolType || '').toLowerCase();
+      if (pt.includes('bomba') || pt.includes('aquecedor')) {
+        const budget = await this.prisma.poolBudget.findUnique({
+          where: { id: item.budgetId },
+          select: { environmentParams: true },
+        });
+        const env = (budget?.environmentParams ?? {}) as Record<string, any>;
+        if (env.heatingOverride) {
+          const newEnv = { ...env };
+          delete newEnv.heatingOverride;
+          await this.prisma.poolBudget.update({
+            where: { id: item.budgetId },
+            data: { environmentParams: newEnv as any, heatingReport: null as any },
+          });
+        }
       }
     }
     if (dto.formulaExpr !== undefined) {

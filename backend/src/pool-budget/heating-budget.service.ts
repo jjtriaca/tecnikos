@@ -179,19 +179,18 @@ export class HeatingBudgetService {
     });
     if (!newProduct) return;
 
-    // Atualiza linha via FORMULA em vez de qty direto (v1.11.88). Razao: a linha
-    // do orcamento eh dirigida por formulas (proximo recalc reavalia). Se setar qty
-    // direto, ele pode ser sobreescrito por defaultQty do produto ou outros fluxos.
-    // Setar formulaExpr = `${qty}` (literal) faz o recalc preservar exatamente o
-    // qty escolhido pelo operador. Suporta decimal naturalmente (ex: '1.5' valido).
-    const formulaExpr = String(qty);
+    // v1.11.95: Atualiza linha via formula "bombaCalorQty" (variavel) em vez de
+    // literal. A formula referencia heatingReport.selectedEquipment.quantity — quando
+    // user muda Quant no Simulador OU clica "voltar auto", a formula reavalia e
+    // qty da linha se atualiza automaticamente. Nao precisa de sync explicito mais.
+    const formulaExpr = 'bombaCalorQty';
     const unitPrice = newProduct.salePriceCents ?? line.unitPriceCents;
     await this.prisma.poolBudgetItem.update({
       where: { id: line.id },
       data: {
         productId: newProduct.id,
         formulaExpr,
-        qty,
+        qty, // valor atual — recalc reavalia a formula proximo run
         qtyCalculated: qty,
         unitPriceCents: unitPrice,
         unit: newProduct.unit ?? line.unit,
@@ -211,8 +210,7 @@ export class HeatingBudgetService {
     const items = await this.prisma.poolBudgetItem.findMany({
       where: { budgetId },
       include: {
-        // v1.11.93: tambem busca defaultQty e salePriceCents pra resetar qty/totalCents
-        product: { select: { id: true, poolType: true, technicalSpecs: true, defaultQty: true, salePriceCents: true } },
+        product: { select: { id: true, poolType: true, technicalSpecs: true } },
       },
     });
     const bombaLines = items.filter((it) => {
@@ -221,21 +219,14 @@ export class HeatingBudgetService {
       return pt.includes('bomba') || pt.includes('aquecedor');
     });
     if (bombaLines.length === 0) return;
+    // v1.11.95: NAO apaga formula nem qty da linha. Apenas remove o flag manualUnlink.
+    // A formula="bombaCalorQty" continua amarrando a linha ao Simulador — quando o
+    // override do env eh limpado (no caller), a quantity volta pra auto e a formula
+    // reavalia. Linha e Simulador ficam sincronizados via formula.
     for (const line of bombaLines) {
-      // v1.11.93: alem de limpar formula+manualUnlink, RESETA qty pra defaultQty do
-      // produto (geralmente 1). Antes, "Voltar selecao auto" deixava qty=2 stale do
-      // override anterior — operador via simulador voltar pra 1 mas linha continuava 2.
-      const defaultQty = Number(line.product!.defaultQty) || 1;
-      const unitPrice = line.unitPriceCents || (line.product!.salePriceCents ?? 0);
       await this.prisma.poolBudgetItem.update({
         where: { id: line.id },
-        data: {
-          formulaExpr: null,
-          manualUnlink: false,
-          qty: defaultQty,
-          qtyCalculated: defaultQty,
-          totalCents: Math.round(defaultQty * unitPrice),
-        },
+        data: { manualUnlink: false },
       });
     }
   }

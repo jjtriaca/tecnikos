@@ -1940,6 +1940,7 @@ const FORMULA_VARS = [
   'tempLocal', 'tempAgua', 'vento', 'capa', 'construcao',
   // Aquecimento — vars do Simulador (heatingReport)
   'calorNecessarioKcalH',
+  'bombaCalorQty',
   'hidromassagens', 'cascataCm', 'bordaInfinitaM',
 ] as const;
 const FORMULA_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
@@ -2055,8 +2056,10 @@ const FORMULA_RECIPES_PISCINA: FormulaRecipe[] = [
   // principal e substitui LREF pelo cellRef escolhido. Mais robusto que sibling*
   // (que dependia da ordem dos items na etapa).
   { label: "⏱ Tempo de montagem do equipamento (h)", expr: 'prod(LREF, "tempoMontagemH")', hint: "Le tempoMontagemH (horas) do cadastro do produto vinculado a uma linha especifica (filtro, aquecedor, kit cascata/SPA). Clique pra escolher a linha.", needsLineRef: true },
-  // ── Aquecimento — qty de bomba de calor calculada pela necessidade termica ──
-  { label: "🔥 Quantidade de bomba de calor (auto)", expr: "ceil(calorNecessarioKcalH / kcalHNominal)", hint: "Calcula quantas bombas sao necessarias pra cobrir o calor necessario do Simulador. Ex: piscina pede 50000 Kcal/h, equip da 34400 → 2 bombas. Use em linhas com produto poolType=Bomba de Calor." },
+  // ── Aquecimento — qty amarrada ao Simulador (preferencial) ──
+  { label: "🔥 Quantidade do Simulador (recomendado)", expr: "bombaCalorQty", hint: "Reflete a Quantidade escolhida na pagina Aquecimento (Simulador). Quando operador muda Quant ou volta pra auto no Simulador, a qty da linha atualiza automaticamente. Single source of truth." },
+  // ── Aquecimento — calculo automatico via fisica (alternativa) ──
+  { label: "🔥 Bomba de calor por fisica (auto-calc)", expr: "ceil(calorNecessarioKcalH / kcalHNominal)", hint: "Calcula quantas bombas sao necessarias pra cobrir o calor necessario, ignorando override do Simulador. Use quando quer recalcular sempre pela demanda real (calor / capacidade nominal)." },
   // ── Produto vinculado (technicalSpecs do cadastro) ──
   { label: "Sacos por consumo (parede+fundo) — CIMA", expr: "ceil(consumoKgM2 * areaParedeEFundo / pesoKg)", hint: "Argamassa, cimentcola, cimento, impermeabilizante: aplica em paredes + fundo (areaParedeEFundo). Ceil = sempre completa o saco." },
   { label: "Sacos por consumo (parede+fundo) — NORMAL", expr: "round(consumoKgM2 * areaParedeEFundo / pesoKg)", hint: "Igual a anterior, arredondamento normal (50.4→50, 50.5→51)" },
@@ -2158,6 +2161,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
     // Permite formulas como 'ceil(calorNecessarioKcalH / kcalHNominal)' funcionarem
     // no preview do modal (antes dava "variavel desconhecida" porque so backend lia).
     calorNecessarioKcalH: Number(heatingReport?.calorNecessarioKcalH) || 0,
+    bombaCalorQty: Number(heatingReport?.selectedEquipment?.quantity) || 1,
     hidromassagens: Number(environmentParams?.hidromassagensQtd) || 0,
     cascataCm: Number(environmentParams?.cascataLarguraCm) || 0,
     bordaInfinitaM: Number(environmentParams?.bordaInfinitaM) || 0,
