@@ -60,8 +60,12 @@
   - Funcao `recomputeSolar(extraPct?, collectorId?)` chama POST `/solar-report/recompute`
   - Link "Configuracoes → Dados Climaticos" inline pra ajustes
   - tsc clean
-- ⏳ **Fase 6** — solarQty bond
-- ⏳ **Fase 6** — solarQty bond
+- ✅ **Fase 6** — amarrar solarQty na linha do orcamento (padrao var-formula)
+  - formula-eval.ts: ALLOWED_VARS += `solarQty`, `solarNumBaterias`. Nova fn `extractSolarVars(solarReport)`
+  - pool-budget.service.ts: spread em dimensionVars + dimensionVarsForIndicator (le `(environmentParams).solarReport`)
+  - quotes/pool/[id]/page.tsx: FORMULA_VARS += solarQty+solarNumBaterias. Preview do FormulaModal popula ambos. 2 receitas novas no FORMULA_RECIPES_PISCINA
+  - Comportamento: linha "Coletor Solar Solis" com formulaExpr="solarQty" reflete o dimensionamento. Recompute do orcamento reavalia formula apos mudanca no Simulador.
+  - tsc clean
 - ⏳ **Fase 7** — backfill 5 coletores Solis na SLS
 
 
