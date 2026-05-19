@@ -49,6 +49,11 @@ export const ALLOWED_VARS = [
   // Permite linha do orcamento amarrar ao Simulador via formula="bombaCalorQty" — quando
   // operador troca Quant no Simulador (override) OU volta pra auto, a formula reavalia.
   'bombaCalorQty',
+  // Fase 6 (Solar): qtd de coletores dimensionada na aba Solar (SolarReport.qtdColetores).
+  // Linha "Coletor Solar" pode usar formulaExpr="solarQty" pra refletir o dimensionamento.
+  'solarQty',
+  // Numero de baterias do dimensionamento solar (numBaterias) — util pra acessorios.
+  'solarNumBaterias',
 ] as const;
 const ALLOWED_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
 const CELL_REF_FUNCTIONS = ['qty', 'total', 'unitPrice'] as const;
@@ -263,6 +268,31 @@ export function extractHeatingVars(heatingReport: any): FormulaVars {
     vars.bombaCalorQty = selectedQty;
   } else {
     vars.bombaCalorQty = 1; // fallback se ainda nao computou
+  }
+  return vars;
+}
+
+/**
+ * Fase 6 (Solar): popula vars do dimensionamento solar a partir do SolarReport.
+ *  - solarQty = qtdColetores (output do SolarService.computeSolarReport)
+ *  - solarNumBaterias = numBaterias
+ *
+ * Linha "Coletor Solar" pode usar formulaExpr="solarQty" — atualiza automaticamente
+ * quando operador clica "Recalcular dimensionamento" na aba Solar.
+ */
+export function extractSolarVars(solarReport: any): FormulaVars {
+  if (!solarReport || typeof solarReport !== 'object') return {};
+  const r = solarReport as Record<string, any>;
+  const vars: FormulaVars = {};
+  const qtd = Number(r.qtdColetores);
+  if (Number.isFinite(qtd) && qtd > 0) {
+    vars.solarQty = qtd;
+  } else {
+    vars.solarQty = 0;
+  }
+  const nbat = Number(r.numBaterias);
+  if (Number.isFinite(nbat) && nbat >= 0) {
+    vars.solarNumBaterias = nbat;
   }
   return vars;
 }

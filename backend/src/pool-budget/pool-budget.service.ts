@@ -14,7 +14,7 @@ import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { CreatePoolBudgetDto } from './dto/create-pool-budget.dto';
 import { UpdatePoolBudgetDto } from './dto/update-pool-budget.dto';
 import { QueryPoolBudgetDto } from './dto/query-pool-budget.dto';
-import { evaluateFormula, extractCellRefs, extractDimensionVars, extractEnvVars, extractHeatingVars, extractProductVars, type CellRefData } from './formula-eval';
+import { evaluateFormula, extractCellRefs, extractDimensionVars, extractEnvVars, extractHeatingVars, extractSolarVars, extractProductVars, type CellRefData } from './formula-eval';
 import { selectBestCandidate, evaluateIndicator, filterCandidates, filterByWhere, type AutoSelectRule } from './auto-select.helper';
 import { CreateBudgetItemDto, UpdateBudgetItemDto } from './dto/budget-item.dto';
 import {
@@ -697,6 +697,7 @@ export class PoolBudgetService {
       ...extractDimensionVars(budget?.poolDimensions),
       ...extractEnvVars(budget?.environmentParams),
       ...extractHeatingVars(budget?.heatingReport),
+      ...extractSolarVars((budget?.environmentParams as any)?.solarReport),
     };
 
     // PASSO -1: auto-link por descricao em items SEM produto/servico vinculado.
@@ -1301,6 +1302,7 @@ export class PoolBudgetService {
       ...extractDimensionVars(budget.poolDimensions),
       ...extractEnvVars(budget.environmentParams),
       ...extractHeatingVars(budget.heatingReport),
+      ...extractSolarVars((budget.environmentParams as any)?.solarReport),
     };
     // Calcula sibling vars POR ITEM, excluindo o proprio (evita auto-referencia).
     // v1.11.05: necessario pra indicators que referenciam o equipamento principal

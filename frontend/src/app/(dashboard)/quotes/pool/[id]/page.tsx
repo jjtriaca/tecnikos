@@ -1941,6 +1941,9 @@ const FORMULA_VARS = [
   // Aquecimento — vars do Simulador (heatingReport)
   'calorNecessarioKcalH',
   'bombaCalorQty',
+  // Solar (Fase 6) — vars do dimensionamento solar (environmentParams.solarReport)
+  'solarQty',
+  'solarNumBaterias',
   'hidromassagens', 'cascataCm', 'bordaInfinitaM',
 ] as const;
 const FORMULA_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
@@ -2060,6 +2063,9 @@ const FORMULA_RECIPES_PISCINA: FormulaRecipe[] = [
   { label: "🔥 Quantidade do Simulador (recomendado)", expr: "bombaCalorQty", hint: "Reflete a Quantidade escolhida na pagina Aquecimento (Simulador). Quando operador muda Quant ou volta pra auto no Simulador, a qty da linha atualiza automaticamente. Single source of truth." },
   // ── Aquecimento — calculo automatico via fisica (alternativa) ──
   { label: "🔥 Bomba de calor por fisica (auto-calc)", expr: "ceil(calorNecessarioKcalH / kcalHNominal)", hint: "Calcula quantas bombas sao necessarias pra cobrir o calor necessario, ignorando override do Simulador. Use quando quer recalcular sempre pela demanda real (calor / capacidade nominal)." },
+  // ── Solar (Fase 6) — qty amarrada ao dimensionamento solar ──
+  { label: "☀️ Quantidade de coletores Solar (auto)", expr: "solarQty", hint: "Reflete a qtd de coletores dimensionada na aba Solar (qtdColetores). Quando operador recalcula o dimensionamento solar, a qty da linha atualiza." },
+  { label: "☀️ Numero de baterias Solar", expr: "solarNumBaterias", hint: "Numero de baterias do dimensionamento solar (5-8 coletores por bateria). Util pra acessorios que escalam com baterias (caixa de juncao, tubo de retorno)." },
   // ── Produto vinculado (technicalSpecs do cadastro) ──
   { label: "Sacos por consumo (parede+fundo) — CIMA", expr: "ceil(consumoKgM2 * areaParedeEFundo / pesoKg)", hint: "Argamassa, cimentcola, cimento, impermeabilizante: aplica em paredes + fundo (areaParedeEFundo). Ceil = sempre completa o saco." },
   { label: "Sacos por consumo (parede+fundo) — NORMAL", expr: "round(consumoKgM2 * areaParedeEFundo / pesoKg)", hint: "Igual a anterior, arredondamento normal (50.4→50, 50.5→51)" },
@@ -2162,6 +2168,9 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
     // no preview do modal (antes dava "variavel desconhecida" porque so backend lia).
     calorNecessarioKcalH: Number(heatingReport?.calorNecessarioKcalH) || 0,
     bombaCalorQty: Number(heatingReport?.selectedEquipment?.quantity) || 1,
+    // Fase 6 (Solar): vars do solarReport (environmentParams.solarReport)
+    solarQty: Number((environmentParams as any)?.solarReport?.qtdColetores) || 0,
+    solarNumBaterias: Number((environmentParams as any)?.solarReport?.numBaterias) || 0,
     hidromassagens: Number(environmentParams?.hidromassagensQtd) || 0,
     cascataCm: Number(environmentParams?.cascataLarguraCm) || 0,
     bordaInfinitaM: Number(environmentParams?.bordaInfinitaM) || 0,
