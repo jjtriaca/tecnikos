@@ -190,7 +190,11 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
   const [utilizacaoAno, setUtilizacaoAno] = useState<string>("ANO_TODO");
   const [utilizacaoSemana, setUtilizacaoSemana] = useState<string>("MES_TODO");
   const [hidromassagensQtd, setHidromassagensQtd] = useState<number>(0);
+  // Horas/semana que cascata/hidromassagem ficam ligadas (default 2 = uso casual).
+  // Multiplicado por horas/168 no calculo — 2h/semana = peso ~1.2% das 168h.
+  const [hidromassagemHorasSemana, setHidromassagemHorasSemana] = useState<number>(2);
   const [cascataLarguraCm, setCascataLarguraCm] = useState<number>(0);
+  const [cascataHorasSemana, setCascataHorasSemana] = useState<number>(2);
   const [bordaInfinitaM, setBordaInfinitaM] = useState<number>(0);
   const [bordaInfinitaAlturaM, setBordaInfinitaAlturaM] = useState<number>(0.5);
   const [bordaInfinitaVazaoLminPorM, setBordaInfinitaVazaoLminPorM] = useState<number>(30);
@@ -252,7 +256,9 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
     setUtilizacaoAno(normEnum(env.utilizacaoAno, ["ANO_TODO", "VERAO", "INVERNO"], "ANO_TODO"));
     setUtilizacaoSemana(normEnum(env.utilizacaoSemana, ["MES_TODO", "FIM_DE_SEMANA"], "MES_TODO"));
     setHidromassagensQtd(Number(env.hidromassagensQtd) || 0);
+    setHidromassagemHorasSemana(env.hidromassagemHorasSemana != null ? Number(env.hidromassagemHorasSemana) : 2);
     setCascataLarguraCm(Number(env.cascataLarguraCm) || 0);
+    setCascataHorasSemana(env.cascataHorasSemana != null ? Number(env.cascataHorasSemana) : 2);
     setBordaInfinitaM(Number(env.bordaInfinitaM) || 0);
     setBordaInfinitaAlturaM(Number(env.bordaInfinitaAlturaM) || 0.5);
     setBordaInfinitaVazaoLminPorM(Number(env.bordaInfinitaVazaoLminPorM) || 30);
@@ -302,7 +308,9 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
         utilizacaoAno: normEnum(utilizacaoAno, ["ANO_TODO", "VERAO", "INVERNO"], "ANO_TODO"),
         utilizacaoSemana: normEnum(utilizacaoSemana, ["MES_TODO", "FIM_DE_SEMANA"], "MES_TODO"),
         hidromassagensQtd: Number(hidromassagensQtd),
+        hidromassagemHorasSemana: Number(hidromassagemHorasSemana),
         cascataLarguraCm: Number(cascataLarguraCm),
+        cascataHorasSemana: Number(cascataHorasSemana),
         bordaInfinitaM: Number(bordaInfinitaM),
         bordaInfinitaAlturaM: Number(bordaInfinitaAlturaM),
         bordaInfinitaVazaoLminPorM: Number(bordaInfinitaVazaoLminPorM),
@@ -341,7 +349,9 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
         utilizacaoAno: normEnum(utilizacaoAno, ["ANO_TODO", "VERAO", "INVERNO"], "ANO_TODO"),
         utilizacaoSemana: normEnum(utilizacaoSemana, ["MES_TODO", "FIM_DE_SEMANA"], "MES_TODO"),
         hidromassagensQtd: Number(hidromassagensQtd),
+        hidromassagemHorasSemana: Number(hidromassagemHorasSemana),
         cascataLarguraCm: Number(cascataLarguraCm),
+        cascataHorasSemana: Number(cascataHorasSemana),
         bordaInfinitaM: Number(bordaInfinitaM),
         bordaInfinitaAlturaM: Number(bordaInfinitaAlturaM),
         bordaInfinitaVazaoLminPorM: Number(bordaInfinitaVazaoLminPorM),
@@ -575,9 +585,21 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                             </Field>
                           </div>
                           {/* Extras editaveis em quickMode */}
-                          <div className="mt-3 grid grid-cols-2 gap-3">
-                            <Field label="Hidromassagens (qtd jatos)"><NumInput value={hidromassagensQtd} onChange={setHidromassagensQtd} step={1} min={0} /></Field>
-                            <Field label="Cascata (cm de largura)"><NumInput value={cascataLarguraCm} onChange={setCascataLarguraCm} step={1} min={0} /></Field>
+                          <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                            <div className="text-xs font-semibold text-slate-700 mb-2">💦 Hidromassagem</div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <Field label="Qtd jatos"><NumInput value={hidromassagensQtd} onChange={setHidromassagensQtd} step={1} min={0} /></Field>
+                              <Field label="Horas ligada/semana"><NumInput value={hidromassagemHorasSemana} onChange={setHidromassagemHorasSemana} step={1} min={0} max={168} /></Field>
+                            </div>
+                            <div className="text-[10px] text-slate-500 mt-1">Default 2h/semana = uso casual. 168h = sempre ligada. Peso no calculo: horas/168.</div>
+                          </div>
+                          <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                            <div className="text-xs font-semibold text-slate-700 mb-2">🌊 Cascata</div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <Field label="Largura (cm)"><NumInput value={cascataLarguraCm} onChange={setCascataLarguraCm} step={1} min={0} /></Field>
+                              <Field label="Horas ligada/semana"><NumInput value={cascataHorasSemana} onChange={setCascataHorasSemana} step={1} min={0} max={168} /></Field>
+                            </div>
+                            <div className="text-[10px] text-slate-500 mt-1">Default 2h/semana = uso decorativo casual. Peso no calculo: horas/168.</div>
                           </div>
                           <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
                             <div className="text-xs font-semibold text-slate-700 mb-2">💧 Borda infinita</div>
@@ -612,11 +634,11 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                               <div className="grid grid-cols-3 gap-3 text-xs">
                                 <div>
                                   <div className="text-[10px] text-cyan-700">Hidromassagens</div>
-                                  <div className="font-bold text-cyan-900">{hidromassagensQtd} jato(s)</div>
+                                  <div className="font-bold text-cyan-900">{hidromassagensQtd} jato(s) · {hidromassagemHorasSemana}h/sem</div>
                                 </div>
                                 <div>
                                   <div className="text-[10px] text-cyan-700">Cascata (largura total)</div>
-                                  <div className="font-bold text-cyan-900">{cascataLarguraCm} cm</div>
+                                  <div className="font-bold text-cyan-900">{cascataLarguraCm} cm · {cascataHorasSemana}h/sem</div>
                                 </div>
                                 <div>
                                   <div className="text-[10px] text-cyan-700">Borda infinita</div>

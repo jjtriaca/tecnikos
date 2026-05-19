@@ -2683,10 +2683,13 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
         label: 'Folga aquec.',
         expr: '(kcalHNominal - calorNecessarioKcalH) / calorNecessarioKcalH * 100',
         unit: '%',
+        // Niveis v1.11.74: MAX_LOAD_RATIO subiu de 0.7 pra 0.9 → folga minima alvo
+        // caiu de 30% pra 11%. "Adequado" = faixa de seguranca, "Folgado" = sobra
+        // sem ser excessivo, "Super-dim" so quando passa de 150% (equipamento 2.5×).
         levels: [
           { max: 0, label: 'Insuficiente', color: 'red' },
-          { max: 30, label: 'Justo', color: 'orange' },
-          { max: 70, label: 'Adequado', color: 'emerald' },
+          { max: 11, label: 'Justo', color: 'orange' },
+          { max: 50, label: 'Adequado', color: 'emerald' },
           { max: 150, label: 'Folgado', color: 'yellow' },
           { max: 99999, label: 'Super-dim.', color: 'red' },
         ],
@@ -2834,10 +2837,11 @@ const INDICATOR_TEMPLATES: Array<{ label: string; preset: { label: string; expr:
       label: 'Folga aquec.',
       expr: '(kcalHNominal - calorNecessarioKcalH) / calorNecessarioKcalH * 100',
       unit: '%',
+      // Niveis v1.11.74: alinhados com MAX_LOAD_RATIO 0.9 (folga minima 11%).
       levels: [
         { max: 0, label: 'Insuficiente', color: 'red' },
-        { max: 30, label: 'Justo', color: 'orange' },
-        { max: 70, label: 'Adequado', color: 'emerald' },
+        { max: 11, label: 'Justo', color: 'orange' },
+        { max: 50, label: 'Adequado', color: 'emerald' },
         { max: 150, label: 'Folgado', color: 'yellow' },
         { max: 9999, label: 'Super-dim.', color: 'red' },
       ],

@@ -440,10 +440,22 @@ export const OTHER_LOSSES_FACTOR = 0.2;
 // Qs da superficie sobre a area de filme da cascata, com multiplicador de vazao.
 
 export const EXTRAS_KCAL_H = {
-  // Cada hidromassagem: +150 Kcal/h (rule-of-thumb)
+  // Cada hidromassagem: +150 Kcal/h (rule-of-thumb) — quando 100% ativa.
+  // Multiplicado por (horasSemana / 168) no calculo real.
   hidromassagemEach: 150,
-  // Cada cm de cascata: +50 Kcal/h (rule-of-thumb)
+  // Cada cm de cascata: +50 Kcal/h (rule-of-thumb) — quando 100% ativa.
+  // Multiplicado por (horasSemana / 168) no calculo real.
   cascataPerCm: 50,
+};
+
+// Padrao de horas/semana que cascata e hidromassagem ficam ligadas. 2h/semana
+// reflete uso CASUAL (final de semana, festa) — peso ~1.2% das 168h/semana.
+// Se o cliente usa mais, operador ajusta na UI. Borda infinita usa horas/DIA
+// (diferente granularidade — borda costuma ficar ligada 24h/dia em piscinas
+// de luxo, enquanto cascata e hidromassagem sao esporadicas).
+export const EXTRAS_HORAS_SEMANA_DEFAULT = {
+  cascata: 2,
+  hidromassagem: 2,
 };
 
 // ============ BORDA INFINITA — modelo fisico ============
@@ -516,8 +528,12 @@ export const CONVERSIONS = {
 // 1.10 = 46.9 kW (erro 3%)).
 // Pra Verao/Inverno (ja pegam max dos meses ativos), margem menor.
 
+// Reduzida v1.11.74: 1.10 → 1.05 pra aproximar planilha TAB006 do fabricante.
+// O calculo bruto ja inclui pico mensal × extras × outras perdas (20%); margem
+// adicional alta inflava o dimensionamento e empurrava pra equipamento maior.
+// Ano todo sai 5% maior que o pico bruto (pra cobrir dias atipicos).
 export const SAFETY_MARGIN = {
-  ANO_TODO: 1.10,
+  ANO_TODO: 1.05,
   VERAO: 1.05,
   INVERNO: 1.05,
 };
@@ -528,8 +544,12 @@ export const SAFETY_MARGIN = {
 // Qtotal_max / capacidade_kW <= 0.7 (folga >= 30%)
 // Acima de 1.0 (overcapacidade): equipamento subdimensionado.
 
+// MAX_LOAD_RATIO relaxado v1.11.74: 0.7 → 0.9 (rejeitar acima de 90%).
+// Antes (0.7) o auto-select preferia equipamento 40% mais caro pra ter 30% de
+// folga. A planilha TAB006 do fabricante aceita carga ~100%. Carga ate 90% eh
+// pratica usual da industria (deixa 10% de margem pra dia atipico).
 export const EQUIPMENT_SELECTION = {
-  MAX_LOAD_RATIO: 0.7, // Carga maxima recomendada (folga >= 30%)
+  MAX_LOAD_RATIO: 0.9, // Carga maxima recomendada (folga >= 11%)
   MIN_LOAD_RATIO: 0.3, // Carga minima recomendada (folga <= 70%, evitar superdimensionar)
 };
 

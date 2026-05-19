@@ -16,6 +16,7 @@ import {
   ClimateCity,
   CONVERSIONS,
   EQUIPMENT_SELECTION,
+  EXTRAS_HORAS_SEMANA_DEFAULT,
   EXTRAS_KCAL_H,
   FonteEnergia,
   getActiveMonths,
@@ -57,7 +58,12 @@ export interface HeatingInputs {
 
   // Extras
   hidromassagensQtd?: number;
+  // Horas/semana que a hidromassagem fica ligada. Default 2 (uso casual fim de semana).
+  // Peso no calculo: horas / 168.
+  hidromassagemHorasSemana?: number;
   cascataLarguraCm?: number;
+  // Horas/semana que a cascata fica ligada. Default 2 (uso decorativo casual).
+  cascataHorasSemana?: number;
   bordaInfinitaM?: number;
   // Borda infinita: altura de queda da agua, vazao e horas/dia que a bomba fica ativa.
   // Defaults: 0.5m altura, 30 L/min/m vazao, 24h ativa.
@@ -253,12 +259,22 @@ export class HeatingService {
     // Mantido no DTO so pra UI/PDF (info documental).
 
     // Extras simples (rule-of-thumb planilha original) — em Kcal/h convertidos pra kW.
-    // Sao constantes (nao variam com clima do mes).
+    // Multiplicados pelo peso de horas/semana (cascata e hidromassagem nao ficam ligadas 24h).
+    // Sao constantes (nao variam com clima do mes — borda infinita varia, eh modelo fisico).
     const hidroQty = Number(inputs.hidromassagensQtd) || 0;
     const cascataCm = Number(inputs.cascataLarguraCm) || 0;
+    const hidroHorasSemana = inputs.hidromassagemHorasSemana != null
+      ? Number(inputs.hidromassagemHorasSemana)
+      : EXTRAS_HORAS_SEMANA_DEFAULT.hidromassagem;
+    const cascataHorasSemana = inputs.cascataHorasSemana != null
+      ? Number(inputs.cascataHorasSemana)
+      : EXTRAS_HORAS_SEMANA_DEFAULT.cascata;
+    const HORAS_SEMANA_TOTAL = 7 * 24; // 168
+    const hidroPeso = Math.max(0, Math.min(1, hidroHorasSemana / HORAS_SEMANA_TOTAL));
+    const cascataPeso = Math.max(0, Math.min(1, cascataHorasSemana / HORAS_SEMANA_TOTAL));
     const extrasFixosKcalH =
-      hidroQty * EXTRAS_KCAL_H.hidromassagemEach +
-      cascataCm * EXTRAS_KCAL_H.cascataPerCm;
+      hidroQty * EXTRAS_KCAL_H.hidromassagemEach * hidroPeso +
+      cascataCm * EXTRAS_KCAL_H.cascataPerCm * cascataPeso;
     const extrasFixosKw = extrasFixosKcalH / CONVERSIONS.KWH_TO_KCAL;
 
     // Borda infinita: modelo fisico (depende de Tar/umidade do mes — varia mes a mes).

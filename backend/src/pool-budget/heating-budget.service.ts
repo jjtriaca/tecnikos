@@ -374,6 +374,10 @@ export class HeatingBudgetService {
     const hidromassagensQtd = aggregated?.hidromassagensQtd ?? (Number(env.hidromassagensQtd) || 0);
     const cascataLarguraCm = aggregated?.cascataLarguraCm ?? (Number(env.cascataLarguraCm) || 0);
     const bordaInfinitaM = aggregated?.bordaInfinitaM ?? (Number(env.bordaInfinitaM) || 0);
+    // Horas/semana — env-only por enquanto (linhas nao agregam essa info ainda).
+    // Default tratado dentro de heating.service quando undefined.
+    const cascataHorasSemana = env.cascataHorasSemana != null ? Number(env.cascataHorasSemana) : undefined;
+    const hidromassagemHorasSemana = env.hidromassagemHorasSemana != null ? Number(env.hidromassagemHorasSemana) : undefined;
     // Borda specs (altura/vazao/horas): linhas > env > defaults do constants
     const bordaInfinitaAlturaM = aggregated?.bordaInfinitaAlturaM ?? (Number(env.bordaInfinitaAlturaM) || undefined);
     const bordaInfinitaVazaoLminPorM = aggregated?.bordaInfinitaVazaoLminPorM ?? (Number(env.bordaInfinitaVazaoLminPorM) || undefined);
@@ -393,7 +397,9 @@ export class HeatingBudgetService {
       utilizacaoAno: this.parseUtilizacaoAno(env.utilizacaoAno),
       utilizacaoSemana: this.parseUtilizacaoSemana(env.utilizacaoSemana),
       hidromassagensQtd,
+      hidromassagemHorasSemana,
       cascataLarguraCm,
+      cascataHorasSemana,
       bordaInfinitaM,
       bordaInfinitaAlturaM,
       bordaInfinitaVazaoLminPorM,
