@@ -87,6 +87,8 @@ interface ExtraDetected {
   horasSemana?: number;
   lines: ExtraLineDetail[];
   message: string;
+  /** Contribuicao em kW pro calor necessario (v1.11.81) */
+  impactKw?: number;
 }
 
 interface ExtrasDetected {
@@ -310,19 +312,14 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
     setLoading(true);
     setError(null);
     api.get<HeatingReport>(`/pool-budgets/${budget.id}/heating-report`)
-      .then(async (r) => {
-        // Auto-migrate v1.11.75: reports antigos sem extrasDetected → recomputa
-        // pra popular o novo bloco. Apos primeira migracao, fica em cache.
-        if (!r?.extrasDetected) {
-          try {
-            const fresh = await api.post<HeatingReport>(`/pool-budgets/${budget.id}/heating-report/recompute`);
-            setReport(fresh);
-            return;
-          } catch {
-            // se falhar, mostra o report antigo mesmo (sem extras detected)
-          }
-        }
+      .then((r) => {
         setReport(r);
+        // v1.11.81: SEMPRE recompute em background apos exibir o cache. Garante
+        // que mudancas no algoritmo (impactKw, filtro de acessorios, etc) sejam
+        // refletidas sem operador precisar mexer e clicar Salvar.
+        api.post<HeatingReport>(`/pool-budgets/${budget.id}/heating-report/recompute`)
+          .then((fresh) => setReport(fresh))
+          .catch(() => { /* fallback ao cache ja exibido */ });
       })
       .catch((e) => setError(String(e?.message ?? e)))
       .finally(() => setLoading(false));
@@ -721,71 +718,76 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                   <div className="text-sm text-slate-500">Carregando relatorio...</div>
                 ) : report ? (
                   <>
-                    {/* Card compacto com as 3 metricas em linha (v1.11.77) — antes
-                        eram 3 cards grandes ocupando muita area; agora 1 card horizontal
-                        deixando espaco pros extras (cascata/SPA/borda) embaixo */}
-                    <div className="rounded-xl border border-slate-200 bg-gradient-to-r from-cyan-50 via-orange-50 to-emerald-50 px-4 py-3 mb-3">
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Calor necessario · mes critico</div>
-                      <div className="flex items-baseline gap-4 flex-wrap">
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-2xl font-bold text-cyan-700 tabular-nums">{report.calorNecessarioKcalH.toLocaleString("pt-BR")}</span>
-                          <span className="text-xs font-semibold text-cyan-700">Kcal/h</span>
+                    {/* Card "Calor necessario" — v1.11.81: agora com cards de extras AO LADO
+                        (so quando identificados), mostrando contribuicao kW de cada um. Layout
+                        responsivo: em telas pequenas empilha, em desktop fica lado a lado. */}
+                    {(() => {
+                      const ed = report.extrasDetected;
+                      const hasAnyExtra = ed && (
+                        ed.cascata.status !== "NAO_IDENTIFICADA" ||
+                        ed.hidromassagem.status !== "NAO_IDENTIFICADA" ||
+                        ed.bordaInfinita.status !== "NAO_IDENTIFICADA"
+                      );
+                      return (
+                        <div className="rounded-xl border border-slate-200 bg-gradient-to-r from-cyan-50 via-orange-50 to-emerald-50 px-4 py-3 mb-3">
+                          <div className={`grid gap-4 items-center ${hasAnyExtra ? "lg:grid-cols-[1fr_auto]" : "grid-cols-1"}`}>
+                            {/* Bloco esquerdo: numeros principais */}
+                            <div>
+                              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Calor necessario · mes critico</div>
+                              <div className="flex items-baseline gap-3 flex-wrap">
+                                <div className="flex items-baseline gap-1">
+                                  <span className="text-2xl font-bold text-cyan-700 tabular-nums">{report.calorNecessarioKcalH.toLocaleString("pt-BR")}</span>
+                                  <span className="text-xs font-semibold text-cyan-700">Kcal/h</span>
+                                </div>
+                                <span className="text-slate-300">·</span>
+                                <div className="flex items-baseline gap-1">
+                                  <span className="text-2xl font-bold text-orange-700 tabular-nums">{report.qtotalMaxKw.toFixed(1)}</span>
+                                  <span className="text-xs font-semibold text-orange-700">kW</span>
+                                </div>
+                                <span className="text-slate-300">·</span>
+                                <div className="flex items-baseline gap-1">
+                                  <span className="text-2xl font-bold text-emerald-700 tabular-nums">{report.calorNecessarioBtuH.toLocaleString("pt-BR")}</span>
+                                  <span className="text-xs font-semibold text-emerald-700">Btu/h</span>
+                                </div>
+                              </div>
+                            </div>
+                            {/* Bloco direito: cards de extras (so identificados) */}
+                            {hasAnyExtra && (
+                              <div className="flex flex-wrap gap-2 lg:justify-end">
+                                {ed!.cascata.status !== "NAO_IDENTIFICADA" && (
+                                  <ExtraImpactCard
+                                    icon="🌊"
+                                    title="Cascata"
+                                    extra={ed!.cascata}
+                                    horasValue={cascataHorasSemana}
+                                    onChangeHoras={setCascataHorasSemana}
+                                  />
+                                )}
+                                {ed!.hidromassagem.status !== "NAO_IDENTIFICADA" && (
+                                  <ExtraImpactCard
+                                    icon="💦"
+                                    title="SPA"
+                                    extra={ed!.hidromassagem}
+                                    horasValue={hidromassagemHorasSemana}
+                                    onChangeHoras={setHidromassagemHorasSemana}
+                                  />
+                                )}
+                                {ed!.bordaInfinita.status !== "NAO_IDENTIFICADA" && (
+                                  <ExtraImpactCard
+                                    icon="🏞"
+                                    title="Borda"
+                                    extra={ed!.bordaInfinita}
+                                    horasValue={bordaInfinitaHorasAtivaDia}
+                                    onChangeHoras={setBordaInfinitaHorasAtivaDia}
+                                    hoursLabel="h/dia"
+                                  />
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <span className="text-slate-300">·</span>
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-2xl font-bold text-orange-700 tabular-nums">{report.qtotalMaxKw.toFixed(1)}</span>
-                          <span className="text-xs font-semibold text-orange-700">kW</span>
-                        </div>
-                        <span className="text-slate-300">·</span>
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-2xl font-bold text-emerald-700 tabular-nums">{report.calorNecessarioBtuH.toLocaleString("pt-BR")}</span>
-                          <span className="text-xs font-semibold text-emerald-700">Btu/h</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Extras identificados (cascata/SPA/borda) — so aparece se algum extra foi
-                        detectado na etapa OU no cadastro (borda infinita). Cada card mostra:
-                        - Nome do produto (read-only, do cadastro)
-                        - Tamanho/qtde (read-only, do technicalSpecs do produto)
-                        - Horas/sem editavel (default por tipoPiscina: 6h privativa, 42h coletiva)
-                        Aviso amarelo quando produto identificado mas falta info no cadastro. */}
-                    {report.extrasDetected && (
-                      report.extrasDetected.cascata.status !== "NAO_IDENTIFICADA" ||
-                      report.extrasDetected.hidromassagem.status !== "NAO_IDENTIFICADA" ||
-                      report.extrasDetected.bordaInfinita.status !== "NAO_IDENTIFICADA"
-                    ) && (
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                        {report.extrasDetected.cascata.status !== "NAO_IDENTIFICADA" && (
-                          <ExtraDetectedCard
-                            icon="🌊"
-                            title="Cascata"
-                            extra={report.extrasDetected.cascata}
-                            horasValue={cascataHorasSemana}
-                            onChangeHoras={setCascataHorasSemana}
-                          />
-                        )}
-                        {report.extrasDetected.hidromassagem.status !== "NAO_IDENTIFICADA" && (
-                          <ExtraDetectedCard
-                            icon="💦"
-                            title="Hidromassagem / SPA"
-                            extra={report.extrasDetected.hidromassagem}
-                            horasValue={hidromassagemHorasSemana}
-                            onChangeHoras={setHidromassagemHorasSemana}
-                          />
-                        )}
-                        {report.extrasDetected.bordaInfinita.status !== "NAO_IDENTIFICADA" && (
-                          <ExtraDetectedCard
-                            icon="🏞"
-                            title="Borda infinita"
-                            extra={report.extrasDetected.bordaInfinita}
-                            horasValue={bordaInfinitaHorasAtivaDia}
-                            onChangeHoras={setBordaInfinitaHorasAtivaDia}
-                            hoursLabel="horas/dia"
-                          />
-                        )}
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {/* Tabela mensal compacta */}
                     <div className="rounded-lg border border-slate-200 bg-white overflow-x-auto">
@@ -1180,6 +1182,69 @@ function SmallStat({ label, value }: { label: string; value: string }) {
 
 function fmtBRL(cents: number): string {
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+/** Card compacto ao lado do "Calor necessario" mostrando contribuicao individual
+ *  de cada extra (Cascata/SPA/Borda) em kW + horas/sem editavel + status visual.
+ *  Substitui o ExtraDetectedCard antigo (maior) — v1.11.81. */
+function ExtraImpactCard({
+  icon,
+  title,
+  extra,
+  horasValue,
+  onChangeHoras,
+  hoursLabel,
+}: {
+  icon: string;
+  title: string;
+  extra: ExtraDetected;
+  horasValue: number;
+  onChangeHoras: (n: number) => void;
+  hoursLabel?: string;
+}) {
+  const tone = extra.status === "IDENTIFICADA_COMPLETA"
+    ? { border: "border-emerald-300", bg: "bg-emerald-50", title: "text-emerald-900", muted: "text-emerald-700" }
+    : extra.status === "IDENTIFICADA_FALTANDO_INFO"
+    ? { border: "border-amber-300", bg: "bg-amber-50", title: "text-amber-900", muted: "text-amber-700" }
+    : { border: "border-slate-200", bg: "bg-white", title: "text-slate-700", muted: "text-slate-500" };
+
+  const impactKw = extra.impactKw ?? 0;
+  const isPaid = extra.status === "IDENTIFICADA_FALTANDO_INFO";
+
+  return (
+    <div
+      className={`rounded-lg border ${tone.border} ${tone.bg} px-2.5 py-1.5 min-w-[140px] max-w-[220px]`}
+      title={extra.message}
+    >
+      <div className="flex items-center justify-between gap-1.5">
+        <div className="flex items-center gap-1">
+          <span className="text-sm">{icon}</span>
+          <span className={`text-[11px] font-semibold ${tone.title}`}>{title}</span>
+        </div>
+        {!isPaid && impactKw > 0 && (
+          <span className={`text-xs font-bold tabular-nums ${tone.title}`}>+{impactKw.toFixed(2)} kW</span>
+        )}
+        {isPaid && (
+          <span className="text-[9px] font-bold uppercase text-amber-700">FALTA INFO</span>
+        )}
+      </div>
+      {extra.status !== "IDENTIFICADA_FALTANDO_INFO" && extra.totalValue > 0 && (
+        <div className={`text-[10px] ${tone.muted} truncate`}>{extra.totalValue} {extra.unit}</div>
+      )}
+      <div className="flex items-center gap-1 mt-1">
+        <input
+          type="number"
+          value={horasValue}
+          onChange={(e) => onChangeHoras(Number(e.target.value) || 0)}
+          min={0}
+          max={hoursLabel?.includes("dia") ? 24 : 168}
+          step={1}
+          className="w-12 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-xs font-bold text-slate-900 tabular-nums"
+        />
+        <span className={`text-[10px] ${tone.muted}`}>{hoursLabel ?? "h/sem"}</span>
+      </div>
+    </div>
+  );
 }
 
 function ExtraDetectedCard({

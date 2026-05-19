@@ -171,6 +171,8 @@ export interface ExtraDetected {
   lines: ExtraLineDetail[];
   /** Mensagem user-friendly do status */
   message: string;
+  /** Quanto este extra adiciona ao Q max do mes critico (kW). 0 quando NAO_IDENTIFICADA */
+  impactKw?: number;
 }
 
 export interface ExtrasDetected {

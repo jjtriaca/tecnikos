@@ -189,8 +189,9 @@ export class HeatingBudgetService {
       }
     }
 
-    // Status dos extras (cascata/hidromassagem/borda) com mensagens user-friendly
-    report.extrasDetected = this.buildExtrasDetected(aggregated, inputs.tipoPiscina, inputs);
+    // Status dos extras (cascata/hidromassagem/borda) com mensagens user-friendly +
+    // impactKw (contribuicao individual no calor necessario)
+    report.extrasDetected = this.buildExtrasDetected(aggregated, inputs.tipoPiscina, inputs, report);
 
     await this.prisma.poolBudget.update({
       where: { id: budgetId },
@@ -524,6 +525,7 @@ export class HeatingBudgetService {
     aggregated: AggregatedExtras,
     tipoPiscina: TipoPiscina,
     inputs: HeatingInputs,
+    report: HeatingReport,
   ): ExtrasDetected {
     const buildItem = (
       lines: ExtraLineDetail[] | undefined,
@@ -534,6 +536,7 @@ export class HeatingBudgetService {
       labelExtra: string,
       cadastroPath: string,
       horasSemana: number | undefined,
+      impactKw: number,
     ): ExtraDetected => {
       const hasLines = lines && lines.length > 0;
       const hasManual = manualValue > 0;
@@ -546,6 +549,7 @@ export class HeatingBudgetService {
           unit,
           lines: [],
           message: `Sem ${labelExtra} identificada`,
+          impactKw: 0,
         };
       }
 
@@ -563,6 +567,7 @@ export class HeatingBudgetService {
             horasSemana,
             lines: lines!,
             message: `${labelExtra} identificada na etapa mas produto sem "${field}" em ${productList}${more}. Preencha em ${cadastroPath}`,
+            impactKw,
           };
         }
         return {
@@ -572,6 +577,7 @@ export class HeatingBudgetService {
           horasSemana,
           lines: lines!,
           message: `${labelExtra} identificada: ${totalFromLines} ${unit} total`,
+          impactKw,
         };
       }
 
@@ -583,11 +589,29 @@ export class HeatingBudgetService {
         horasSemana,
         lines: [],
         message: `${labelExtra} configurada ${manualSourceLabel}: ${manualValue} ${unit}`,
+        impactKw,
       };
     };
 
     const cascataHoras = inputs.cascataHorasSemana ?? getExtraDefaultHorasSemana(tipoPiscina, 'cascata');
     const hidroHoras = inputs.hidromassagemHorasSemana ?? getExtraDefaultHorasSemana(tipoPiscina, 'hidromassagem');
+
+    // Calcula contribuicao individual em kW (mesmo factor de computeMonthlyHeatLoss):
+    // - Cascata e hidromassagem: rule-of-thumb constante × peso temporal (horas/168) ÷ 860
+    // - Borda infinita: modelo fisico variando por mes — pego o pico mensal subtraindo
+    //   os extras fixos (so quem sobra eh borda).
+    const HORAS_SEMANA_TOTAL = 7 * 24;
+    const cascataValue = aggregated.cascataLarguraCm ?? Number(inputs.cascataLarguraCm) ?? 0;
+    const hidroValue = aggregated.hidromassagensQtd ?? Number(inputs.hidromassagensQtd) ?? 0;
+    const cascataPeso = Math.max(0, Math.min(1, cascataHoras / HORAS_SEMANA_TOTAL));
+    const hidroPeso = Math.max(0, Math.min(1, hidroHoras / HORAS_SEMANA_TOTAL));
+    const cascataKw = Math.round((cascataValue * 50 * cascataPeso / 860) * 100) / 100;
+    const hidroKw = Math.round((hidroValue * 150 * hidroPeso / 860) * 100) / 100;
+
+    // Borda: pega qsExtrasKw maximo dos meses (que ja inclui cascata + hidromassagem fixos
+    // + borda variando por mes) e subtrai cascata+hidromassagem fixos.
+    const qsExtrasMaxKw = Math.max(0, ...report.monthlyHeatLoss.map((m) => m.qsExtrasKw));
+    const bordaKw = Math.max(0, Math.round((qsExtrasMaxKw - cascataKw - hidroKw) * 100) / 100);
 
     return {
       cascata: buildItem(
@@ -599,6 +623,7 @@ export class HeatingBudgetService {
         'Cascata',
         'Cadastros > Produtos > Aba Piscina',
         cascataHoras,
+        cascataKw,
       ),
       hidromassagem: buildItem(
         aggregated.hidromassagemLines,
@@ -609,6 +634,7 @@ export class HeatingBudgetService {
         'Hidromassagem/SPA',
         'Cadastros > Produtos > Aba Piscina',
         hidroHoras,
+        hidroKw,
       ),
       bordaInfinita: buildItem(
         aggregated.bordaInfinitaLines,
@@ -619,6 +645,7 @@ export class HeatingBudgetService {
         'Borda infinita',
         'Dados do projeto > Borda infinita',
         inputs.bordaInfinitaHorasAtivaDia != null ? inputs.bordaInfinitaHorasAtivaDia * 7 : undefined,
+        bordaKw,
       ),
     };
   }
