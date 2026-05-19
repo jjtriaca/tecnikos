@@ -81,6 +81,14 @@ function substituteVars(
   // Decimal com virgula -> ponto
   let s = expr.replace(/(\d),(\d)/g, '$1.$2');
 
+  // Operadores logicos em portugues/SQL -> JS. Templates pre-prontos foram
+  // escritos com `and`/`or` literal (estilo SQL/Python), mas Function eval so
+  // aceita `&&`/`||`. Sem essa conversao, qualquer letra residual cai no check
+  // de var desconhecida (linha do return false) e a regra rejeita TODOS os
+  // candidatos. Incidente F3 do Simulador de Aquecimento — template "Bomba de
+  // Calor (preciso)" silenciosamente nao escolhia ninguem.
+  s = s.replace(/\band\b/g, '&&').replace(/\bor\b/g, '||');
+
   // prod(LX, "spec") — substitui pela spec do produto da linha LX (cross-line reference)
   if (cellRefSpecs) {
     s = s.replace(

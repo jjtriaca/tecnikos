@@ -2677,7 +2677,7 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
       filterPoolType: 'Aquecedor',
       filterCategoria: null,
       filterDescription: 'Bomba',
-      where: 'kcalHNominal >= calorNecessarioKcalH and kcalHNominal <= calorNecessarioKcalH * 3.33',
+      where: 'kcalHNominal >= calorNecessarioKcalH && kcalHNominal <= calorNecessarioKcalH * 3.33',
       orderBy: 'kcalHNominal asc',
       indicator: {
         label: 'Folga aquec.',
