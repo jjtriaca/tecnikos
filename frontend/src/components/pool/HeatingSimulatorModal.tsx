@@ -310,7 +310,20 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
     setLoading(true);
     setError(null);
     api.get<HeatingReport>(`/pool-budgets/${budget.id}/heating-report`)
-      .then(setReport)
+      .then(async (r) => {
+        // Auto-migrate v1.11.75: reports antigos sem extrasDetected → recomputa
+        // pra popular o novo bloco. Apos primeira migracao, fica em cache.
+        if (!r?.extrasDetected) {
+          try {
+            const fresh = await api.post<HeatingReport>(`/pool-budgets/${budget.id}/heating-report/recompute`);
+            setReport(fresh);
+            return;
+          } catch {
+            // se falhar, mostra o report antigo mesmo (sem extras detected)
+          }
+        }
+        setReport(r);
+      })
       .catch((e) => setError(String(e?.message ?? e)))
       .finally(() => setLoading(false));
   }, [open, budget.id]);
