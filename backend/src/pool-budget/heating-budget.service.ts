@@ -211,7 +211,8 @@ export class HeatingBudgetService {
     const items = await this.prisma.poolBudgetItem.findMany({
       where: { budgetId },
       include: {
-        product: { select: { id: true, poolType: true, technicalSpecs: true } },
+        // v1.11.93: tambem busca defaultQty e salePriceCents pra resetar qty/totalCents
+        product: { select: { id: true, poolType: true, technicalSpecs: true, defaultQty: true, salePriceCents: true } },
       },
     });
     const bombaLines = items.filter((it) => {
@@ -221,9 +222,20 @@ export class HeatingBudgetService {
     });
     if (bombaLines.length === 0) return;
     for (const line of bombaLines) {
+      // v1.11.93: alem de limpar formula+manualUnlink, RESETA qty pra defaultQty do
+      // produto (geralmente 1). Antes, "Voltar selecao auto" deixava qty=2 stale do
+      // override anterior — operador via simulador voltar pra 1 mas linha continuava 2.
+      const defaultQty = Number(line.product!.defaultQty) || 1;
+      const unitPrice = line.unitPriceCents || (line.product!.salePriceCents ?? 0);
       await this.prisma.poolBudgetItem.update({
         where: { id: line.id },
-        data: { formulaExpr: null, manualUnlink: false },
+        data: {
+          formulaExpr: null,
+          manualUnlink: false,
+          qty: defaultQty,
+          qtyCalculated: defaultQty,
+          totalCents: Math.round(defaultQty * unitPrice),
+        },
       });
     }
   }

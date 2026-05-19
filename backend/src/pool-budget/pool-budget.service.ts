@@ -414,6 +414,26 @@ export class PoolBudgetService {
     const lineProductId = line.product!.id;
     const lineQty = Math.max(1, Math.min(20, Number(line.qty) || 1));
 
+    // v1.11.93: Se a linha esta em "modo auto" (manualUnlink=false e sem formula),
+    // NAO recriar override automaticamente. Senao o "Voltar selecao auto" do simulador
+    // limpa override → este sync detecta linha sem override → recria → loop infinito
+    // no modo auto. O simulador roda auto-select global SEM override quando deve.
+    // Override soh eh sincronizado quando operador EXPLICITAMENTE marcou (manualUnlink
+    // ou formula custom — sinal de escolha intencional do operador).
+    const lineIsManualChoice = (line as any).manualUnlink === true || !!(line as any).formulaExpr;
+    if (!lineIsManualChoice) {
+      // Linha em modo auto — se override existe e nao bate com linha, LIMPA override.
+      if (override) {
+        const newEnv = { ...env };
+        delete newEnv.heatingOverride;
+        await this.prisma.poolBudget.update({
+          where: { id: budgetId },
+          data: { environmentParams: newEnv as any, heatingReport: null as any },
+        });
+      }
+      return;
+    }
+
     // Se override esta consistente, nao faz nada
     if (override && override.productId === lineProductId && Number(override.quantity) === lineQty) {
       return;
