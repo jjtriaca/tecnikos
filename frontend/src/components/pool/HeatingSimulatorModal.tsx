@@ -6,8 +6,9 @@
 //   - Aba "Comparativo" placeholder (F4 implementa)
 // Ver memory/project_heating_simulator_plan.md pra contexto.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
+import { useDebounce } from "@/hooks/useDebounce";
 
 // ============ Tipos ============
 
@@ -224,6 +225,10 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
   const [hidromassagemHorasSemana, setHidromassagemHorasSemana] = useState<number>(6);
   const [cascataLarguraCm, setCascataLarguraCm] = useState<number>(0);
   const [cascataHorasSemana, setCascataHorasSemana] = useState<number>(6);
+  // Ref de "user mexeu" — usado pra disparar auto-save apos debounce so quando o
+  // usuario interage. Inicializa false; viram true quando o user clica/digita
+  // no input dos cards de extras. Reset apos save bem-sucedido.
+  const userTouchedExtrasRef = useRef(false);
   const [bordaInfinitaM, setBordaInfinitaM] = useState<number>(0);
   const [bordaInfinitaAlturaM, setBordaInfinitaAlturaM] = useState<number>(0.5);
   const [bordaInfinitaVazaoLminPorM, setBordaInfinitaVazaoLminPorM] = useState<number>(30);
@@ -327,6 +332,43 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
 
   const ufData = useMemo(() => cities.find((c) => c.uf === uf), [cities, uf]);
   const availableCities = ufData?.cities ?? [];
+
+  // Auto-save com debounce (v1.11.82): quando o user mexe nas horas/sem dos cards
+  // de extras (Cascata/SPA/Borda), dispara save+recompute apos 800ms de inatividade.
+  // Sem precisar clicar Salvar embaixo. Salva so o trio de horas — campos isolados,
+  // sem mexer no resto do environmentParams.
+  const debCascataHoras = useDebounce(cascataHorasSemana, 800);
+  const debHidroHoras = useDebounce(hidromassagemHorasSemana, 800);
+  const debBordaHoras = useDebounce(bordaInfinitaHorasAtivaDia, 800);
+
+  useEffect(() => {
+    if (!open) return;
+    if (loading) return;
+    if (quickMode) return; // calculo rapido nao persiste
+    if (!userTouchedExtrasRef.current) return; // so quando user interagiu
+    // Salva e recomputa em background
+    (async () => {
+      try {
+        const env = { ...(budget.environmentParams ?? {}) } as Record<string, any>;
+        env.cascataHorasSemana = Number(debCascataHoras);
+        env.hidromassagemHorasSemana = Number(debHidroHoras);
+        env.bordaInfinitaHorasAtivaDia = Number(debBordaHoras);
+        await api.put(`/pool-budgets/${budget.id}`, { environmentParams: env });
+        const fresh = await api.post<HeatingReport>(`/pool-budgets/${budget.id}/heating-report/recompute`);
+        setReport(fresh);
+        userTouchedExtrasRef.current = false; // resetar — proximo touch dispara de novo
+        onSaved?.();
+      } catch (e: any) {
+        setError(String(e?.message ?? e));
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debCascataHoras, debHidroHoras, debBordaHoras]);
+
+  // Wrappers que marcam userTouched=true antes de setar o state
+  const touchAndSetCascata = (v: number) => { userTouchedExtrasRef.current = true; setCascataHorasSemana(v); };
+  const touchAndSetHidro = (v: number) => { userTouchedExtrasRef.current = true; setHidromassagemHorasSemana(v); };
+  const touchAndSetBorda = (v: number) => { userTouchedExtrasRef.current = true; setBordaInfinitaHorasAtivaDia(v); };
 
   // Salva environmentParams + recomputa report (modo normal)
   async function handleSaveAndRecompute() {
@@ -760,7 +802,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                                     title="Cascata"
                                     extra={ed!.cascata}
                                     horasValue={cascataHorasSemana}
-                                    onChangeHoras={setCascataHorasSemana}
+                                    onChangeHoras={touchAndSetCascata}
                                   />
                                 )}
                                 {ed!.hidromassagem.status !== "NAO_IDENTIFICADA" && (
@@ -769,7 +811,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                                     title="SPA"
                                     extra={ed!.hidromassagem}
                                     horasValue={hidromassagemHorasSemana}
-                                    onChangeHoras={setHidromassagemHorasSemana}
+                                    onChangeHoras={touchAndSetHidro}
                                   />
                                 )}
                                 {ed!.bordaInfinita.status !== "NAO_IDENTIFICADA" && (
@@ -778,7 +820,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                                     title="Borda"
                                     extra={ed!.bordaInfinita}
                                     horasValue={bordaInfinitaHorasAtivaDia}
-                                    onChangeHoras={setBordaInfinitaHorasAtivaDia}
+                                    onChangeHoras={touchAndSetBorda}
                                     hoursLabel="h/dia"
                                   />
                                 )}
