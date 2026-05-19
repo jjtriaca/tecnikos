@@ -2825,7 +2825,28 @@ const INDICATOR_TEMPLATES: Array<{ label: string; preset: { label: string; expr:
     },
   },
   {
-    label: 'Aquecimento (kcalHNominal / volume)',
+    // Indicador PRECISO de aquecimento — usa o calorNecessarioKcalH calculado pelo
+    // Simulador (fisica termodinamica + clima do UF + extras cascata/SPA/borda). Mede
+    // quanto a mais o equipamento oferece em relacao a carga termica real. Niveis
+    // alinhados com o loadRatio alvo do heating.service.ts (MAX=0.7 → 30% de folga).
+    label: 'Folga aquec. (kcalHNominal vs calorNecessarioKcalH)',
+    preset: {
+      label: 'Folga aquec.',
+      expr: '(kcalHNominal - calorNecessarioKcalH) / calorNecessarioKcalH * 100',
+      unit: '%',
+      levels: [
+        { max: 0, label: 'Insuficiente', color: 'red' },
+        { max: 30, label: 'Justo', color: 'orange' },
+        { max: 70, label: 'Adequado', color: 'emerald' },
+        { max: 150, label: 'Folgado', color: 'yellow' },
+        { max: 9999, label: 'Super-dim.', color: 'red' },
+      ],
+    },
+  },
+  {
+    // LEGADO — so olha pra volume, ignora clima, capa, vento, hidromassagem/cascata/borda.
+    // Mantido pra compat com regras antigas. Usar "Folga aquec." quando heatingReport existir.
+    label: 'Aquecimento generico (so volume — legado)',
     preset: {
       label: 'Aquecimento',
       expr: 'kcalHNominal / volume',
