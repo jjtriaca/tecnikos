@@ -39,8 +39,13 @@
   - `pool-budget.controller.ts`: `/heating/cities` agora passa companyId pra `heatingBudget.listAvailableCities`
   - Comportamento: tenant vazio (1a leitura) → ensureSeeded popula 27 capitais + cidades-polo. Tenant com dados → usa do banco. Arquivo CLIMATE_BY_UF continua como last-resort.
   - tsc clean
-- ⏳ **Fase 4** — motor de calculo Solar
-- ⏳ **Fase 4** — motor de calculo Solar
+- ✅ **Fase 4** — motor de calculo Solar
+  - `solar-constants.ts`: SOLAR_MULT_CAPA (Tabela71), SOLAR_MULT_VENTO (Tabela74), SOLAR_PERDA_BASE_MENSAL (Tabela78), constantes globais (EFICIENCIA=0.65, INSOLACAO=5h, FATOR=1400, DELTA_REF=13, VAZAO_FATOR=0.254, BATERIA_MIN/MAX=5/8), defaults Solis 4.00
+  - `solar.service.ts`: puro. H35 m² = mult_capa × (1 + extra × 0.1) × area; H36 qtd em baterias 5-8; H38 vazao × 0.254 (x2 se baterias >= 4); H39/40 total/cobertura; simulacao 4 dias por mes
+  - `solar-budget.service.ts`: wrapper. listSolarCollectors (filtra Product.technicalSpecs.tipoEquipamento=SOLAR + useInWork), simulate, computeAndSaveReport (cache em environmentParams.solarReport), getReport
+  - DTOs com validacoes (temp 20-40, extra 0-10)
+  - 4 endpoints novos no controller
+  - tsc clean
 - ⏳ **Fase 5** — UI aba Solar (7 secoes)
 - ⏳ **Fase 6** — solarQty bond
 - ⏳ **Fase 7** — backfill 5 coletores Solis na SLS
