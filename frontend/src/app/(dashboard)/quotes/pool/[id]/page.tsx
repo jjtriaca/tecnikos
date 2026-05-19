@@ -1267,7 +1267,13 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
                   className="text-sm tabular-nums text-cyan-700 font-medium hover:underline"
                   title="Clique pra editar a formula">{item.qty}</button>
               ) : (
-                <input type="number" step="0.01" value={qty}
+                <input type="number"
+                  step={(() => {
+                    const d = (item as any).qtyDecimals ?? 0;
+                    if (d <= 0) return "1";
+                    return (1 / Math.pow(10, d)).toString();
+                  })()}
+                  value={qty}
                   onChange={(e) => setQty(parseFloat(e.target.value) || 0)}
                   onBlur={commit}
                   className="w-16 rounded border border-slate-200 px-1 py-0.5 text-center text-sm tabular-nums" />
@@ -1336,8 +1342,9 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             productSpecs: (x.product?.technicalSpecs ?? x.service?.technicalSpecs ?? null) as Record<string, any> | null,
           }))}
         siblingVars={siblingVars}
+        initialQtyDecimals={(item as any).qtyDecimals ?? 0}
         onClose={() => setShowFormula(false)}
-        onSave={(expr) => { setShowFormula(false); onUpdate({ formulaExpr: expr }); }}
+        onSave={(expr, qtyDecimals) => { setShowFormula(false); onUpdate({ formulaExpr: expr, qtyDecimals } as any); }}
         onClear={() => { setShowFormula(false); onUpdate({ formulaExpr: "" }); }}
       />
     )}
@@ -2044,6 +2051,8 @@ const FORMULA_RECIPES_PISCINA: FormulaRecipe[] = [
   // principal e substitui LREF pelo cellRef escolhido. Mais robusto que sibling*
   // (que dependia da ordem dos items na etapa).
   { label: "⏱ Tempo de montagem do equipamento (h)", expr: 'prod(LREF, "tempoMontagemH")', hint: "Le tempoMontagemH (horas) do cadastro do produto vinculado a uma linha especifica (filtro, aquecedor, kit cascata/SPA). Clique pra escolher a linha.", needsLineRef: true },
+  // ── Aquecimento — qty de bomba de calor calculada pela necessidade termica ──
+  { label: "🔥 Quantidade de bomba de calor (auto)", expr: "ceil(calorNecessarioKcalH / kcalHNominal)", hint: "Calcula quantas bombas sao necessarias pra cobrir o calor necessario do Simulador. Ex: piscina pede 50000 Kcal/h, equip da 34400 → 2 bombas. Use em linhas com produto poolType=Bomba de Calor." },
   // ── Produto vinculado (technicalSpecs do cadastro) ──
   { label: "Sacos por consumo (parede+fundo) — CIMA", expr: "ceil(consumoKgM2 * areaParedeEFundo / pesoKg)", hint: "Argamassa, cimentcola, cimento, impermeabilizante: aplica em paredes + fundo (areaParedeEFundo). Ceil = sempre completa o saco." },
   { label: "Sacos por consumo (parede+fundo) — NORMAL", expr: "round(consumoKgM2 * areaParedeEFundo / pesoKg)", hint: "Igual a anterior, arredondamento normal (50.4→50, 50.5→51)" },
@@ -2081,10 +2090,13 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
   // 'siblingTempoMontagemH' pra calcular qty a partir do equipamento da etapa.
   siblingVars?: Record<string, number>;
   onClose: () => void;
-  onSave: (expr: string) => void;
+  onSave: (expr: string, qtyDecimals: number) => void;
   onClear: () => void;
+  /** v1.11.89: numero de casas decimais permitidas no input qty da linha. */
+  initialQtyDecimals?: number;
 }) {
   const [expr, setExpr] = useState(initialExpr);
+  const [qtyDecimals, setQtyDecimals] = useState<number>(initialQtyDecimals ?? 0);
   const inputRef = useRef<HTMLInputElement>(null);
   // Quando o usuario clica numa receita que precisa de linha (needsLineRef),
   // guarda o template aqui e mostra picker de linha logo abaixo.
@@ -2606,6 +2618,22 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
               <div className="text-[11px] text-slate-500 px-1 pt-1">
                 Operadores: <code className="bg-white border border-slate-300 px-1 rounded">+ − × ÷ ( )</code> · Decimal: <code className="bg-white border border-slate-300 px-1 rounded">0.1</code> ou <code className="bg-white border border-slate-300 px-1 rounded">0,1</code> · Use <code className="bg-white border border-slate-300 px-1 rounded">( )</code> pra controlar precedencia.
               </div>
+
+              {/* v1.11.89: Decimais do input QTD na linha do orcamento */}
+              <div className="flex items-center gap-2 px-1 pt-2">
+                <label className="text-xs font-semibold text-slate-700">Decimais no QTD da linha:</label>
+                <select value={qtyDecimals} onChange={(e) => setQtyDecimals(Number(e.target.value))}
+                  className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-900">
+                  <option value={0}>0 (inteiro, ex: 1, 2, 3)</option>
+                  <option value={1}>1 decimal (ex: 1,1 / 2,5)</option>
+                  <option value={2}>2 decimais (ex: 1,01 / 2,55)</option>
+                  <option value={3}>3 decimais (ex: 1,001)</option>
+                  <option value={4}>4 decimais</option>
+                </select>
+                <span className="text-[10px] text-slate-500">
+                  Controla o step das setinhas ▲▼ do input qty da linha (1 / 0,1 / 0,01...).
+                </span>
+              </div>
             </div>
 
             {/* Footer */}
@@ -2617,7 +2645,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
               <div className="flex gap-2">
                 <button type="button" onClick={onClose}
                   className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">Cancelar</button>
-                <button type="button" disabled={!result.ok} onClick={() => onSave(expr)}
+                <button type="button" disabled={!result.ok} onClick={() => onSave(expr, qtyDecimals)}
                   className="rounded-lg bg-cyan-600 px-5 py-2 text-sm font-bold text-white hover:bg-cyan-700 disabled:opacity-40 disabled:cursor-not-allowed">
                   ✓ Aplicar formula
                 </button>

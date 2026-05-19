@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PoolSection } from '@prisma/client';
-import { IsBoolean, IsEnum, IsInt, IsNumber, IsObject, IsOptional, IsString, Min, ValidateIf } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsNumber, IsObject, IsOptional, IsString, Max, Min, ValidateIf } from 'class-validator';
 
 export class CreateBudgetItemDto {
   @ApiPropertyOptional({ description: 'CatalogConfig de origem' })
@@ -120,6 +120,13 @@ export class UpdateBudgetItemDto {
   @IsOptional()
   @IsString()
   formulaExpr?: string;
+
+  @ApiPropertyOptional({ description: 'Casas decimais no input qty (0=inteiro, 1=0.1, 2=0.01...). v1.11.89.' })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(4)
+  qtyDecimals?: number;
 
   // Vinculacao ao catalogo (quando troca item via lupa). null = desvincular (livre).
   @ApiPropertyOptional({ nullable: true })

@@ -1731,6 +1731,7 @@ export class PoolBudgetService {
           : {}),
         ...(dto.manualUnlink !== undefined ? { manualUnlink: dto.manualUnlink } : {}),
         ...(dto.previousQty !== undefined ? { previousQty: dto.previousQty } : {}),
+        ...(dto.qtyDecimals !== undefined ? { qtyDecimals: dto.qtyDecimals } : {}),
         ...(autoCalculatedOverride !== undefined
           ? { isAutoCalculated: autoCalculatedOverride }
           : (dto.qty !== undefined || dto.unitPriceCents !== undefined
