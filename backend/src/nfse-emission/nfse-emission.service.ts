@@ -531,13 +531,25 @@ export class NfseEmissionService {
     // nao surtia efeito no preview da NFS-e.
     const tomador = entry.partner || entry.serviceOrder?.clientPartner;
 
-    // Endereco: pertence ao LOCAL onde o servico foi prestado. Vem do ServiceOrder
-    // (snapshot do endereco da execucao). Quando entry nao tem OS (lancamento direto)
-    // ou OS sem endereco preenchido, fallback pra endereco do tomador.
+    // v1.11.80: TODOS os dados estruturados do tomador (incluindo endereco) vem do
+    // CADASTRO DO PARCEIRO — fisco exige endereco do tomador, nao do local de execucao.
+    // O endereco da OS (local onde o servico foi prestado) vai na DISCRIMINACAO como
+    // texto complementar (campo livre, informativo).
     const osAddr = entry.serviceOrder;
-    const useOsAddress = osAddr && (osAddr.addressStreet || osAddr.cep);
+    const formatOsAddress = (o: typeof osAddr): string => {
+      if (!o) return '';
+      const parts = [
+        o.addressStreet,
+        o.addressNumber ? `n ${o.addressNumber}` : null,
+        o.addressComp,
+        o.neighborhood,
+        o.city && o.state ? `${o.city}-${o.state}` : (o.city || o.state),
+        o.cep,
+      ].filter(Boolean);
+      return parts.join(', ');
+    };
 
-    // Build discriminacao from template
+    // Build discriminacao from template + endereco do servico como complemento
     let discriminacao = '';
     if (entry.serviceOrder) {
       // Has OS — use template with variables
@@ -551,6 +563,14 @@ export class NfseEmissionService {
       // No OS or template resulted in empty — use financial entry description
       discriminacao = entry.description || 'Prestacao de servicos';
     }
+    // Anexa endereco do servico como complemento textual (v1.11.80) — soh quando o
+    // endereco da OS difere do endereco do tomador. Util pra prestador rural ou caso
+    // de cobranca em nome de PJ diferente do local de execucao.
+    const osAddrStr = formatOsAddress(osAddr);
+    const tomadorAddrStr = [tomador?.addressStreet, tomador?.city, tomador?.state, tomador?.cep].filter(Boolean).join(', ');
+    if (osAddrStr && osAddrStr !== tomadorAddrStr && !discriminacao.toLowerCase().includes('local:')) {
+      discriminacao = `${discriminacao}\nLocal de execucao: ${osAddrStr}`.trim();
+    }
 
     return {
       // Prestador (empresa)
@@ -560,27 +580,22 @@ export class NfseEmissionService {
         codigoMunicipio: config.codigoMunicipio,
         razaoSocial: company.name,
       },
-      // Tomador: dados pessoais/fiscais do parceiro atual; endereco do local do servico (OS)
+      // Tomador: TUDO do cadastro do parceiro atual (fisco exige endereco do tomador)
       tomador: {
         partnerId: tomador?.id || null,
-        // Dados fiscais — sempre do parceiro atual
         cnpjCpf: tomador?.document || '',
         razaoSocial: tomador?.name || '',
         email: tomador?.email || '',
         telefone: tomador?.phone || '',
         caepf: tomador?.caepf || '',
         isRuralProducer: tomador?.isRuralProducer || false,
-        // Endereco — do ServiceOrder quando disponivel (servico foi executado la),
-        // fallback pra endereco do tomador quando nao tem OS ou OS sem endereco.
-        logradouro: useOsAddress ? (osAddr!.addressStreet || '') : (tomador?.addressStreet || ''),
-        numero: useOsAddress ? (osAddr!.addressNumber || '') : (tomador?.addressNumber || ''),
-        complemento: useOsAddress ? (osAddr!.addressComp || '') : (tomador?.addressComp || ''),
-        bairro: useOsAddress ? (osAddr!.neighborhood || '') : (tomador?.neighborhood || ''),
-        uf: useOsAddress ? (osAddr!.state || '') : (tomador?.state || ''),
-        cep: useOsAddress ? (osAddr!.cep || '') : (tomador?.cep || ''),
-        city: useOsAddress ? (osAddr!.city || '') : (tomador?.city || ''),
-        // IBGE: nao temos no ServiceOrder, fallback pra cadastro do tomador / config.
-        // Operador pode ajustar manualmente no modal se servico foi em municipio diferente.
+        logradouro: tomador?.addressStreet || '',
+        numero: tomador?.addressNumber || '',
+        complemento: tomador?.addressComp || '',
+        bairro: tomador?.neighborhood || '',
+        uf: tomador?.state || '',
+        cep: tomador?.cep || '',
+        city: tomador?.city || '',
         codigoMunicipio: (tomador as any)?.ibgeCode || config.codigoMunicipio || '',
       },
       // Serviço
