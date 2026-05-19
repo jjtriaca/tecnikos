@@ -1,7 +1,55 @@
 # TAREFA ATUAL
 
-## Versao: v1.11.52 (em prod)
-## Ultima sessao: 205 (18/05/2026)
+## Versao: v1.11.72 (em prod)
+## Ultima sessao: 206 (19/05/2026)
+
+## v1.11.72 — fix(pool): auto-select de bomba de calor — `and`/`or` literal nao evaluava
+- **Sintoma**: Juliano reportou "selecao de bomba de calor automatica nao encontra candidatos mesmo tendo equipamentos corretos". O Simulador (modal) mostrava "Tholz X23-40C" como recomendado, mas a linha do orcamento mantinha o produto antigo ("Bomba Top+9" sem kcalHNominal) vinculado.
+- **Causa raiz**: template "🔥 Bomba de Calor (preciso — termodinamico)" usava `where: '... and ...'` com `and` literal (estilo SQL/Python). O `Function()` eval do JS so aceita `&&`/`||`, entao o check `if (/[a-zA-Z_]/.test(stripped)) return false` em [auto-select.helper.ts:142](backend/src/pool-budget/auto-select.helper.ts) rejeitava TODOS os candidatos no filterByWhere. `selectBestCandidate` retornava null → codigo nao desvincula → mantinha legado. O Simulador (heating.service.ts) funcionou desde sempre porque usa filter puro JS sem eval.
+- **Diagnostico**: query SQL no tenant_sls confirmou: PoolBudgetItem ORCP-00001 com `autoSelectRule.where` = `'kcalHNominal >= calorNecessarioKcalH and kcalHNominal <= calorNecessarioKcalH * 3.33'`, productId vinculado a Top+9 (sem kcal), mas heatingReport.selectedEquipment = Tholz X23-40C (correto).
+- **Fix em 2 partes** (mesmo commit):
+  1. Template [page.tsx:2680](frontend/src/app/(dashboard)/quotes/pool/[id]/page.tsx): `and` → `&&`.
+  2. Defensivo em [auto-select.helper.ts:substituteVars](backend/src/pool-budget/auto-select.helper.ts): `s.replace(/\band\b/g, '&&').replace(/\bor\b/g, '||')` antes do replace de vars. Cobre regras antigas ja persistidas no DB sem precisar migration — proxima vez que recalc roda, escolhe correto.
+- **Validacao em prod**: confirmado `s = s.replace(/\band\b/g, '&&')...` no `/app/dist/src/pool-budget/auto-select.helper.js` do container `tecnikos_backend`. Operador precisa reabrir o orcamento ORCP-00001 e clicar em algum recalc (ou trocar qty de qualquer linha) pra que o PASSO 0 reescolha o equipamento.
+
+## RECAP SESSAO 205 — v1.11.53 → v1.11.71 (19 versoes deployadas)
+
+Continuacao do **Simulador de Aquecimento (Trocador)** — F5/F6 + multiplos fixes:
+
+**v1.11.53** fix(heating): tempo de elevacao desconta perda termica continua
+**v1.11.54** feat(heating): borda infinita usa modelo fisico (altura + vazao + vento)
+**v1.11.55** feat(heating): 3 COPs por modelo + horas-ativa da borda infinita
+**v1.11.56** feat(products): campos detalhados de aquecimento + padrao "?" tooltip
+**v1.11.57** fix(products): tooltip "?" usa portal + remove Kcal/h min/max legado
+**v1.11.58** feat(heating): modo "Calculo rapido" — simula sem salvar no orcamento
+**v1.11.59** feat(heating): consumo mensal via COP polinomial × carga (modelo TAB006)
+**v1.11.60** fix(heating): normaliza enums + multiplos automaticos quando unico nao cobre
+**v1.11.61** feat(pool): F6.1 — dados de aquecimento no modal Editar + padrao do tenant
+**v1.11.62** feat(pool): F6.2 — Simulador agrega extras das linhas (cascata/SPA/borda)
+**v1.11.63** feat(pool): F6.3 — equipamento da linha + card consumo medio mensal
+**v1.11.64** feat(pool): F6.4 — Simulador read-only + cabecalho colapsavel "Dados do projeto"
+**v1.11.65** fix(heating): troca card "Consumo medio mensal" por "Custo medio mensal"
+**v1.11.66** fix(heating): auto-compute heatingReport quando auto-select precisa
+**v1.11.67** fix(pool-catalog): nao mostrar produtos soft-deletados no catalog picker
+**v1.11.68** fix(pool): editar dados volta pra pagina /new com aba aquecimento expandida
+**v1.11.69** fix(pool): preview do AutoSelectModal usa calorNecessarioKcalH do heatingReport
+**v1.11.70** fix(pool): auto-compute heatingReport no load + filterPoolType no template
+**v1.11.71** feat(heating): dropdown pra trocar equipamento manual + recalcular
+
+## 🟦 PENDENTE — Sessao 206
+
+### Validacao apos fix v1.11.72
+- Juliano testar: abrir ORCP-00001 → linha Bomba de Calor deveria atualizar pra Tholz X23-40C apos qualquer recalc (mudar qty de outra linha, salvar dados, etc).
+
+### F5 do Simulador — ainda pendente
+- **Bloco PDF Aquecimento** no PoolPrintLayout: replicar tabela mensal + comparativo + equipamento no print do orcamento. 2-3h.
+
+### Outras pendentes (estaveis desde v1.11.52)
+🟨 **Tabelas com max-w fixo na descricao** (memory/feedback_truncate_descricao.md) — 10 arquivos
+🟦 **Tracking universal Fases 3-6** (sessao 200): Cadastros, Fiscal, Config/Workflow/Piscina, soft delete + lixeira. ~4-5h
+🟡 Canal EMAIL mock, FinancialInstallment legacy, Sweep ortografico
+
+---
 
 ## v1.11.52 — fix(energy-tariff): toast(message, type) assinatura correta
 - Deploy v1.11.51 falhou silenciosamente (build frontend errou): `toast({type,message})` invalido — assinatura real eh `toast(message, type)`. Mesmo padrao do incidente do `feedback_deploy_build_silent.md` — script declarou sucesso, commitou+pushou v1.11.51 mas prod ficou em v1.11.50.
