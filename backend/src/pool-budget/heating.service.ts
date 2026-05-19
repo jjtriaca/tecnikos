@@ -16,9 +16,9 @@ import {
   ClimateCity,
   CONVERSIONS,
   EQUIPMENT_SELECTION,
-  EXTRAS_HORAS_SEMANA_DEFAULT,
   EXTRAS_KCAL_H,
   FonteEnergia,
+  getExtraDefaultHorasSemana,
   getActiveMonths,
   HEATING_OPERATION_DEFAULTS,
   OTHER_LOSSES_FACTOR,
@@ -142,6 +142,43 @@ export interface TariffInput {
   gnM3BRLCents: number;
 }
 
+// ============ EXTRAS DETECTED (status das etapas) ============
+//
+// Resumo de quais extras foram identificados nas linhas das etapas do orcamento.
+// Permite UI mostrar "Sem cascata", "Cascata 100cm (Kit Inox)" ou avisos
+// "Cascata identificada mas falta cascataComprimentoCm em [Produto X]".
+
+export type ExtraStatus = 'NAO_IDENTIFICADA' | 'IDENTIFICADA_COMPLETA' | 'IDENTIFICADA_FALTANDO_INFO';
+
+export interface ExtraLineDetail {
+  productId: string;
+  productName: string;
+  qty: number;
+  /** Valor da spec (cm/jatos/m) — null quando produto nao tem o campo preenchido */
+  value: number | null;
+  /** Campo do technicalSpecs procurado (ex: 'cascataComprimentoCm') */
+  specField: string;
+}
+
+export interface ExtraDetected {
+  status: ExtraStatus;
+  /** Total agregado em unidade nativa (cm pra cascata, jatos pra hidro, m pra borda) */
+  totalValue: number;
+  unit: string;
+  /** Horas/semana aplicadas no calculo (default por tipoPiscina ou input) */
+  horasSemana?: number;
+  /** Detalhes por linha pra UI mostrar produto + quantidade */
+  lines: ExtraLineDetail[];
+  /** Mensagem user-friendly do status */
+  message: string;
+}
+
+export interface ExtrasDetected {
+  cascata: ExtraDetected;
+  hidromassagem: ExtraDetected;
+  bordaInfinita: ExtraDetected;
+}
+
 export interface HeatingReport {
   computedAt: string; // ISO
 
@@ -180,6 +217,11 @@ export interface HeatingReport {
 
   // Comparativo
   comparativo?: ComparativoFonte[];
+
+  // Status dos extras detectados nas linhas das etapas (UI usa pra mostrar
+  // cascata/hidromassagem/borda com nome do produto + horas/sem editavel,
+  // ou avisos quando produto tem informacao faltando)
+  extrasDetected?: ExtrasDetected;
 }
 
 // ============ SERVICE ============
@@ -265,10 +307,10 @@ export class HeatingService {
     const cascataCm = Number(inputs.cascataLarguraCm) || 0;
     const hidroHorasSemana = inputs.hidromassagemHorasSemana != null
       ? Number(inputs.hidromassagemHorasSemana)
-      : EXTRAS_HORAS_SEMANA_DEFAULT.hidromassagem;
+      : getExtraDefaultHorasSemana(inputs.tipoPiscina, 'hidromassagem');
     const cascataHorasSemana = inputs.cascataHorasSemana != null
       ? Number(inputs.cascataHorasSemana)
-      : EXTRAS_HORAS_SEMANA_DEFAULT.cascata;
+      : getExtraDefaultHorasSemana(inputs.tipoPiscina, 'cascata');
     const HORAS_SEMANA_TOTAL = 7 * 24; // 168
     const hidroPeso = Math.max(0, Math.min(1, hidroHorasSemana / HORAS_SEMANA_TOTAL));
     const cascataPeso = Math.max(0, Math.min(1, cascataHorasSemana / HORAS_SEMANA_TOTAL));

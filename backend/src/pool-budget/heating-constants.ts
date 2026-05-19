@@ -448,14 +448,24 @@ export const EXTRAS_KCAL_H = {
   cascataPerCm: 50,
 };
 
-// Padrao de horas/semana que cascata e hidromassagem ficam ligadas. 2h/semana
-// reflete uso CASUAL (final de semana, festa) — peso ~1.2% das 168h/semana.
-// Se o cliente usa mais, operador ajusta na UI. Borda infinita usa horas/DIA
-// (diferente granularidade — borda costuma ficar ligada 24h/dia em piscinas
-// de luxo, enquanto cascata e hidromassagem sao esporadicas).
+// Padrao de horas/semana que cascata e hidromassagem ficam ligadas, por tipo
+// de piscina:
+// - PRIVATIVA: 6h/sem (~50min/dia) — uso casual/decorativo
+// - COLETIVA: 42h/sem (~6h/dia) — uso comercial intenso
+// Se o cliente usa diferente, operador ajusta na UI.
+// Borda infinita usa horas/DIA (granularidade diferente — borda em piscinas
+// de luxo costuma ficar 24h/dia, modelada separadamente).
+export function getExtraDefaultHorasSemana(
+  tipoPiscina: TipoPiscina,
+  _extra: 'cascata' | 'hidromassagem',
+): number {
+  return tipoPiscina === 'COLETIVA' ? 42 : 6;
+}
+
+// Fallback global (usado quando tipoPiscina nao for resolvido — raro)
 export const EXTRAS_HORAS_SEMANA_DEFAULT = {
-  cascata: 2,
-  hidromassagem: 2,
+  cascata: 6,
+  hidromassagem: 6,
 };
 
 // ============ BORDA INFINITA — modelo fisico ============

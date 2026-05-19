@@ -70,6 +70,31 @@ interface ComparativoFonte {
   custoAnualBRLCents: number;
 }
 
+type ExtraStatus = 'NAO_IDENTIFICADA' | 'IDENTIFICADA_COMPLETA' | 'IDENTIFICADA_FALTANDO_INFO';
+
+interface ExtraLineDetail {
+  productId: string;
+  productName: string;
+  qty: number;
+  value: number | null;
+  specField: string;
+}
+
+interface ExtraDetected {
+  status: ExtraStatus;
+  totalValue: number;
+  unit: string;
+  horasSemana?: number;
+  lines: ExtraLineDetail[];
+  message: string;
+}
+
+interface ExtrasDetected {
+  cascata: ExtraDetected;
+  hidromassagem: ExtraDetected;
+  bordaInfinita: ExtraDetected;
+}
+
 interface HeatingReport {
   computedAt: string;
   cityResolved: { uf: string; name: string };
@@ -90,6 +115,7 @@ interface HeatingReport {
   annualCostBRLCents?: number;
   initialHeatingCostBRLCents?: number;
   comparativo?: ComparativoFonte[];
+  extrasDetected?: ExtrasDetected;
 }
 
 interface BudgetForHeating {
@@ -190,11 +216,12 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
   const [utilizacaoAno, setUtilizacaoAno] = useState<string>("ANO_TODO");
   const [utilizacaoSemana, setUtilizacaoSemana] = useState<string>("MES_TODO");
   const [hidromassagensQtd, setHidromassagensQtd] = useState<number>(0);
-  // Horas/semana que cascata/hidromassagem ficam ligadas (default 2 = uso casual).
-  // Multiplicado por horas/168 no calculo — 2h/semana = peso ~1.2% das 168h.
-  const [hidromassagemHorasSemana, setHidromassagemHorasSemana] = useState<number>(2);
+  // Horas/semana que cascata/hidromassagem ficam ligadas. Defaults por tipoPiscina
+  // (resolvidos no carregamento): 6h Privativa, 42h Coletiva. Multiplicado por
+  // horas/168 no calculo termico (peso temporal).
+  const [hidromassagemHorasSemana, setHidromassagemHorasSemana] = useState<number>(6);
   const [cascataLarguraCm, setCascataLarguraCm] = useState<number>(0);
-  const [cascataHorasSemana, setCascataHorasSemana] = useState<number>(2);
+  const [cascataHorasSemana, setCascataHorasSemana] = useState<number>(6);
   const [bordaInfinitaM, setBordaInfinitaM] = useState<number>(0);
   const [bordaInfinitaAlturaM, setBordaInfinitaAlturaM] = useState<number>(0.5);
   const [bordaInfinitaVazaoLminPorM, setBordaInfinitaVazaoLminPorM] = useState<number>(30);
@@ -256,9 +283,11 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
     setUtilizacaoAno(normEnum(env.utilizacaoAno, ["ANO_TODO", "VERAO", "INVERNO"], "ANO_TODO"));
     setUtilizacaoSemana(normEnum(env.utilizacaoSemana, ["MES_TODO", "FIM_DE_SEMANA"], "MES_TODO"));
     setHidromassagensQtd(Number(env.hidromassagensQtd) || 0);
-    setHidromassagemHorasSemana(env.hidromassagemHorasSemana != null ? Number(env.hidromassagemHorasSemana) : 2);
+    // Default por tipoPiscina (6h privativa, 42h coletiva) — backend tambem aplica
+    const defaultHoras = (env.tipoPiscina === "COLETIVA") ? 42 : 6;
+    setHidromassagemHorasSemana(env.hidromassagemHorasSemana != null ? Number(env.hidromassagemHorasSemana) : defaultHoras);
     setCascataLarguraCm(Number(env.cascataLarguraCm) || 0);
-    setCascataHorasSemana(env.cascataHorasSemana != null ? Number(env.cascataHorasSemana) : 2);
+    setCascataHorasSemana(env.cascataHorasSemana != null ? Number(env.cascataHorasSemana) : defaultHoras);
     setBordaInfinitaM(Number(env.bordaInfinitaM) || 0);
     setBordaInfinitaAlturaM(Number(env.bordaInfinitaAlturaM) || 0.5);
     setBordaInfinitaVazaoLminPorM(Number(env.bordaInfinitaVazaoLminPorM) || 30);
@@ -441,6 +470,54 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
 
           {activeTab === "bomba" && (
             <div className="space-y-4">
+              {/* BLOCO EXTRAS IDENTIFICADOS NAS ETAPAS (v1.11.75)
+                  Mostra status de cascata/hidromassagem/borda detectadas nas linhas:
+                  - NAO_IDENTIFICADA: cinza "Sem cascata identificada"
+                  - IDENTIFICADA_COMPLETA: verde com nome do produto + horas/sem editavel
+                  - IDENTIFICADA_FALTANDO_INFO: amarelo apontando spec faltando
+                  Horas/sem editavel reusa o state cascataHorasSemana / hidromassagemHorasSemana,
+                  que ja sao salvos via handleSubmit (botao Salvar existente). */}
+              {report?.extrasDetected && (
+                <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">✨</span>
+                      <span className="text-sm font-bold text-slate-900">Extras identificados nas etapas</span>
+                    </div>
+                    {!quickMode && (
+                      <span className="text-[10px] text-slate-400">Dados das linhas do orcamento + cadastro do produto</span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <ExtraDetectedCard
+                      icon="🌊"
+                      title="Cascata"
+                      extra={report.extrasDetected.cascata}
+                      horasValue={cascataHorasSemana}
+                      onChangeHoras={setCascataHorasSemana}
+                      readOnly={!quickMode && !projectExpanded}
+                    />
+                    <ExtraDetectedCard
+                      icon="💦"
+                      title="Hidromassagem / SPA"
+                      extra={report.extrasDetected.hidromassagem}
+                      horasValue={hidromassagemHorasSemana}
+                      onChangeHoras={setHidromassagemHorasSemana}
+                      readOnly={!quickMode && !projectExpanded}
+                    />
+                    <ExtraDetectedCard
+                      icon="🏞"
+                      title="Borda infinita"
+                      extra={report.extrasDetected.bordaInfinita}
+                      horasValue={bordaInfinitaHorasAtivaDia}
+                      onChangeHoras={(v) => setBordaInfinitaHorasAtivaDia(v)}
+                      hoursLabel="horas/dia"
+                      readOnly={!quickMode && !projectExpanded}
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* CABECALHO COLAPSAVEL — Dados do projeto (F6.4)
                   Quando minimizado: pills compactas com infos chave pra apresentacao limpa
                   Quando expandido + quickMode: inputs editaveis (simulacao livre)
@@ -1079,6 +1156,87 @@ function SmallStat({ label, value }: { label: string; value: string }) {
 
 function fmtBRL(cents: number): string {
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function ExtraDetectedCard({
+  icon,
+  title,
+  extra,
+  horasValue,
+  onChangeHoras,
+  hoursLabel,
+  readOnly,
+}: {
+  icon: string;
+  title: string;
+  extra: ExtraDetected;
+  horasValue: number;
+  onChangeHoras: (n: number) => void;
+  hoursLabel?: string;
+  readOnly?: boolean;
+}) {
+  const tone = extra.status === "IDENTIFICADA_COMPLETA"
+    ? { border: "border-emerald-200", bg: "bg-emerald-50", title: "text-emerald-900", label: "text-emerald-700" }
+    : extra.status === "IDENTIFICADA_FALTANDO_INFO"
+    ? { border: "border-amber-300", bg: "bg-amber-50", title: "text-amber-900", label: "text-amber-700" }
+    : { border: "border-slate-200", bg: "bg-slate-50", title: "text-slate-600", label: "text-slate-500" };
+
+  return (
+    <div className={`rounded-lg border ${tone.border} ${tone.bg} p-3 flex flex-col gap-2`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-base">{icon}</span>
+          <span className={`text-sm font-semibold ${tone.title}`}>{title}</span>
+        </div>
+        {extra.status === "IDENTIFICADA_COMPLETA" && (
+          <span className="text-[10px] font-medium uppercase tracking-wide text-emerald-700">OK</span>
+        )}
+        {extra.status === "IDENTIFICADA_FALTANDO_INFO" && (
+          <span className="text-[10px] font-medium uppercase tracking-wide text-amber-700">FALTA INFO</span>
+        )}
+      </div>
+
+      {extra.status === "NAO_IDENTIFICADA" && (
+        <div className="text-xs text-slate-600">{extra.message}</div>
+      )}
+
+      {extra.status === "IDENTIFICADA_FALTANDO_INFO" && (
+        <div className="text-xs text-amber-900 leading-snug">{extra.message}</div>
+      )}
+
+      {extra.status === "IDENTIFICADA_COMPLETA" && (
+        <>
+          <div className={`text-xs ${tone.label}`}>
+            Total: <strong className={tone.title}>{extra.totalValue} {extra.unit}</strong>
+          </div>
+          {extra.lines.length > 0 && (
+            <div className="text-[10px] text-slate-600 leading-tight">
+              {extra.lines.map((l, i) => (
+                <div key={i} className="truncate" title={`${l.qty}× ${l.productName} (${l.value} ${extra.unit})`}>
+                  • {l.qty}× <span className="font-medium">{l.productName}</span> ({l.value} {extra.unit})
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-2 mt-1 pt-2 border-t border-emerald-200">
+            <label className={`text-[11px] font-medium ${tone.label} whitespace-nowrap`}>
+              {hoursLabel ?? "horas/semana"}:
+            </label>
+            <input
+              type="number"
+              value={horasValue}
+              onChange={(e) => onChangeHoras(Number(e.target.value) || 0)}
+              disabled={readOnly}
+              min={0}
+              max={hoursLabel?.includes("dia") ? 24 : 168}
+              step={1}
+              className="w-16 rounded border border-slate-300 bg-white px-2 py-1 text-sm font-bold text-slate-900 disabled:bg-slate-100 disabled:text-slate-500"
+            />
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 function Pill({ icon, text, tone }: { icon: string; text: string; tone: "slate" | "cyan" | "amber" | "orange" | "emerald" }) {

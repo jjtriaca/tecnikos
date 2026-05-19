@@ -12,9 +12,9 @@ import {
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { HeatingService, HeatingInputs, HeatingReport, TariffInput } from './heating.service';
+import { HeatingService, HeatingInputs, HeatingReport, TariffInput, ExtrasDetected, ExtraLineDetail, ExtraDetected } from './heating.service';
 import { UpsertEnergyTariffDto } from './dto/energy-tariff.dto';
-import { HEATING_OPERATION_DEFAULTS, UFCode, VentoLevel, TipoConstrucao, TipoPiscina, UtilizacaoAno, UtilizacaoSemana, CLIMATE_BY_UF } from './heating-constants';
+import { HEATING_OPERATION_DEFAULTS, UFCode, VentoLevel, TipoConstrucao, TipoPiscina, UtilizacaoAno, UtilizacaoSemana, CLIMATE_BY_UF, getExtraDefaultHorasSemana } from './heating-constants';
 
 const DEFAULT_TARIFF: TariffInput = {
   kwhBRLCents: 115, // R$ 1.15/kWh
@@ -30,6 +30,10 @@ interface AggregatedExtras {
   bordaInfinitaAlturaM?: number;
   bordaInfinitaVazaoLminPorM?: number;
   bordaInfinitaHorasAtivaDia?: number;
+  // Detalhes por linha pra construcao do ExtrasDetected (v1.11.75)
+  cascataLines?: ExtraLineDetail[];
+  hidromassagemLines?: ExtraLineDetail[];
+  bordaInfinitaLines?: ExtraLineDetail[];
 }
 
 @Injectable()
@@ -184,6 +188,9 @@ export class HeatingBudgetService {
         (report.selectedEquipment as any).fromItemCellRef = fromItem._cellRef;
       }
     }
+
+    // Status dos extras (cascata/hidromassagem/borda) com mensagens user-friendly
+    report.extrasDetected = this.buildExtrasDetected(aggregated, inputs.tipoPiscina, inputs);
 
     await this.prisma.poolBudget.update({
       where: { id: budgetId },
@@ -420,15 +427,19 @@ export class HeatingBudgetService {
    * O matching de poolType eh case-insensitive + substring (cobre "Bomba de Calor",
    * "Kit SPA", "Cascata Inox", etc).
    */
-  private aggregateExtrasFromItems(items: Array<{ qty: number; product?: { poolType: string | null; technicalSpecs: any } | null }>): AggregatedExtras {
+  private aggregateExtrasFromItems(items: Array<{ qty: number; description?: string | null; product?: { id?: string; description?: string | null; model?: string | null; poolType: string | null; technicalSpecs: any } | null }>): AggregatedExtras {
     const out: AggregatedExtras = {};
 
-    let cascataTotal = 0; let cascataCount = 0;
-    let hidroTotal = 0; let hidroCount = 0;
-    let bordaTotal = 0; let bordaCount = 0;
+    let cascataTotal = 0;
+    let hidroTotal = 0;
+    let bordaTotal = 0;
     let bordaFirstAltura: number | undefined;
     let bordaFirstVazao: number | undefined;
     let bordaFirstHoras: number | undefined;
+
+    const cascataLines: ExtraLineDetail[] = [];
+    const hidromassagemLines: ExtraLineDetail[] = [];
+    const bordaInfinitaLines: ExtraLineDetail[] = [];
 
     for (const it of items || []) {
       const product = it.product;
@@ -438,29 +449,33 @@ export class HeatingBudgetService {
       const qty = Number(it.qty) || 0;
       if (qty <= 0) continue;
 
-      // Cascata
+      const productName = product.model || product.description || it.description || 'Produto sem nome';
+      const productId = product.id || '';
+
+      // Cascata — cascataComprimentoCm do produto vinculado
       if (pt.includes('cascata')) {
-        const cm = Number(specs.cascataComprimentoCm) || 0;
-        if (cm > 0) {
+        const raw = specs.cascataComprimentoCm;
+        const cm = typeof raw === 'number' && raw > 0 ? raw : null;
+        if (cm != null) {
           cascataTotal += qty * cm;
-          cascataCount++;
         }
+        cascataLines.push({ productId, productName, qty, value: cm, specField: 'cascataComprimentoCm' });
       }
-      // Hidromassagem / SPA
+      // Hidromassagem / SPA — qtdJatos do produto vinculado
       else if (pt.includes('hidromassagem') || pt.includes('spa') || pt.includes('jato')) {
-        const jatos = Number(specs.qtdJatos) || 0;
-        if (jatos > 0) {
+        const raw = specs.qtdJatos;
+        const jatos = typeof raw === 'number' && raw > 0 ? raw : null;
+        if (jatos != null) {
           hidroTotal += qty * jatos;
-          hidroCount++;
         }
+        hidromassagemLines.push({ productId, productName, qty, value: jatos, specField: 'qtdJatos' });
       }
-      // Borda Infinita
+      // Borda Infinita — qty da linha = comprimento em metros
       else if (pt.includes('borda')) {
-        // qty da linha = comprimento em metros
         bordaTotal += qty;
-        bordaCount++;
+        bordaInfinitaLines.push({ productId, productName, qty, value: qty, specField: 'qty' });
         // Primeiro produto define specs (altura/vazao/horas)
-        if (bordaCount === 1) {
+        if (bordaInfinitaLines.length === 1) {
           if (typeof specs.bordaAlturaQuedaM === 'number') bordaFirstAltura = specs.bordaAlturaQuedaM;
           if (typeof specs.bordaVazaoLminPorM === 'number') bordaFirstVazao = specs.bordaVazaoLminPorM;
           if (typeof specs.bordaHorasAtivaDia === 'number') bordaFirstHoras = specs.bordaHorasAtivaDia;
@@ -468,16 +483,108 @@ export class HeatingBudgetService {
       }
     }
 
-    if (cascataCount > 0) out.cascataLarguraCm = cascataTotal;
-    if (hidroCount > 0) out.hidromassagensQtd = hidroTotal;
-    if (bordaCount > 0) {
-      out.bordaInfinitaM = bordaTotal;
-      if (bordaFirstAltura != null) out.bordaInfinitaAlturaM = bordaFirstAltura;
-      if (bordaFirstVazao != null) out.bordaInfinitaVazaoLminPorM = bordaFirstVazao;
-      if (bordaFirstHoras != null) out.bordaInfinitaHorasAtivaDia = bordaFirstHoras;
+    if (cascataLines.length > 0) {
+      out.cascataLines = cascataLines;
+      if (cascataTotal > 0) out.cascataLarguraCm = cascataTotal;
+    }
+    if (hidromassagemLines.length > 0) {
+      out.hidromassagemLines = hidromassagemLines;
+      if (hidroTotal > 0) out.hidromassagensQtd = hidroTotal;
+    }
+    if (bordaInfinitaLines.length > 0) {
+      out.bordaInfinitaLines = bordaInfinitaLines;
+      if (bordaTotal > 0) {
+        out.bordaInfinitaM = bordaTotal;
+        if (bordaFirstAltura != null) out.bordaInfinitaAlturaM = bordaFirstAltura;
+        if (bordaFirstVazao != null) out.bordaInfinitaVazaoLminPorM = bordaFirstVazao;
+        if (bordaFirstHoras != null) out.bordaInfinitaHorasAtivaDia = bordaFirstHoras;
+      }
     }
 
     return out;
+  }
+
+  /**
+   * Constroi o ExtrasDetected pro report — status user-friendly de cada extra
+   * (cascata, hidromassagem, borda infinita) com detalhes por linha + mensagem.
+   * Quando a linha existe mas falta info no cadastro do produto, retorna
+   * IDENTIFICADA_FALTANDO_INFO com a mensagem apontando qual campo preencher.
+   */
+  private buildExtrasDetected(
+    aggregated: AggregatedExtras,
+    tipoPiscina: TipoPiscina,
+    inputs: HeatingInputs,
+  ): ExtrasDetected {
+    const buildItem = (
+      lines: ExtraLineDetail[] | undefined,
+      total: number | undefined,
+      unit: string,
+      labelExtra: string,
+      cadastroPath: string,
+      horasSemana: number | undefined,
+    ): ExtraDetected => {
+      if (!lines || lines.length === 0) {
+        return {
+          status: 'NAO_IDENTIFICADA',
+          totalValue: 0,
+          unit,
+          lines: [],
+          message: `Sem ${labelExtra} identificada nas etapas`,
+        };
+      }
+      const missingLines = lines.filter((l) => l.value == null);
+      if (missingLines.length > 0) {
+        const productList = missingLines.map((l) => `"${l.productName}"`).slice(0, 3).join(', ');
+        const more = missingLines.length > 3 ? ` (+${missingLines.length - 3})` : '';
+        const field = missingLines[0].specField;
+        return {
+          status: 'IDENTIFICADA_FALTANDO_INFO',
+          totalValue: total ?? 0,
+          unit,
+          horasSemana,
+          lines,
+          message: `${labelExtra} identificada mas falta "${field}" em ${productList}${more}. Preencha em ${cadastroPath}`,
+        };
+      }
+      return {
+        status: 'IDENTIFICADA_COMPLETA',
+        totalValue: total ?? 0,
+        unit,
+        horasSemana,
+        lines,
+        message: `${labelExtra} identificada: ${total} ${unit} total`,
+      };
+    };
+
+    const cascataHoras = inputs.cascataHorasSemana ?? getExtraDefaultHorasSemana(tipoPiscina, 'cascata');
+    const hidroHoras = inputs.hidromassagemHorasSemana ?? getExtraDefaultHorasSemana(tipoPiscina, 'hidromassagem');
+
+    return {
+      cascata: buildItem(
+        aggregated.cascataLines,
+        aggregated.cascataLarguraCm,
+        'cm',
+        'Cascata',
+        'Cadastros > Produtos > Aba Piscina',
+        cascataHoras,
+      ),
+      hidromassagem: buildItem(
+        aggregated.hidromassagemLines,
+        aggregated.hidromassagensQtd,
+        'jatos',
+        'Hidromassagem/SPA',
+        'Cadastros > Produtos > Aba Piscina',
+        hidroHoras,
+      ),
+      bordaInfinita: buildItem(
+        aggregated.bordaInfinitaLines,
+        aggregated.bordaInfinitaM,
+        'm',
+        'Borda infinita',
+        'qty da linha = metros',
+        inputs.bordaInfinitaHorasAtivaDia != null ? inputs.bordaInfinitaHorasAtivaDia * 7 : undefined,
+      ),
+    };
   }
 
   /** Busca produtos com poolType=Bomba de Calor + technicalSpecs.kcalHNominal preenchido. */
