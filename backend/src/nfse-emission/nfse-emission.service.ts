@@ -525,7 +525,17 @@ export class NfseEmissionService {
     if (!entry) throw new NotFoundException('Lançamento financeiro não encontrado');
 
     const company = entry.company;
-    const tomador = entry.serviceOrder?.clientPartner || entry.partner;
+    // v1.11.79: prioridade do tomador = entry.partner (reflete troca manual via "Editar
+    // Lancamento") > serviceOrder.clientPartner (cliente original da OS). Antes priorizava
+    // o clientPartner, mas ele eh imutavel apos criacao da OS — trocar partner da entry
+    // nao surtia efeito no preview da NFS-e.
+    const tomador = entry.partner || entry.serviceOrder?.clientPartner;
+
+    // Endereco: pertence ao LOCAL onde o servico foi prestado. Vem do ServiceOrder
+    // (snapshot do endereco da execucao). Quando entry nao tem OS (lancamento direto)
+    // ou OS sem endereco preenchido, fallback pra endereco do tomador.
+    const osAddr = entry.serviceOrder;
+    const useOsAddress = osAddr && (osAddr.addressStreet || osAddr.cep);
 
     // Build discriminacao from template
     let discriminacao = '';
@@ -550,23 +560,28 @@ export class NfseEmissionService {
         codigoMunicipio: config.codigoMunicipio,
         razaoSocial: company.name,
       },
-      // Tomador (cliente/parceiro)
+      // Tomador: dados pessoais/fiscais do parceiro atual; endereco do local do servico (OS)
       tomador: {
         partnerId: tomador?.id || null,
+        // Dados fiscais — sempre do parceiro atual
         cnpjCpf: tomador?.document || '',
         razaoSocial: tomador?.name || '',
         email: tomador?.email || '',
         telefone: tomador?.phone || '',
-        logradouro: tomador?.addressStreet || '',
-        numero: tomador?.addressNumber || '',
-        complemento: tomador?.addressComp || '',
-        bairro: tomador?.neighborhood || '',
-        codigoMunicipio: (tomador as any)?.ibgeCode || config.codigoMunicipio || '',
-        uf: tomador?.state || '',
-        cep: tomador?.cep || '',
-        city: tomador?.city || '',
         caepf: tomador?.caepf || '',
         isRuralProducer: tomador?.isRuralProducer || false,
+        // Endereco — do ServiceOrder quando disponivel (servico foi executado la),
+        // fallback pra endereco do tomador quando nao tem OS ou OS sem endereco.
+        logradouro: useOsAddress ? (osAddr!.addressStreet || '') : (tomador?.addressStreet || ''),
+        numero: useOsAddress ? (osAddr!.addressNumber || '') : (tomador?.addressNumber || ''),
+        complemento: useOsAddress ? (osAddr!.addressComp || '') : (tomador?.addressComp || ''),
+        bairro: useOsAddress ? (osAddr!.neighborhood || '') : (tomador?.neighborhood || ''),
+        uf: useOsAddress ? (osAddr!.state || '') : (tomador?.state || ''),
+        cep: useOsAddress ? (osAddr!.cep || '') : (tomador?.cep || ''),
+        city: useOsAddress ? (osAddr!.city || '') : (tomador?.city || ''),
+        // IBGE: nao temos no ServiceOrder, fallback pra cadastro do tomador / config.
+        // Operador pode ajustar manualmente no modal se servico foi em municipio diferente.
+        codigoMunicipio: (tomador as any)?.ibgeCode || config.codigoMunicipio || '',
       },
       // Serviço
       servico: {
