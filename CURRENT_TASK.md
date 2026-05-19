@@ -23,8 +23,15 @@
   - DTO `climate-data.dto.ts` com validacao: arrays de 12 numeros, humidity 0..1, radSol 0..15 kWh/m²/dia.
   - Modulo `PoolBudgetModule` atualizado.
   - tsc clean.
-- ⏳ **Fase 2** — tela admin /settings/climate-data
-- ⏳ **Fase 2** — tela admin /settings/climate-data
+- ✅ **Fase 2** — tela admin /settings/climate-data
+  - Pagina `frontend/src/app/(dashboard)/settings/climate-data/page.tsx`
+  - Accordion por UF (27 estados sorted alfabeticamente). Capital sempre primeiro, cidades-polo abaixo.
+  - Card por linha: badges (capital/customizado), media anual (temp/rad/umidade), tabela visual dos 12 meses
+  - Botoes: ✏️ Editar (modal), ↻ Restaurar padrao INMET (so se isCustom && isSeedAvailable), 🗑️ Remover (so em cidades-polo)
+  - "+ Adicionar cidade especifica em <UF>" em cada estado expandido — modal com valores da capital pre-preenchidos
+  - `MonthlyRow`: 12 inputs em grid responsivo (6 col mobile, 12 col desktop), validacao inline
+  - Sidebar: link "Dados Climaticos" embaixo de "Tarifas de Energia"
+  - tsc clean
 - ⏳ **Fase 3** — Bomba ler ClimateData do banco
 - ⏳ **Fase 4** — motor de calculo Solar
 - ⏳ **Fase 5** — UI aba Solar (7 secoes)
