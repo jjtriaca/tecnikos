@@ -452,6 +452,12 @@ export class HeatingBudgetService {
       const productName = product.model || product.description || it.description || 'Produto sem nome';
       const productId = product.id || '';
 
+      // Filtro: "tubos cascata", "tubos SPA" sao ACESSORIOS, nao a cascata/SPA real.
+      // Mesmo padrao pra "kit tubos", "registros", etc. So conta produtos cujo poolType
+      // eh DIRETAMENTE cascata/hidromassagem/spa, sem palavras de acessorio.
+      const isAcessorio = pt.includes('tubo') || pt.includes('registro') || pt.includes('conexao') || pt.includes('conexão');
+      if (isAcessorio) continue;
+
       // Cascata — cascataComprimentoCm do produto vinculado
       if (pt.includes('cascata')) {
         const raw = specs.cascataComprimentoCm;
@@ -507,8 +513,12 @@ export class HeatingBudgetService {
   /**
    * Constroi o ExtrasDetected pro report — status user-friendly de cada extra
    * (cascata, hidromassagem, borda infinita) com detalhes por linha + mensagem.
-   * Quando a linha existe mas falta info no cadastro do produto, retorna
-   * IDENTIFICADA_FALTANDO_INFO com a mensagem apontando qual campo preencher.
+   *
+   * Tres caminhos de identificacao (em ordem de prioridade):
+   * 1. Linha na etapa do orcamento + produto com spec preenchida → IDENTIFICADA_COMPLETA
+   * 2. Linha na etapa mas produto sem spec → IDENTIFICADA_FALTANDO_INFO (aviso)
+   * 3. Sem linha mas valor manual > 0 no env (cadastro/Dados do projeto) → IDENTIFICADA_COMPLETA
+   * 4. Sem linha + sem valor manual → NAO_IDENTIFICADA (card nao aparece na UI)
    */
   private buildExtrasDetected(
     aggregated: AggregatedExtras,
@@ -517,42 +527,62 @@ export class HeatingBudgetService {
   ): ExtrasDetected {
     const buildItem = (
       lines: ExtraLineDetail[] | undefined,
-      total: number | undefined,
+      totalFromLines: number | undefined,
+      manualValue: number,
+      manualSourceLabel: string,
       unit: string,
       labelExtra: string,
       cadastroPath: string,
       horasSemana: number | undefined,
     ): ExtraDetected => {
-      if (!lines || lines.length === 0) {
+      const hasLines = lines && lines.length > 0;
+      const hasManual = manualValue > 0;
+
+      // Sem detecção em ambos os caminhos
+      if (!hasLines && !hasManual) {
         return {
           status: 'NAO_IDENTIFICADA',
           totalValue: 0,
           unit,
           lines: [],
-          message: `Sem ${labelExtra} identificada nas etapas`,
+          message: `Sem ${labelExtra} identificada`,
         };
       }
-      const missingLines = lines.filter((l) => l.value == null);
-      if (missingLines.length > 0) {
-        const productList = missingLines.map((l) => `"${l.productName}"`).slice(0, 3).join(', ');
-        const more = missingLines.length > 3 ? ` (+${missingLines.length - 3})` : '';
-        const field = missingLines[0].specField;
+
+      // Caminho 1/2: linhas das etapas
+      if (hasLines) {
+        const missingLines = lines!.filter((l) => l.value == null);
+        if (missingLines.length > 0) {
+          const productList = missingLines.map((l) => `"${l.productName}"`).slice(0, 3).join(', ');
+          const more = missingLines.length > 3 ? ` (+${missingLines.length - 3})` : '';
+          const field = missingLines[0].specField;
+          return {
+            status: 'IDENTIFICADA_FALTANDO_INFO',
+            totalValue: totalFromLines ?? 0,
+            unit,
+            horasSemana,
+            lines: lines!,
+            message: `${labelExtra} identificada na etapa mas produto sem "${field}" em ${productList}${more}. Preencha em ${cadastroPath}`,
+          };
+        }
         return {
-          status: 'IDENTIFICADA_FALTANDO_INFO',
-          totalValue: total ?? 0,
+          status: 'IDENTIFICADA_COMPLETA',
+          totalValue: totalFromLines ?? 0,
           unit,
           horasSemana,
-          lines,
-          message: `${labelExtra} identificada mas falta "${field}" em ${productList}${more}. Preencha em ${cadastroPath}`,
+          lines: lines!,
+          message: `${labelExtra} identificada: ${totalFromLines} ${unit} total`,
         };
       }
+
+      // Caminho 3: manual no environmentParams (ex: borda infinita configurada nos Dados do projeto)
       return {
         status: 'IDENTIFICADA_COMPLETA',
-        totalValue: total ?? 0,
+        totalValue: manualValue,
         unit,
         horasSemana,
-        lines,
-        message: `${labelExtra} identificada: ${total} ${unit} total`,
+        lines: [],
+        message: `${labelExtra} configurada ${manualSourceLabel}: ${manualValue} ${unit}`,
       };
     };
 
@@ -563,6 +593,8 @@ export class HeatingBudgetService {
       cascata: buildItem(
         aggregated.cascataLines,
         aggregated.cascataLarguraCm,
+        Number(inputs.cascataLarguraCm) || 0,
+        'manualmente',
         'cm',
         'Cascata',
         'Cadastros > Produtos > Aba Piscina',
@@ -571,6 +603,8 @@ export class HeatingBudgetService {
       hidromassagem: buildItem(
         aggregated.hidromassagemLines,
         aggregated.hidromassagensQtd,
+        Number(inputs.hidromassagensQtd) || 0,
+        'manualmente',
         'jatos',
         'Hidromassagem/SPA',
         'Cadastros > Produtos > Aba Piscina',
@@ -579,9 +613,11 @@ export class HeatingBudgetService {
       bordaInfinita: buildItem(
         aggregated.bordaInfinitaLines,
         aggregated.bordaInfinitaM,
+        Number(inputs.bordaInfinitaM) || 0,
+        'no cadastro',
         'm',
         'Borda infinita',
-        'qty da linha = metros',
+        'Dados do projeto > Borda infinita',
         inputs.bordaInfinitaHorasAtivaDia != null ? inputs.bordaInfinitaHorasAtivaDia * 7 : undefined,
       ),
     };

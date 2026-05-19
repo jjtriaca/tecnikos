@@ -483,54 +483,6 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
 
           {activeTab === "bomba" && (
             <div className="space-y-4">
-              {/* BLOCO EXTRAS IDENTIFICADOS NAS ETAPAS (v1.11.75)
-                  Mostra status de cascata/hidromassagem/borda detectadas nas linhas:
-                  - NAO_IDENTIFICADA: cinza "Sem cascata identificada"
-                  - IDENTIFICADA_COMPLETA: verde com nome do produto + horas/sem editavel
-                  - IDENTIFICADA_FALTANDO_INFO: amarelo apontando spec faltando
-                  Horas/sem editavel reusa o state cascataHorasSemana / hidromassagemHorasSemana,
-                  que ja sao salvos via handleSubmit (botao Salvar existente). */}
-              {report?.extrasDetected && (
-                <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-base">✨</span>
-                      <span className="text-sm font-bold text-slate-900">Extras identificados nas etapas</span>
-                    </div>
-                    {!quickMode && (
-                      <span className="text-[10px] text-slate-400">Dados das linhas do orcamento + cadastro do produto</span>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <ExtraDetectedCard
-                      icon="🌊"
-                      title="Cascata"
-                      extra={report.extrasDetected.cascata}
-                      horasValue={cascataHorasSemana}
-                      onChangeHoras={setCascataHorasSemana}
-                      readOnly={!quickMode && !projectExpanded}
-                    />
-                    <ExtraDetectedCard
-                      icon="💦"
-                      title="Hidromassagem / SPA"
-                      extra={report.extrasDetected.hidromassagem}
-                      horasValue={hidromassagemHorasSemana}
-                      onChangeHoras={setHidromassagemHorasSemana}
-                      readOnly={!quickMode && !projectExpanded}
-                    />
-                    <ExtraDetectedCard
-                      icon="🏞"
-                      title="Borda infinita"
-                      extra={report.extrasDetected.bordaInfinita}
-                      horasValue={bordaInfinitaHorasAtivaDia}
-                      onChangeHoras={(v) => setBordaInfinitaHorasAtivaDia(v)}
-                      hoursLabel="horas/dia"
-                      readOnly={!quickMode && !projectExpanded}
-                    />
-                  </div>
-                </div>
-              )}
-
               {/* CABECALHO COLAPSAVEL — Dados do projeto (F6.4)
                   Quando minimizado: pills compactas com infos chave pra apresentacao limpa
                   Quando expandido + quickMode: inputs editaveis (simulacao livre)
@@ -769,12 +721,71 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                   <div className="text-sm text-slate-500">Carregando relatorio...</div>
                 ) : report ? (
                   <>
-                    {/* 3 cards principais */}
-                    <div className="grid grid-cols-3 gap-3 mb-4">
-                      <BigStat label="Calor necessario" value={`${report.calorNecessarioKcalH.toLocaleString("pt-BR")}`} unit="Kcal/h" emphasis="cyan" />
-                      <BigStat label="Potencia equiv." value={report.qtotalMaxKw.toFixed(1)} unit="kW" emphasis="orange" />
-                      <BigStat label="BTUs" value={`${report.calorNecessarioBtuH.toLocaleString("pt-BR")}`} unit="Btu/h" emphasis="emerald" />
+                    {/* Card compacto com as 3 metricas em linha (v1.11.77) — antes
+                        eram 3 cards grandes ocupando muita area; agora 1 card horizontal
+                        deixando espaco pros extras (cascata/SPA/borda) embaixo */}
+                    <div className="rounded-xl border border-slate-200 bg-gradient-to-r from-cyan-50 via-orange-50 to-emerald-50 px-4 py-3 mb-3">
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Calor necessario · mes critico</div>
+                      <div className="flex items-baseline gap-4 flex-wrap">
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-2xl font-bold text-cyan-700 tabular-nums">{report.calorNecessarioKcalH.toLocaleString("pt-BR")}</span>
+                          <span className="text-xs font-semibold text-cyan-700">Kcal/h</span>
+                        </div>
+                        <span className="text-slate-300">·</span>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-2xl font-bold text-orange-700 tabular-nums">{report.qtotalMaxKw.toFixed(1)}</span>
+                          <span className="text-xs font-semibold text-orange-700">kW</span>
+                        </div>
+                        <span className="text-slate-300">·</span>
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-2xl font-bold text-emerald-700 tabular-nums">{report.calorNecessarioBtuH.toLocaleString("pt-BR")}</span>
+                          <span className="text-xs font-semibold text-emerald-700">Btu/h</span>
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Extras identificados (cascata/SPA/borda) — so aparece se algum extra foi
+                        detectado na etapa OU no cadastro (borda infinita). Cada card mostra:
+                        - Nome do produto (read-only, do cadastro)
+                        - Tamanho/qtde (read-only, do technicalSpecs do produto)
+                        - Horas/sem editavel (default por tipoPiscina: 6h privativa, 42h coletiva)
+                        Aviso amarelo quando produto identificado mas falta info no cadastro. */}
+                    {report.extrasDetected && (
+                      report.extrasDetected.cascata.status !== "NAO_IDENTIFICADA" ||
+                      report.extrasDetected.hidromassagem.status !== "NAO_IDENTIFICADA" ||
+                      report.extrasDetected.bordaInfinita.status !== "NAO_IDENTIFICADA"
+                    ) && (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                        {report.extrasDetected.cascata.status !== "NAO_IDENTIFICADA" && (
+                          <ExtraDetectedCard
+                            icon="🌊"
+                            title="Cascata"
+                            extra={report.extrasDetected.cascata}
+                            horasValue={cascataHorasSemana}
+                            onChangeHoras={setCascataHorasSemana}
+                          />
+                        )}
+                        {report.extrasDetected.hidromassagem.status !== "NAO_IDENTIFICADA" && (
+                          <ExtraDetectedCard
+                            icon="💦"
+                            title="Hidromassagem / SPA"
+                            extra={report.extrasDetected.hidromassagem}
+                            horasValue={hidromassagemHorasSemana}
+                            onChangeHoras={setHidromassagemHorasSemana}
+                          />
+                        )}
+                        {report.extrasDetected.bordaInfinita.status !== "NAO_IDENTIFICADA" && (
+                          <ExtraDetectedCard
+                            icon="🏞"
+                            title="Borda infinita"
+                            extra={report.extrasDetected.bordaInfinita}
+                            horasValue={bordaInfinitaHorasAtivaDia}
+                            onChangeHoras={setBordaInfinitaHorasAtivaDia}
+                            hoursLabel="horas/dia"
+                          />
+                        )}
+                      </div>
+                    )}
 
                     {/* Tabela mensal compacta */}
                     <div className="rounded-lg border border-slate-200 bg-white overflow-x-auto">
