@@ -325,7 +325,18 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
       .catch(() => setSolarCollectors([]));
     setSolarLoading(true);
     api.get<SolarReport | null>(`/pool-budgets/${budget.id}/solar-report`)
-      .then((r) => setSolarReport(r))
+      .then((r) => {
+        // Solar v2: report cacheado pode estar em formato antigo (sem tempInicial2d/3d/4d).
+        // Se detectado, forca recompute em background pra atualizar o cache.
+        if (r && r.monthly?.[0] && (r.monthly[0] as any).tempInicial2d === undefined) {
+          setSolarReport(r); // exibe o antigo enquanto recompute roda
+          api.post<SolarReport>(`/pool-budgets/${budget.id}/solar-report/recompute`, {})
+            .then(setSolarReport)
+            .catch(() => { /* mantem o antigo */ });
+        } else {
+          setSolarReport(r);
+        }
+      })
       .catch(() => setSolarReport(null))
       .finally(() => setSolarLoading(false));
   }, [open, budget.id, budget.environmentParams]);
@@ -1616,15 +1627,27 @@ function RowField({ label, value, valueEditable, highlight, children }: {
 
 // Grafico estilo planilha: 8 pontos (4 dias × inicio/fim), area montanha laranja/amarela com labels
 function SolarChart({ row, tempDesejada }: { row: SolarMonthlyRow; tempDesejada: number }) {
+  // Fallback defensivo: report cacheado antigo nao tinha tempInicial2d/3d/4d.
+  // Interpola usando a formula: tempInicial(n+1) = max(0, tempFinal(n) - perdaCorrigidaPorDia)
+  const perda = Number(row.perdaCorrigidaPorDia) || 0;
+  const tempIni1 = Number(row.tempInicial1d) || 0;
+  const tempFim1 = Number(row.tempFinal1d) || 0;
+  const tempIni2 = row.tempInicial2d != null ? Number(row.tempInicial2d) : Math.max(0, tempFim1 - perda);
+  const tempFim2 = Number(row.tempFinal2d) || 0;
+  const tempIni3 = row.tempInicial3d != null ? Number(row.tempInicial3d) : Math.max(0, tempFim2 - perda);
+  const tempFim3 = Number(row.tempFinal3d) || 0;
+  const tempIni4 = row.tempInicial4d != null ? Number(row.tempInicial4d) : Math.max(0, tempFim3 - perda);
+  const tempFim4 = Number(row.tempFinal4d) || 0;
+
   const pts = [
-    { x: "Temp Inicial 1° Dia", y: row.tempInicial1d },
-    { x: "Temp Final 1° Dia",   y: row.tempFinal1d },
-    { x: "Temp Inicial 2° Dia", y: row.tempInicial2d },
-    { x: "Temp Final 2° Dia",   y: row.tempFinal2d },
-    { x: "Temp Inicial 3° Dia", y: row.tempInicial3d },
-    { x: "Temp Final 3° Dia",   y: row.tempFinal3d },
-    { x: "Temp Inicial 4° Dia", y: row.tempInicial4d },
-    { x: "Temp Final 4° Dia",   y: row.tempFinal4d },
+    { x: "Temp Inicial 1° Dia", y: tempIni1 },
+    { x: "Temp Final 1° Dia",   y: tempFim1 },
+    { x: "Temp Inicial 2° Dia", y: tempIni2 },
+    { x: "Temp Final 2° Dia",   y: tempFim2 },
+    { x: "Temp Inicial 3° Dia", y: tempIni3 },
+    { x: "Temp Final 3° Dia",   y: tempFim3 },
+    { x: "Temp Inicial 4° Dia", y: tempIni4 },
+    { x: "Temp Final 4° Dia",   y: tempFim4 },
   ];
   const W = 560;
   const H = 220;
