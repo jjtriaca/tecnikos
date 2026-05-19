@@ -423,6 +423,10 @@ export class HeatingService {
       copCurveC?: number;
       copNominal?: number;
       copAt50Capacity?: number;
+      /** v1.11.87: quantity pode vir do candidato (extractEquipmentFromOverride passa
+       *  N quando operador escolheu Nx unidades). Era hardcoded 1 — bug visivel quando
+       *  modelName tem "2x" mas quantity=1 dessincronizava o input do simulador. */
+      quantity?: number;
     }>,
     qtotalMaxKw: number,
     _mode: UtilizacaoAno,
@@ -431,7 +435,8 @@ export class HeatingService {
     if (candidates.length === 0) return undefined;
     const qtotalKcalH = qtotalMaxKw * CONVERSIONS.KWH_TO_KCAL;
 
-    // 1. Tenta candidatos UNICOS (quantity=1)
+    // 1. Tenta candidatos UNICOS (quantity vem do candidato se informada — ex: override
+    // com qty>1; senao default 1 — selecao automatica unitaria).
     const scored = candidates
       .filter((c) => c.kcalHNominal > 0)
       .map((c) => {
@@ -440,7 +445,7 @@ export class HeatingService {
         const isAdequate =
           loadRatio <= EQUIPMENT_SELECTION.MAX_LOAD_RATIO &&
           loadRatio >= EQUIPMENT_SELECTION.MIN_LOAD_RATIO;
-        return { ...c, loadRatio, isAdequate, quantity: 1 };
+        return { ...c, loadRatio, isAdequate, quantity: c.quantity ?? 1 };
       })
       .sort((a, b) => {
         if (a.isAdequate && !b.isAdequate) return -1;

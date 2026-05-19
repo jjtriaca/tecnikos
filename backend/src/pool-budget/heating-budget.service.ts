@@ -289,6 +289,9 @@ export class HeatingBudgetService {
     const kcalH = Number(specs.kcalHNominal);
     if (!kcalH || kcalH <= 0) return undefined;
     const qty = Math.max(1, Math.min(20, Number(quantity) || 1));
+    // v1.11.87: capacidades JA multiplicadas pelo qty (capacidade total no candidato),
+    // E passa quantity como campo separado pra selectEquipment preservar no resultado.
+    // Antes quantity hardcoded como 1 dessincronizava UI ("2x" no nome mas qty=1 no input).
     return {
       productId: product.id,
       modelName: qty > 1
@@ -308,6 +311,7 @@ export class HeatingBudgetService {
       copCurveC: Number(specs.copCurveC) || undefined,
       copNominal: Number(specs.copNominal) || undefined,
       copAt50Capacity: Number(specs.copAt50Capacity) || undefined,
+      quantity: qty,
     };
   }
 
@@ -367,6 +371,7 @@ export class HeatingBudgetService {
       copNominal: Number(specs.copNominal) || undefined,
       copAt50Capacity: Number(specs.copAt50Capacity) || undefined,
       _cellRef: chosen.cellRef ?? undefined,
+      quantity: qty,
     };
   }
 

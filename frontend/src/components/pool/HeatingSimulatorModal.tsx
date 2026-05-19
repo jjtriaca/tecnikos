@@ -896,16 +896,16 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                           </span>
                         )}
                       </div>
-                      {/* Dropdown clickable no nome + input Qtd ao lado (v1.11.86) */}
+                      {/* Dropdown clickable no nome + input Qtd ao lado (v1.11.87 — repos.) */}
                       <div className="mt-1 flex items-center gap-3 flex-wrap">
-                        <div className="relative inline-block flex-1 min-w-0">
+                        <div className="relative inline-flex items-center">
                           <button type="button" onClick={() => setShowEquipmentPicker(!showEquipmentPicker)}
-                            className="flex items-center gap-2 text-xl font-bold text-emerald-900 hover:text-emerald-700 transition w-full text-left">
+                            className="flex items-center gap-2 text-xl font-bold text-emerald-900 hover:text-emerald-700 transition text-left">
                             <span>{report.selectedEquipment.modelName}</span>
                             <span className="text-sm text-emerald-700">{showEquipmentPicker ? "▲" : "▼"}</span>
                           </button>
                         {showEquipmentPicker && (
-                          <div className="absolute z-50 left-0 right-0 mt-2 rounded-xl border-2 border-emerald-200 bg-white shadow-xl p-3 max-h-96 overflow-y-auto">
+                          <div className="absolute z-50 left-0 top-full mt-2 rounded-xl border-2 border-emerald-200 bg-white shadow-xl p-3 max-h-96 overflow-y-auto w-[560px] max-w-[90vw]">
                             <div className="text-[11px] font-semibold uppercase text-slate-500 mb-2">Trocar equipamento</div>
                             {report.selectedEquipment.fromOverride && (
                               <button type="button" onClick={() => changeEquipment(null)} disabled={changingEquipment}
@@ -1247,7 +1247,7 @@ function EquipmentQuantityInput({
   }, [debouncedQty]);
 
   return (
-    <div className="flex items-center gap-1.5 rounded-lg bg-white border border-emerald-300 px-2.5 py-1">
+    <div className="inline-flex items-center gap-1.5 rounded-lg bg-white border border-emerald-300 px-2 py-0.5">
       <label className="text-[11px] font-semibold text-emerald-700">Quant.</label>
       <input
         type="number"
@@ -1260,7 +1260,7 @@ function EquipmentQuantityInput({
         max={20}
         step={1}
         disabled={disabled}
-        className="w-14 rounded border border-slate-300 bg-white px-2 py-1 text-lg font-bold text-slate-900 tabular-nums text-center disabled:bg-slate-100"
+        className="w-12 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-base font-bold text-slate-900 tabular-nums text-center disabled:bg-slate-100"
       />
     </div>
   );
