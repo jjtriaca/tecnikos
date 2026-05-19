@@ -1324,12 +1324,33 @@ export class PoolBudgetService {
       const specs = ((it.product as any)?.technicalSpecs ?? (it.service as any)?.technicalSpecs) as Record<string, unknown> | null | undefined;
       if (specs) indicatorCellRefSpecs.set(it.cellRef, specs);
     }
+    // Specs cumulativos: capacidade total = qty × unitario. Indicator "Folga aquec."
+    // deve refletir 2× X23-40C como 68.800 kcal/h, nao 34.400. v1.11.86.
+    const CUMULATIVE_SPECS = new Set([
+      'kcalHNominal', 'kcalHMin', 'kcalHMax', 'btuH', 'kwNominal',
+      'consumoMaxW', 'consumoMedioW', 'ratedInputPowerKW',
+      'vazaoM3h', 'vazaoLmin', 'potenciaWatts', 'amperagem',
+    ]);
+    const multiplySpecsByQty = (specs: any, qty: number): any => {
+      if (!specs || qty <= 1) return specs;
+      const out: Record<string, unknown> = { ...specs };
+      for (const k of Object.keys(out)) {
+        if (CUMULATIVE_SPECS.has(k)) {
+          const n = Number(out[k]);
+          if (Number.isFinite(n)) out[k] = n * qty;
+        }
+      }
+      return out;
+    };
+
     for (const item of budget.items) {
       const rule = (item as any).autoSelectRule as AutoSelectRule | null | undefined;
       if (!rule?.indicator) continue;
-      const productSpecs = (item.product as any)?.technicalSpecs ?? (item.service as any)?.technicalSpecs ?? null;
+      const rawSpecs = (item.product as any)?.technicalSpecs ?? (item.service as any)?.technicalSpecs ?? null;
+      const itemQty = Number(item.qty) || 1;
+      const productSpecs = multiplySpecsByQty(rawSpecs, itemQty);
       const siblings = computeIndicatorSiblings(item.id, String(item.poolSection), rule.linkedCellRef);
-      const vars = { ...dimensionVarsForIndicator, ...extractProductVars(productSpecs), ...siblings };
+      const vars = { ...dimensionVarsForIndicator, ...extractProductVars(productSpecs), ...siblings, qty: itemQty };
       const calculated = evaluateIndicator(rule, vars, indicatorCellRefSpecs);
       if (calculated) {
         (item as any).indicatorLabel = calculated.label;

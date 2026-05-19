@@ -896,13 +896,14 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                           </span>
                         )}
                       </div>
-                      {/* Dropdown clickable no nome do modelo */}
-                      <div className="mt-1 relative inline-block w-full">
-                        <button type="button" onClick={() => setShowEquipmentPicker(!showEquipmentPicker)}
-                          className="flex items-center gap-2 text-xl font-bold text-emerald-900 hover:text-emerald-700 transition w-full text-left">
-                          <span>{report.selectedEquipment.modelName}</span>
-                          <span className="text-sm text-emerald-700">{showEquipmentPicker ? "▲" : "▼"}</span>
-                        </button>
+                      {/* Dropdown clickable no nome + input Qtd ao lado (v1.11.86) */}
+                      <div className="mt-1 flex items-center gap-3 flex-wrap">
+                        <div className="relative inline-block flex-1 min-w-0">
+                          <button type="button" onClick={() => setShowEquipmentPicker(!showEquipmentPicker)}
+                            className="flex items-center gap-2 text-xl font-bold text-emerald-900 hover:text-emerald-700 transition w-full text-left">
+                            <span>{report.selectedEquipment.modelName}</span>
+                            <span className="text-sm text-emerald-700">{showEquipmentPicker ? "▲" : "▼"}</span>
+                          </button>
                         {showEquipmentPicker && (
                           <div className="absolute z-50 left-0 right-0 mt-2 rounded-xl border-2 border-emerald-200 bg-white shadow-xl p-3 max-h-96 overflow-y-auto">
                             <div className="text-[11px] font-semibold uppercase text-slate-500 mb-2">Trocar equipamento</div>
@@ -938,6 +939,16 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                             )}
                           </div>
                         )}
+                        </div>
+                        {/* Input Qtd ao lado do nome (v1.11.86) — debounce 600ms dispara
+                            selectEquipmentOverride com mesmo productId + nova qty.
+                            Sincronia bidirecional vai propagar pra linha L44 do orcamento. */}
+                        <EquipmentQuantityInput
+                          productId={report.selectedEquipment.productId}
+                          currentQty={report.selectedEquipment.quantity}
+                          onChangeQty={(newQty) => changeEquipment(report.selectedEquipment!.productId, newQty)}
+                          disabled={changingEquipment}
+                        />
                       </div>
                       {report.selectedEquipment.quantity > 1 && (
                         <div className="mt-1 text-[11px] text-amber-800">
@@ -1202,11 +1213,62 @@ function fmtBRL(cents: number): string {
   return (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-/** Linha do dropdown "Trocar equipamento" — v1.11.84.
- *  Mostra equipamento UNICO + input de quantidade local (1-6). Capacidade exibida
- *  recalcula live conforme operador muda a qtd. Click no botao principal seleciona
- *  com a qtd atual. Antes era um seletor global de qtd no topo + lista pre-multiplicada
- *  (UI confusa com duplicatas). */
+/** Input "Quant." ao lado do nome do equipamento selecionado (v1.11.86).
+ *  Debounce 600ms — operador digita "2" → aguarda → dispara override com nova qty.
+ *  Sincronia bidirecional propaga pra linha do orcamento. */
+function EquipmentQuantityInput({
+  productId,
+  currentQty,
+  onChangeQty,
+  disabled,
+}: {
+  productId: string;
+  currentQty: number;
+  onChangeQty: (qty: number) => void;
+  disabled: boolean;
+}) {
+  const [localQty, setLocalQty] = useState<number>(currentQty);
+  const debouncedQty = useDebounce(localQty, 600);
+  const userChangedRef = useRef(false);
+
+  // Sincroniza com mudancas externas (ex: user trocou o equipamento, qty volta pro novo default)
+  useEffect(() => {
+    setLocalQty(currentQty);
+    userChangedRef.current = false;
+  }, [currentQty, productId]);
+
+  // Dispara mudanca apos debounce — so se o user mexeu
+  useEffect(() => {
+    if (!userChangedRef.current) return;
+    if (debouncedQty === currentQty) return;
+    onChangeQty(debouncedQty);
+    userChangedRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedQty]);
+
+  return (
+    <div className="flex items-center gap-1.5 rounded-lg bg-white border border-emerald-300 px-2.5 py-1">
+      <label className="text-[11px] font-semibold text-emerald-700">Quant.</label>
+      <input
+        type="number"
+        value={localQty}
+        onChange={(e) => {
+          userChangedRef.current = true;
+          setLocalQty(Math.max(1, Math.min(20, Number(e.target.value) || 1)));
+        }}
+        min={1}
+        max={20}
+        step={1}
+        disabled={disabled}
+        className="w-14 rounded border border-slate-300 bg-white px-2 py-1 text-lg font-bold text-slate-900 tabular-nums text-center disabled:bg-slate-100"
+      />
+    </div>
+  );
+}
+
+/** Linha do dropdown "Trocar equipamento" — v1.11.86 compacta.
+ *  Lista so com nome + capacidade unitaria. Sem input de qty (qty fica no card
+ *  do equipamento selecionado em outro lugar). Click seleciona com qty atual ou 1. */
 function EquipmentCandidateRow({
   candidate,
   isCurrentSelected,
@@ -1220,46 +1282,23 @@ function EquipmentCandidateRow({
   onSelect: (qty: number) => void;
   disabled: boolean;
 }) {
-  // Quantidade local: pre-preenchida com qtd atual se este eh o equipamento selecionado.
-  // Senao default 1.
-  const [qty, setQty] = useState<number>(isCurrentSelected ? currentSelectedQty : 1);
-  const totalKcal = candidate.kcalHNominal * qty;
-  const totalKw = (candidate.kwNominal ?? 0) * qty;
-  const isExactlySelected = isCurrentSelected && qty === currentSelectedQty;
-
   return (
-    <div className={`flex items-stretch gap-1 rounded-lg border transition ${
-      isExactlySelected ? "bg-emerald-50 border-emerald-300" : "bg-white border-slate-200 hover:border-slate-300"
-    }`}>
-      <button
-        type="button"
-        onClick={() => onSelect(qty)}
-        disabled={disabled}
-        className="flex-1 text-left px-3 py-2 disabled:opacity-50 hover:bg-slate-50 rounded-l-lg"
-      >
-        <div className="text-sm font-semibold text-slate-900">
-          {qty > 1 ? `${qty}× ${candidate.modelName}` : candidate.modelName}
-        </div>
-        <div className="text-[11px] text-slate-500">
-          {totalKcal.toLocaleString("pt-BR")} Kcal/h
-          {candidate.kwNominal && <> · {totalKw.toFixed(1)} kW termico</>}
-        </div>
-      </button>
-      <div className="flex items-center gap-1 px-2 border-l border-slate-200 bg-slate-50 rounded-r-lg">
-        <span className="text-[10px] text-slate-500">Qtd</span>
-        <input
-          type="number"
-          value={qty}
-          onChange={(e) => setQty(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
-          min={1}
-          max={20}
-          step={1}
-          disabled={disabled}
-          onClick={(e) => e.stopPropagation()}
-          className="w-12 rounded border border-slate-300 bg-white px-1.5 py-1 text-sm font-bold text-slate-900 tabular-nums text-center"
-        />
+    <button
+      type="button"
+      onClick={() => onSelect(isCurrentSelected ? currentSelectedQty : 1)}
+      disabled={disabled}
+      className={`w-full text-left px-3 py-1.5 rounded-lg border transition disabled:opacity-50 ${
+        isCurrentSelected ? "bg-emerald-50 border-emerald-300" : "bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300"
+      }`}
+    >
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-sm font-semibold text-slate-900 truncate">{candidate.modelName}</span>
+        <span className="text-[11px] text-slate-500 whitespace-nowrap tabular-nums">
+          {candidate.kcalHNominal.toLocaleString("pt-BR")} Kcal/h
+          {candidate.kwNominal != null ? ` · ${candidate.kwNominal} kW` : ""}
+        </span>
       </div>
-    </div>
+    </button>
   );
 }
 
