@@ -362,7 +362,7 @@ export class HeatingBudgetService {
    *
    * Retorna undefined se nao tem nenhuma linha de bomba de calor vinculada ao catalogo.
    */
-  private extractEquipmentFromItems(items: Array<{ qty: number; cellRef?: string | null; product?: { id: string; description?: string | null; model?: string | null; poolType: string | null; technicalSpecs: any } | null }>): (Parameters<HeatingService['selectEquipment']>[0][number] & { _cellRef?: string }) | undefined {
+  private extractEquipmentFromItems(items: Array<{ qty: number; cellRef?: string | null; manualUnlink?: boolean; product?: { id: string; description?: string | null; model?: string | null; poolType: string | null; technicalSpecs: any } | null }>): (Parameters<HeatingService['selectEquipment']>[0][number] & { _cellRef?: string }) | undefined {
     if (!items || items.length === 0) return undefined;
     // Filtra linhas com produto vinculado tipo bomba de calor / aquecedor
     const candidates = items
@@ -389,7 +389,12 @@ export class HeatingBudgetService {
     const chosen = candidates[0];
     const product = chosen.product!;
     const specs = (product.technicalSpecs ?? {}) as Record<string, any>;
-    const qty = Math.max(1, Number(chosen.qty) || 1);
+    // v1.11.96: Quando linha em modo AUTO (manualUnlink=false), passa qty=1 unitario
+    // pra selectEquipment decidir o multiplicador. Senao a qty da linha (vinda da
+    // formula bombaCalorQty) entra em loop com selectedEquipment.quantity.
+    // Manual: respeita qty da linha (operador escolheu N unidades especificas).
+    const isManual = chosen.manualUnlink === true;
+    const qty = isManual ? Math.max(1, Number(chosen.qty) || 1) : 1;
 
     return {
       productId: product.id,
