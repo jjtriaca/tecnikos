@@ -20,6 +20,7 @@ import {
   SOLAR_DEFAULT_COLETOR_AREA_M2,
   SOLAR_DEFAULT_COLETOR_KWH_M2,
   SOLAR_DEFAULT_COLETOR_EFICIENCIA,
+  getBombaRecomendadaSolar,
 } from './solar-constants';
 
 // ============ TIPOS ============
@@ -63,11 +64,15 @@ export interface SolarMonthlyRow {
   radSol: number;                  // kWh/m²/dia
   perdaCorrigidaPorDia: number;    // °C/dia perdidos durante a noite
   ganhoDia: number;                // °C/dia ganho com sol
-  // Simulacao 4 dias consecutivos (1 dia ensolarado + 3 noites de perda)
+  // Simulacao 4 dias consecutivos: 8 pontos (1 inicial + 1 final por dia)
+  // Replica fielmente o grafico da planilha original (Tabela72)
   tempInicial1d: number;
   tempFinal1d: number;
+  tempInicial2d: number;          // = tempFinal1d - perda1noite
   tempFinal2d: number;
+  tempInicial3d: number;          // = tempFinal2d - perda2noite
   tempFinal3d: number;
+  tempInicial4d: number;          // = tempFinal3d - perda3noite
   tempFinal4d: number;
 }
 
@@ -105,6 +110,9 @@ export interface SolarReport {
   // ===== Energia + custo (Fase futura — Comparativo) =====
   energiaSolarKcalH: number;          // CALCULOS_SOLAR!L9
   kcalPara1Grau: number;              // CALCULOS_SOLAR!L8
+
+  // Bomba recomendada (texto curto, mapeado pela vazao) — planilha original "Bomba necessaria (Aprox)"
+  bombaRecomendada: string;
 
   // Inputs ecoados pro frontend
   inputs: SolarInputs;
@@ -182,21 +190,27 @@ export class SolarService {
       //   ... e assim por 3 noites
       const tempInicial1d = tempAmb;
       const tempFinal1d = Math.min(tempDesejada, tempInicial1d + ganhoDia);
-      const tempFinal2d = Math.min(tempDesejada, Math.max(0, tempFinal1d - perdaCorrigida) + ganhoDia);
-      const tempFinal3d = Math.min(tempDesejada, Math.max(0, tempFinal2d - perdaCorrigida) + ganhoDia);
-      const tempFinal4d = Math.min(tempDesejada, Math.max(0, tempFinal3d - perdaCorrigida) + ganhoDia);
+      const tempInicial2d = Math.max(0, tempFinal1d - perdaCorrigida);
+      const tempFinal2d = Math.min(tempDesejada, tempInicial2d + ganhoDia);
+      const tempInicial3d = Math.max(0, tempFinal2d - perdaCorrigida);
+      const tempFinal3d = Math.min(tempDesejada, tempInicial3d + ganhoDia);
+      const tempInicial4d = Math.max(0, tempFinal3d - perdaCorrigida);
+      const tempFinal4d = Math.min(tempDesejada, tempInicial4d + ganhoDia);
 
       monthly.push({
         monthIndex: m,
-        monthName: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'][m],
+        monthName: ['JANEIRO', 'FEVEREIRO', 'MARCO', 'ABRIL', 'MAIO', 'JUNHO', 'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO'][m],
         tempAmbiente: tempAmb,
         radSol,
         perdaCorrigidaPorDia: perdaCorrigida,
         ganhoDia,
         tempInicial1d,
         tempFinal1d,
+        tempInicial2d,
         tempFinal2d,
+        tempInicial3d,
         tempFinal3d,
+        tempInicial4d,
         tempFinal4d,
       });
     }
@@ -233,8 +247,11 @@ export class SolarService {
         ganhoDia: round2(r.ganhoDia),
         tempInicial1d: round1(r.tempInicial1d),
         tempFinal1d: round1(r.tempFinal1d),
+        tempInicial2d: round1(r.tempInicial2d),
         tempFinal2d: round1(r.tempFinal2d),
+        tempInicial3d: round1(r.tempInicial3d),
         tempFinal3d: round1(r.tempFinal3d),
+        tempInicial4d: round1(r.tempInicial4d),
         tempFinal4d: round1(r.tempFinal4d),
       })),
       monthlyAvgGanho: round2(ganhoAvg),
@@ -242,6 +259,7 @@ export class SolarService {
       monthlyMaxTempFinal: round1(tempFinalMax),
       energiaSolarKcalH: round0(energiaSolarKcalH),
       kcalPara1Grau,
+      bombaRecomendada: getBombaRecomendadaSolar(vazaoTotal),
       inputs,
     };
   }

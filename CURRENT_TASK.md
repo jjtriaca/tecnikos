@@ -103,6 +103,30 @@
 
 **Sem hardcode disperso.** Todas as constantes do Solar em `solar-constants.ts` referenciando celulas da planilha. Dados climaticos no banco (editaveis via UI). Coletores como Product cadastrados (operador adiciona/remove conforme catalogo).
 
+### Solar v2 (apos feedback do operador 19/05): layout fiel a planilha + PDF
+- **Backend**:
+  - `solar-constants.ts`: nova fn `getBombaRecomendadaSolar(vazaoM3h)` mapeia faixas (0-4=1/3cv, 4-8=1/2cv Syllenty, 8-15=1cv, 15-25=2cv, 25+=industrial)
+  - `solar.service.ts`: SolarMonthlyRow ganha `tempInicial2d/3d/4d` (8 pontos pro grafico — antes so 5). SolarReport ganha `bombaRecomendada: string`. Nomes dos meses em CAIXA ALTA (JANEIRO..DEZEMBRO).
+- **Frontend** (`HeatingSimulatorModal.tsx`):
+  - SolarTab refatorado pra replicar visualmente a planilha original:
+    - Cabecalho azul centralizado com 2 linhas de titulo
+    - Layout em colunas: DADOS DA OBRA / DADOS DA PISCINA + DIGITAR MANUALMENTE / DADOS DO AQUECIMENTO + Tabela NBR 10339:2018
+    - Inputs amarelos pra valores editaveis (UF/cidade/capa/vento/tempDesejada)
+    - Cabecalho azul "DIMENSIONAMENTO COLETOR SOLAR SOLIS PISCINAS" com bordas horizontais
+    - Bloco lateral "Bomba necessaria (Aprox)" mostrando o nome do modelo mapeado
+    - Coletor selecionado em dropdown amarelo + slider 0-10 com numero destacado em verde
+    - Cabecalho "TEMPO MEDIO ESTIMADO PARA MANUTENCAO DA TEMPERATURA"
+    - **Grafico SVG** estilo planilha: 8 pontos (4 dias × inicio/fim), area montanha laranja/amarela com gradient, labels com valores em cima dos pontos, flechas verticais nos pontos iniciais (estilo Excel), grid horizontal (20°/25°/30°/35°/40°)
+    - Tabela 12 meses ao lado do grafico (clica na linha → grafico atualiza)
+    - Observacoes (3 paragrafos) com mesmo texto da planilha
+    - Botoes "Recalcular" e "Imprimir/PDF" (escondidos no print)
+  - `RowField` componente novo pra linhas label:valor com highlight amarelo opcional
+  - `KV` componente pra Nome/Data/Local/Orc na seccao Dados da Obra
+  - `SolarChart` componente SVG inline com 8 pontos, gradient laranja, marcadores customizados
+  - CSS `@media print`: esconde tudo exceto `#solar-pdf-area`, ajusta pra A4 portrait com margem 8mm
+- Pronto pra imprimir direto (botao 🖨️) ou aprovar via PDF do navegador
+- tsc clean
+
 **Comportamento esperado:**
 1. Operador entra em orcamento de piscina → clica 🔥 Aquecimento
 2. Aba Solar abre primeiro. Operador escolhe UF + cidade, ajusta capa/vento/temp, escolhe coletor

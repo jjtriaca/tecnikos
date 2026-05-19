@@ -56,3 +56,15 @@ export const SOLAR_MONTH_NAMES = [
   'JANEIRO', 'FEVEREIRO', 'MARCO', 'ABRIL', 'MAIO', 'JUNHO',
   'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO',
 ];
+
+// ============ Bomba recomendada por vazao (planilha original "Bomba necessaria (Aprox)") ============
+// Mapeia vazao em m³/h pra um modelo de bomba residencial/profissional.
+// Mantem texto curto pra caber no card. Operador ajusta no orcamento final.
+export function getBombaRecomendadaSolar(vazaoM3h: number): string {
+  if (!vazaoM3h || vazaoM3h <= 0) return '—';
+  if (vazaoM3h <= 4) return 'Bomba residencial 1/3 cv';
+  if (vazaoM3h <= 8) return 'Bomba residencial 1/2 cv Syllenty';
+  if (vazaoM3h <= 15) return 'Bomba profissional 1 cv';
+  if (vazaoM3h <= 25) return 'Bomba profissional 2 cv';
+  return 'Bomba industrial 3 cv ou superior';
+}

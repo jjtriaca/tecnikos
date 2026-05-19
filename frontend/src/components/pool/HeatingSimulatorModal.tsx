@@ -200,8 +200,11 @@ interface SolarMonthlyRow {
   ganhoDia: number;
   tempInicial1d: number;
   tempFinal1d: number;
+  tempInicial2d: number;
   tempFinal2d: number;
+  tempInicial3d: number;
   tempFinal3d: number;
+  tempInicial4d: number;
   tempFinal4d: number;
 }
 
@@ -231,6 +234,7 @@ interface SolarReport {
   monthlyMaxTempFinal: number;
   energiaSolarKcalH: number;
   kcalPara1Grau: number;
+  bombaRecomendada: string;
 }
 
 type TabKey = "solar" | "bomba" | "comparativo";
@@ -1252,7 +1256,12 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
   );
 }
 
-// ============ Aba Solar (Fase 5) ============
+// ============ Aba Solar (Fase 5 + v2: layout fiel a planilha + PDF) ============
+
+const SOLAR_MONTH_NAMES_FULL = [
+  'JANEIRO', 'FEVEREIRO', 'MARCO', 'ABRIL', 'MAIO', 'JUNHO',
+  'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO',
+];
 
 function SolarTab({
   budget, report, loading, recomputing, collectors,
@@ -1291,197 +1300,396 @@ function SolarTab({
   const dims = budget.poolDimensions ?? {};
   const area = Number(dims.area) || 0;
   const volume = Number(dims.volume) || 0;
+  const len = Number(dims.length) || 0;
+  const wid = Number(dims.width) || 0;
+  const profMin = Number(dims.depthMin ?? dims.profundidadeMinima) || 0;
+  const profMax = Number(dims.depthMax ?? dims.profundidadeMaxima ?? dims.depth) || 0;
+  const tipoPiscinaTxt = (budget.environmentParams as any)?.tipoPiscina ?? "PRIVATIVA";
 
   if (loading) {
     return <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">Carregando dados solares...</div>;
   }
 
   const selectedMonth = report?.monthly?.[selectedMonthIdx];
+  const today = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
   return (
-    <div className="space-y-4">
-      {/* === 1. Dados do projeto === */}
-      <Section title="1. Dados do projeto" icon="🏊">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-          <ReadField label="Cliente" value={budget.clientPartner?.name ?? "—"} />
-          <ReadField label="Codigo" value={budget.code ?? "—"} />
-          <ReadField label="Area piscina" value={`${area.toFixed(2)} m²`} />
-          <ReadField label="Volume" value={`${volume.toFixed(2)} m³`} />
-        </div>
-      </Section>
+    <div id="solar-pdf-area" className="bg-white text-slate-900 font-sans pb-2 print:bg-white print:text-black">
+      {/* === Cabecalho azul centralizado === */}
+      <div className="text-center py-2 border-y-2 border-blue-700 print:border-black">
+        <h2 className="text-base font-bold text-blue-800 tracking-wide uppercase print:text-black">
+          Simulador para Dimensionamento de Aquecimento Solar para Piscinas
+        </h2>
+        <h3 className="text-sm font-semibold text-blue-700 mt-0.5 print:text-black">
+          COLETOR SOLAR TROPICOS PISCINA
+        </h3>
+      </div>
 
-      {/* === 2. Localizacao e clima === */}
-      <Section title="2. Localizacao e clima" icon="📍">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Field label="UF">
-            <select value={uf} onChange={(e) => { setUf(e.target.value); setCidade(""); }}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-              <option value="">— Selecione —</option>
-              {availableUfs.map((u) => <option key={u.uf} value={u.uf}>{u.uf} · {u.ufName}</option>)}
-            </select>
-          </Field>
-          <Field label="Cidade">
-            <select value={cidade} onChange={(e) => setCidade(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" disabled={!uf}>
-              <option value="">{uf ? "Padrao do estado" : "Selecione UF primeiro"}</option>
-              {availableCities.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </Field>
+      {/* === Linha topo: DADOS DA OBRA (esquerda) + logo (direita) === */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3 px-2">
+        <div className="border border-slate-300 print:border-slate-400 rounded-sm p-2">
+          <div className="text-[11px] font-bold text-blue-700 mb-1 print:text-black">DADOS DA OBRA</div>
+          <KV label="Nome" value={budget.clientPartner?.name ?? "—"} />
+          <KV label="Data" value={today} />
+          <KV label="Local" value={cidade || (availableUfs.find((u) => u.uf === uf)?.ufName) || "—"} />
+          <KV label="Orc n°" value={budget.code ?? "—"} />
         </div>
-        <div className="mt-2 text-[11px] text-slate-500">
-          Edite valores em <a href="/settings/climate-data" className="text-cyan-700 underline">Configuracoes → Dados Climaticos</a> pra ajustar radiacao solar / temperatura mensal.
+        <div className="border border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 rounded-sm p-3 flex flex-col items-center justify-center text-center print:border-slate-400">
+          <div className="text-amber-700 text-3xl">☀️</div>
+          <div className="text-xs font-bold text-amber-800 mt-1">Linha de Coletor Solar para Piscina</div>
+          <div className="text-[10px] text-amber-700">New Tropicos · Solis Piscinas</div>
         </div>
-      </Section>
+      </div>
 
-      {/* === 3. Dados de aquecimento === */}
-      <Section title="3. Dados de aquecimento" icon="🔥">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Field label="Temperatura final desejada (°C)" hint="20 a 40°C — recomendado 28-32°C">
-            <NumInput value={tempAguaDesejada} onChange={setTempAguaDesejada} step={1} min={20} max={40} />
-          </Field>
-          <Field label="Capa termica">
-            <select value={capaTermica ? "SIM" : "NAO"} onChange={(e) => setCapaTermica(e.target.value === "SIM")}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-              <option value="SIM">SIM (recomendado)</option>
-              <option value="NAO">NAO (precisa 80% mais coletor)</option>
-            </select>
-          </Field>
-          <Field label="Vento">
-            <select value={vento} onChange={(e) => setVento(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-              <option value="FRACO">Fraco</option>
-              <option value="MODERADO">Moderado</option>
-              <option value="FORTE">Forte</option>
-            </select>
-          </Field>
+      {/* === DADOS DA PISCINA + AREA/VOLUME === */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2 px-2">
+        <div className="md:col-span-2 border border-slate-300 print:border-slate-400 rounded-sm overflow-hidden">
+          <div className="text-[11px] font-bold text-blue-700 px-2 py-1 bg-slate-50 print:text-black">DADOS DA PISCINA</div>
+          <div className="p-2 grid grid-cols-1 gap-y-0.5">
+            <RowField label="COMPRIMENTO (m):" value={len.toFixed(2).replace(".", ",")} />
+            <RowField label="LARGURA (m):" value={wid.toFixed(2).replace(".", ",")} />
+            <RowField label="PROFUNDIDADE MINIMA (m):" value={profMin.toFixed(2).replace(".", ",")} />
+            <RowField label="PROFUNDIDADE MAXIMA (m):" value={profMax.toFixed(2).replace(".", ",")} />
+            <RowField label="TIPO DE PISCINA:" value={tipoPiscinaTxt} />
+          </div>
         </div>
-      </Section>
+        <div className="border border-slate-300 print:border-slate-400 rounded-sm overflow-hidden">
+          <div className="text-[11px] font-bold text-blue-700 px-2 py-1 bg-slate-50 print:text-black">DIGITAR MANUALMENTE</div>
+          <div className="p-2 grid grid-cols-1 gap-y-0.5">
+            <RowField label="AREA TOTAL:" value={`${area.toFixed(2).replace(".", ",")} m²`} highlight />
+            <RowField label="VOLUME TOTAL:" value={`${volume.toFixed(2).replace(".", ",")} m³`} highlight />
+          </div>
+        </div>
+      </div>
 
-      {/* === 4. Selecao do coletor === */}
-      <Section title="4. Coletor selecionado" icon="☀️">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Field label="Modelo do coletor" hint={collectors.length === 0 ? "Cadastre produtos com tipoEquipamento=SOLAR" : `${collectors.length} modelo(s) disponivel(eis)`}>
-            <select value={selectedCollectorId ?? ""} onChange={(e) => setSelectedCollectorId(e.target.value || null)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-              <option value="">— Padrao (Solis 4.00) —</option>
-              {collectors.map((c) => (
-                <option key={c.productId} value={c.productId}>
-                  {c.modelName} · {c.areaM2.toFixed(2)} m² · η {(c.eficiencia * 100).toFixed(1)}%
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label={`Extra coletores: +${(extraPct * 10).toFixed(0)}% (J42 da planilha)`} hint="Aumenta a area de coletor pra maior eficiencia / dias frios">
-            <input type="range" min={0} max={10} step={1} value={extraPct}
-              onChange={(e) => setExtraPct(Number(e.target.value))}
-              className="w-full" />
-            <div className="text-[10px] text-slate-500 mt-1">0 = minimo, 10 = +100% (dobro de coletores)</div>
-          </Field>
+      {/* === DADOS DO AQUECIMENTO + NBR === */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2 px-2">
+        <div className="md:col-span-2 border border-slate-300 print:border-slate-400 rounded-sm overflow-hidden">
+          <div className="text-[11px] font-bold text-blue-700 px-2 py-1 bg-slate-50 print:text-black">DADOS DO AQUECIMENTO</div>
+          <div className="p-2 grid grid-cols-1 gap-y-0.5">
+            <RowField label="TEMPERATURA FINAL DA AGUA (20°C A 40°C):" valueEditable>
+              <input type="number" min={20} max={40} value={tempAguaDesejada}
+                onChange={(e) => setTempAguaDesejada(Number(e.target.value) || 30)}
+                className="w-14 text-center bg-yellow-50 border border-slate-300 px-1 py-0 text-xs font-semibold tabular-nums" />
+            </RowField>
+            <RowField label="UTILIZACAO:" value="ANO TODO · MES TODO" />
+            <RowField label="UF / LOCAL:" valueEditable>
+              <div className="flex gap-1 items-center">
+                <select value={uf} onChange={(e) => { setUf(e.target.value); setCidade(""); }}
+                  className="bg-yellow-50 border border-slate-300 text-xs px-1 py-0">
+                  <option value="">--</option>
+                  {availableUfs.map((u) => <option key={u.uf} value={u.uf}>{u.uf}</option>)}
+                </select>
+                <select value={cidade} onChange={(e) => setCidade(e.target.value)}
+                  disabled={!uf}
+                  className="bg-yellow-50 border border-slate-300 text-xs px-1 py-0">
+                  <option value="">{uf ? "Capital" : "—"}</option>
+                  {availableCities.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </RowField>
+            <RowField label="USO DE CAPA TERMICA:" valueEditable>
+              <select value={capaTermica ? "SIM" : "NAO"} onChange={(e) => setCapaTermica(e.target.value === "SIM")}
+                className="bg-yellow-50 border border-slate-300 text-xs px-1 py-0 font-semibold">
+                <option value="SIM">SIM</option>
+                <option value="NAO">NAO</option>
+              </select>
+            </RowField>
+            <RowField label="VELOCIDADE DO VENTO:" valueEditable>
+              <select value={vento} onChange={(e) => setVento(e.target.value)}
+                className="bg-yellow-50 border border-slate-300 text-xs px-1 py-0 font-semibold">
+                <option value="FRACO">Fraco</option>
+                <option value="MODERADO">Moderado</option>
+                <option value="FORTE">Forte</option>
+              </select>
+            </RowField>
+            <RowField label="TEMPERATURA AMBIENTE:" value={selectedMonth ? selectedMonth.tempAmbiente.toFixed(0) : "—"} />
+            <RowField label="HIDROMASSAGENS, QUANTIDADE (unid.):" value={String((budget.environmentParams as any)?.hidromassagensQtd ?? 0)} />
+            <RowField label="CASCATA, LARGURA (cm):" value={String((budget.environmentParams as any)?.cascataLarguraCm ?? 0)} />
+            <RowField label="BORDA INFINITA, COMPRIMENTO (m):" value={String((budget.environmentParams as any)?.bordaInfinitaM ?? 0)} />
+          </div>
         </div>
-        <div className="mt-3 flex justify-end">
-          <button onClick={() => onRecompute()}
-            disabled={recomputing || !uf}
-            className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-700 disabled:bg-slate-300 transition">
-            {recomputing ? "Recalculando..." : "☀️ Recalcular dimensionamento"}
-          </button>
+        <div className="border border-slate-300 print:border-slate-400 rounded-sm p-2 text-[10px] text-blue-900 leading-tight print:text-black">
+          <div className="font-bold text-center mb-1">CONFORME NBR 10339:2018 DA ABNT</div>
+          <div className="text-center mb-2">As faixas de temperatura recomendadas em funcao das atividades e do publico que ira utilizar a piscinas:</div>
+          <div className="space-y-0.5">
+            <div className="text-center font-semibold">SPA: 36 °C a 38 °C</div>
+            <div className="text-center font-semibold">PISCINA DE COMPETICAO: 25 °C a 28 °C</div>
+            <div className="text-center font-semibold">PISCINA DE RECREACAO: 27 °C a 29 °C</div>
+            <div className="text-center font-semibold">NATACAO BEBES E HIDROTERAPIA: 30 °C a 34 °C</div>
+            <div className="text-center font-semibold">NATACAO PARA CRIANCAS: 29 °C a 32 °C</div>
+          </div>
+          <div className="text-center mt-2 font-semibold">RECOMENDA-SE ACOMPANHAMENTO MEDICO PARA TEMPERATURAS ACIMA DE 38 °C.</div>
         </div>
-      </Section>
+      </div>
 
-      {/* === 5. Dimensionamento === */}
+      {/* === Botao recalcular === */}
+      <div className="mt-3 px-2 flex items-center justify-between gap-2 print:hidden">
+        <div className="text-[11px] text-slate-500">
+          Edite UF, capa, vento, temperatura final e clique recalcular.
+          <a href="/settings/climate-data" className="ml-2 text-cyan-700 underline">Editar dados climaticos</a>
+        </div>
+        <button onClick={() => onRecompute()} disabled={recomputing || !uf}
+          className="rounded-md bg-amber-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-amber-700 disabled:bg-slate-300 transition">
+          {recomputing ? "Recalculando..." : "☀️ Recalcular dimensionamento"}
+        </button>
+        <button onClick={() => window.print()}
+          className="rounded-md border border-blue-600 text-blue-700 px-4 py-1.5 text-xs font-bold hover:bg-blue-50 transition">
+          🖨️ Imprimir / PDF
+        </button>
+      </div>
+
+      {/* === DIMENSIONAMENTO COLETOR SOLAR === */}
+      <div className="mt-3 px-2">
+        <div className="text-center text-[12px] font-bold text-blue-800 border-y border-blue-300 py-1 print:text-black print:border-black">
+          DIMENSIONAMENTO COLETOR SOLAR SOLIS PISCINAS
+        </div>
+      </div>
+
       {report ? (
         <>
-          <Section title="5. Dimensionamento" icon="📐">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              <BigStat label="m² coletor necessario" value={report.m2ColetorNecessario.toFixed(1)} unit="m²" emphasis="orange" />
-              <BigStat label="Qtd coletores" value={String(report.qtdColetores)} unit="un" emphasis="cyan" />
-              <BigStat label="Num baterias" value={String(report.numBaterias)} unit="bat" emphasis="emerald" />
-              <BigStat label="Vazao total" value={report.vazaoTotalM3h.toFixed(2)} unit="m³/h" emphasis="cyan" />
-              <BigStat label="m² total coletores" value={report.areaTotalColetoresM2.toFixed(2)} unit="m²" emphasis="emerald" />
-              <BigStat label="% area piscina" value={report.percentualCobertura.toFixed(1)} unit="%" emphasis="orange" />
-            </div>
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-600">
-              <div className="bg-slate-50 border border-slate-200 rounded px-3 py-2">
-                <strong>{report.coletoresPorBateria}</strong> coletores por bateria · <strong>{report.selectedCollector.modelName}</strong> ({report.selectedCollector.areaM2.toFixed(2)} m²/un)
-              </div>
-              <div className="bg-slate-50 border border-slate-200 rounded px-3 py-2">
-                Capacidade total: <strong>{report.selectedCollector.kcalHTotal.toLocaleString("pt-BR")}</strong> kcal/h · η <strong>{(report.selectedCollector.eficiencia * 100).toFixed(1)}%</strong>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2 px-2">
+            <div className="md:col-span-2 border border-slate-300 print:border-slate-400 rounded-sm overflow-hidden">
+              <div className="text-[11px] font-bold text-blue-700 px-2 py-1 bg-slate-50 print:text-black">CALCULOS DE DIMENCIONAMENTO</div>
+              <div className="p-2 grid grid-cols-1 gap-y-0.5">
+                <RowField label="AREA CONSIDERADO DA PISCINA:" value={`${report.areaPiscinaM2.toFixed(2).replace(".", ",")} m²`} highlight />
+                <RowField label="QUANTIDADE m² DE COLETOR NECESSARIO:" value={`${Math.round(report.m2ColetorNecessario)} m²`} highlight />
+                <RowField label="QUANTIDADE DE COLETOR NECESSARIO:" value={`${report.qtdColetores.toFixed(1).replace(".", ",")} Un`} highlight />
+                <RowField label="NUMERO DE BATERIAS:" value={`${report.numBaterias} Un`} highlight />
+                <RowField label="VAZAO NECESSARIA:" value={`${report.vazaoTotalM3h.toFixed(2).replace(".", ",")} m³/h`} highlight />
+                <RowField label="TOTAL DE m² COLETORES:" value={`${report.areaTotalColetoresM2.toFixed(2).replace(".", ",")} m²`} highlight />
+                <RowField label="AREA PISCINA X COLETORES:" value={`${report.percentualCobertura.toFixed(2).replace(".", ",")} %`} highlight />
               </div>
             </div>
-          </Section>
+            <div className="border border-slate-300 print:border-slate-400 rounded-sm p-2">
+              <div className="text-center text-[11px] font-bold text-slate-700">Bomba necessaria (Aprox)</div>
+              <div className="text-center text-[12px] font-semibold text-blue-800 mt-2 print:text-black">{report.bombaRecomendada}</div>
+              <div className="text-[10px] text-slate-500 mt-3 leading-tight">
+                Mapeado pela vazao calculada. Operador ajusta o modelo exato no orcamento final.
+              </div>
+            </div>
+          </div>
 
-          {/* === 6. Tabela mensal === */}
-          <Section title="6. Manutencao da temperatura (12 meses)" icon="📅">
-            <div className="overflow-x-auto">
-              <table className="text-xs tabular-nums w-full">
-                <thead>
-                  <tr className="text-slate-600 border-b border-slate-200">
-                    <th className="text-left p-1.5 font-semibold">Mes</th>
-                    <th className="text-right p-1.5 font-semibold" title="Temp ambiente media">T amb °C</th>
-                    <th className="text-right p-1.5 font-semibold" title="Radiacao solar diaria">RadSol kWh</th>
-                    <th className="text-right p-1.5 font-semibold" title="Ganho de temperatura por dia ensolarado">Ganho/dia °C</th>
-                    <th className="text-right p-1.5 font-semibold" title="Perda noturna estimada">Perda/noite °C</th>
-                    <th className="text-right p-1.5 font-semibold">T fim 1°dia</th>
-                    <th className="text-right p-1.5 font-semibold">T fim 2°dia</th>
-                    <th className="text-right p-1.5 font-semibold">T fim 3°dia</th>
-                    <th className="text-right p-1.5 font-semibold">T fim 4°dia</th>
+          {/* === Coletor selecionado + extra coletores === */}
+          <div className="mt-2 px-2 grid grid-cols-1 md:grid-cols-12 gap-2 items-stretch">
+            <div className="md:col-span-7 border border-slate-300 print:border-slate-400 rounded-sm p-2">
+              <div className="text-[11px] font-bold text-blue-700 mb-1 print:text-black">COLETOR SELECIONADO:</div>
+              <select value={selectedCollectorId ?? ""} onChange={(e) => setSelectedCollectorId(e.target.value || null)}
+                className="w-full bg-yellow-50 border border-amber-300 px-2 py-1 text-sm font-semibold print:hidden">
+                <option value="">— Padrao —</option>
+                {collectors.map((c) => (
+                  <option key={c.productId} value={c.productId}>
+                    {c.modelName} ({c.areaM2.toFixed(2)} m²)
+                  </option>
+                ))}
+              </select>
+              <div className="hidden print:block text-sm font-semibold bg-yellow-50 px-2 py-1 border border-slate-300">
+                {report.selectedCollector.modelName} ({report.selectedCollector.areaM2.toFixed(2)} m²)
+              </div>
+            </div>
+            <div className="md:col-span-5 border border-slate-300 print:border-slate-400 rounded-sm p-2 flex items-center gap-2">
+              <div className="bg-green-100 border border-green-400 px-3 py-1 rounded text-center text-base font-bold text-green-800 print:text-black w-12">{extraPct}</div>
+              <div className="flex-1">
+                <input type="range" min={0} max={10} step={1} value={extraPct}
+                  onChange={(e) => setExtraPct(Number(e.target.value))}
+                  className="w-full print:hidden" />
+                <div className="text-[10px] text-slate-700 italic mt-0.5">Altere para aumentar a eficiencia do aquecimento</div>
+              </div>
+            </div>
+          </div>
+
+          {/* === TEMPO MEDIO ESTIMADO === */}
+          <div className="mt-4 px-2">
+            <div className="text-center text-[12px] font-bold text-blue-800 border-y border-blue-300 py-1 print:text-black print:border-black">
+              TEMPO MEDIO ESTIMADO PARA MANUTENCAO DA TEMPERATURA
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-2 mt-2 px-2">
+            {/* Coluna esquerda — escolha mes + grafico */}
+            <div className="md:col-span-7">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[11px] font-semibold text-slate-700">Escolha o mes para visualizar o grafico:</span>
+                <select value={selectedMonthIdx} onChange={(e) => setSelectedMonthIdx(Number(e.target.value))}
+                  className="bg-green-50 border border-green-400 text-[11px] font-bold text-green-900 px-2 py-0.5 rounded print:bg-white print:text-black">
+                  {SOLAR_MONTH_NAMES_FULL.map((m, i) => <option key={i} value={i}>{m}</option>)}
+                </select>
+              </div>
+              {selectedMonth && (
+                <SolarChart row={selectedMonth} tempDesejada={tempAguaDesejada} />
+              )}
+            </div>
+
+            {/* Coluna direita — tabela 12 meses */}
+            <div className="md:col-span-5 border border-slate-300 print:border-slate-400 rounded-sm overflow-hidden">
+              <table className="w-full text-[10px] tabular-nums">
+                <thead className="bg-slate-100 text-slate-700 print:bg-white">
+                  <tr>
+                    <th className="text-left p-1 font-semibold">Mes</th>
+                    <th className="text-right p-1 font-semibold leading-tight" title="Temp ambiente">Temp<br/><span className="text-[8px] font-normal">(exceto frios e nublados)</span></th>
+                    <th className="text-right p-1 font-semibold">Ganho<br/>° dia</th>
+                    <th className="text-right p-1 font-semibold leading-tight">Temp Final<br/>1° Dia</th>
+                    <th className="text-right p-1 font-semibold leading-tight">Temp Final<br/>2° Dia</th>
+                    <th className="text-right p-1 font-semibold leading-tight">Temp Final<br/>3° Dia</th>
+                    <th className="text-right p-1 font-semibold leading-tight">Temp Final<br/>4° Dia</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {report.monthly.map((r) => {
-                    const cold = r.tempFinal4d < tempAguaDesejada - 2;
-                    return (
-                      <tr key={r.monthIndex}
-                        className={`border-b border-slate-100 cursor-pointer hover:bg-amber-50 ${selectedMonthIdx === r.monthIndex ? "bg-amber-100" : ""}`}
-                        onClick={() => setSelectedMonthIdx(r.monthIndex)}>
-                        <td className="p-1.5 font-semibold">{r.monthName}</td>
-                        <td className="p-1.5 text-right">{r.tempAmbiente.toFixed(1)}</td>
-                        <td className="p-1.5 text-right">{r.radSol.toFixed(1)}</td>
-                        <td className="p-1.5 text-right text-emerald-700">{r.ganhoDia.toFixed(2)}</td>
-                        <td className="p-1.5 text-right text-rose-600">{r.perdaCorrigidaPorDia.toFixed(2)}</td>
-                        <td className="p-1.5 text-right">{r.tempFinal1d.toFixed(1)}</td>
-                        <td className="p-1.5 text-right">{r.tempFinal2d.toFixed(1)}</td>
-                        <td className="p-1.5 text-right">{r.tempFinal3d.toFixed(1)}</td>
-                        <td className={`p-1.5 text-right font-bold ${cold ? "text-rose-700" : "text-emerald-700"}`}>
-                          {r.tempFinal4d.toFixed(1)}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {report.monthly.map((r) => (
+                    <tr key={r.monthIndex}
+                      onClick={() => setSelectedMonthIdx(r.monthIndex)}
+                      className={`border-t border-slate-200 cursor-pointer hover:bg-amber-50 print:hover:bg-transparent ${
+                        selectedMonthIdx === r.monthIndex ? "bg-amber-100 print:bg-white" : ""
+                      }`}>
+                      <td className="p-1 font-semibold text-blue-800 print:text-black">{r.monthName}</td>
+                      <td className="p-1 text-right">{r.tempAmbiente.toFixed(2).replace(".", ",")}</td>
+                      <td className="p-1 text-right">{r.ganhoDia.toFixed(2).replace(".", ",")}</td>
+                      <td className="p-1 text-right font-semibold">{r.tempFinal1d.toFixed(2).replace(".", ",")}</td>
+                      <td className="p-1 text-right font-semibold">{r.tempFinal2d.toFixed(2).replace(".", ",")}</td>
+                      <td className="p-1 text-right font-semibold">{r.tempFinal3d.toFixed(2).replace(".", ",")}</td>
+                      <td className="p-1 text-right font-semibold">{r.tempFinal4d.toFixed(2).replace(".", ",")}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
-              <SmallStat label="Ganho medio" value={`${report.monthlyAvgGanho.toFixed(2)} °C/dia`} />
-              <SmallStat label="Pior mes (4° dia)" value={`${report.monthlyMinTempFinal.toFixed(1)} °C`} />
-              <SmallStat label="Melhor mes (4° dia)" value={`${report.monthlyMaxTempFinal.toFixed(1)} °C`} />
-            </div>
-            {selectedMonth && (
-              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                <strong>📌 {selectedMonth.monthName} selecionado:</strong> dia ensolarado ganha {selectedMonth.ganhoDia.toFixed(2)} °C, perde {selectedMonth.perdaCorrigidaPorDia.toFixed(2)} °C/noite. Apos 4 dias com 3 noites de perda, a piscina chega a <strong>{selectedMonth.tempFinal4d.toFixed(1)} °C</strong>.
-              </div>
-            )}
-          </Section>
+          </div>
 
-          {/* === 7. Observacoes === */}
-          <Section title="7. Observacoes" icon="ℹ️">
-            <div className="text-xs text-slate-700 space-y-1.5">
-              <p><strong>Os valores acima sao estimativos e poderao sofrer variacoes caso:</strong></p>
-              <ol className="list-decimal ml-5 space-y-1">
-                <li>Haja alteracao da temperatura media mensal do ambiente.</li>
-                <li>A perda termica da piscina por dia seja acima do tolerado (uso intenso, capa termica nao usada, vento forte).</li>
-                <li>Dias frios e chuvosos poderao reiniciar o ciclo de aquecimento do 1° dia.</li>
-              </ol>
-              <p className="mt-2 text-[11px] text-slate-500">
-                Calculo baseado na metodologia Solis Piscinas + radiacao solar do Atlas Brasileiro de Energia Solar (CRESESB/INPE). Constantes: eficiencia coletor 0.65 padrao, insolacao 5h util/dia, vazao 0.254 m³/h por m² de coletor.
-              </p>
-            </div>
-          </Section>
+          {/* === Observacoes === */}
+          <div className="mt-4 px-2 text-[10px] text-slate-700 print:text-black">
+            <p className="font-bold uppercase">Os valores acima citados sao estimativos e poderao sofrer variacoes caso:</p>
+            <p>1) Haja alteracao da temperatura media mensal do ambiente.</p>
+            <p>2) A perda termica da piscina por dia seja acima do tolerado.</p>
+            <p>3) Dias frios e chuvosos poderao reiniciar o ciclo de aquecimento do 1° dia.</p>
+          </div>
         </>
       ) : (
-        <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-          {uf ? "Clique em 'Recalcular dimensionamento' pra gerar o relatorio solar." : "Selecione UF + cidade pra comecar."}
+        <div className="mt-3 mx-2 rounded border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500 print:hidden">
+          {uf ? "Clique em '☀️ Recalcular dimensionamento' pra gerar o relatorio." : "Selecione UF + cidade pra comecar."}
         </div>
       )}
+
+      {/* CSS Print: esconde tabs/header do modal e mostra so o conteudo */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          body * { visibility: hidden; }
+          #solar-pdf-area, #solar-pdf-area * { visibility: visible; }
+          #solar-pdf-area { position: absolute; left: 0; top: 0; width: 100%; padding: 0 8mm; }
+          @page { size: A4 portrait; margin: 8mm; }
+        }
+      ` }} />
+    </div>
+  );
+}
+
+// ============ Subcomponentes da aba Solar (Fase v2) ============
+
+function KV({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="flex items-baseline gap-2 text-[11px] leading-tight">
+      <span className="text-slate-600 font-semibold w-12 shrink-0">{label}:</span>
+      <span className="font-bold text-slate-900">{value}</span>
+    </div>
+  );
+}
+
+function RowField({ label, value, valueEditable, highlight, children }: {
+  label: string;
+  value?: string;
+  valueEditable?: boolean;
+  highlight?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 text-[11px] py-0.5">
+      <span className="text-slate-700 leading-tight">{label}</span>
+      {children ? (
+        <span>{children}</span>
+      ) : (
+        <span className={`px-2 py-0.5 font-semibold tabular-nums ${highlight ? "bg-yellow-50 border border-slate-300" : ""}`}>
+          {value}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// Grafico estilo planilha: 8 pontos (4 dias × inicio/fim), area montanha laranja/amarela com labels
+function SolarChart({ row, tempDesejada }: { row: SolarMonthlyRow; tempDesejada: number }) {
+  const pts = [
+    { x: "Temp Inicial 1° Dia", y: row.tempInicial1d },
+    { x: "Temp Final 1° Dia",   y: row.tempFinal1d },
+    { x: "Temp Inicial 2° Dia", y: row.tempInicial2d },
+    { x: "Temp Final 2° Dia",   y: row.tempFinal2d },
+    { x: "Temp Inicial 3° Dia", y: row.tempInicial3d },
+    { x: "Temp Final 3° Dia",   y: row.tempFinal3d },
+    { x: "Temp Inicial 4° Dia", y: row.tempInicial4d },
+    { x: "Temp Final 4° Dia",   y: row.tempFinal4d },
+  ];
+  const W = 560;
+  const H = 220;
+  const padL = 28, padR = 12, padT = 24, padB = 56;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+  const yMin = 20;
+  const yMax = Math.max(40, tempDesejada + 2);
+  const stepX = innerW / (pts.length - 1);
+  const xOf = (i: number) => padL + i * stepX;
+  const yOf = (v: number) => padT + innerH - ((v - yMin) / (yMax - yMin)) * innerH;
+
+  const linePath = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${xOf(i).toFixed(1)} ${yOf(p.y).toFixed(1)}`).join(" ");
+  const areaPath = `${linePath} L ${xOf(pts.length - 1).toFixed(1)} ${padT + innerH} L ${xOf(0).toFixed(1)} ${padT + innerH} Z`;
+
+  return (
+    <div className="border border-slate-300 print:border-slate-400 rounded-sm bg-blue-50/30 p-2 print:bg-white">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
+        <defs>
+          <linearGradient id="solarGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#fb923c" stopOpacity="0.7" />
+            <stop offset="100%" stopColor="#fef08a" stopOpacity="0.3" />
+          </linearGradient>
+          <marker id="arrUp" viewBox="0 0 10 10" refX="5" refY="0" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0,10 L5,0 L10,10 z" fill="#3b82f6" />
+          </marker>
+        </defs>
+        {/* Grid Y */}
+        {[20, 25, 30, 35, 40].filter((v) => v <= yMax).map((v) => (
+          <g key={v}>
+            <line x1={padL} y1={yOf(v)} x2={W - padR} y2={yOf(v)} stroke="#e2e8f0" strokeDasharray="2 2" />
+            <text x={padL - 4} y={yOf(v) + 3} fontSize="9" fill="#94a3b8" textAnchor="end">({v}°)</text>
+          </g>
+        ))}
+        {/* Area gradient */}
+        <path d={areaPath} fill="url(#solarGrad)" stroke="none" />
+        {/* Line */}
+        <path d={linePath} fill="none" stroke="#f97316" strokeWidth="2.5" />
+        {/* Pontos + labels + flechas */}
+        {pts.map((p, i) => {
+          const isInicial = i % 2 === 0;
+          return (
+            <g key={i}>
+              {/* Flecha vertical em pontos iniciais (estilo planilha) */}
+              {isInicial && (
+                <line x1={xOf(i)} y1={padT + innerH} x2={xOf(i)} y2={yOf(p.y) + 4}
+                  stroke="#3b82f6" strokeWidth="1" markerEnd="url(#arrUp)" />
+              )}
+              {/* Ponto */}
+              <circle cx={xOf(i)} cy={yOf(p.y)} r="3" fill="#f97316" stroke="#fff" strokeWidth="1.5" />
+              {/* Label valor */}
+              <text x={xOf(i)} y={yOf(p.y) - 8} fontSize="10" fontWeight="bold" fill="#1e3a8a" textAnchor="middle">
+                ({p.y.toFixed(2).replace(".", ",")}°)
+              </text>
+              {/* Label eixo X (rotacionado) */}
+              <text x={xOf(i)} y={padT + innerH + 14} fontSize="8" fill="#475569" textAnchor="middle">
+                {p.x.split(" ").slice(0, 2).join(" ")}
+              </text>
+              <text x={xOf(i)} y={padT + innerH + 24} fontSize="8" fill="#475569" textAnchor="middle">
+                {p.x.split(" ").slice(2).join(" ")}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 }
