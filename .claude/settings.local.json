@@ -20,5 +20,19 @@
       "Bash(curl -fsS http://localhost:3000/)"
     ],
     "deny": []
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/check-version-alignment.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
   }
 }

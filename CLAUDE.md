@@ -1,10 +1,15 @@
 # Tecnikos — Instrucoes para o Claude
 
 ## REGRAS DE SESSAO (NUNCA IGNORAR)
+0. **VERIFICAR ALINHAMENTO COM PROD ANTES DE QUALQUER EDICAO** (REGRA #0 - INVIOLAVEL)
+   - Comparar `cat version.json` (local) com `curl -s https://sls.tecnikos.com.br/api/health | python -c "import json,sys;print(json.load(sys.stdin)['version'])"` (prod)
+   - Se diverge: PARAR. Investigar (worktrees, git fetch, pull). NUNCA editar em cima de codigo velho.
+   - **Barreira automatica ativa**: hook `.claude/check-version-alignment.sh` bloqueia Edit/Write quando local ≠ prod. Se o bloqueio aparecer, NAO contornar — investigar causa.
+   - Excecao: arquivos em `.claude/worktrees/` (branches isoladas) — hook libera por padrao.
 1. Ao INICIAR sessao: LER `ARCHITECTURE.md` e `CURRENT_TASK.md` ANTES de qualquer coisa
-2. Claude decide toda a parte tecnica sozinho e executa sem perguntar — so para em decisoes de NEGOCIO
+2. Claude decide toda a parte tecnica sozinho e executa sem perguntar — so para em decisoes de NEGOCIO. **Excecao:** comando isolado e ambiguo ("Continuar", "Vai", "OK") NAO autoriza nova tarefa — aguardar instrucao explicita
 3. NUNCA confiar que a sessao vai durar — salvar progresso incrementalmente
-4. Se a sessao anterior ficou incompleta, retomar do ponto exato registrado em CURRENT_TASK.md
+4. Se a sessao anterior ficou incompleta, retomar do ponto exato registrado em CURRENT_TASK.md SO se o usuario explicitamente pedir
 5. Ao finalizar estudo/pesquisa: GRAVAR resultado em arquivo IMEDIATAMENTE
 6. Quando o usuario der instrucao global/permanente: PERGUNTAR se quer gravar no CLAUDE.md
 7. Ao fazer mudancas estruturais: ATUALIZAR ARCHITECTURE.md antes de encerrar
