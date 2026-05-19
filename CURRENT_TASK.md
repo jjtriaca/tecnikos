@@ -13,7 +13,17 @@
   - `quotes/pool/[id]/page.tsx:618` — tooltip "Simulador de Aquecimento (Trocador de Calor)" → "Simulador de Aquecimento"
   - `HeatingSimulatorModal.tsx` — comentario topo atualizado, TabKey reordenado pra "solar" | "bomba" | "comparativo", activeTab default = solar, abas renderizam Solar primeiro (sem disabled), conteudo placeholder amarelo "em construcao" referenciando Fase 5
   - tsc clean
-- ⏳ **Fase 1** — banco + seed INMET + CRUD (em fila)
+- ✅ **Fase 1** — banco ClimateData + seed INMET + CRUD
+  - Schema: novo model `ClimateData(id, companyId, uf, cidade?, ufName, monthlyData Json, isCustom, isActive)` + UNIQUE(companyId,uf,cidade) + index(companyId,uf,isActive) + relacao Company.climateData
+  - Migration: `20260519180000_add_climate_data/migration.sql`
+  - TENANT_MODEL_DELEGATES atualizado em `prisma.service.ts` (regra critica multi-tenant)
+  - `climate-seed.ts`: SOLAR_RADIATION_BY_UF (27 capitais) + SOLAR_RADIATION_BY_CITY (10 cidades-polo conhecidas) combinado com CLIMATE_DATA (temp+humidity ja existente). Funcoes `buildClimateSeed()` + `findSeedRecord()`
+  - `climate-data.service.ts`: ensureSeeded (idempotente, popula no 1o acesso), findAll, findByUf, findForLookup (cidade fallback estado), update (marca isCustom=true), addCustomCity, restoreSeed, deleteCustomCity. Tipos `MonthlyData` e `ClimateDataView` exportados.
+  - `climate-data.controller.ts`: GET /settings/climate-data[?uf=], POST custom-city, PATCH :id, POST :id/restore-seed, DELETE :id. Decorators @Roles(ADMIN) + @RequireVerification nas mutacoes.
+  - DTO `climate-data.dto.ts` com validacao: arrays de 12 numeros, humidity 0..1, radSol 0..15 kWh/m²/dia.
+  - Modulo `PoolBudgetModule` atualizado.
+  - tsc clean.
+- ⏳ **Fase 2** — tela admin /settings/climate-data
 - ⏳ **Fase 2** — tela admin /settings/climate-data
 - ⏳ **Fase 3** — Bomba ler ClimateData do banco
 - ⏳ **Fase 4** — motor de calculo Solar

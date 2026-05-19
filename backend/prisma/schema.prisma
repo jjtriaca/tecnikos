@@ -273,6 +273,7 @@ model Company {
   poolPaymentTerms    PoolPaymentTerm[]
   poolModuleConfig    PoolModuleConfig?
   energyTariffs       EnergyTariff[]
+  climateData         ClimateData[]
 }
 
 model User {
@@ -3668,6 +3669,29 @@ model PoolPaymentTerm {
 
   @@unique([companyId, name])
   @@index([companyId, isActive, deletedAt])
+}
+
+// Dados climaticos por UF/cidade pro Simulador de Aquecimento (Bomba + Solar).
+// Cada tenant tem um conjunto editavel. cidade=null = padrao do estado.
+// Seed inicial = INMET/Atlas Solarimetrico (rodado em ensureSeeded ao primeiro acesso).
+// isCustom=true sinaliza que o tenant editou o registro (UI mostra opcao "Restaurar padrao INMET").
+model ClimateData {
+  id              String   @id @default(uuid())
+  companyId       String
+  uf              String   // AC, AL, ..., TO
+  cidade          String?  // null = padrao do estado (capital)
+  ufName          String   // Acre, Alagoas, ..., Tocantins
+  // Json com { temp: number[12], humidity: number[12] (fracao 0..1), radSol: number[12] (kWh/m²/dia) }
+  monthlyData     Json
+  isCustom        Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, uf, cidade])
+  @@index([companyId, uf, isActive])
 }
 
 // Tarifa de energia para o Simulador de Aquecimento (Trocador de Calor).
