@@ -1321,6 +1321,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         initialExpr={item.formulaExpr || ""}
         dimensions={dimensions}
         environmentParams={environmentParams}
+        heatingReport={heatingReport}
         dias={dias}
         itemDescription={item.description}
         itemUnit={item.unit}
@@ -1937,6 +1938,9 @@ const FORMULA_VARS = [
   'dias',
   // Aquecimento
   'tempLocal', 'tempAgua', 'vento', 'capa', 'construcao',
+  // Aquecimento — vars do Simulador (heatingReport)
+  'calorNecessarioKcalH',
+  'hidromassagens', 'cascataCm', 'bordaInfinitaM',
 ] as const;
 const FORMULA_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
 const CELL_REF_FUNCTIONS = ['qty', 'total', 'unitPrice'] as const;
@@ -2073,10 +2077,12 @@ const FORMULA_FN_HELP: Record<typeof FORMULA_FUNCTIONS[number], string> = {
 
 type OtherItemForModal = { cellRef: string; description: string; poolSection: string; qty: number; total: number; unitPrice: number; productSpecs?: Record<string, any> | null };
 
-function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDescription, itemUnit, itemCellRef, itemPoolSection, productSpecs, productName, otherItems, siblingVars, initialQtyDecimals, onClose, onSave, onClear }: {
+function FormulaModal({ initialExpr, dimensions, environmentParams, heatingReport, dias, itemDescription, itemUnit, itemCellRef, itemPoolSection, productSpecs, productName, otherItems, siblingVars, initialQtyDecimals, onClose, onSave, onClear }: {
   initialExpr: string;
   dimensions: any;
   environmentParams?: any;
+  /** v1.11.92: cache do Simulador (calorNecessarioKcalH) pra formulas tipo "ceil(calorNecessarioKcalH / kcalHNominal)" */
+  heatingReport?: any;
   dias?: number;
   itemDescription?: string;
   itemUnit?: string;
@@ -2148,6 +2154,13 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, dias, itemDe
     vento: ventoNum,
     capa: capaNum,
     construcao: construcaoNum,
+    // v1.11.92: Aquecimento — calorNecessarioKcalH vem do heatingReport (Simulador).
+    // Permite formulas como 'ceil(calorNecessarioKcalH / kcalHNominal)' funcionarem
+    // no preview do modal (antes dava "variavel desconhecida" porque so backend lia).
+    calorNecessarioKcalH: Number(heatingReport?.calorNecessarioKcalH) || 0,
+    hidromassagens: Number(environmentParams?.hidromassagensQtd) || 0,
+    cascataCm: Number(environmentParams?.cascataLarguraCm) || 0,
+    bordaInfinitaM: Number(environmentParams?.bordaInfinitaM) || 0,
     // Merge das sibling vars (technicalSpecs dos outros items da mesma poolSection).
     // Permite formulas como 'siblingTempoMontagemH', 'siblingVazaoM3h', etc.
     ...(siblingVars || {}),
