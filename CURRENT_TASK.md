@@ -32,7 +32,14 @@
   - `MonthlyRow`: 12 inputs em grid responsivo (6 col mobile, 12 col desktop), validacao inline
   - Sidebar: link "Dados Climaticos" embaixo de "Tarifas de Energia"
   - tsc clean
-- ⏳ **Fase 3** — Bomba ler ClimateData do banco
+- ✅ **Fase 3** — Bomba ler ClimateData do banco
+  - `heating-constants.ts`: ClimateCity ganha `radSolMonthly?` opcional (compat com arquivo legado)
+  - `heating.service.ts`: HeatingInputs ganha `climateOverride?: ClimateCity`. `getClimateData(uf, cidade, override?)` usa override se presente. Metodos internos (`computeMonthlyHeatLoss`, `computeReport`, `getDefaultTempInicial`) passam `inputs.climateOverride`
+  - `heating-budget.service.ts`: injeta `ClimateDataService`. Helper `buildClimateOverride(companyId, uf, cidade)` consulta banco via `findForLookup` e monta ClimateCity. `computeAndSaveReport` e `simulate` populam `inputs.climateOverride` antes de chamar `HeatingService`. Novo metodo `listAvailableCities(companyId)` le do banco com fallback pro arquivo se tenant sem dados.
+  - `pool-budget.controller.ts`: `/heating/cities` agora passa companyId pra `heatingBudget.listAvailableCities`
+  - Comportamento: tenant vazio (1a leitura) → ensureSeeded popula 27 capitais + cidades-polo. Tenant com dados → usa do banco. Arquivo CLIMATE_BY_UF continua como last-resort.
+  - tsc clean
+- ⏳ **Fase 4** — motor de calculo Solar
 - ⏳ **Fase 4** — motor de calculo Solar
 - ⏳ **Fase 5** — UI aba Solar (7 secoes)
 - ⏳ **Fase 6** — solarQty bond

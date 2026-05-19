@@ -14,7 +14,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { HeatingService, HeatingInputs, HeatingReport, TariffInput, ExtrasDetected, ExtraLineDetail, ExtraDetected } from './heating.service';
 import { UpsertEnergyTariffDto } from './dto/energy-tariff.dto';
-import { HEATING_OPERATION_DEFAULTS, UFCode, VentoLevel, TipoConstrucao, TipoPiscina, UtilizacaoAno, UtilizacaoSemana, CLIMATE_BY_UF, getExtraDefaultHorasSemana } from './heating-constants';
+import { HEATING_OPERATION_DEFAULTS, UFCode, VentoLevel, TipoConstrucao, TipoPiscina, UtilizacaoAno, UtilizacaoSemana, CLIMATE_BY_UF, getExtraDefaultHorasSemana, ClimateCity } from './heating-constants';
+import { ClimateDataService } from './climate-data.service';
 
 const DEFAULT_TARIFF: TariffInput = {
   kwhBRLCents: 115, // R$ 1.15/kWh
@@ -43,7 +44,58 @@ export class HeatingBudgetService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly heating: HeatingService,
+    private readonly climateData: ClimateDataService,
   ) {}
+
+  /**
+   * Constroi ClimateCity a partir do banco (ClimateData) pra passar como override
+   * em HeatingInputs.climateOverride. Fallback pra null se nao achar — HeatingService
+   * usa CLIMATE_BY_UF do arquivo como last-resort.
+   */
+  private async buildClimateOverride(companyId: string, uf: string, cidade?: string | null): Promise<ClimateCity | undefined> {
+    const data = await this.climateData.findForLookup(companyId, uf, cidade ?? null);
+    if (!data) return undefined;
+    const name = cidade?.trim() || uf;
+    return {
+      name,
+      tempMonthly: data.temp as ClimateCity['tempMonthly'],
+      humidityMonthly: data.humidity as ClimateCity['humidityMonthly'],
+      radSolMonthly: data.radSol as NonNullable<ClimateCity['radSolMonthly']>,
+    };
+  }
+
+  /**
+   * Lista UFs + cidades disponiveis pra dropdown. Le do banco (Fase 3).
+   * Fallback pro arquivo CLIMATE_BY_UF se tenant sem dados (defensivo).
+   */
+  async listAvailableCities(companyId: string): Promise<{ uf: UFCode; ufName: string; cities: string[] }[]> {
+    const rows = await this.climateData.findAll(companyId);
+    if (!rows.length) {
+      // fallback arquivo
+      return this.heating.listAvailableCities();
+    }
+    const byUf = new Map<string, { uf: UFCode; ufName: string; cities: string[]; capital?: string }>();
+    for (const r of rows) {
+      let g = byUf.get(r.uf);
+      if (!g) {
+        g = { uf: r.uf as UFCode, ufName: r.ufName, cities: [] };
+        byUf.set(r.uf, g);
+      }
+      if (r.cidade === null) {
+        g.capital = r.ufName;
+      } else {
+        g.cities.push(r.cidade);
+      }
+    }
+    return Array.from(byUf.values())
+      .sort((a, b) => a.ufName.localeCompare(b.ufName, 'pt-BR'))
+      .map((g) => ({
+        uf: g.uf,
+        ufName: g.ufName,
+        // capital primeiro, depois cidades-polo
+        cities: [g.capital ?? g.ufName, ...g.cities],
+      }));
+  }
 
   // ============ EnergyTariff ============
 
@@ -265,6 +317,8 @@ export class HeatingBudgetService {
     const aggregated = this.aggregateExtrasFromItems(budget.items as any);
 
     const inputs = this.extractInputs(budget, aggregated);
+    // Fase 3: override climatico vem do banco (ClimateData)
+    inputs.climateOverride = await this.buildClimateOverride(companyId, inputs.uf, inputs.cidade);
     const tariff = await this.getEnergyTariff(companyId);
 
     // Prioridade do equipamento:
@@ -451,6 +505,8 @@ export class HeatingBudgetService {
   async simulate(companyId: string, inputs: HeatingInputs): Promise<HeatingReport> {
     const tariff = await this.getEnergyTariff(companyId);
     const candidates = await this.fetchBombaCalorCandidates(companyId);
+    // Fase 3: override climatico vem do banco
+    inputs.climateOverride = await this.buildClimateOverride(companyId, inputs.uf, inputs.cidade);
     return this.heating.computeReport(inputs, { candidates, tariff });
   }
 

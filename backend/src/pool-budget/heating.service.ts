@@ -75,6 +75,10 @@ export interface HeatingInputs {
   // Operacao
   horasFuncionamentoDia?: number; // default 15
   taxaFuncionamento?: number; // 0..1, default 0.5
+
+  // Override climatico — quando presente, ignora CLIMATE_BY_UF e usa este.
+  // Populado por HeatingBudgetService a partir da tabela ClimateData (banco).
+  climateOverride?: ClimateCity;
 }
 
 export interface MonthlyHeatLoss {
@@ -237,7 +241,11 @@ export class HeatingService {
    * Pega dados climaticos da cidade especificada (ou capital do UF se nao informada
    * ou nao encontrada). Retorna a cidade resolvida + dados de temp/umidade mensal.
    */
-  getClimateData(uf: UFCode, cidade?: string): { city: ClimateCity; resolved: { uf: UFCode; name: string } } {
+  getClimateData(uf: UFCode, cidade?: string, override?: ClimateCity): { city: ClimateCity; resolved: { uf: UFCode; name: string } } {
+    // Override do banco (Fase 3 — ClimateData): prevalece sobre o arquivo CLIMATE_BY_UF
+    if (override) {
+      return { city: override, resolved: { uf, name: override.name } };
+    }
     const ufData = CLIMATE_BY_UF[uf];
     if (!ufData) {
       throw new Error(`UF ${uf} nao encontrado na base climatica. UFs disponiveis: ${CLIMATE_DATA.map((c) => c.uf).join(', ')}`);
@@ -283,7 +291,7 @@ export class HeatingService {
    * planilha original usa fator 1.6 sem capa vs 1.02 com capa = ratio 0.638).
    */
   computeMonthlyHeatLoss(inputs: HeatingInputs): MonthlyHeatLoss[] {
-    const { city } = this.getClimateData(inputs.uf, inputs.cidade);
+    const { city } = this.getClimateData(inputs.uf, inputs.cidade, inputs.climateOverride);
 
     // Velocidade do vento (sobrescrita por tipoConstrucao FECHADA = INTERNA)
     const ventoEfetivo: VentoLevel = inputs.tipoConstrucao === 'FECHADA' ? 'INTERNA' : inputs.vento;
@@ -657,7 +665,7 @@ export class HeatingService {
       skipVirtualMultiplier?: boolean;
     },
   ): HeatingReport {
-    const { resolved } = this.getClimateData(inputs.uf, inputs.cidade);
+    const { resolved } = this.getClimateData(inputs.uf, inputs.cidade, inputs.climateOverride);
 
     // 1. Perda termica mensal
     const monthly = this.computeMonthlyHeatLoss(inputs);
@@ -704,7 +712,7 @@ export class HeatingService {
         //   da superficie/parede/conducao NAO conta porque durante o aquecimento inicial
         //   operador fecha a capa termica e o ΔT (agua-ar) eh pequeno (agua comeca fria).
         //   Modelo anterior descontava qtotalAvgKw inteiro → tempo 2× maior que TAB006.
-        const tempIni = inputs.tempAguaInicial ?? this.getDefaultTempInicial(inputs.uf, inputs.cidade);
+        const tempIni = inputs.tempAguaInicial ?? this.getDefaultTempInicial(inputs.uf, inputs.cidade, inputs.climateOverride);
         const deltaT = Math.max(0, inputs.tempAguaDesejada - tempIni);
         const capacidadeEfetivaKcalH = (sel.kcalHNominal ?? 0) * WINTER_CAPACITY_FACTOR;
         // Extras avg (cascata + hidromassagem + borda): qsExtrasKw vem do monthlyHeatLoss.
@@ -757,8 +765,8 @@ export class HeatingService {
   // ----- Helpers -----
 
   /** Temperatura media inicial sugerida = temp ambiente media anual do estado (TAB006 P15). */
-  private getDefaultTempInicial(uf: UFCode, cidade?: string): number {
-    const { city } = this.getClimateData(uf, cidade);
+  private getDefaultTempInicial(uf: UFCode, cidade?: string, override?: ClimateCity): number {
+    const { city } = this.getClimateData(uf, cidade, override);
     const avgTemp = city.tempMonthly.reduce((s, t) => s + t, 0) / 12;
     // TAB006 sugere ~5°C abaixo da media (a agua acompanha o ar com defasagem)
     return Math.round(avgTemp - 5);

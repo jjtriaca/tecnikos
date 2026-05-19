@@ -30,6 +30,10 @@ export interface ClimateCity {
   tempMonthly: [number, number, number, number, number, number, number, number, number, number, number, number];
   // 12 valores (jan..dez), umidade relativa media mensal em fracao (0..1)
   humidityMonthly: [number, number, number, number, number, number, number, number, number, number, number, number];
+  // 12 valores (jan..dez), radiacao solar media diaria em kWh/m²/dia.
+  // OPCIONAL: presente quando ClimateCity vem do banco (override) ou seed completo.
+  // Constantes embutidas no arquivo NAO populam — fica undefined.
+  radSolMonthly?: [number, number, number, number, number, number, number, number, number, number, number, number];
 }
 
 export interface ClimateUF {

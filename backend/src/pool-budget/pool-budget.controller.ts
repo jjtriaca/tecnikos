@@ -35,10 +35,10 @@ export class PoolBudgetController {
 
   // ============ Simulador de Aquecimento ============
 
-  @ApiOperation({ summary: 'Lista UFs + cidades disponiveis para o simulador de aquecimento' })
+  @ApiOperation({ summary: 'Lista UFs + cidades disponiveis para o simulador de aquecimento (le do banco ClimateData)' })
   @Get('heating/cities')
-  listHeatingCities() {
-    return this.heating.listAvailableCities();
+  listHeatingCities(@CurrentUser() user: AuthenticatedUser) {
+    return this.heatingBudget.listAvailableCities(user.companyId);
   }
 
   @ApiOperation({ summary: 'Retorna relatorio do simulador (cache ou recomputa)' })
