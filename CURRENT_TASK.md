@@ -1,7 +1,37 @@
 # TAREFA ATUAL
 
-## Versao: v1.11.80 (em prod)
+## Versao: v1.11.96 (em prod)
 ## Ultima sessao: 206 (19/05/2026)
+
+## v1.11.81 → v1.11.96 — Simulador de Aquecimento: integracao bidirecional com linha do orcamento
+
+**Frente principal**: integrar a linha de bomba de calor do orcamento com o Simulador via FORMULA, evitando hardcode. Conceito-chave: a **formula da linha eh a fonte da verdade** que amarra qty da linha ao quantity do Simulador.
+
+**Versoes principais**:
+- v1.11.81 — Reorganiza secao 4 Dimensionamento (cards de extras ao lado do Calor necessario com impactKw individual) + recompute background no load
+- v1.11.82 — Auto-save com debounce 800ms nas horas/sem dos extras (sem precisar clicar Salvar)
+- v1.11.83 — Tempo de elevacao calibrado com TAB006 (WINTER_CAPACITY_FACTOR=0.85, X23-40C: 45h→22h, bate com fabricante)
+- v1.11.84 — Dropdown "Trocar equipamento" compacto: lista de modelos unicos sem multiplos pre-calculados, qty configurada no card do equipamento selecionado
+- v1.11.85 — Sincronia bidirecional simulador↔linha: trocar no Simulador atualiza linha; trocar linha atualiza override do Simulador
+- v1.11.86 — Indicator da linha multiplica specs cumulativas (kcalHNominal, btuH, kwNominal, etc) pela qty. `qty` exposto como variavel pra formulas custom
+- v1.11.87 — Fix `quantity` dessincronizada (`selectEquipment` sobrescrevia hardcoded 1, perdendo qty do `extractEquipmentFromOverride`). Reposicionou input Quant ao lado do nome
+- v1.11.88 — Sync linha usa formula em vez de qty direto (preserva valor exato escolhido + suporta decimal naturalmente)
+- v1.11.89/91 — Receita pronta "Quantidade de bomba de calor (auto)" no FORMULA_RECIPES + campo `qtyDecimals` configuravel (0-4 casas) no modal de Formula. Step do input QTD da linha varia conforme `qtyDecimals`
+- v1.11.92 — `calorNecessarioKcalH` disponivel no preview do FormulaModal (FORMULA_VARS + heatingReport prop)
+- v1.11.93 — "Voltar selecao auto" do Simulador limpa override + reseta linha (defaultQty)
+- v1.11.94 — Limpa formula literal quando manualUnlink=false ("voltar auto da linha" funcionava parcial)
+- **v1.11.95 — Padrao final**: variavel `bombaCalorQty` amarra linha ao Simulador. Formula `="bombaCalorQty"` reflete `heatingReport.selectedEquipment.quantity`. Mudancas no Simulador (override ou auto) reavaliam a formula automaticamente. Receita pronta correspondente. Modelo "single source of truth" — Simulador dirige, linha reflete via formula
+- **v1.11.96 — Fix loop**: `extractEquipmentFromItems` passa qty=1 unitario quando linha em modo auto (manualUnlink=false). Antes pegava qty da formula stale → simulador escolhia virtual 2× → loop. Modo manual continua respeitando qty da linha
+
+### Regra absorvida: padrao "var-formula" como ponte entre componentes
+
+Quando linha do orcamento precisa refletir estado de outro componente (Simulador, em particular), usar uma **variavel especifica** na expressao da formula (ex: `bombaCalorQty`, `solarQty` no futuro). A variavel eh populada no `extractHeatingVars` do `formula-eval.ts` a partir do componente fonte. Beneficios:
+1. Linha auto-atualiza quando o componente fonte muda (formula reavalia no recalc)
+2. Operador pode editar a formula pra logica custom (ex: `bombaCalorQty + 1` pra ter uma extra como reserva)
+3. Sem hardcode no codigo — proximo tenant configura via UI
+4. Bidirecional: clicar "voltar auto" na linha OU no Simulador resulta em mesma coisa, porque ambos limpam o override do env → bombaCalorQty volta a refletir auto-select
+
+Ver memory/heating_simulator_line_bond.md.
 
 ## v1.11.80 — fix(nfse): endereco do tomador do cadastro do parceiro + local execucao na discriminacao
 - Reversao parcial da v1.11.79. Fisco exige endereco do TOMADOR no campo estruturado (logradouro/numero/CEP/UF/cidade), nao o local do servico. Antes ficava incoerente: dados pessoais do parceiro novo + endereco fisico do parceiro antigo.
