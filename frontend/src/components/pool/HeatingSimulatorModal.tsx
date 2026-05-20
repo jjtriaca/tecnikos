@@ -1398,6 +1398,8 @@ function SolarTab({
   const [orientacaoTelhado, setOrientacaoTelhado] = useState<string>(initOrient);
   const [inclinacaoTelhado, setInclinacaoTelhado] = useState<number>(initIncl);
   const [temperaturaInicial, setTemperaturaInicial] = useState<number>(initTempIni);
+  // v5.3 — modal de selecao do coletor (abrira ao clicar ✨)
+  const [showColetorPicker, setShowColetorPicker] = useState(false);
 
   if (loading) {
     return <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">Carregando dados solares...</div>;
@@ -1429,10 +1431,10 @@ function SolarTab({
       </div>
 
       {/* === Folha A4 (datasheet) ===
-          Tela: max-w-[820px] (≈210mm) + min-h-[1120px] (≈A4) com flex-1 pra empurrar conteudo pra baixo
-          Print: fluxo natural, sem min-h (deixa o conteudo se acomodar na A4 sem forcar) */}
-      <div className="mx-auto max-w-[820px] print:max-w-none">
-        <div id="solar-pdf-area" className="bg-white text-slate-900 font-sans border border-slate-200 shadow-sm print:border-0 print:shadow-none flex flex-col min-h-[1120px] print:min-h-0">
+          Tela: max-w-[820px] + altura A4 via wrapper (sem min-h direto no solar-pdf-area)
+          Print: o min-h fica num wrapper.solar-screen-only, neutralizado via display:contents */}
+      <div className="mx-auto max-w-[820px] print:max-w-none solar-screen-wrapper">
+        <div id="solar-pdf-area" className="bg-white text-slate-900 font-sans border border-slate-200 shadow-sm print:border-0 print:shadow-none flex flex-col min-h-[1120px]">
 
           {/* ============ HEADER BANNER ============ */}
           <header className="bg-gradient-to-r from-slate-900 to-blue-900 text-white px-5 py-3 flex items-center justify-between print:bg-slate-900 print:text-white">
@@ -1620,9 +1622,10 @@ function SolarTab({
                   <div>
                     <SectionLabel>Coletor selecionado</SectionLabel>
                     <div className="mt-1.5 flex items-center gap-1.5">
-                      {/* Botao ✨ — padrao da linha das etapas (Configurar auto-selecao do produto), antes do seletor */}
+                      {/* Botao ✨ — abre modal de selecao detalhada do coletor */}
                       <button type="button"
-                        title="Configurar auto-seleção do coletor (regra de filtro)"
+                        onClick={() => setShowColetorPicker(true)}
+                        title="Escolher coletor (lista com especificações)"
                         className="text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300 print:hidden flex-shrink-0">
                         ✨
                       </button>
@@ -1662,9 +1665,10 @@ function SolarTab({
                   <div>
                     <SectionLabel>Bomba recomendada</SectionLabel>
                     <div className="mt-1.5 flex items-center gap-1.5">
-                      {/* Botao ✨ — abrira AutoSelectModal pra escolher bomba por filtro (vazao, potencia, etc) */}
+                      {/* Botao ✨ — futuro: modal de auto-selecao de bomba por vazao */}
                       <button type="button"
-                        title="Configurar auto-seleção da bomba (regra de filtro)"
+                        onClick={() => alert("Auto-seleção da bomba — em desenvolvimento. Por enquanto, ajuste o modelo manualmente no orçamento.")}
+                        title="Configurar auto-seleção da bomba (em desenvolvimento)"
                         className="text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300 print:hidden flex-shrink-0">
                         ✨
                       </button>
@@ -1795,6 +1799,21 @@ function SolarTab({
         </div>
       </div>
 
+      {/* Modal de selecao do coletor — abre via icone ✨ ao lado do dropdown */}
+      {showColetorPicker && (
+        <ColetorPickerModal
+          collectors={collectors}
+          selectedCollectorId={selectedCollectorId}
+          areaPiscina={area}
+          onSelect={(id) => {
+            setSelectedCollectorId(id);
+            setShowColetorPicker(false);
+            onRecompute(undefined, id);
+          }}
+          onClose={() => setShowColetorPicker(false)}
+        />
+      )}
+
       {/* CSS Print: A4 portrait, 1 pagina garantida.
           - color-adjust: exact preserva fundos escuros do header/banner
           - tamanhos compactos pra todo conteudo caber em ~270mm de altura util
@@ -1832,18 +1851,29 @@ function SolarTab({
           table { page-break-inside: auto; }
           tr { page-break-inside: avoid; }
 
-          /* CRITICO: zera o min-h-[1120px] da tela e o flex-1 espacejador — no print
-             a altura do datasheet deve ser NATURAL (apenas o necessario) pra caber em A4 */
-          #solar-pdf-area {
+          /* CRITICO: usa atributo+id pra max specificity. Zera min-h e flex-1 espacejador */
+          div#solar-pdf-area[id="solar-pdf-area"] {
             min-height: 0 !important;
             height: auto !important;
             display: block !important;
+            box-shadow: none !important;
+            border: 0 !important;
           }
           #solar-pdf-area > div.flex-1 {
             display: none !important;
             flex: none !important;
             height: 0 !important;
+            min-height: 0 !important;
           }
+          /* Header banner — garantia que aparece (alguns browsers descartam gradient sem color-adjust) */
+          #solar-pdf-area header.bg-gradient-to-r {
+            background-color: #1e3a8a !important;
+            background-image: linear-gradient(to right, #0f172a, #1e3a8a) !important;
+            color: #fff !important;
+          }
+          #solar-pdf-area header * { color: inherit !important; }
+          #solar-pdf-area header .text-amber-300 { color: #fcd34d !important; }
+          #solar-pdf-area header .text-slate-300 { color: #cbd5e1 !important; }
 
           /* Compacta secoes pra caber em 1 pagina A4 (1123px @ 96dpi - 16mm margem = ~1063px util) */
           #solar-pdf-area section { padding-top: 4px !important; padding-bottom: 4px !important; }
@@ -1946,6 +1976,111 @@ function NbrBadge({ tipo, range }: { tipo: string; range: string }) {
     <div className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-center leading-tight">
       <div className="text-[8.5px] uppercase tracking-wide text-slate-500 font-semibold truncate">{tipo}</div>
       <div className="text-[10px] font-bold text-slate-900 tabular-nums">{range}</div>
+    </div>
+  );
+}
+
+// Modal de selecao do coletor — lista detalhada com especs + recomendacao baseada na area da piscina.
+// Versao simplificada do AutoSelectModal (que esta em quotes/pool/[id]/page.tsx).
+function ColetorPickerModal({
+  collectors, selectedCollectorId, areaPiscina, onSelect, onClose,
+}: {
+  collectors: SolarCollectorCandidate[];
+  selectedCollectorId: string | null;
+  areaPiscina: number;
+  onSelect: (id: string | null) => void;
+  onClose: () => void;
+}) {
+  // Cobertura ideal = 1.5x area piscina (folga de 50% pra dias frios)
+  const areaIdeal = areaPiscina * 1.5;
+
+  // Calcula recomendacao: menor coletor que cobre areaIdeal × 6 unidades (qtd media)
+  const recomendado = collectors.find((c) => c.areaM2 * 6 >= areaIdeal) ?? collectors[collectors.length - 1];
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-[60] flex items-center justify-center p-4 print:hidden" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="bg-gradient-to-r from-slate-900 to-blue-900 text-white px-4 py-3 flex items-center justify-between">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.15em] text-amber-300 font-semibold">Selecionar coletor solar</div>
+            <h3 className="text-base font-bold leading-tight mt-0.5">Coletores disponíveis</h3>
+            <div className="text-[11px] text-slate-300 mt-0.5">Área da piscina: <b className="text-white">{areaPiscina.toFixed(2).replace(".", ",")} m²</b> · Cobertura ideal: <b className="text-amber-200">{areaIdeal.toFixed(1).replace(".", ",")} m²</b></div>
+          </div>
+          <button onClick={onClose} className="text-white/80 hover:text-white text-xl leading-none px-2">×</button>
+        </div>
+
+        <div className="overflow-y-auto p-4 flex-1">
+          {collectors.length === 0 ? (
+            <div className="text-center text-sm text-slate-500 py-8">
+              Nenhum coletor cadastrado. Cadastre em <a href="/products" className="text-cyan-700 underline">Produtos</a> com tipo <b>Coletor Solar — Piscina</b>.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {collectors.map((c) => {
+                const isSelected = c.productId === selectedCollectorId;
+                const isRecomendado = c.productId === recomendado.productId;
+                return (
+                  <button key={c.productId} type="button"
+                    onClick={() => onSelect(c.productId)}
+                    className={`w-full text-left rounded-lg border p-3 transition ${
+                      isSelected
+                        ? "border-amber-500 bg-amber-50 ring-2 ring-amber-200"
+                        : "border-slate-200 bg-white hover:border-amber-300 hover:bg-amber-50/50"
+                    }`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900 text-sm">{c.modelName}</span>
+                          {isRecomendado && (
+                            <span className="text-[9px] uppercase tracking-wide bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold">
+                              ★ Recomendado
+                            </span>
+                          )}
+                          {isSelected && (
+                            <span className="text-[9px] uppercase tracking-wide bg-amber-600 text-white px-1.5 py-0.5 rounded font-bold">
+                              ✓ Selecionado
+                            </span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 mt-1.5 text-[11px]">
+                          <div>
+                            <span className="text-slate-500 uppercase text-[9px] tracking-wide">Área</span>
+                            <div className="font-semibold text-slate-900 tabular-nums">{c.areaM2.toFixed(2).replace(".", ",")} m²</div>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 uppercase text-[9px] tracking-wide">kWh/m²</span>
+                            <div className="font-semibold text-slate-900 tabular-nums">{c.kwhPorM2.toFixed(1).replace(".", ",")}</div>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 uppercase text-[9px] tracking-wide">Eficiência</span>
+                            <div className="font-semibold text-slate-900 tabular-nums">{(c.eficiencia * 100).toFixed(1).replace(".", ",")}%</div>
+                          </div>
+                        </div>
+                      </div>
+                      {c.salePriceCents != null && (
+                        <div className="text-right">
+                          <div className="text-[9px] uppercase tracking-wide text-slate-500">Preço/un</div>
+                          <div className="text-sm font-bold text-emerald-700 tabular-nums">R$ {(c.salePriceCents / 100).toFixed(2).replace(".", ",")}</div>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-slate-200 px-4 py-2.5 bg-slate-50 flex items-center justify-between">
+          <div className="text-[11px] text-slate-600">
+            Cobertura ideal calculada como <b>1,5×</b> a área da piscina (folga para meses frios).
+          </div>
+          <button onClick={onClose}
+            className="rounded border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100">
+            Fechar
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
