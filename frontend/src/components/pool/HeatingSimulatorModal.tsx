@@ -1384,314 +1384,328 @@ function SolarTab({
   const selectedMonth = report?.monthly?.[selectedMonthIdx];
   const today = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 
+  const localName = cidade || (availableUfs.find((u) => u.uf === uf)?.ufName) || "—";
+
   return (
-    <div id="solar-pdf-area" className="bg-white text-slate-900 font-sans pb-2 print:bg-white print:text-black">
-      {/* === Cabecalho azul centralizado === */}
-      <div className="text-center py-2 border-y-2 border-blue-700 print:border-black">
-        <h2 className="text-base font-bold text-blue-800 tracking-wide uppercase print:text-black">
-          Simulador para Dimensionamento de Aquecimento Solar para Piscinas
-        </h2>
-        <h3 className="text-sm font-semibold text-blue-700 mt-0.5 print:text-black">
-          COLETOR SOLAR TROPICOS PISCINA
-        </h3>
-      </div>
-
-      {/* === Linha topo: DADOS DA OBRA (esquerda) + imagem upload (direita) === */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3 px-2 avoid-break">
-        <div className="border border-slate-300 print:border-slate-400 rounded-sm p-2">
-          <div className="text-[11px] font-bold text-blue-700 mb-1 print:text-black">DADOS DA OBRA</div>
-          <KV label="Nome" value={budget.clientPartner?.name ?? "—"} />
-          <KV label="Data" value={today} />
-          <KV label="Local" value={cidade || (availableUfs.find((u) => u.uf === uf)?.ufName) || "—"} />
-          <KV label="Orc n°" value={budget.code ?? "—"} />
-        </div>
-        <HeaderImageBlock
-          imageUrl={headerImage}
-          uploading={headerImageUploading}
-          onUpload={onUploadHeaderImage}
-          onRemove={onRemoveHeaderImage}
-        />
-      </div>
-
-      {/* === DADOS DA PISCINA + AREA/VOLUME === */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2 px-2 avoid-break">
-        <div className="md:col-span-2 border border-slate-300 print:border-slate-400 rounded-sm overflow-hidden">
-          <div className="text-[11px] font-bold text-blue-700 px-2 py-1 bg-slate-50 print:text-black">DADOS DA PISCINA</div>
-          <div className="p-2 grid grid-cols-1 gap-y-0.5">
-            <RowField label="COMPRIMENTO (m):" value={len.toFixed(2).replace(".", ",")} />
-            <RowField label="LARGURA (m):" value={wid.toFixed(2).replace(".", ",")} />
-            <RowField label="PROFUNDIDADE MINIMA (m):" value={profMin.toFixed(2).replace(".", ",")} />
-            <RowField label="PROFUNDIDADE MAXIMA (m):" value={profMax.toFixed(2).replace(".", ",")} />
-            <RowField label="TIPO DE PISCINA:" value={tipoPiscinaTxt} />
-          </div>
-        </div>
-        <div className="border border-slate-300 print:border-slate-400 rounded-sm overflow-hidden">
-          <div className="text-[11px] font-bold text-blue-700 px-2 py-1 bg-slate-50 print:text-black">DIGITAR MANUALMENTE</div>
-          <div className="p-2 grid grid-cols-1 gap-y-0.5">
-            <RowField label="AREA TOTAL:" value={`${area.toFixed(2).replace(".", ",")} m²`} highlight />
-            <RowField label="VOLUME TOTAL:" value={`${volume.toFixed(2).replace(".", ",")} m³`} highlight />
-          </div>
-        </div>
-      </div>
-
-      {/* === DADOS DO AQUECIMENTO + NBR === */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2 px-2 avoid-break">
-        <div className="md:col-span-2 border border-slate-300 print:border-slate-400 rounded-sm overflow-hidden">
-          <div className="text-[11px] font-bold text-blue-700 px-2 py-1 bg-slate-50 print:text-black">DADOS DO AQUECIMENTO</div>
-          <div className="p-2 grid grid-cols-1 gap-y-0.5">
-            <RowField label="TEMPERATURA FINAL DA AGUA (20°C A 40°C):" valueEditable>
-              <input type="number" min={20} max={40} value={tempAguaDesejada}
-                onChange={(e) => setTempAguaDesejada(Number(e.target.value) || 30)}
-                className="w-14 text-center bg-yellow-50 border border-slate-300 px-1 py-0 text-xs font-semibold tabular-nums" />
-            </RowField>
-            <RowField label="UTILIZACAO:" value="ANO TODO · MES TODO" />
-            <RowField label="UF / LOCAL:" valueEditable>
-              <div className="flex gap-1 items-center">
-                <select value={uf} onChange={(e) => { setUf(e.target.value); setCidade(""); }}
-                  className="bg-yellow-50 border border-slate-300 text-xs px-1 py-0">
-                  <option value="">--</option>
-                  {availableUfs.map((u) => <option key={u.uf} value={u.uf}>{u.uf}</option>)}
-                </select>
-                <select value={cidade} onChange={(e) => setCidade(e.target.value)}
-                  disabled={!uf}
-                  className="bg-yellow-50 border border-slate-300 text-xs px-1 py-0">
-                  <option value="">{uf ? "Capital" : "—"}</option>
-                  {availableCities.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-            </RowField>
-            <RowField label="USO DE CAPA TERMICA:" valueEditable>
-              <select value={capaTermica ? "SIM" : "NAO"} onChange={(e) => setCapaTermica(e.target.value === "SIM")}
-                className="bg-yellow-50 border border-slate-300 text-xs px-1 py-0 font-semibold">
-                <option value="SIM">SIM</option>
-                <option value="NAO">NAO</option>
-              </select>
-            </RowField>
-            <RowField label="VELOCIDADE DO VENTO:" valueEditable>
-              <select value={vento} onChange={(e) => setVento(e.target.value)}
-                className="bg-yellow-50 border border-slate-300 text-xs px-1 py-0 font-semibold">
-                <option value="FRACO">Fraco</option>
-                <option value="MODERADO">Moderado</option>
-                <option value="FORTE">Forte</option>
-              </select>
-            </RowField>
-            <RowField label="TEMPERATURA AMBIENTE:" value={selectedMonth ? selectedMonth.tempAmbiente.toFixed(0) : "—"} />
-            <RowField label="HIDROMASSAGENS, QUANTIDADE (unid.):" value={String((budget.environmentParams as any)?.hidromassagensQtd ?? 0)} />
-            <RowField label="CASCATA, LARGURA (cm):" value={String((budget.environmentParams as any)?.cascataLarguraCm ?? 0)} />
-            <RowField label="BORDA INFINITA, COMPRIMENTO (m):" value={String((budget.environmentParams as any)?.bordaInfinitaM ?? 0)} />
-          </div>
-        </div>
-        <div className="border border-slate-300 print:border-slate-400 rounded-sm p-2 text-[10px] text-blue-900 leading-tight print:text-black">
-          <div className="font-bold text-center mb-1">CONFORME NBR 10339:2018 DA ABNT</div>
-          <div className="text-center mb-2">As faixas de temperatura recomendadas em funcao das atividades e do publico que ira utilizar a piscinas:</div>
-          <div className="space-y-0.5">
-            <div className="text-center font-semibold">SPA: 36 °C a 38 °C</div>
-            <div className="text-center font-semibold">PISCINA DE COMPETICAO: 25 °C a 28 °C</div>
-            <div className="text-center font-semibold">PISCINA DE RECREACAO: 27 °C a 29 °C</div>
-            <div className="text-center font-semibold">NATACAO BEBES E HIDROTERAPIA: 30 °C a 34 °C</div>
-            <div className="text-center font-semibold">NATACAO PARA CRIANCAS: 29 °C a 32 °C</div>
-          </div>
-          <div className="text-center mt-2 font-semibold">RECOMENDA-SE ACOMPANHAMENTO MEDICO PARA TEMPERATURAS ACIMA DE 38 °C.</div>
-        </div>
-      </div>
-
-      {/* === Botao recalcular === */}
-      <div className="mt-3 px-2 flex items-center justify-between gap-2 print:hidden">
+    <>
+      {/* === Toolbar — fora da area PDF, escondida no print === */}
+      <div className="mb-3 flex items-center justify-between gap-2 print:hidden">
         <div className="text-[11px] text-slate-500">
-          Edite UF, capa, vento, temperatura final e clique recalcular.
-          <a href="/settings/climate-data" className="ml-2 text-cyan-700 underline">Editar dados climaticos</a>
+          Edite UF, capa, vento, temperatura e clique <span className="font-semibold text-slate-700">Recalcular</span>.
+          <a href="/settings/climate-data" className="ml-2 text-cyan-700 hover:underline">Editar dados climaticos</a>
         </div>
-        <button onClick={() => onRecompute()} disabled={recomputing || !uf}
-          className="rounded-md bg-amber-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-amber-700 disabled:bg-slate-300 transition">
-          {recomputing ? "Recalculando..." : "☀️ Recalcular dimensionamento"}
-        </button>
-        <button onClick={() => window.print()}
-          className="rounded-md border border-blue-600 text-blue-700 px-4 py-1.5 text-xs font-bold hover:bg-blue-50 transition">
-          🖨️ Imprimir / PDF
-        </button>
-      </div>
-
-      {/* === DIMENSIONAMENTO COLETOR SOLAR === */}
-      <div className="mt-3 px-2">
-        <div className="text-center text-[12px] font-bold text-blue-800 border-y border-blue-300 py-1 print:text-black print:border-black">
-          DIMENSIONAMENTO COLETOR SOLAR SOLIS PISCINAS
+        <div className="flex items-center gap-2">
+          <button onClick={() => onRecompute()} disabled={recomputing || !uf}
+            className="rounded-md bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:bg-slate-300 transition shadow-sm">
+            {recomputing ? "Recalculando..." : "Recalcular dimensionamento"}
+          </button>
+          <button onClick={() => window.print()}
+            className="rounded-md border border-slate-300 bg-white text-slate-700 px-3.5 py-1.5 text-xs font-semibold hover:bg-slate-50 transition shadow-sm">
+            Imprimir / PDF
+          </button>
         </div>
       </div>
 
-      {report ? (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2 px-2">
-            <div className="md:col-span-2 border border-slate-300 print:border-slate-400 rounded-sm overflow-hidden">
-              <div className="text-[11px] font-bold text-blue-700 px-2 py-1 bg-slate-50 print:text-black">CALCULOS DE DIMENCIONAMENTO</div>
-              <div className="p-2 grid grid-cols-1 gap-y-0.5">
-                <RowField label="AREA CONSIDERADO DA PISCINA:" value={`${report.areaPiscinaM2.toFixed(2).replace(".", ",")} m²`} highlight />
-                <RowField label="QUANTIDADE m² DE COLETOR NECESSARIO:" value={`${Math.round(report.m2ColetorNecessario)} m²`} highlight />
-                <RowField label="QUANTIDADE DE COLETOR NECESSARIO:" value={`${report.qtdColetores.toFixed(1).replace(".", ",")} Un`} highlight />
-                <RowField label="NUMERO DE BATERIAS:" value={`${report.numBaterias} Un`} highlight />
-                <RowField label="VAZAO NECESSARIA:" value={`${report.vazaoTotalM3h.toFixed(2).replace(".", ",")} m³/h`} highlight />
-                <RowField label="TOTAL DE m² COLETORES:" value={`${report.areaTotalColetoresM2.toFixed(2).replace(".", ",")} m²`} highlight />
-                <RowField label="AREA PISCINA X COLETORES:" value={`${report.percentualCobertura.toFixed(2).replace(".", ",")} %`} highlight />
-              </div>
-            </div>
-            <div className="border border-slate-300 print:border-slate-400 rounded-sm p-2">
-              <div className="text-center text-[11px] font-bold text-slate-700">Bomba necessaria (Aprox)</div>
-              <div className="text-center text-[12px] font-semibold text-blue-800 mt-2 print:text-black">{report.bombaRecomendada}</div>
-              <div className="text-[10px] text-slate-500 mt-3 leading-tight">
-                Mapeado pela vazao calculada. Operador ajusta o modelo exato no orcamento final.
-              </div>
-            </div>
-          </div>
+      {/* === Folha A4 (datasheet) ===
+          Container central com max-w aproximando 210mm (~794px). Borda + sombra na tela
+          dão sensação de "folha". No print, ocupa A4 inteiro sem nada disso. */}
+      <div className="mx-auto max-w-[820px] print:max-w-none">
+        <div id="solar-pdf-area" className="bg-white text-slate-900 font-sans border border-slate-200 shadow-sm print:border-0 print:shadow-none">
 
-          {/* === Coletor selecionado + extra coletores === */}
-          <div className="mt-2 px-2 grid grid-cols-1 md:grid-cols-12 gap-2 items-stretch">
-            <div className="md:col-span-7 border border-slate-300 print:border-slate-400 rounded-sm p-2">
-              <div className="text-[11px] font-bold text-blue-700 mb-1 print:text-black">COLETOR SELECIONADO:</div>
-              <select value={selectedCollectorId ?? ""} onChange={(e) => setSelectedCollectorId(e.target.value || null)}
-                className="w-full bg-yellow-50 border border-amber-300 px-2 py-1 text-sm font-semibold print:hidden">
-                <option value="">— Padrao —</option>
-                {collectors.map((c) => (
-                  <option key={c.productId} value={c.productId}>
-                    {c.modelName} ({c.areaM2.toFixed(2)} m²)
-                  </option>
-                ))}
-              </select>
-              <div className="hidden print:block text-sm font-semibold bg-yellow-50 px-2 py-1 border border-slate-300">
-                {report.selectedCollector.modelName} ({report.selectedCollector.areaM2.toFixed(2)} m²)
-              </div>
+          {/* ============ HEADER BANNER ============ */}
+          <header className="bg-gradient-to-r from-slate-900 to-blue-900 text-white px-5 py-3 flex items-center justify-between print:bg-slate-900 print:text-white">
+            <div>
+              <div className="text-[9px] uppercase tracking-[0.18em] text-amber-300 font-medium">Aquecimento solar para piscinas</div>
+              <h2 className="text-base font-bold mt-0.5 leading-tight">Dimensionamento Coletor Solar</h2>
+              <div className="text-[10px] text-slate-300 mt-0.5">Conforme NBR 10339:2018 — ABNT</div>
             </div>
-            <div className="md:col-span-5 border border-slate-300 print:border-slate-400 rounded-sm p-2 flex items-center gap-2">
-              <div className="bg-green-100 border border-green-400 px-3 py-1 rounded text-center text-base font-bold text-green-800 print:text-black w-12">{extraPct}</div>
-              <div className="flex-1">
-                <input type="range" min={0} max={10} step={1} value={extraPct}
-                  onChange={(e) => setExtraPct(Number(e.target.value))}
-                  className="w-full print:hidden" />
-                <div className="text-[10px] text-slate-700 italic mt-0.5">Altere para aumentar a eficiencia do aquecimento</div>
-              </div>
+            <div className="text-right">
+              <div className="text-[9px] uppercase tracking-[0.18em] text-slate-300">Orcamento</div>
+              <div className="text-xl font-bold tabular-nums leading-tight">{budget.code ?? "—"}</div>
+              <div className="text-[10px] text-slate-300 mt-0.5">{today}</div>
             </div>
-          </div>
+          </header>
 
-          {/* === TEMPO MEDIO ESTIMADO === */}
-          <div className="mt-4 px-2">
-            <div className="text-center text-[12px] font-bold text-blue-800 border-y border-blue-300 py-1 print:text-black print:border-black">
-              TEMPO MEDIO ESTIMADO PARA MANUTENCAO DA TEMPERATURA
+          {/* ============ CLIENTE + IMAGEM PRODUTO ============ */}
+          <section className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-slate-200 avoid-break">
+            <div className="col-span-7">
+              <SectionLabel>Cliente / Obra</SectionLabel>
+              <dl className="mt-1.5 grid grid-cols-1 gap-y-1 text-[11px]">
+                <DataRow term="Nome" desc={budget.clientPartner?.name ?? "—"} emphasize />
+                <DataRow term="Local" desc={localName} />
+                <DataRow term="Projeto" desc={budget.title || "—"} />
+              </dl>
             </div>
-          </div>
+            <div className="col-span-5">
+              <HeaderImageBlock
+                imageUrl={headerImage}
+                uploading={headerImageUploading}
+                onUpload={onUploadHeaderImage}
+                onRemove={onRemoveHeaderImage}
+              />
+            </div>
+          </section>
 
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-2 mt-2 px-2 avoid-break">
-            {/* Coluna esquerda — escolha mes + grafico */}
-            <div className="md:col-span-7">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[11px] font-semibold text-slate-700">Escolha o mes para visualizar o grafico:</span>
-                <select value={selectedMonthIdx} onChange={(e) => setSelectedMonthIdx(Number(e.target.value))}
-                  className="bg-green-50 border border-green-400 text-[11px] font-bold text-green-900 px-2 py-0.5 rounded print:bg-white print:text-black">
-                  {SOLAR_MONTH_NAMES_FULL.map((m, i) => <option key={i} value={i}>{m}</option>)}
-                </select>
+          {/* ============ SPECS — PISCINA + CONFIGURACAO ============ */}
+          <section className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-slate-200 avoid-break">
+            {/* PISCINA — 5 col */}
+            <div className="col-span-5">
+              <SectionLabel>Dimensoes da piscina</SectionLabel>
+              <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                <Stat label="Comprimento" value={`${len.toFixed(2).replace(".", ",")} m`} />
+                <Stat label="Largura" value={`${wid.toFixed(2).replace(".", ",")} m`} />
+                <Stat label="Prof. min" value={`${profMin.toFixed(2).replace(".", ",")} m`} />
+                <Stat label="Prof. max" value={`${profMax.toFixed(2).replace(".", ",")} m`} />
+                <Stat label="Area total" value={`${area.toFixed(2).replace(".", ",")} m²`} highlight />
+                <Stat label="Volume" value={`${volume.toFixed(2).replace(".", ",")} m³`} highlight />
               </div>
-              {selectedMonth && (
-                <SolarChart row={selectedMonth} tempDesejada={tempAguaDesejada} />
-              )}
+              <div className="mt-1.5 text-[9px] text-slate-500 uppercase tracking-wide">Tipo: <span className="text-slate-700 font-semibold">{tipoPiscinaTxt}</span></div>
             </div>
 
-            {/* Coluna direita — tabela 12 meses */}
-            <div className="md:col-span-5 border border-slate-300 print:border-slate-400 rounded-sm overflow-hidden">
-              <table className="w-full text-[10px] tabular-nums">
-                <thead className="bg-slate-100 text-slate-700 print:bg-white">
-                  <tr>
-                    <th className="text-left p-1 font-semibold">Mes</th>
-                    <th className="text-right p-1 font-semibold leading-tight" title="Temp ambiente">Temp<br/><span className="text-[8px] font-normal">(exceto frios e nublados)</span></th>
-                    <th className="text-right p-1 font-semibold">Ganho<br/>° dia</th>
-                    <th className="text-right p-1 font-semibold leading-tight">Temp Final<br/>1° Dia</th>
-                    <th className="text-right p-1 font-semibold leading-tight">Temp Final<br/>2° Dia</th>
-                    <th className="text-right p-1 font-semibold leading-tight">Temp Final<br/>3° Dia</th>
-                    <th className="text-right p-1 font-semibold leading-tight">Temp Final<br/>4° Dia</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.monthly.map((r) => (
-                    <tr key={r.monthIndex}
-                      onClick={() => setSelectedMonthIdx(r.monthIndex)}
-                      className={`border-t border-slate-200 cursor-pointer hover:bg-amber-50 print:hover:bg-transparent ${
-                        selectedMonthIdx === r.monthIndex ? "bg-amber-100 print:bg-white" : ""
-                      }`}>
-                      <td className="p-1 font-semibold text-blue-800 print:text-black">{r.monthName}</td>
-                      <td className="p-1 text-right">{r.tempAmbiente.toFixed(2).replace(".", ",")}</td>
-                      <td className="p-1 text-right">{r.ganhoDia.toFixed(2).replace(".", ",")}</td>
-                      <td className="p-1 text-right font-semibold">{r.tempFinal1d.toFixed(2).replace(".", ",")}</td>
-                      <td className="p-1 text-right font-semibold">{r.tempFinal2d.toFixed(2).replace(".", ",")}</td>
-                      <td className="p-1 text-right font-semibold">{r.tempFinal3d.toFixed(2).replace(".", ",")}</td>
-                      <td className="p-1 text-right font-semibold">{r.tempFinal4d.toFixed(2).replace(".", ",")}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* CONFIGURACAO — 4 col */}
+            <div className="col-span-4">
+              <SectionLabel>Configuracao</SectionLabel>
+              <div className="mt-1.5 space-y-1">
+                <ConfigRow label="Temp. final">
+                  <input type="number" min={20} max={40} value={tempAguaDesejada}
+                    onChange={(e) => setTempAguaDesejada(Number(e.target.value) || 30)}
+                    className="w-14 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 text-[11px] font-semibold text-center tabular-nums focus:border-amber-500 focus:outline-none" />
+                  <span className="text-[10px] text-slate-500 ml-1">°C</span>
+                </ConfigRow>
+                <ConfigRow label="UF / Cidade">
+                  <div className="flex gap-1">
+                    <select value={uf} onChange={(e) => { setUf(e.target.value); setCidade(""); }}
+                      className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5">
+                      <option value="">--</option>
+                      {availableUfs.map((u) => <option key={u.uf} value={u.uf}>{u.uf}</option>)}
+                    </select>
+                    <select value={cidade} onChange={(e) => setCidade(e.target.value)}
+                      disabled={!uf}
+                      className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 flex-1 disabled:opacity-50">
+                      <option value="">{uf ? "Capital" : "—"}</option>
+                      {availableCities.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                </ConfigRow>
+                <ConfigRow label="Capa termica">
+                  <select value={capaTermica ? "SIM" : "NAO"} onChange={(e) => setCapaTermica(e.target.value === "SIM")}
+                    className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1.5 py-0.5">
+                    <option value="SIM">Sim</option>
+                    <option value="NAO">Nao</option>
+                  </select>
+                </ConfigRow>
+                <ConfigRow label="Vento">
+                  <select value={vento} onChange={(e) => setVento(e.target.value)}
+                    className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1.5 py-0.5">
+                    <option value="FRACO">Fraco</option>
+                    <option value="MODERADO">Moderado</option>
+                    <option value="FORTE">Forte</option>
+                  </select>
+                </ConfigRow>
+                {((budget.environmentParams as any)?.hidromassagensQtd > 0 ||
+                  (budget.environmentParams as any)?.cascataLarguraCm > 0 ||
+                  (budget.environmentParams as any)?.bordaInfinitaM > 0) && (
+                  <div className="pt-1 mt-1 border-t border-slate-100 text-[9.5px] text-slate-600 space-y-0.5">
+                    {(budget.environmentParams as any)?.hidromassagensQtd > 0 && <div>Hidromassagens: <span className="font-semibold">{(budget.environmentParams as any).hidromassagensQtd}</span></div>}
+                    {(budget.environmentParams as any)?.cascataLarguraCm > 0 && <div>Cascata: <span className="font-semibold">{(budget.environmentParams as any).cascataLarguraCm} cm</span></div>}
+                    {(budget.environmentParams as any)?.bordaInfinitaM > 0 && <div>Borda infinita: <span className="font-semibold">{(budget.environmentParams as any).bordaInfinitaM} m</span></div>}
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* NBR — 3 col */}
+            <div className="col-span-3">
+              <SectionLabel>Referencia NBR 10339</SectionLabel>
+              <div className="mt-1.5 space-y-0.5 text-[9px] leading-tight">
+                <NbrRow tipo="SPA" range="36 a 38°C" />
+                <NbrRow tipo="Competicao" range="25 a 28°C" />
+                <NbrRow tipo="Recreacao" range="27 a 29°C" />
+                <NbrRow tipo="Bebes/Hidro" range="30 a 34°C" />
+                <NbrRow tipo="Criancas" range="29 a 32°C" />
+              </div>
+              <div className="mt-1.5 text-[8px] text-amber-700 leading-tight italic">
+                Recomenda-se acompanhamento medico para temperaturas acima de 38°C.
+              </div>
+            </div>
+          </section>
+
+          {/* ============ TITULO BANNER DIMENSIONAMENTO ============ */}
+          <div className="bg-slate-900 text-white px-5 py-1.5 flex items-center justify-between print:bg-slate-900 print:text-white">
+            <span className="text-[10px] uppercase tracking-[0.18em] font-bold">Dimensionamento</span>
+            <span className="text-[10px] text-slate-300">Coletor Solar Solis Piscinas</span>
           </div>
 
-          {/* === Observacoes === */}
-          <div className="mt-4 px-2 text-[10px] text-slate-700 print:text-black">
-            <p className="font-bold uppercase">Os valores acima citados sao estimativos e poderao sofrer variacoes caso:</p>
-            <p>1) Haja alteracao da temperatura media mensal do ambiente.</p>
-            <p>2) A perda termica da piscina por dia seja acima do tolerado.</p>
-            <p>3) Dias frios e chuvosos poderao reiniciar o ciclo de aquecimento do 1° dia.</p>
-          </div>
-        </>
-      ) : (
-        <div className="mt-3 mx-2 rounded border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500 print:hidden">
-          {uf ? "Clique em '☀️ Recalcular dimensionamento' pra gerar o relatorio." : "Selecione UF + cidade pra comecar."}
+          {report ? (
+            <>
+              {/* ============ KPIs ============ */}
+              <section className="grid grid-cols-6 gap-2 px-5 py-3 border-b border-slate-200 avoid-break">
+                <Kpi label="Area piscina" value={report.areaPiscinaM2.toFixed(2).replace(".", ",")} unit="m²" />
+                <Kpi label="m² necessario" value={String(Math.round(report.m2ColetorNecessario))} unit="m²" />
+                <Kpi label="Coletores" value={report.qtdColetores.toFixed(1).replace(".", ",")} unit="un" accent />
+                <Kpi label="Baterias" value={String(report.numBaterias)} unit="un" />
+                <Kpi label="Vazao" value={report.vazaoTotalM3h.toFixed(2).replace(".", ",")} unit="m³/h" />
+                <Kpi label="Cobertura" value={report.percentualCobertura.toFixed(1).replace(".", ",")} unit="%" />
+              </section>
+
+              {/* ============ COLETOR + BOMBA ============ */}
+              <section className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-slate-200 avoid-break">
+                <div className="col-span-7">
+                  <SectionLabel>Coletor selecionado</SectionLabel>
+                  <div className="mt-1.5">
+                    <select value={selectedCollectorId ?? ""} onChange={(e) => setSelectedCollectorId(e.target.value || null)}
+                      className="w-full bg-amber-50 border border-amber-200 rounded text-[12px] font-semibold px-2 py-1 print:hidden">
+                      <option value="">— Padrao —</option>
+                      {collectors.map((c) => (
+                        <option key={c.productId} value={c.productId}>
+                          {c.modelName} ({c.areaM2.toFixed(2)} m²)
+                        </option>
+                      ))}
+                    </select>
+                    <div className="hidden print:block text-[12px] font-semibold bg-amber-50 px-2 py-1 border border-amber-200 rounded">
+                      {report.selectedCollector.modelName} ({report.selectedCollector.areaM2.toFixed(2)} m²)
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-[9px] uppercase tracking-wide text-slate-500 font-semibold">Coletores extras</span>
+                    <input type="range" min={0} max={10} step={1} value={extraPct}
+                      onChange={(e) => setExtraPct(Number(e.target.value))}
+                      className="flex-1 print:hidden accent-amber-500" />
+                    <div className="bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5 text-xs font-bold text-emerald-700 tabular-nums w-9 text-center">+{extraPct}</div>
+                  </div>
+                  <div className="text-[9px] text-slate-500 mt-0.5 italic">Aumenta a eficiencia em meses frios.</div>
+                </div>
+                <div className="col-span-5">
+                  <SectionLabel>Bomba recomendada</SectionLabel>
+                  <div className="mt-1.5 bg-slate-50 border border-slate-200 rounded px-3 py-2">
+                    <div className="text-[12px] font-bold text-slate-900 leading-tight">{report.bombaRecomendada}</div>
+                    <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">
+                      Mapeado pela vazao calculada. Operador ajusta o modelo exato no orcamento final.
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* ============ TITULO BANNER SIMULACAO ============ */}
+              <div className="bg-slate-900 text-white px-5 py-1.5 flex items-center justify-between print:bg-slate-900 print:text-white">
+                <span className="text-[10px] uppercase tracking-[0.18em] font-bold">Simulacao termica mensal</span>
+                <div className="flex items-center gap-2 print:hidden">
+                  <span className="text-[9px] text-slate-300 uppercase tracking-wide">Grafico do mes:</span>
+                  <select value={selectedMonthIdx} onChange={(e) => setSelectedMonthIdx(Number(e.target.value))}
+                    className="bg-slate-800 border border-slate-700 text-[10px] font-semibold text-white px-1.5 py-0.5 rounded">
+                    {SOLAR_MONTH_NAMES_FULL.map((m, i) => <option key={i} value={i}>{m}</option>)}
+                  </select>
+                </div>
+                <span className="hidden print:inline text-[10px] text-slate-300">{selectedMonth ? selectedMonth.monthName : ""}</span>
+              </div>
+
+              {/* ============ GRAFICO + TABELA ============ */}
+              <section className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-slate-200 avoid-break">
+                <div className="col-span-7">
+                  {selectedMonth && (
+                    <SolarChart row={selectedMonth} tempDesejada={tempAguaDesejada} />
+                  )}
+                </div>
+                <div className="col-span-5">
+                  <div className="border border-slate-200 rounded overflow-hidden">
+                    <table className="w-full text-[9px] tabular-nums">
+                      <thead className="bg-slate-100 text-slate-700">
+                        <tr>
+                          <th className="text-left px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">Mes</th>
+                          <th className="text-right px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">Amb.</th>
+                          <th className="text-right px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">1° dia</th>
+                          <th className="text-right px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">2° dia</th>
+                          <th className="text-right px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">3° dia</th>
+                          <th className="text-right px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">4° dia</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {report.monthly.map((r, idx) => (
+                          <tr key={r.monthIndex}
+                            onClick={() => setSelectedMonthIdx(r.monthIndex)}
+                            className={`cursor-pointer transition ${
+                              selectedMonthIdx === r.monthIndex
+                                ? "bg-amber-100 print:bg-amber-100"
+                                : idx % 2 === 0 ? "bg-white" : "bg-slate-50/60"
+                            } hover:bg-amber-50 print:hover:bg-transparent`}>
+                            <td className="px-1.5 py-0.5 font-semibold text-slate-900 text-[9.5px] capitalize">{r.monthName.toLowerCase()}</td>
+                            <td className="px-1.5 py-0.5 text-right text-slate-600">{r.tempAmbiente.toFixed(1).replace(".", ",")}</td>
+                            <td className="px-1.5 py-0.5 text-right font-semibold">{r.tempFinal1d.toFixed(1).replace(".", ",")}</td>
+                            <td className="px-1.5 py-0.5 text-right font-semibold">{r.tempFinal2d.toFixed(1).replace(".", ",")}</td>
+                            <td className="px-1.5 py-0.5 text-right font-semibold">{r.tempFinal3d.toFixed(1).replace(".", ",")}</td>
+                            <td className="px-1.5 py-0.5 text-right font-semibold">{r.tempFinal4d.toFixed(1).replace(".", ",")}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </section>
+
+              {/* ============ FOOTER ============ */}
+              <footer className="px-5 py-2.5 bg-slate-50 print:bg-white">
+                <div className="text-[8.5px] uppercase tracking-wide text-slate-500 font-semibold mb-1">Observacoes</div>
+                <ol className="text-[8.5px] text-slate-700 leading-tight space-y-0.5 list-decimal list-inside">
+                  <li>Os valores acima sao estimativos e podem sofrer variacoes conforme temperatura ambiente real.</li>
+                  <li>Perda termica acima do tolerado (sem capa, vento forte) reduz a temperatura final.</li>
+                  <li>Dias frios e nublados podem reiniciar o ciclo de aquecimento.</li>
+                </ol>
+              </footer>
+            </>
+          ) : (
+            <div className="mx-5 my-6 rounded border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500 print:hidden">
+              {uf ? "Clique em Recalcular dimensionamento para gerar o relatorio." : "Selecione UF e cidade para comecar."}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
-      {/* CSS Print: esconde tabs/header do modal e mostra so o conteudo.
-          Otimizado pra caber em UMA folha A4 portrait sem cortar:
-          - Margem do @page = 10mm (sem padding extra)
-          - Reduz font-sizes, paddings e gaps
-          - SVG do grafico limitado a 45mm de altura
-          - page-break-inside: avoid em blocos criticos */}
+      {/* CSS Print: A4 portrait, 1 pagina garantida.
+          - color-adjust: exact preserva fundos escuros do header/banner
+          - tamanhos compactos pra todo conteudo caber em ~270mm de altura util
+          - blocos com avoid-break nao podem quebrar entre paginas */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
+          /* Esconde tudo exceto a area do PDF */
           body * { visibility: hidden; }
           #solar-pdf-area, #solar-pdf-area * { visibility: visible !important; }
-          #solar-pdf-area {
-            position: absolute; left: 0; top: 0; width: 100%;
-            padding: 0; margin: 0;
-            color: #000;
-            font-size: 9px;
-            line-height: 1.15;
+
+          /* Preserva cores e backgrounds (header dark, banners) */
+          #solar-pdf-area, #solar-pdf-area * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
           }
-          @page { size: A4 portrait; margin: 7mm; }
 
-          /* Compactacao geral */
-          #solar-pdf-area .px-2 { padding-left: 2mm; padding-right: 2mm; }
-          #solar-pdf-area .p-2, #solar-pdf-area .p-3 { padding: 1mm 1.5mm; }
-          #solar-pdf-area .py-0\\.5 { padding-top: 0.3mm; padding-bottom: 0.3mm; }
-          #solar-pdf-area .py-1 { padding-top: 0.5mm; padding-bottom: 0.5mm; }
-          #solar-pdf-area .py-2 { padding-top: 1mm; padding-bottom: 1mm; }
-          #solar-pdf-area .mt-2 { margin-top: 1mm; }
-          #solar-pdf-area .mt-3 { margin-top: 1.5mm; }
-          #solar-pdf-area .mt-4 { margin-top: 2mm; }
-          #solar-pdf-area .gap-2 { gap: 1.5mm; }
-          #solar-pdf-area h2 { font-size: 11px !important; }
-          #solar-pdf-area h3 { font-size: 9px !important; }
-          #solar-pdf-area .text-\\[11px\\], #solar-pdf-area .text-\\[12px\\] { font-size: 9px !important; }
-          #solar-pdf-area .text-\\[10px\\] { font-size: 8px !important; }
-          #solar-pdf-area .text-base, #solar-pdf-area .text-sm { font-size: 10px !important; }
+          #solar-pdf-area {
+            position: absolute; left: 0; top: 0;
+            width: 100%; padding: 0; margin: 0;
+            font-size: 10px;
+            line-height: 1.2;
+          }
+          @page { size: A4 portrait; margin: 6mm; }
 
-          /* SVG do grafico — altura controlada pra caber em A4 */
-          #solar-pdf-area svg { max-height: 50mm; width: 100%; height: auto; }
+          /* Avoid page breaks dentro dos blocos principais */
+          .avoid-break { page-break-inside: avoid !important; break-inside: avoid !important; }
+          table { page-break-inside: auto; }
+          tr { page-break-inside: avoid; }
 
-          /* Imagem do header — limita altura */
-          #solar-pdf-area img { max-height: 30mm; }
+          /* Reduz padding das secoes pra caber em 1 pagina */
+          #solar-pdf-area section { padding-top: 6px !important; padding-bottom: 6px !important; }
+          #solar-pdf-area footer { padding-top: 4px !important; padding-bottom: 4px !important; }
+          #solar-pdf-area header { padding-top: 8px !important; padding-bottom: 8px !important; }
 
-          /* Quebra de pagina */
-          #solar-pdf-area .avoid-break { page-break-inside: avoid; break-inside: avoid; }
-          #solar-pdf-area table { page-break-inside: auto; }
-          #solar-pdf-area tr { page-break-inside: avoid; }
+          /* SVG do grafico — limita altura */
+          #solar-pdf-area svg { max-height: 52mm; width: 100%; height: auto; }
 
-          /* Borders mais finos no PDF */
-          #solar-pdf-area * { border-color: #94a3b8 !important; }
+          /* Imagem do header — proporcao mantida, altura controlada */
+          #solar-pdf-area img { max-height: 28mm; }
+
+          /* Esconde elementos da UI interativa */
+          .print\\:hidden { display: none !important; }
         }
       ` }} />
-    </div>
+    </>
   );
 }
 
@@ -1702,6 +1716,62 @@ function KV({ label, value }: { label: string; value: string | number }) {
     <div className="flex items-baseline gap-2 text-[11px] leading-tight">
       <span className="text-slate-600 font-semibold w-12 shrink-0">{label}:</span>
       <span className="font-bold text-slate-900">{value}</span>
+    </div>
+  );
+}
+
+// ============ Componentes do redesign profissional do SolarTab ============
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-[9px] uppercase tracking-[0.15em] text-slate-500 font-semibold border-b border-slate-200 pb-0.5">
+      {children}
+    </div>
+  );
+}
+
+function DataRow({ term, desc, emphasize }: { term: string; desc: string; emphasize?: boolean }) {
+  return (
+    <div className="flex items-baseline gap-2 leading-tight">
+      <dt className="text-[9px] uppercase tracking-wide text-slate-500 w-14 shrink-0 font-semibold">{term}</dt>
+      <dd className={emphasize ? "text-[12px] font-bold text-slate-900" : "text-[11px] text-slate-800 font-semibold"}>{desc}</dd>
+    </div>
+  );
+}
+
+function Stat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className={`rounded px-2 py-1 border ${highlight ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white"}`}>
+      <div className="text-[8.5px] uppercase tracking-wide text-slate-500 font-semibold leading-tight">{label}</div>
+      <div className={`text-[12px] tabular-nums font-bold leading-tight ${highlight ? "text-amber-800" : "text-slate-900"}`}>{value}</div>
+    </div>
+  );
+}
+
+function ConfigRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-2 text-[10px]">
+      <span className="text-[9px] uppercase tracking-wide text-slate-500 font-semibold">{label}</span>
+      <div className="flex items-center">{children}</div>
+    </div>
+  );
+}
+
+function NbrRow({ tipo, range }: { tipo: string; range: string }) {
+  return (
+    <div className="flex items-center justify-between gap-1 border-b border-slate-100 pb-0.5">
+      <span className="text-slate-600">{tipo}</span>
+      <span className="font-semibold text-slate-900 tabular-nums">{range}</span>
+    </div>
+  );
+}
+
+function Kpi({ label, value, unit, accent }: { label: string; value: string; unit: string; accent?: boolean }) {
+  return (
+    <div className={`rounded border ${accent ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"} px-2 py-1.5 text-center`}>
+      <div className="text-[8.5px] uppercase tracking-wide text-slate-500 font-semibold leading-tight">{label}</div>
+      <div className={`mt-0.5 text-base font-bold tabular-nums leading-none ${accent ? "text-amber-700" : "text-slate-900"}`}>{value}</div>
+      <div className={`text-[9px] font-medium mt-0.5 ${accent ? "text-amber-600" : "text-slate-500"}`}>{unit}</div>
     </div>
   );
 }
@@ -1727,36 +1797,36 @@ function HeaderImageBlock({
   };
 
   return (
-    <div className="relative border border-slate-300 print:border-slate-400 rounded-sm overflow-hidden bg-white min-h-[110px] flex items-center justify-center">
+    <div className="relative border border-slate-200 rounded overflow-hidden bg-slate-50 h-full min-h-[88px] flex items-center justify-center print:bg-white">
       <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleChange} />
       {imageUrl ? (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={imageUrl} alt="Header solar" className="w-full h-full max-h-[140px] object-contain" />
+          <img src={imageUrl} alt="Imagem do orcamento" className="w-full h-full max-h-[120px] object-contain" />
           <div className="absolute top-1 right-1 flex gap-1 print:hidden">
             <button onClick={handlePick} disabled={uploading}
-              className="rounded bg-white/90 text-slate-700 border border-slate-300 px-2 py-0.5 text-[10px] font-semibold hover:bg-white shadow-sm">
+              className="rounded bg-white/95 text-slate-700 border border-slate-300 px-2 py-0.5 text-[9px] font-semibold hover:bg-white shadow-sm uppercase tracking-wide">
               Trocar
             </button>
             <button onClick={onRemove} disabled={uploading}
-              className="rounded bg-white/90 text-red-700 border border-red-200 px-2 py-0.5 text-[10px] font-semibold hover:bg-red-50 shadow-sm">
+              className="rounded bg-white/95 text-red-700 border border-red-200 px-2 py-0.5 text-[9px] font-semibold hover:bg-red-50 shadow-sm uppercase tracking-wide">
               Remover
             </button>
           </div>
         </>
       ) : (
         <>
-          <button onClick={handlePick} disabled={uploading}
-            className="w-full h-full min-h-[110px] flex flex-col items-center justify-center text-amber-700 hover:bg-amber-50/50 transition print:hidden">
-            <div className="text-3xl">📷</div>
-            <div className="text-xs font-semibold mt-1">{uploading ? "Enviando..." : "Adicionar imagem"}</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">JPEG, PNG ou WebP — max 5MB</div>
+          <button onClick={handlePick} disabled={uploading} type="button"
+            className="w-full h-full min-h-[88px] flex flex-col items-center justify-center text-slate-500 hover:bg-white transition print:hidden border border-dashed border-slate-300 rounded">
+            <svg className="w-7 h-7 text-slate-400 mb-1" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+            </svg>
+            <div className="text-[10px] font-semibold">{uploading ? "Enviando..." : "Adicionar imagem"}</div>
+            <div className="text-[8.5px] text-slate-400 mt-0.5">JPEG · PNG · WebP — max 5MB</div>
           </button>
-          {/* Fallback no print: logo padrao quando nao tem imagem */}
-          <div className="hidden print:flex flex-col items-center justify-center text-center py-3">
-            <div className="text-amber-700 text-3xl">☀️</div>
-            <div className="text-xs font-bold text-amber-800 mt-1">Linha de Coletor Solar para Piscina</div>
-            <div className="text-[10px] text-amber-700">New Tropicos · Solis Piscinas</div>
+          {/* No print sem imagem: bloco vazio discreto */}
+          <div className="hidden print:flex flex-col items-center justify-center text-center py-2 px-3 text-slate-400 text-[10px]">
+            <div className="text-[9px] uppercase tracking-wide">Sem imagem</div>
           </div>
         </>
       )}
