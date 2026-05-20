@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -7,7 +8,10 @@ import {
   Post,
   Put,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { PoolBudgetService } from './pool-budget.service';
@@ -110,6 +114,28 @@ export class PoolBudgetController {
   @Post(':id/solar-report/recompute')
   recomputeSolarReport(@Param('id') id: string, @Body() body: SolarRecomputeDto, @CurrentUser() user: AuthenticatedUser) {
     return this.solarBudget.computeAndSaveReport(id, user.companyId, body);
+  }
+
+  @ApiOperation({ summary: 'Upload da imagem do header da aba Solar (foto/render da piscina) — JPEG/PNG/WebP, max 5MB' })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/solar-header-image')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadSolarHeaderImage(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (!file) throw new BadRequestException('Nenhum arquivo enviado');
+    return this.solarBudget.uploadHeaderImage(id, user.companyId, file);
+  }
+
+  @ApiOperation({ summary: 'Remove a imagem do header da aba Solar' })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Delete(':id/solar-header-image')
+  removeSolarHeaderImage(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.solarBudget.removeHeaderImage(id, user.companyId);
   }
 
   // ============ Defaults do simulador ============

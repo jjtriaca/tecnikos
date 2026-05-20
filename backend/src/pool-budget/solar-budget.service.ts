@@ -6,7 +6,7 @@
 //
 // SolarService permanece puro pra ser testavel sem DB.
 
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SolarService, SolarInputs, SolarReport } from './solar.service';
 import { ClimateDataService } from './climate-data.service';
@@ -16,6 +16,13 @@ import {
   SOLAR_DEFAULT_COLETOR_KWH_M2,
   SOLAR_DEFAULT_COLETOR_EFICIENCIA,
 } from './solar-constants';
+import * as fs from 'fs';
+import * as path from 'path';
+import { randomUUID } from 'crypto';
+
+const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
+const SOLAR_HEADER_ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
+const SOLAR_HEADER_MAX_SIZE = 5 * 1024 * 1024; // 5MB
 
 export interface SolarCollectorCandidate {
   productId: string;
@@ -146,8 +153,8 @@ export class SolarBudgetService {
     const existingSolar = (env.solarOverride ?? {}) as Record<string, any>;
 
     const params = {
-      areaPiscinaM2: Number(dims.areaM2) || 0,
-      volumeM3: Number(dims.volumeM3) || 0,
+      areaPiscinaM2: Number(dims.area) || 0,
+      volumeM3: Number(dims.volume) || 0,
       tempDesejada: overrides?.tempDesejada ?? Number(env.temperaturaAguaDesejada) ?? 30,
       capa: (env.capaTermica === false ? 'NAO' : 'SIM') as 'SIM' | 'NAO',
       vento: ((env.vento ?? 'MODERADO') as string).toUpperCase() as 'FRACO' | 'MODERADO' | 'FORTE',
@@ -184,5 +191,72 @@ export class SolarBudgetService {
     if (!budget) throw new NotFoundException('Orcamento nao encontrado');
     const env = (budget.environmentParams ?? {}) as Record<string, any>;
     return (env.solarReport as SolarReport) ?? null;
+  }
+
+  // ============ Upload da imagem do header (Solar PDF) ============
+
+  async uploadHeaderImage(
+    budgetId: string,
+    companyId: string,
+    file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+  ): Promise<{ solarHeaderImage: string }> {
+    if (!SOLAR_HEADER_ALLOWED_MIME.includes(file.mimetype)) {
+      throw new BadRequestException('Tipo de arquivo nao permitido. Use JPEG, PNG ou WebP.');
+    }
+    if (file.size > SOLAR_HEADER_MAX_SIZE) {
+      throw new BadRequestException('Arquivo muito grande. Maximo: 5MB.');
+    }
+
+    const budget = await this.prisma.poolBudget.findFirst({
+      where: { id: budgetId, companyId, deletedAt: null },
+      select: { id: true, solarHeaderImage: true },
+    });
+    if (!budget) throw new NotFoundException('Orcamento nao encontrado');
+
+    if (budget.solarHeaderImage) {
+      this.deleteFileIfLocal(budget.solarHeaderImage);
+    }
+
+    const ext = (path.extname(file.originalname) || '.png').toLowerCase();
+    const fileName = `solar-header-${randomUUID()}${ext}`;
+    const dirPath = path.join(UPLOAD_DIR, companyId, 'pool-budgets', budgetId);
+    fs.mkdirSync(dirPath, { recursive: true });
+    fs.writeFileSync(path.join(dirPath, fileName), file.buffer);
+
+    const solarHeaderImage = `/uploads/${companyId}/pool-budgets/${budgetId}/${fileName}`;
+    await this.prisma.poolBudget.update({
+      where: { id: budgetId },
+      data: { solarHeaderImage },
+    });
+
+    return { solarHeaderImage };
+  }
+
+  async removeHeaderImage(budgetId: string, companyId: string): Promise<{ solarHeaderImage: null }> {
+    const budget = await this.prisma.poolBudget.findFirst({
+      where: { id: budgetId, companyId, deletedAt: null },
+      select: { id: true, solarHeaderImage: true },
+    });
+    if (!budget) throw new NotFoundException('Orcamento nao encontrado');
+
+    if (budget.solarHeaderImage) {
+      this.deleteFileIfLocal(budget.solarHeaderImage);
+    }
+    await this.prisma.poolBudget.update({
+      where: { id: budgetId },
+      data: { solarHeaderImage: null },
+    });
+    return { solarHeaderImage: null };
+  }
+
+  private deleteFileIfLocal(url: string) {
+    if (!url.startsWith('/uploads/')) return;
+    const rel = url.replace('/uploads/', '');
+    const full = path.join(UPLOAD_DIR, rel);
+    try {
+      if (fs.existsSync(full)) fs.unlinkSync(full);
+    } catch (err: any) {
+      this.logger.warn(`Falha ao remover ${full}: ${err.message}`);
+    }
   }
 }

@@ -3526,6 +3526,11 @@ model PoolBudget {
   // Estrutura: ver HeatingReport em backend/src/pool-budget/heating.service.ts
   heatingReport Json?
 
+  // URL/path da imagem do header da aba Solar (foto/render da piscina ou logo).
+  // Substitui o icone padrao do bloco "Linha de Coletor Solar" no PDF Solar.
+  // Caminho relativo tipo /uploads/<companyId>/pool-budgets/<id>/solar-header.<ext>
+  solarHeaderImage String?
+
   // Forma de pagamento (separado do paymentTerms texto livre acima — futuro: deprecar texto livre)
   paymentTermId String?
 

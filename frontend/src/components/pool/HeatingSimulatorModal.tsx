@@ -4,7 +4,7 @@
 // Ver memory/project_heating_simulator_plan.md pra contexto.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api } from "@/lib/api";
+import { api, getAccessToken } from "@/lib/api";
 import { useDebounce } from "@/hooks/useDebounce";
 
 // ============ Tipos ============
@@ -125,6 +125,7 @@ interface BudgetForHeating {
   clientPartner?: { name?: string } | null;
   poolDimensions?: any;
   environmentParams?: any;
+  solarHeaderImage?: string | null;
 }
 
 interface Props {
@@ -255,6 +256,13 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
   const [solarExtraPct, setSolarExtraPct] = useState(0);
   const [solarSelectedCollectorId, setSolarSelectedCollectorId] = useState<string | null>(null);
   const [selectedMonthIdx, setSelectedMonthIdx] = useState<number>(5); // Junho default (mes critico)
+  const [solarHeaderImage, setSolarHeaderImage] = useState<string | null>(budget.solarHeaderImage ?? null);
+  const [headerImageUploading, setHeaderImageUploading] = useState(false);
+
+  // Sincroniza com budget quando o parent re-fetcha (apos onSaved)
+  useEffect(() => {
+    setSolarHeaderImage(budget.solarHeaderImage ?? null);
+  }, [budget.solarHeaderImage]);
 
   // Candidatos pra dropdown de selecao manual do equipamento
   const [candidates, setCandidates] = useState<HeatingCandidate[]>([]);
@@ -340,6 +348,49 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
       .catch(() => setSolarReport(null))
       .finally(() => setSolarLoading(false));
   }, [open, budget.id, budget.environmentParams]);
+
+  // Upload/remove da imagem do header da aba Solar
+  async function uploadSolarHeaderImage(file: File) {
+    setHeaderImageUploading(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const token = getAccessToken();
+      const res = await fetch(`/api/pool-budgets/${budget.id}/solar-header-image`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erro ao enviar imagem');
+      }
+      const data = await res.json();
+      setSolarHeaderImage(data.solarHeaderImage);
+      onSaved?.();
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+    } finally {
+      setHeaderImageUploading(false);
+    }
+  }
+
+  async function removeSolarHeaderImage() {
+    if (!confirm('Remover a imagem do header?')) return;
+    setHeaderImageUploading(true);
+    setError(null);
+    try {
+      await api.del(`/pool-budgets/${budget.id}/solar-header-image`);
+      setSolarHeaderImage(null);
+      onSaved?.();
+    } catch (e: any) {
+      setError(String(e?.message ?? e));
+    } finally {
+      setHeaderImageUploading(false);
+    }
+  }
 
   // Recompute solar — chamado quando o operador muda coletor/extra/temp ou clica botao
   async function recomputeSolar(extraPct?: number, collectorId?: string | null) {
@@ -1230,6 +1281,10 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
               tempAguaDesejada={tempAguaDesejada}
               setTempAguaDesejada={setTempAguaDesejada}
               onRecompute={recomputeSolar}
+              headerImage={solarHeaderImage}
+              headerImageUploading={headerImageUploading}
+              onUploadHeaderImage={uploadSolarHeaderImage}
+              onRemoveHeaderImage={removeSolarHeaderImage}
             />
           )}
 
@@ -1282,6 +1337,7 @@ function SolarTab({
   capaTermica, setCapaTermica, vento, setVento,
   tempAguaDesejada, setTempAguaDesejada,
   onRecompute,
+  headerImage, headerImageUploading, onUploadHeaderImage, onRemoveHeaderImage,
 }: {
   budget: BudgetForHeating;
   report: SolarReport | null;
@@ -1307,6 +1363,10 @@ function SolarTab({
   tempAguaDesejada: number;
   setTempAguaDesejada: (n: number) => void;
   onRecompute: (extraPct?: number, collectorId?: string | null) => void | Promise<void>;
+  headerImage: string | null;
+  headerImageUploading: boolean;
+  onUploadHeaderImage: (file: File) => void | Promise<void>;
+  onRemoveHeaderImage: () => void | Promise<void>;
 }) {
   const dims = budget.poolDimensions ?? {};
   const area = Number(dims.area) || 0;
@@ -1336,8 +1396,8 @@ function SolarTab({
         </h3>
       </div>
 
-      {/* === Linha topo: DADOS DA OBRA (esquerda) + logo (direita) === */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3 px-2">
+      {/* === Linha topo: DADOS DA OBRA (esquerda) + imagem upload (direita) === */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3 px-2 avoid-break">
         <div className="border border-slate-300 print:border-slate-400 rounded-sm p-2">
           <div className="text-[11px] font-bold text-blue-700 mb-1 print:text-black">DADOS DA OBRA</div>
           <KV label="Nome" value={budget.clientPartner?.name ?? "—"} />
@@ -1345,15 +1405,16 @@ function SolarTab({
           <KV label="Local" value={cidade || (availableUfs.find((u) => u.uf === uf)?.ufName) || "—"} />
           <KV label="Orc n°" value={budget.code ?? "—"} />
         </div>
-        <div className="border border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 rounded-sm p-3 flex flex-col items-center justify-center text-center print:border-slate-400">
-          <div className="text-amber-700 text-3xl">☀️</div>
-          <div className="text-xs font-bold text-amber-800 mt-1">Linha de Coletor Solar para Piscina</div>
-          <div className="text-[10px] text-amber-700">New Tropicos · Solis Piscinas</div>
-        </div>
+        <HeaderImageBlock
+          imageUrl={headerImage}
+          uploading={headerImageUploading}
+          onUpload={onUploadHeaderImage}
+          onRemove={onRemoveHeaderImage}
+        />
       </div>
 
       {/* === DADOS DA PISCINA + AREA/VOLUME === */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2 px-2">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2 px-2 avoid-break">
         <div className="md:col-span-2 border border-slate-300 print:border-slate-400 rounded-sm overflow-hidden">
           <div className="text-[11px] font-bold text-blue-700 px-2 py-1 bg-slate-50 print:text-black">DADOS DA PISCINA</div>
           <div className="p-2 grid grid-cols-1 gap-y-0.5">
@@ -1374,7 +1435,7 @@ function SolarTab({
       </div>
 
       {/* === DADOS DO AQUECIMENTO + NBR === */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2 px-2">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2 px-2 avoid-break">
         <div className="md:col-span-2 border border-slate-300 print:border-slate-400 rounded-sm overflow-hidden">
           <div className="text-[11px] font-bold text-blue-700 px-2 py-1 bg-slate-50 print:text-black">DADOS DO AQUECIMENTO</div>
           <div className="p-2 grid grid-cols-1 gap-y-0.5">
@@ -1516,7 +1577,7 @@ function SolarTab({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-2 mt-2 px-2">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-2 mt-2 px-2 avoid-break">
             {/* Coluna esquerda — escolha mes + grafico */}
             <div className="md:col-span-7">
               <div className="flex items-center gap-2 mb-1">
@@ -1580,13 +1641,54 @@ function SolarTab({
         </div>
       )}
 
-      {/* CSS Print: esconde tabs/header do modal e mostra so o conteudo */}
+      {/* CSS Print: esconde tabs/header do modal e mostra so o conteudo.
+          Otimizado pra caber em UMA folha A4 portrait sem cortar:
+          - Margem do @page = 10mm (sem padding extra)
+          - Reduz font-sizes, paddings e gaps
+          - SVG do grafico limitado a 45mm de altura
+          - page-break-inside: avoid em blocos criticos */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           body * { visibility: hidden; }
-          #solar-pdf-area, #solar-pdf-area * { visibility: visible; }
-          #solar-pdf-area { position: absolute; left: 0; top: 0; width: 100%; padding: 0 8mm; }
-          @page { size: A4 portrait; margin: 8mm; }
+          #solar-pdf-area, #solar-pdf-area * { visibility: visible !important; }
+          #solar-pdf-area {
+            position: absolute; left: 0; top: 0; width: 100%;
+            padding: 0; margin: 0;
+            color: #000;
+            font-size: 9px;
+            line-height: 1.15;
+          }
+          @page { size: A4 portrait; margin: 7mm; }
+
+          /* Compactacao geral */
+          #solar-pdf-area .px-2 { padding-left: 2mm; padding-right: 2mm; }
+          #solar-pdf-area .p-2, #solar-pdf-area .p-3 { padding: 1mm 1.5mm; }
+          #solar-pdf-area .py-0\\.5 { padding-top: 0.3mm; padding-bottom: 0.3mm; }
+          #solar-pdf-area .py-1 { padding-top: 0.5mm; padding-bottom: 0.5mm; }
+          #solar-pdf-area .py-2 { padding-top: 1mm; padding-bottom: 1mm; }
+          #solar-pdf-area .mt-2 { margin-top: 1mm; }
+          #solar-pdf-area .mt-3 { margin-top: 1.5mm; }
+          #solar-pdf-area .mt-4 { margin-top: 2mm; }
+          #solar-pdf-area .gap-2 { gap: 1.5mm; }
+          #solar-pdf-area h2 { font-size: 11px !important; }
+          #solar-pdf-area h3 { font-size: 9px !important; }
+          #solar-pdf-area .text-\\[11px\\], #solar-pdf-area .text-\\[12px\\] { font-size: 9px !important; }
+          #solar-pdf-area .text-\\[10px\\] { font-size: 8px !important; }
+          #solar-pdf-area .text-base, #solar-pdf-area .text-sm { font-size: 10px !important; }
+
+          /* SVG do grafico — altura controlada pra caber em A4 */
+          #solar-pdf-area svg { max-height: 50mm; width: 100%; height: auto; }
+
+          /* Imagem do header — limita altura */
+          #solar-pdf-area img { max-height: 30mm; }
+
+          /* Quebra de pagina */
+          #solar-pdf-area .avoid-break { page-break-inside: avoid; break-inside: avoid; }
+          #solar-pdf-area table { page-break-inside: auto; }
+          #solar-pdf-area tr { page-break-inside: avoid; }
+
+          /* Borders mais finos no PDF */
+          #solar-pdf-area * { border-color: #94a3b8 !important; }
         }
       ` }} />
     </div>
@@ -1600,6 +1702,64 @@ function KV({ label, value }: { label: string; value: string | number }) {
     <div className="flex items-baseline gap-2 text-[11px] leading-tight">
       <span className="text-slate-600 font-semibold w-12 shrink-0">{label}:</span>
       <span className="font-bold text-slate-900">{value}</span>
+    </div>
+  );
+}
+
+// Bloco do header da aba Solar: upload de imagem (foto/render da piscina ou logo).
+// - Com imagem: mostra a imagem + botoes "Trocar"/"Remover" (escondidos no print)
+// - Sem imagem: dropzone clicavel "Adicionar imagem" (substituido pelo logo padrao no print)
+function HeaderImageBlock({
+  imageUrl, uploading, onUpload, onRemove,
+}: {
+  imageUrl: string | null;
+  uploading: boolean;
+  onUpload: (file: File) => void | Promise<void>;
+  onRemove: () => void | Promise<void>;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const handlePick = () => fileRef.current?.click();
+  const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await onUpload(file);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  return (
+    <div className="relative border border-slate-300 print:border-slate-400 rounded-sm overflow-hidden bg-white min-h-[110px] flex items-center justify-center">
+      <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleChange} />
+      {imageUrl ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={imageUrl} alt="Header solar" className="w-full h-full max-h-[140px] object-contain" />
+          <div className="absolute top-1 right-1 flex gap-1 print:hidden">
+            <button onClick={handlePick} disabled={uploading}
+              className="rounded bg-white/90 text-slate-700 border border-slate-300 px-2 py-0.5 text-[10px] font-semibold hover:bg-white shadow-sm">
+              Trocar
+            </button>
+            <button onClick={onRemove} disabled={uploading}
+              className="rounded bg-white/90 text-red-700 border border-red-200 px-2 py-0.5 text-[10px] font-semibold hover:bg-red-50 shadow-sm">
+              Remover
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <button onClick={handlePick} disabled={uploading}
+            className="w-full h-full min-h-[110px] flex flex-col items-center justify-center text-amber-700 hover:bg-amber-50/50 transition print:hidden">
+            <div className="text-3xl">📷</div>
+            <div className="text-xs font-semibold mt-1">{uploading ? "Enviando..." : "Adicionar imagem"}</div>
+            <div className="text-[10px] text-slate-500 mt-0.5">JPEG, PNG ou WebP — max 5MB</div>
+          </button>
+          {/* Fallback no print: logo padrao quando nao tem imagem */}
+          <div className="hidden print:flex flex-col items-center justify-center text-center py-3">
+            <div className="text-amber-700 text-3xl">☀️</div>
+            <div className="text-xs font-bold text-amber-800 mt-1">Linha de Coletor Solar para Piscina</div>
+            <div className="text-[10px] text-amber-700">New Tropicos · Solis Piscinas</div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
