@@ -1865,10 +1865,12 @@ export default function ProductsPage() {
                         <select value={form.specTipoEquipamento} onChange={(e) => setField("specTipoEquipamento", e.target.value)} className={inputClass}>
                           <option value="">— Nao definido —</option>
                           <option value="BOMBA_CALOR">Bomba de Calor</option>
-                          <option value="SOLAR">Solar (coletor)</option>
+                          <option value="COLETOR_SOLAR_PISCINA">Coletor Solar — Piscina</option>
+                          <option value="COLETOR_SOLAR_BOILER">Coletor Solar — Boiler</option>
                           <option value="GAS_GLP">Aquecedor a Gas GLP</option>
                           <option value="GAS_GN">Aquecedor a Gas Natural</option>
                           <option value="ELETRICO">Eletrico (resistencia)</option>
+                          <option value="SOLAR">Solar (legado — migrar pra Coletor Solar — Piscina)</option>
                         </select>
                       </div>
                       <div>

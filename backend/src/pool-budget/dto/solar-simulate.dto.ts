@@ -54,4 +54,22 @@ export class SolarRecomputeDto {
   @Min(20)
   @Max(40)
   tempDesejada?: number;
+
+  // v5: persistidos em environmentParams (motor de calculo usara em fase futura)
+  @IsOptional()
+  @IsString()
+  @IsIn(['N', 'NE', 'L', 'SE', 'S', 'SO', 'O', 'NO'])
+  orientacaoTelhado?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(60)
+  inclinacaoTelhadoGraus?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(5)
+  @Max(40)
+  temperaturaAguaInicial?: number;
 }

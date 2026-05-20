@@ -62,7 +62,9 @@ export class SolarBudgetService {
     return products
       .filter((p) => {
         const specs = (p.technicalSpecs ?? {}) as Record<string, any>;
-        return specs.tipoEquipamento === 'SOLAR';
+        // Aceita o novo tipo (COLETOR_SOLAR_PISCINA) e o legado (SOLAR) pra nao quebrar
+        // produtos cadastrados antes da migracao
+        return specs.tipoEquipamento === 'COLETOR_SOLAR_PISCINA' || specs.tipoEquipamento === 'SOLAR';
       })
       .map((p) => {
         const specs = (p.technicalSpecs ?? {}) as Record<string, any>;
@@ -166,7 +168,7 @@ export class SolarBudgetService {
 
     const report = await this.simulate(companyId, params);
 
-    // Salva report + overrides em environmentParams
+    // Salva report + overrides em environmentParams (v5: persiste orientacao/inclinacao/tempInicial)
     const newEnv = {
       ...env,
       solarReport: report as unknown as object,
@@ -174,6 +176,9 @@ export class SolarBudgetService {
         extraColetoresPct: params.extraColetoresPct,
         collectorProductId: report.selectedCollector.productId,
       },
+      ...(overrides?.orientacaoTelhado !== undefined && { orientacaoTelhado: overrides.orientacaoTelhado }),
+      ...(overrides?.inclinacaoTelhadoGraus !== undefined && { inclinacaoTelhadoGraus: overrides.inclinacaoTelhadoGraus }),
+      ...(overrides?.temperaturaAguaInicial !== undefined && { temperaturaAguaInicial: overrides.temperaturaAguaInicial }),
     };
     await this.prisma.poolBudget.update({
       where: { id: budgetId },

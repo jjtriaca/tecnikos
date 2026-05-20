@@ -392,14 +392,27 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
     }
   }
 
-  // Recompute solar — chamado quando o operador muda coletor/extra/temp ou clica botao
-  async function recomputeSolar(extraPct?: number, collectorId?: string | null) {
+  // Recompute solar — chamado quando o operador muda coletor/extra/temp ou clica botao.
+  // v5: aceita orientacao/inclinacao/tempInicial como overrides extras pra persistir em env.
+  async function recomputeSolar(
+    extraPct?: number,
+    collectorId?: string | null,
+    extras?: { orientacaoTelhado?: string; inclinacaoTelhadoGraus?: number; temperaturaAguaInicial?: number },
+  ) {
     setSolarRecomputing(true);
     setError(null);
     try {
-      const body: { extraColetoresPct?: number; collectorProductId?: string; tempDesejada?: number } = {
+      const body: {
+        extraColetoresPct?: number;
+        collectorProductId?: string;
+        tempDesejada?: number;
+        orientacaoTelhado?: string;
+        inclinacaoTelhadoGraus?: number;
+        temperaturaAguaInicial?: number;
+      } = {
         extraColetoresPct: extraPct ?? solarExtraPct,
         tempDesejada: Number(tempAguaDesejada),
+        ...(extras ?? {}),
       };
       const cid = collectorId === undefined ? solarSelectedCollectorId : collectorId;
       if (cid) body.collectorProductId = cid;
@@ -1325,7 +1338,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
 // ============ Aba Solar (Fase 5 + v2: layout fiel a planilha + PDF) ============
 
 const SOLAR_MONTH_NAMES_FULL = [
-  'JANEIRO', 'FEVEREIRO', 'MARCO', 'ABRIL', 'MAIO', 'JUNHO',
+  'JANEIRO', 'FEVEREIRO', 'MARÇO', 'ABRIL', 'MAIO', 'JUNHO',
   'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO',
 ];
 
@@ -1377,6 +1390,15 @@ function SolarTab({
   const profMax = Number(dims.depthMax ?? dims.profundidadeMaxima ?? dims.depth) || 0;
   const tipoPiscinaTxt = (budget.environmentParams as any)?.tipoPiscina ?? "PRIVATIVA";
 
+  // Orientacao + inclinacao do telhado + temperatura inicial (UI only por enquanto — serao persistidos
+  // em environmentParams na fase futura quando o motor do solar usar esses dados no calculo)
+  const initOrient = (budget.environmentParams as any)?.orientacaoTelhado ?? "N";
+  const initIncl = Number((budget.environmentParams as any)?.inclinacaoTelhadoGraus) || 20;
+  const initTempIni = Number((budget.environmentParams as any)?.temperaturaAguaInicial) || 22;
+  const [orientacaoTelhado, setOrientacaoTelhado] = useState<string>(initOrient);
+  const [inclinacaoTelhado, setInclinacaoTelhado] = useState<number>(initIncl);
+  const [temperaturaInicial, setTemperaturaInicial] = useState<number>(initTempIni);
+
   if (loading) {
     return <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">Carregando dados solares...</div>;
   }
@@ -1416,27 +1438,180 @@ function SolarTab({
           <header className="bg-gradient-to-r from-slate-900 to-blue-900 text-white px-5 py-3 flex items-center justify-between print:bg-slate-900 print:text-white">
             <div>
               <div className="text-[9px] uppercase tracking-[0.18em] text-amber-300 font-medium">Aquecimento solar para piscinas</div>
-              <h2 className="text-base font-bold mt-0.5 leading-tight">Dimensionamento Coletor Solar</h2>
-              <div className="text-[10px] text-slate-300 mt-0.5">Conforme NBR 10339:2018 — ABNT</div>
+              <h2 className="text-base font-bold mt-0.5 leading-tight">Dimensionamento para Coletor Solar</h2>
             </div>
             <div className="text-right">
-              <div className="text-[9px] uppercase tracking-[0.18em] text-slate-300">Orcamento</div>
+              <div className="text-[9px] uppercase tracking-[0.18em] text-slate-300">Orçamento</div>
               <div className="text-xl font-bold tabular-nums leading-tight">{budget.code ?? "—"}</div>
               <div className="text-[10px] text-slate-300 mt-0.5">{today}</div>
             </div>
           </header>
 
-          {/* ============ CLIENTE + IMAGEM PRODUTO ============ */}
+          {/* ============ LADO ESQUERDO (Cliente + Dim+NBR | Config) + IMAGEM ============
+              Esquerda (8 col): Cliente/Obra em cima, Dim+NBR | Config em 2 cols (h-full pra alinhar)
+              Direita (4 col): Imagem aspect-square (menor) */}
           <section className="grid grid-cols-12 gap-4 px-5 py-3 border-b border-slate-200 avoid-break">
-            <div className="col-span-6 flex flex-col justify-center">
-              <SectionLabel>Cliente / Obra</SectionLabel>
-              <dl className="mt-2 grid grid-cols-1 gap-y-1.5 text-[11px]">
-                <DataRow term="Nome" desc={budget.clientPartner?.name ?? "—"} emphasize />
-                <DataRow term="Local" desc={localName} />
-                <DataRow term="Projeto" desc={budget.title || "—"} />
-              </dl>
+            <div className="col-span-8 flex flex-col gap-2">
+              {/* Cliente / Obra — sem SectionLabel (titulo redundante) pra ganhar altura */}
+              <div className="text-[11px] leading-tight">
+                <div className="font-bold text-slate-900 text-[12px]">{budget.clientPartner?.name ?? "—"}</div>
+                <div className="text-slate-700 mt-0.5 flex flex-wrap gap-x-4">
+                  <span><span className="text-slate-500 uppercase text-[8.5px] tracking-wide font-semibold">Local:</span> {localName}</span>
+                  <span><span className="text-slate-500 uppercase text-[8.5px] tracking-wide font-semibold">Projeto:</span> {budget.title || "—"}</span>
+                </div>
+              </div>
+
+              {/* Dimensoes+NBR | Configuracao em 2 colunas — h-full pra alinhar altura */}
+              <div className="grid grid-cols-2 gap-3 items-stretch flex-1">
+                {/* Dimensoes (com NBR card embaixo na mesma coluna) */}
+                <div className="flex flex-col gap-2 h-full">
+                  <div>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <SectionLabel>Dimensões da piscina</SectionLabel>
+                      <span className="text-[8.5px] text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                        <span className="text-slate-900 font-bold">{tipoPiscinaTxt}</span>
+                      </span>
+                    </div>
+                    <div className="mt-1 grid grid-cols-2 gap-0.5">
+                      <StatCompact label="Comp" value={`${len.toFixed(2).replace(".", ",")} m`} />
+                      <StatCompact label="Larg" value={`${wid.toFixed(2).replace(".", ",")} m`} />
+                      <StatCompact label="Prof. min" value={`${profMin.toFixed(2).replace(".", ",")} m`} />
+                      <StatCompact label="Prof. max" value={`${profMax.toFixed(2).replace(".", ",")} m`} />
+                      <StatCompact label="Area" value={`${area.toFixed(2).replace(".", ",")} m²`} highlight />
+                      <StatCompact label="Volume" value={`${volume.toFixed(2).replace(".", ",")} m³`} highlight />
+                    </div>
+                  </div>
+
+                  {/* NBR — card unico ultra-compacto, header vermelho/dourado gradient */}
+                  <div className="rounded border border-red-200 overflow-hidden bg-white print:bg-white flex-1 flex flex-col">
+                    <div className="bg-gradient-to-r from-red-700 via-red-600 to-amber-700 text-white px-2 py-1 print:bg-red-700">
+                      <div className="text-[9.5px] font-bold leading-tight">
+                        NBR 10339:2018 — ABNT
+                      </div>
+                      <div className="text-[8px] text-red-100 leading-tight">
+                        Faixas de temperatura recomendadas por uso
+                      </div>
+                    </div>
+                    <div className="px-1.5 py-1 grid grid-cols-2 gap-x-2 text-[8px] leading-[1.15] flex-1">
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">SPA</span>
+                        <span className="font-bold text-slate-900 tabular-nums">36–38°</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Competição</span>
+                        <span className="font-bold text-slate-900 tabular-nums">25–28°</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Recreação</span>
+                        <span className="font-bold text-slate-900 tabular-nums">27–29°</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Bebês/Hidro</span>
+                        <span className="font-bold text-slate-900 tabular-nums">30–34°</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-slate-600">Crianças</span>
+                        <span className="font-bold text-slate-900 tabular-nums">29–32°</span>
+                      </div>
+                      <div className="text-red-700 font-medium">⚠ médico &gt;38°</div>
+                    </div>
+                    {((budget.environmentParams as any)?.hidromassagensQtd > 0 ||
+                      (budget.environmentParams as any)?.cascataLarguraCm > 0 ||
+                      (budget.environmentParams as any)?.bordaInfinitaM > 0) && (
+                      <div className="text-[7.5px] text-slate-600 flex gap-2 border-t border-slate-200 pt-0.5 mt-0.5 leading-tight">
+                        {(budget.environmentParams as any)?.hidromassagensQtd > 0 && <span>Hidro: <b>{(budget.environmentParams as any).hidromassagensQtd}</b></span>}
+                        {(budget.environmentParams as any)?.cascataLarguraCm > 0 && <span>Casc: <b>{(budget.environmentParams as any).cascataLarguraCm}cm</b></span>}
+                        {(budget.environmentParams as any)?.bordaInfinitaM > 0 && <span>Borda: <b>{(budget.environmentParams as any).bordaInfinitaM}m</b></span>}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Configuracao */}
+                <div className="flex flex-col h-full">
+                  <SectionLabel>Configuração do aquecimento</SectionLabel>
+                  <div className="mt-1 space-y-1 flex-1">
+                    {/* Linha 1: Capa(2) + Vento(3) — sem Temp Final aqui (movida pra linha 4) */}
+                    <div className="grid grid-cols-5 gap-1">
+                      <div className="col-span-2">
+                        <ConfigField label="Capa térmica">
+                          <select value={capaTermica ? "SIM" : "NAO"} onChange={(e) => setCapaTermica(e.target.value === "SIM")}
+                            className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full">
+                            <option value="SIM">Sim</option>
+                            <option value="NAO">Não</option>
+                          </select>
+                        </ConfigField>
+                      </div>
+                      <div className="col-span-3">
+                        <ConfigField label="Vento">
+                          <select value={vento} onChange={(e) => setVento(e.target.value)}
+                            className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full">
+                            <option value="FRACO">Fraco</option>
+                            <option value="MODERADO">Moderado</option>
+                            <option value="FORTE">Forte</option>
+                          </select>
+                        </ConfigField>
+                      </div>
+                    </div>
+                    {/* Linha 2: Orientação + Inclinação — 2 cols */}
+                    <div className="grid grid-cols-2 gap-1">
+                      <ConfigField label="Orientação do telhado">
+                        <select value={orientacaoTelhado} onChange={(e) => setOrientacaoTelhado(e.target.value)}
+                          className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full">
+                          <option value="N">Norte</option>
+                          <option value="NE">Nordeste</option>
+                          <option value="L">Leste</option>
+                          <option value="SE">Sudeste</option>
+                          <option value="S">Sul</option>
+                          <option value="SO">Sudoeste</option>
+                          <option value="O">Oeste</option>
+                          <option value="NO">Noroeste</option>
+                        </select>
+                      </ConfigField>
+                      <ConfigField label="Inclinação">
+                        <div className="flex items-center gap-1">
+                          <input type="number" min={0} max={60} value={inclinacaoTelhado}
+                            onChange={(e) => setInclinacaoTelhado(Number(e.target.value) || 0)}
+                            className="w-12 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 text-[11px] font-semibold text-center tabular-nums focus:border-amber-500 focus:outline-none" />
+                          <span className="text-[10px] text-slate-500">°</span>
+                        </div>
+                      </ConfigField>
+                    </div>
+                    {/* Linha 3: UF + Cidade */}
+                    <ConfigField label="Cidade / Estado">
+                      <div className="flex gap-1 flex-1 min-w-0">
+                        <select value={cidade} onChange={(e) => setCidade(e.target.value)}
+                          disabled={!uf}
+                          className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 flex-1 min-w-0 disabled:opacity-50">
+                          <option value="">{uf ? "Capital" : "Selecione UF"}</option>
+                          {availableCities.map((c) => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        <select value={uf} onChange={(e) => { setUf(e.target.value); setCidade(""); }}
+                          className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5">
+                          <option value="">--</option>
+                          {availableUfs.map((u) => <option key={u.uf} value={u.uf}>{u.uf}</option>)}
+                        </select>
+                      </div>
+                    </ConfigField>
+                    {/* Linha 4: Temperatura inicial + Temperatura final — 2 cols */}
+                    <div className="grid grid-cols-2 gap-1">
+                      <ConfigField label="Temp. inicial (°C)">
+                        <input type="number" min={5} max={40} value={temperaturaInicial}
+                          onChange={(e) => setTemperaturaInicial(Number(e.target.value) || 22)}
+                          className="bg-amber-50 border border-amber-200 rounded px-1 py-0.5 text-[11px] font-semibold text-center tabular-nums focus:border-amber-500 focus:outline-none w-full" />
+                      </ConfigField>
+                      <ConfigField label="Temp. final (°C)">
+                        <input type="number" min={20} max={40} value={tempAguaDesejada}
+                          onChange={(e) => setTempAguaDesejada(Number(e.target.value) || 30)}
+                          className="bg-amber-50 border border-amber-200 rounded px-1 py-0.5 text-[11px] font-semibold text-center tabular-nums focus:border-amber-500 focus:outline-none w-full" />
+                      </ConfigField>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="col-span-6">
+
+            <div className="col-span-4">
               <HeaderImageBlock
                 imageUrl={headerImage}
                 uploading={headerImageUploading}
@@ -1446,176 +1621,115 @@ function SolarTab({
             </div>
           </section>
 
-          {/* ============ SPECS — PISCINA + CONFIGURACAO ============ */}
-          <section className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-slate-200 avoid-break">
-            {/* PISCINA — 5 col */}
-            <div className="col-span-5">
-              <div className="flex items-baseline justify-between">
-                <SectionLabel>Dimensoes da piscina</SectionLabel>
-                <span className="text-[9px] text-slate-500 uppercase tracking-wide">
-                  Tipo: <span className="text-slate-800 font-semibold">{tipoPiscinaTxt}</span>
-                </span>
-              </div>
-              <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-                <Stat label="Comprimento" value={`${len.toFixed(2).replace(".", ",")} m`} />
-                <Stat label="Largura" value={`${wid.toFixed(2).replace(".", ",")} m`} />
-                <Stat label="Prof. min" value={`${profMin.toFixed(2).replace(".", ",")} m`} />
-                <Stat label="Prof. max" value={`${profMax.toFixed(2).replace(".", ",")} m`} />
-                <Stat label="Area total" value={`${area.toFixed(2).replace(".", ",")} m²`} highlight />
-                <Stat label="Volume" value={`${volume.toFixed(2).replace(".", ",")} m³`} highlight />
-              </div>
-            </div>
-
-            {/* CONFIGURACAO — 4 col */}
-            <div className="col-span-4">
-              <SectionLabel>Configuracao</SectionLabel>
-              <div className="mt-1.5 space-y-1">
-                <ConfigRow label="Temp. final">
-                  <input type="number" min={20} max={40} value={tempAguaDesejada}
-                    onChange={(e) => setTempAguaDesejada(Number(e.target.value) || 30)}
-                    className="w-14 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 text-[11px] font-semibold text-center tabular-nums focus:border-amber-500 focus:outline-none" />
-                  <span className="text-[10px] text-slate-500 ml-1">°C</span>
-                </ConfigRow>
-                <ConfigRow label="UF / Cidade">
-                  <div className="flex gap-1">
-                    <select value={uf} onChange={(e) => { setUf(e.target.value); setCidade(""); }}
-                      className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5">
-                      <option value="">--</option>
-                      {availableUfs.map((u) => <option key={u.uf} value={u.uf}>{u.uf}</option>)}
-                    </select>
-                    <select value={cidade} onChange={(e) => setCidade(e.target.value)}
-                      disabled={!uf}
-                      className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 flex-1 disabled:opacity-50">
-                      <option value="">{uf ? "Capital" : "—"}</option>
-                      {availableCities.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                </ConfigRow>
-                <ConfigRow label="Capa termica">
-                  <select value={capaTermica ? "SIM" : "NAO"} onChange={(e) => setCapaTermica(e.target.value === "SIM")}
-                    className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1.5 py-0.5">
-                    <option value="SIM">Sim</option>
-                    <option value="NAO">Nao</option>
-                  </select>
-                </ConfigRow>
-                <ConfigRow label="Vento">
-                  <select value={vento} onChange={(e) => setVento(e.target.value)}
-                    className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1.5 py-0.5">
-                    <option value="FRACO">Fraco</option>
-                    <option value="MODERADO">Moderado</option>
-                    <option value="FORTE">Forte</option>
-                  </select>
-                </ConfigRow>
-                {((budget.environmentParams as any)?.hidromassagensQtd > 0 ||
-                  (budget.environmentParams as any)?.cascataLarguraCm > 0 ||
-                  (budget.environmentParams as any)?.bordaInfinitaM > 0) && (
-                  <div className="pt-1 mt-1 border-t border-slate-100 text-[9.5px] text-slate-600 space-y-0.5">
-                    {(budget.environmentParams as any)?.hidromassagensQtd > 0 && <div>Hidromassagens: <span className="font-semibold">{(budget.environmentParams as any).hidromassagensQtd}</span></div>}
-                    {(budget.environmentParams as any)?.cascataLarguraCm > 0 && <div>Cascata: <span className="font-semibold">{(budget.environmentParams as any).cascataLarguraCm} cm</span></div>}
-                    {(budget.environmentParams as any)?.bordaInfinitaM > 0 && <div>Borda infinita: <span className="font-semibold">{(budget.environmentParams as any).bordaInfinitaM} m</span></div>}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* NBR — 3 col */}
-            <div className="col-span-3">
-              <SectionLabel>Referencia NBR 10339</SectionLabel>
-              <div className="mt-1.5 space-y-0.5 text-[9px] leading-tight">
-                <NbrRow tipo="SPA" range="36 a 38°C" />
-                <NbrRow tipo="Competicao" range="25 a 28°C" />
-                <NbrRow tipo="Recreacao" range="27 a 29°C" />
-                <NbrRow tipo="Bebes/Hidro" range="30 a 34°C" />
-                <NbrRow tipo="Criancas" range="29 a 32°C" />
-              </div>
-              <div className="mt-1.5 text-[8.5px] text-red-700 leading-tight font-medium border-t border-slate-100 pt-1">
-                ⚠ Acompanhamento medico para temperaturas acima de 38°C.
-              </div>
-            </div>
-          </section>
-
           {/* ============ TITULO BANNER DIMENSIONAMENTO ============ */}
-          <div className="bg-slate-900 text-white px-5 py-1.5 flex items-center justify-between print:bg-slate-900 print:text-white">
+          <div className="bg-blue-900 text-white px-5 py-1.5 print:bg-blue-900 print:text-white">
             <span className="text-[10px] uppercase tracking-[0.18em] font-bold">Dimensionamento</span>
-            <span className="text-[10px] text-slate-300">Coletor Solar Solis Piscinas</span>
           </div>
 
           {report ? (
             <>
-              {/* ============ KPIs ============ */}
-              <section className="grid grid-cols-6 gap-2 px-5 py-3 border-b border-slate-200 avoid-break">
-                <Kpi label="Area piscina" value={report.areaPiscinaM2.toFixed(2).replace(".", ",")} unit="m²" />
-                <Kpi label="m² necessario" value={String(Math.round(report.m2ColetorNecessario))} unit="m²" />
-                <Kpi label="Coletores" value={report.qtdColetores.toFixed(1).replace(".", ",")} unit="un" accent />
-                <Kpi label="Baterias" value={String(report.numBaterias)} unit="un" />
-                <Kpi label="Vazao" value={report.vazaoTotalM3h.toFixed(2).replace(".", ",")} unit="m³/h" />
-                <Kpi label="Cobertura" value={report.percentualCobertura.toFixed(1).replace(".", ",")} unit="%" />
-              </section>
-
-              {/* ============ COLETOR + BOMBA ============ */}
+              {/* ============ KPIs (coluna estreita) + COLETOR/SLIDER/BOMBA (coluna larga) ============ */}
               <section className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-slate-200 avoid-break">
-                <div className="col-span-7">
-                  <SectionLabel>Coletor selecionado</SectionLabel>
-                  <div className="mt-1.5">
-                    <select value={selectedCollectorId ?? ""} onChange={(e) => setSelectedCollectorId(e.target.value || null)}
-                      className="w-full bg-amber-50 border border-amber-200 rounded text-[12px] font-semibold px-2 py-1 print:hidden">
-                      <option value="">— Padrao —</option>
-                      {collectors.map((c) => (
-                        <option key={c.productId} value={c.productId}>
-                          {c.modelName} ({c.areaM2.toFixed(2)} m²)
-                        </option>
-                      ))}
-                    </select>
-                    <div className="hidden print:block text-[12px] font-semibold bg-amber-50 px-2 py-1 border border-amber-200 rounded">
-                      {report.selectedCollector.modelName} ({report.selectedCollector.areaM2.toFixed(2)} m²)
+                {/* Esquerda — KPIs em coluna estreita */}
+                <div className="col-span-5 grid grid-cols-1 gap-1">
+                  <Kpi label="Área da piscina" value={report.areaPiscinaM2.toFixed(2).replace(".", ",")} unit="m²" />
+                  <Kpi label="m² necessário de coletor" value={String(Math.round(report.m2ColetorNecessario))} unit="m²" />
+                  <Kpi label="Qtd. de coletores" value={report.qtdColetores.toFixed(1).replace(".", ",")} unit="un" accent />
+                  <Kpi label="Número de baterias" value={String(report.numBaterias)} unit="un" />
+                  <Kpi label="Vazão necessária" value={report.vazaoTotalM3h.toFixed(2).replace(".", ",")} unit="m³/h" />
+                  <Kpi label="Cobertura piscina × coletores" value={report.percentualCobertura.toFixed(1).replace(".", ",")} unit="%" />
+                </div>
+
+                {/* Direita — Coletor + slider + bomba */}
+                <div className="col-span-7 flex flex-col gap-2">
+                  <div>
+                    <SectionLabel>Coletor selecionado</SectionLabel>
+                    <div className="mt-1.5 flex items-center gap-1.5">
+                      {/* Botao ✨ — padrao da linha das etapas (Configurar auto-selecao do produto), antes do seletor */}
+                      <button type="button"
+                        title="Configurar auto-seleção do coletor (regra de filtro)"
+                        className="text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300 print:hidden flex-shrink-0">
+                        ✨
+                      </button>
+                      <select value={selectedCollectorId ?? ""}
+                        onChange={(e) => {
+                          const id = e.target.value || null;
+                          setSelectedCollectorId(id);
+                          onRecompute(undefined, id);
+                        }}
+                        className="flex-1 min-w-0 bg-amber-50 border border-amber-200 rounded text-[12px] font-semibold px-2 py-1 print:hidden">
+                        <option value="">— Padrão —</option>
+                        {collectors.map((c) => (
+                          <option key={c.productId} value={c.productId}>
+                            {c.modelName} ({c.areaM2.toFixed(2)} m²)
+                          </option>
+                        ))}
+                      </select>
+                      <div className="hidden print:block text-[12px] font-semibold bg-amber-50 px-2 py-1 border border-amber-200 rounded flex-1">
+                        {report.selectedCollector.modelName} ({report.selectedCollector.areaM2.toFixed(2)} m²)
+                      </div>
                     </div>
                   </div>
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="text-[9px] uppercase tracking-wide text-slate-500 font-semibold">Coletores extras</span>
-                    <input type="range" min={0} max={10} step={1} value={extraPct}
-                      onChange={(e) => setExtraPct(Number(e.target.value))}
-                      className="flex-1 print:hidden accent-amber-500" />
-                    <div className="bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5 text-xs font-bold text-emerald-700 tabular-nums w-9 text-center">+{extraPct}</div>
+
+                  <div>
+                    <SectionLabel>Aumento da eficiência (coletores extras)</SectionLabel>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <input type="range" min={0} max={10} step={1} value={extraPct}
+                        onChange={(e) => setExtraPct(Number(e.target.value))}
+                        onPointerUp={(e) => onRecompute(Number((e.target as HTMLInputElement).value), undefined)}
+                        onKeyUp={(e) => onRecompute(Number((e.target as HTMLInputElement).value), undefined)}
+                        className="flex-1 print:hidden accent-amber-500" />
+                      <div className="bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5 text-xs font-bold text-emerald-700 tabular-nums w-10 text-center">+{extraPct}</div>
+                    </div>
+                    <div className="text-[9px] text-slate-500 mt-0.5 italic">Aumenta a eficiência em meses frios.</div>
                   </div>
-                  <div className="text-[9px] text-slate-500 mt-0.5 italic">Aumenta a eficiencia em meses frios.</div>
-                </div>
-                <div className="col-span-5">
-                  <SectionLabel>Bomba recomendada</SectionLabel>
-                  <div className="mt-1.5 bg-slate-50 border border-slate-200 rounded px-3 py-2">
-                    <div className="text-[12px] font-bold text-slate-900 leading-tight">{report.bombaRecomendada}</div>
-                    <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">
-                      Mapeado pela vazao calculada. Operador ajusta o modelo exato no orcamento final.
+
+                  <div>
+                    <SectionLabel>Bomba recomendada</SectionLabel>
+                    <div className="mt-1.5 flex items-center gap-1.5">
+                      {/* Botao ✨ — abrira AutoSelectModal pra escolher bomba por filtro (vazao, potencia, etc) */}
+                      <button type="button"
+                        title="Configurar auto-seleção da bomba (regra de filtro)"
+                        className="text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300 print:hidden flex-shrink-0">
+                        ✨
+                      </button>
+                      <div className="flex-1 bg-slate-50 border border-slate-200 rounded px-3 py-2">
+                        <div className="text-[12px] font-bold text-slate-900 leading-tight">{report.bombaRecomendada}</div>
+                        <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">
+                          Mapeado pela vazão calculada. Operador ajusta o modelo exato no orçamento final.
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </section>
 
               {/* ============ TITULO BANNER SIMULACAO ============ */}
-              <div className="bg-slate-900 text-white px-5 py-1.5 flex items-center justify-between print:bg-slate-900 print:text-white">
-                <span className="text-[10px] uppercase tracking-[0.18em] font-bold">Simulacao termica mensal</span>
-                <div className="flex items-center gap-2 print:hidden">
-                  <span className="text-[9px] text-slate-300 uppercase tracking-wide">Grafico do mes:</span>
+              <div className="bg-blue-900 text-white px-5 py-1.5 flex items-center gap-3 print:bg-blue-900 print:text-white">
+                <span className="text-[10px] uppercase tracking-[0.18em] font-bold">Simulação térmica mensal</span>
+                <div className="flex items-center gap-1.5 print:hidden">
+                  <span className="text-[9px] text-blue-200 uppercase tracking-wide">Gráfico:</span>
                   <select value={selectedMonthIdx} onChange={(e) => setSelectedMonthIdx(Number(e.target.value))}
-                    className="bg-slate-800 border border-slate-700 text-[10px] font-semibold text-white px-1.5 py-0.5 rounded">
+                    className="bg-amber-50 border border-amber-200 text-[10px] font-semibold text-slate-900 px-1.5 py-0.5 rounded focus:border-amber-500 focus:outline-none">
                     {SOLAR_MONTH_NAMES_FULL.map((m, i) => <option key={i} value={i}>{m}</option>)}
                   </select>
                 </div>
-                <span className="hidden print:inline text-[10px] text-slate-300">{selectedMonth ? selectedMonth.monthName : ""}</span>
+                <span className="hidden print:inline text-[10px] text-blue-200">{selectedMonth ? selectedMonth.monthName : ""}</span>
               </div>
 
               {/* ============ GRAFICO + TABELA ============ */}
               <section className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-slate-200 avoid-break">
-                <div className="col-span-7">
+                <div className="col-span-7 flex flex-col">
                   {selectedMonth && (
-                    <SolarChart row={selectedMonth} tempDesejada={tempAguaDesejada} />
+                    <SolarChart row={selectedMonth} tempDesejada={tempAguaDesejada} monthName={selectedMonth.monthName} />
                   )}
                 </div>
                 <div className="col-span-5">
                   <div className="border border-slate-200 rounded overflow-hidden">
-                    <table className="w-full text-[9px] tabular-nums">
+                    <table className="w-full text-[9.5px] tabular-nums">
                       <thead className="bg-slate-100 text-slate-700">
                         <tr>
-                          <th className="text-left px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">Mes</th>
+                          <th className="text-left px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">Mês</th>
                           <th className="text-right px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">Amb.</th>
                           <th className="text-right px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">1° dia</th>
                           <th className="text-right px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">2° dia</th>
@@ -1648,10 +1762,10 @@ function SolarTab({
 
               {/* ============ FOOTER ============ */}
               <footer className="px-5 py-2.5 bg-slate-50 print:bg-white">
-                <div className="text-[8.5px] uppercase tracking-wide text-slate-500 font-semibold mb-1">Observacoes</div>
+                <div className="text-[8.5px] uppercase tracking-wide text-slate-500 font-semibold mb-1">Observações</div>
                 <ol className="text-[8.5px] text-slate-700 leading-tight space-y-0.5 list-decimal list-inside">
-                  <li>Os valores acima sao estimativos e podem sofrer variacoes conforme temperatura ambiente real.</li>
-                  <li>Perda termica acima do tolerado (sem capa, vento forte) reduz a temperatura final.</li>
+                  <li>Os valores acima são estimativos e podem sofrer variações conforme temperatura ambiente real.</li>
+                  <li>Perda térmica acima do tolerado (sem capa, vento forte) reduz a temperatura final.</li>
                   <li>Dias frios e nublados podem reiniciar o ciclo de aquecimento.</li>
                 </ol>
               </footer>
@@ -1694,16 +1808,22 @@ function SolarTab({
           table { page-break-inside: auto; }
           tr { page-break-inside: avoid; }
 
-          /* Reduz padding das secoes pra caber em 1 pagina */
-          #solar-pdf-area section { padding-top: 6px !important; padding-bottom: 6px !important; }
-          #solar-pdf-area footer { padding-top: 4px !important; padding-bottom: 4px !important; }
-          #solar-pdf-area header { padding-top: 8px !important; padding-bottom: 8px !important; }
+          /* Compacta secoes pra caber em 1 pagina A4 (1123px @ 96dpi - 22.5mm margem = ~1040px util) */
+          #solar-pdf-area section { padding-top: 5px !important; padding-bottom: 5px !important; }
+          #solar-pdf-area footer { padding-top: 3px !important; padding-bottom: 3px !important; }
+          #solar-pdf-area header { padding-top: 7px !important; padding-bottom: 7px !important; }
+          #solar-pdf-area .px-5 { padding-left: 10px !important; padding-right: 10px !important; }
 
-          /* SVG do grafico — limita altura */
-          #solar-pdf-area svg { max-height: 52mm; width: 100%; height: auto; }
+          /* SVG do grafico — limita altura mas acomoda altura aumentada do v5 (~85mm) */
+          #solar-pdf-area svg { max-height: 80mm; width: 100%; height: auto; }
 
-          /* Imagem do header — proporcao mantida, altura controlada */
-          #solar-pdf-area img { max-height: 28mm; }
+          /* Imagem do header — quadrada compact */
+          #solar-pdf-area img { max-height: 38mm; }
+
+          /* Banner DIMENSIONAMENTO/SIMULACAO — fundo escuro preservado */
+          #solar-pdf-area .bg-blue-900 { background-color: #1e3a8a !important; color: #fff !important; }
+          #solar-pdf-area .bg-slate-900 { background-color: #0f172a !important; color: #fff !important; }
+          #solar-pdf-area .bg-gradient-to-r { background: linear-gradient(to right, #0f172a, #1e3a8a) !important; color: #fff !important; }
 
           /* Esconde elementos da UI interativa */
           .print\\:hidden { display: none !important; }
@@ -1752,6 +1872,16 @@ function Stat({ label, value, highlight }: { label: string; value: string; highl
   );
 }
 
+// Versao mais compacta do Stat: label e valor inline (label small, value bold)
+function StatCompact({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className={`rounded px-1.5 py-0.5 border flex items-baseline justify-between gap-1 ${highlight ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white"}`}>
+      <span className="text-[8px] uppercase tracking-wide text-slate-500 font-semibold leading-tight">{label}</span>
+      <span className={`text-[10.5px] tabular-nums font-bold leading-tight ${highlight ? "text-amber-800" : "text-slate-900"}`}>{value}</span>
+    </div>
+  );
+}
+
 function ConfigRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-2 text-[10px]">
@@ -1770,12 +1900,42 @@ function NbrRow({ tipo, range }: { tipo: string; range: string }) {
   );
 }
 
+function NbrBadge({ tipo, range }: { tipo: string; range: string }) {
+  return (
+    <div className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-center leading-tight">
+      <div className="text-[8.5px] uppercase tracking-wide text-slate-500 font-semibold truncate">{tipo}</div>
+      <div className="text-[10px] font-bold text-slate-900 tabular-nums">{range}</div>
+    </div>
+  );
+}
+
+function NbrInline({ tipo, range }: { tipo: string; range: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-1.5 py-0.5 leading-tight">
+      <span className="text-[8.5px] uppercase tracking-wide text-slate-500 font-semibold">{tipo}</span>
+      <span className="font-bold text-slate-900 tabular-nums">{range}</span>
+    </span>
+  );
+}
+
+function ConfigField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[8.5px] uppercase tracking-wide text-slate-500 font-semibold">{label}</span>
+      <div className="flex items-center">{children}</div>
+    </div>
+  );
+}
+
+// Kpi padronizado com o estilo de StatCompact: label uppercase pequena + valor bold inline + unit discreta
 function Kpi({ label, value, unit, accent }: { label: string; value: string; unit: string; accent?: boolean }) {
   return (
-    <div className={`rounded border ${accent ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"} px-2 py-1.5 text-center`}>
-      <div className="text-[8.5px] uppercase tracking-wide text-slate-500 font-semibold leading-tight">{label}</div>
-      <div className={`mt-0.5 text-base font-bold tabular-nums leading-none ${accent ? "text-amber-700" : "text-slate-900"}`}>{value}</div>
-      <div className={`text-[9px] font-medium mt-0.5 ${accent ? "text-amber-600" : "text-slate-500"}`}>{unit}</div>
+    <div className={`rounded px-2 py-1 border flex items-baseline justify-between gap-1 ${accent ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white"}`}>
+      <span className="text-[8.5px] uppercase tracking-wide text-slate-500 font-semibold leading-tight">{label}</span>
+      <span className={`tabular-nums font-bold leading-tight ${accent ? "text-amber-800" : "text-slate-900"}`}>
+        <span className="text-[12px]">{value}</span>
+        <span className={`text-[9px] font-medium ml-0.5 ${accent ? "text-amber-700" : "text-slate-500"}`}>{unit}</span>
+      </span>
     </div>
   );
 }
@@ -1801,12 +1961,12 @@ function HeaderImageBlock({
   };
 
   return (
-    <div className="relative border border-slate-200 rounded overflow-hidden bg-slate-50 h-full min-h-[110px] flex items-center justify-center print:bg-white">
+    <div className="relative border border-slate-200 rounded overflow-hidden bg-slate-50 aspect-square w-full flex items-center justify-center print:bg-white">
       <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleChange} />
       {imageUrl ? (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={imageUrl} alt="Imagem do orcamento" className="w-full h-full max-h-[120px] object-contain" />
+          <img src={imageUrl} alt="Imagem do orcamento" className="w-full h-full object-contain" />
           <div className="absolute top-1 right-1 flex gap-1 print:hidden">
             <button onClick={handlePick} disabled={uploading}
               className="rounded bg-white/95 text-slate-700 border border-slate-300 px-2 py-0.5 text-[9px] font-semibold hover:bg-white shadow-sm uppercase tracking-wide">
@@ -1861,7 +2021,7 @@ function RowField({ label, value, valueEditable, highlight, children }: {
 
 // Grafico SVG profissional: linha suave da temperatura ao longo de 4 dias.
 // 8 pontos (inicio/fim de cada dia). Linha pontilhada marca a temperatura desejada.
-function SolarChart({ row, tempDesejada }: { row: SolarMonthlyRow; tempDesejada: number }) {
+function SolarChart({ row, tempDesejada, monthName }: { row: SolarMonthlyRow; tempDesejada: number; monthName?: string }) {
   // Fallback defensivo pra reports cacheados antigos sem tempInicial2d/3d/4d
   const perda = Number(row.perdaCorrigidaPorDia) || 0;
   const tempIni1 = Number(row.tempInicial1d) || 0;
@@ -1884,13 +2044,16 @@ function SolarChart({ row, tempDesejada }: { row: SolarMonthlyRow; tempDesejada:
     { y: tempFim4, label: "Final" },
   ];
 
+  // Dimensoes aumentadas pra dar mais "presenca visual" ao grafico (componente principal do PDF)
   const W = 600;
-  const H = 230;
-  const padL = 32, padR = 14, padT = 22, padB = 38;
+  const H = 340;
+  const padL = 38, padR = 18, padT = 36, padB = 50;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
-  const yMax = Math.max(40, tempDesejada + 2, ...pts.map((p) => p.y));
-  const yMin = Math.min(20, Math.floor(Math.min(...pts.map((p) => p.y)) - 2));
+  // Ignora valores zerados ao calcular yMin/yMax pra evitar escala distorcida (mock/dados quebrados)
+  const validYs = pts.map((p) => p.y).filter((y) => y > 5);
+  const yMax = Math.max(40, tempDesejada + 2, ...(validYs.length ? validYs : [40]));
+  const yMin = Math.max(15, Math.min(20, Math.floor(Math.min(...(validYs.length ? validYs : [20])) - 2)));
   const stepX = innerW / (pts.length - 1);
   const xOf = (i: number) => padL + i * stepX;
   const yOf = (v: number) => padT + innerH - ((v - yMin) / (yMax - yMin)) * innerH;
@@ -1919,70 +2082,112 @@ function SolarChart({ row, tempDesejada }: { row: SolarMonthlyRow; tempDesejada:
   for (let v = Math.ceil(yMin / 5) * 5; v <= yMax; v += 5) yTicks.push(v);
 
   return (
-    <div className="border border-slate-200 rounded bg-white p-2 print:border-slate-300">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" preserveAspectRatio="xMidYMid meet">
+    <div className="border border-slate-200 rounded bg-white p-2 print:border-slate-300 flex-1 flex flex-col">
+      {monthName && (
+        <div className="px-1 pb-1 flex items-baseline justify-between">
+          <span className="text-[9px] uppercase tracking-[0.15em] text-slate-500 font-semibold">Variação térmica em 4 dias</span>
+          <span className="text-[11px] font-bold text-blue-900 capitalize">{monthName.toLowerCase()}</span>
+        </div>
+      )}
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto flex-1" preserveAspectRatio="xMidYMid meet">
         <defs>
-          <linearGradient id="solarGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#fb923c" stopOpacity="0.55" />
-            <stop offset="100%" stopColor="#fef08a" stopOpacity="0.05" />
+          {/* Fundo aguado: gradient azul claro representando agua da piscina */}
+          <linearGradient id="poolWater" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#dbeafe" />
+            <stop offset="100%" stopColor="#bfdbfe" />
           </linearGradient>
+          {/* Linha principal: gradient vertical de azul-claro (fria) embaixo → laranja-quente em cima */}
+          <linearGradient id="tempLine" x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0%" stopColor="#0ea5e9" />
+            <stop offset="35%" stopColor="#22d3ee" />
+            <stop offset="55%" stopColor="#fbbf24" />
+            <stop offset="80%" stopColor="#f97316" />
+            <stop offset="100%" stopColor="#dc2626" />
+          </linearGradient>
+          {/* Area sob a curva — laranja translucido pra dar 'brilho' acima da agua */}
+          <linearGradient id="tempArea" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#fb923c" stopOpacity="0.42" />
+            <stop offset="60%" stopColor="#fcd34d" stopOpacity="0.2" />
+            <stop offset="100%" stopColor="#dbeafe" stopOpacity="0" />
+          </linearGradient>
+          {/* Sombra suave do ponto */}
+          <radialGradient id="dotGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#fff" stopOpacity="0.95" />
+            <stop offset="100%" stopColor="#fff" stopOpacity="0" />
+          </radialGradient>
         </defs>
 
-        {/* Frame */}
-        <rect x={padL} y={padT} width={innerW} height={innerH} fill="#fafafa" stroke="#e2e8f0" />
+        {/* Frame de "agua" */}
+        <rect x={padL} y={padT} width={innerW} height={innerH} fill="url(#poolWater)" />
 
-        {/* Grid Y + labels */}
+        {/* Grid Y — linhas brancas finas tipo 'ondulacao na agua' */}
         {yTicks.map((v) => (
-          <g key={v}>
-            <line x1={padL} y1={yOf(v)} x2={W - padR} y2={yOf(v)} stroke="#e2e8f0" strokeWidth="0.5" />
-            <text x={padL - 6} y={yOf(v) + 3} fontSize="9" fill="#64748b" textAnchor="end">{v}°</text>
-          </g>
+          <line key={v} x1={padL} y1={yOf(v)} x2={W - padR} y2={yOf(v)} stroke="#fff" strokeWidth="0.8" strokeOpacity="0.85" />
+        ))}
+        {/* Labels Y — fora do frame, slate */}
+        {yTicks.map((v) => (
+          <text key={`y${v}`} x={padL - 6} y={yOf(v) + 4} fontSize="11" fill="#475569" textAnchor="end" fontWeight="600">
+            {v}°
+          </text>
         ))}
 
-        {/* Linha meta (tempDesejada) — label no canto esquerdo pra nao sobrepor pontos da direita */}
+        {/* Linha meta (tempDesejada) — verde dasharray + badge */}
         {tempDesejada >= yMin && tempDesejada <= yMax && (
           <g>
             <line x1={padL} y1={yOf(tempDesejada)} x2={W - padR} y2={yOf(tempDesejada)}
-              stroke="#10b981" strokeWidth="1" strokeDasharray="4 3" />
-            <rect x={padL + 2} y={yOf(tempDesejada) - 11} width="58" height="11" fill="#10b981" rx="2" />
-            <text x={padL + 31} y={yOf(tempDesejada) - 2} fontSize="8.5" fill="#fff" textAnchor="middle" fontWeight="700" letterSpacing="0.5">
+              stroke="#10b981" strokeWidth="1.4" strokeDasharray="5 3" />
+            <rect x={padL + 2} y={yOf(tempDesejada) - 14} width="72" height="14" fill="#10b981" rx="2" />
+            <text x={padL + 38} y={yOf(tempDesejada) - 3} fontSize="10.5" fill="#fff" textAnchor="middle" fontWeight="700" letterSpacing="0.5">
               META {tempDesejada}°
             </text>
           </g>
         )}
 
-        {/* Separadores de dia (barras verticais sutis) */}
-        {[2, 4, 6].map((i) => (
-          <line key={i} x1={xOf(i)} y1={padT} x2={xOf(i)} y2={padT + innerH}
-            stroke="#cbd5e1" strokeWidth="0.5" strokeDasharray="2 2" />
-        ))}
-
-        {/* Area gradient */}
-        <path d={areaPath} fill="url(#solarGrad)" stroke="none" />
-
-        {/* Linha principal */}
-        <path d={smoothPath} fill="none" stroke="#ea580c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-
-        {/* Pontos + labels valor */}
+        {/* Stems verticais (estilo Excel original) — finos azul claro, do eixo ate o ponto */}
         {pts.map((p, i) => (
-          <g key={i}>
-            <circle cx={xOf(i)} cy={yOf(p.y)} r="3.2" fill="#ea580c" stroke="#fff" strokeWidth="1.5" />
-            <text x={xOf(i)} y={yOf(p.y) - 7} fontSize="9.5" fontWeight="700" fill="#1e293b" textAnchor="middle">
-              {p.y.toFixed(1).replace(".", ",")}°
-            </text>
-          </g>
+          <line key={`stem-${i}`} x1={xOf(i)} y1={padT + innerH} x2={xOf(i)} y2={yOf(p.y) + 4}
+            stroke="#3b82f6" strokeWidth="0.8" strokeOpacity="0.55" strokeDasharray="2 2" />
         ))}
+
+        {/* Area sob a curva — gradient laranja/translucido */}
+        <path d={areaPath} fill="url(#tempArea)" stroke="none" />
+
+        {/* Linha principal — gradient vertical (frio → quente) */}
+        <path d={smoothPath} fill="none" stroke="url(#tempLine)" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
+
+        {/* Pontos — branco com borda gradient (efeito 'bolinha' destacada) + label azul em cima */}
+        {pts.map((p, i) => {
+          // Cor do ponto: degrada do azul (frio) ao laranja (quente)
+          const t = (p.y - yMin) / (yMax - yMin);
+          const dotColor = t < 0.35 ? "#0ea5e9" : t < 0.6 ? "#fbbf24" : "#f97316";
+          return (
+            <g key={i}>
+              <circle cx={xOf(i)} cy={yOf(p.y)} r="6" fill="url(#dotGlow)" />
+              <circle cx={xOf(i)} cy={yOf(p.y)} r="4.5" fill={dotColor} stroke="#fff" strokeWidth="2" />
+              {/* Label valor com badge azul-marinho (estilo Excel) */}
+              <g transform={`translate(${xOf(i)}, ${yOf(p.y) - 14})`}>
+                <rect x="-20" y="-10" width="40" height="14" fill="#1e3a8a" rx="2" />
+                <text x="0" y="1" fontSize="10.5" fontWeight="700" fill="#fff" textAnchor="middle">
+                  {p.y.toFixed(1).replace(".", ",")}°
+                </text>
+              </g>
+            </g>
+          );
+        })}
+
+        {/* Eixo X bottom-bar — barra azul marinho */}
+        <line x1={padL} y1={padT + innerH} x2={W - padR} y2={padT + innerH} stroke="#1e3a8a" strokeWidth="1.5" />
 
         {/* Labels eixo X — "DIA 1/2/3/4" centralizado a cada par */}
         {[0, 1, 2, 3].map((d) => {
           const xCenter = (xOf(d * 2) + xOf(d * 2 + 1)) / 2;
           return (
             <g key={d}>
-              <text x={xCenter} y={padT + innerH + 16} fontSize="10" fontWeight="700" fill="#334155" textAnchor="middle" letterSpacing="1">
+              <text x={xCenter} y={padT + innerH + 20} fontSize="12" fontWeight="700" fill="#1e3a8a" textAnchor="middle" letterSpacing="1.2">
                 DIA {d + 1}
               </text>
-              <text x={xOf(d * 2)} y={padT + innerH + 28} fontSize="8" fill="#94a3b8" textAnchor="middle">inicio</text>
-              <text x={xOf(d * 2 + 1)} y={padT + innerH + 28} fontSize="8" fill="#94a3b8" textAnchor="middle">fim</text>
+              <text x={xOf(d * 2)} y={padT + innerH + 34} fontSize="9.5" fill="#64748b" textAnchor="middle" fontWeight="500">início</text>
+              <text x={xOf(d * 2 + 1)} y={padT + innerH + 34} fontSize="9.5" fill="#64748b" textAnchor="middle" fontWeight="500">fim</text>
             </g>
           );
         })}
