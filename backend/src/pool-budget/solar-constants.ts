@@ -57,6 +57,43 @@ export const SOLAR_MONTH_NAMES = [
   'JULHO', 'AGOSTO', 'SETEMBRO', 'OUTUBRO', 'NOVEMBRO', 'DEZEMBRO',
 ];
 
+// ============ Fator orientacao do telhado — hemisferio sul (Brasil) ============
+// Norte e o ideal (recebe sol direto o ano todo). Sul e o pior (sombra durante meses frios).
+// Aplicado como multiplicador no ganho diario do coletor.
+export const SOLAR_FATOR_ORIENTACAO: Record<string, number> = {
+  N: 1.00,   // Norte — ideal
+  NE: 0.97,
+  NO: 0.97,
+  L: 0.85,
+  O: 0.85,
+  SE: 0.78,
+  SO: 0.78,
+  S: 0.65,   // Sul — pior orientacao
+};
+
+// ============ Inclinacao otima do telhado ============
+// Inclinacao ideal aproxima a latitude da cidade. Pra Brasil (latitudes -5° a -34°), o range util e ~15-35°.
+// Fora desse range, o ganho cai. Aplica curva cosseno suave clampada em [0.55, 1.0].
+export const SOLAR_INCLINACAO_OTIMA_DEFAULT = 20;  // graus — bom padrao pra Brasil central
+export function calcFatorInclinacao(inclinacaoGraus: number, latitudeAbs?: number): number {
+  // Sem latitude conhecida, usa default 20°
+  const ideal = latitudeAbs ?? SOLAR_INCLINACAO_OTIMA_DEFAULT;
+  const distancia = Math.abs(inclinacaoGraus - ideal);
+  // Curva cosseno simples: cos(0)=1, cos(45)=0.71 — clampa em 0.55
+  const fator = Math.cos((distancia * Math.PI) / 180);
+  return Math.max(0.55, Math.min(1.0, fator));
+}
+
+// ============ Latitudes medias por UF (graus, valor absoluto) ============
+// Usado pra calcular fator inclinacao otima ≈ latitude. Aproximacoes pelas capitais.
+export const SOLAR_LATITUDE_ABS_BY_UF: Record<string, number> = {
+  AC: 9.9, AL: 9.6, AM: 3.1, AP: 0.0, BA: 13.0, CE: 3.7,
+  DF: 15.8, ES: 20.3, GO: 16.7, MA: 2.5, MG: 19.9, MS: 20.5,
+  MT: 15.6, PA: 1.5, PB: 7.1, PE: 8.0, PI: 5.1, PR: 25.4,
+  RJ: 22.9, RN: 5.8, RO: 8.8, RR: 2.8, RS: 30.0, SC: 27.6,
+  SE: 10.9, SP: 23.5, TO: 10.2,
+};
+
 // ============ Bomba recomendada por vazao (planilha original "Bomba necessaria (Aprox)") ============
 // Mapeia vazao em m³/h pra um modelo de bomba residencial/profissional.
 // Mantem texto curto pra caber no card. Operador ajusta no orcamento final.

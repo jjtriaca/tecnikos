@@ -20,6 +20,8 @@ import {
   SOLAR_DEFAULT_COLETOR_AREA_M2,
   SOLAR_DEFAULT_COLETOR_KWH_M2,
   SOLAR_DEFAULT_COLETOR_EFICIENCIA,
+  SOLAR_FATOR_ORIENTACAO,
+  calcFatorInclinacao,
   getBombaRecomendadaSolar,
 } from './solar-constants';
 
@@ -37,6 +39,13 @@ export interface SolarInputs {
 
   // Slider J42 da planilha — extra coletores 0-10 (cada unidade = +10% area)
   extraColetoresPct: number;
+
+  // v5 — campos persistidos em environmentParams. Quando nao fornecidos, fatores = 1 (neutro).
+  // Aplicados como multiplicadores no ganho diario do coletor.
+  orientacaoTelhado?: string;         // 'N'|'NE'|'L'|'SE'|'S'|'SO'|'O'|'NO' (default N = ideal)
+  inclinacaoTelhadoGraus?: number;    // 0-60 (default 20° = bom padrao Brasil)
+  temperaturaAguaInicial?: number;    // °C — sobrescreve tempAmb como ponto inicial da simulacao 4 dias
+  latitudeAbs?: number;               // graus (valor absoluto) — pra calcular inclinacao otima ≈ latitude
 
   // Dados climaticos resolvidos (vem do ClimateData via SolarBudgetService)
   // - tempAmbiente: temp do ar mensal °C (jan..dez)
@@ -167,6 +176,16 @@ export class SolarService {
     const energiaSolarKcalH = (areaTotal * radSolMedia * SOLAR_FATOR_ENERGIA_KCAL * eficiencia) / insolacaoH;
 
     // === Tabela78 / Tabela72 — perdas + ganhos mensais com simulacao 4 dias ===
+    // v5: Fatores de instalacao do telhado (orientacao + inclinacao) — multiplicam ganhoDia.
+    // Quando nao fornecidos, usa Norte + 20° (ideal/bom) = fator ~1.0 (sem prejuizo).
+    const fatorOrientacao = inputs.orientacaoTelhado
+      ? (SOLAR_FATOR_ORIENTACAO[inputs.orientacaoTelhado] ?? 1.0)
+      : 1.0;
+    const fatorInclinacao = inputs.inclinacaoTelhadoGraus != null
+      ? calcFatorInclinacao(inputs.inclinacaoTelhadoGraus, inputs.latitudeAbs)
+      : 1.0;
+    const fatorInstalacao = fatorOrientacao * fatorInclinacao;
+
     const monthly: SolarMonthlyRow[] = [];
     for (let m = 0; m < 12; m++) {
       const perdaBase = SOLAR_PERDA_BASE_MENSAL[m];
@@ -178,17 +197,17 @@ export class SolarService {
       //   ganho = radSol × EnergiaSolar_kcal_hora / kcal_para_1grau
       // ATENCAO: planilha usa EnergiaSolar_kcal_hora global (anual), entao
       // o "ganho dia" eh proporcional à radSol DAQUELE mes vs RadSol media.
-      const ganhoDia = kcalPara1Grau > 0
+      // v5: multiplicado por fatorInstalacao (orientacao × inclinacao).
+      const ganhoBase = kcalPara1Grau > 0
         ? (radSol * energiaSolarKcalH) / kcalPara1Grau
         : 0;
+      const ganhoDia = ganhoBase * fatorInstalacao;
 
       // Simulacao 4 dias (Tabela72):
-      //   Temp inicial 1d = tempAmb (estado natural antes do aquecimento)
+      //   Temp inicial 1d = tempAmb (ou temperaturaAguaInicial do operador, se fornecida)
       //   Temp final 1d = MIN(tempDesejada, tempInicial1d + ganhoDia)
-      //   Temp inicial 2d = tempFinal1d - perdaCorrigida (noite)
-      //   Temp final 2d = MIN(tempDesejada, tempInicial2d + ganhoDia)
       //   ... e assim por 3 noites
-      const tempInicial1d = tempAmb;
+      const tempInicial1d = inputs.temperaturaAguaInicial ?? tempAmb;
       const tempFinal1d = Math.min(tempDesejada, tempInicial1d + ganhoDia);
       const tempInicial2d = Math.max(0, tempFinal1d - perdaCorrigida);
       const tempFinal2d = Math.min(tempDesejada, tempInicial2d + ganhoDia);

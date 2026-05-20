@@ -53,7 +53,14 @@
 - ⏳ **Motor de calculo** ainda nao usa orientacao/inclinacao (so persiste). Fase futura: aplicar fator azimutal + inclinacao otima ≈ latitude + delta T da temp inicial.
 
 **Pendente futura (task #10/PENDENTES Solar v5):**
-- ⏳ Ligar icone ✨ Coletor/Bomba ao AutoSelectModal real (modal compartilhado com quotes/pool/[id]/page.tsx) — requer refatoracao do modal pra ser standalone.
+- ⏳ Ligar icone ✨ Coletor/Bomba ao AutoSelectModal real (modal compartilhado com quotes/pool/[id]/page.tsx) — requer refatoracao do modal pra ser standalone. Estimativa 1-2h.
+
+### Solar v5.1 (PENDING DEPLOY) — motor de calculo aplica novos campos
+- ✅ **Fator orientacao** (`SOLAR_FATOR_ORIENTACAO`): N=1.0, NE/NO=0.97, L/O=0.85, SE/SO=0.78, S=0.65 — multiplica ganhoDia
+- ✅ **Fator inclinacao** (`calcFatorInclinacao`): curva cosseno vs latitude da UF. Default 20° se sem dados. Latitudes por UF em `SOLAR_LATITUDE_ABS_BY_UF` (27 estados, aproximacoes pelas capitais)
+- ✅ **Temp. inicial agua**: substitui `tempAmb` como ponto inicial da simulacao 4 dias (quando fornecida pelo operador)
+- ✅ `SolarInputs` ganhou 4 campos opcionais: orientacaoTelhado, inclinacaoTelhadoGraus, temperaturaAguaInicial, latitudeAbs
+- ✅ `solar-budget.service.ts` passa esses 4 do environmentParams pro motor
 
 ### Solar v4 — refino pos-preview local (PENDING DEPLOY — agora obsoleto, integrado em v5)
 - ✅ Preview local validado em /demo/solar-preview (temporario, removido)

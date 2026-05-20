@@ -15,6 +15,7 @@ import {
   SOLAR_DEFAULT_COLETOR_AREA_M2,
   SOLAR_DEFAULT_COLETOR_KWH_M2,
   SOLAR_DEFAULT_COLETOR_EFICIENCIA,
+  SOLAR_LATITUDE_ABS_BY_UF,
 } from './solar-constants';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -96,6 +97,9 @@ export class SolarBudgetService {
     uf: string;
     cidade?: string | null;
     collectorProductId?: string;
+    orientacaoTelhado?: string;
+    inclinacaoTelhadoGraus?: number;
+    temperaturaAguaInicial?: number;
   }): Promise<SolarReport> {
     const climate = await this.climateData.findForLookup(companyId, params.uf, params.cidade ?? null);
     if (!climate) {
@@ -122,6 +126,10 @@ export class SolarBudgetService {
       capa: params.capa,
       vento: params.vento,
       extraColetoresPct: params.extraColetoresPct,
+      orientacaoTelhado: params.orientacaoTelhado,
+      inclinacaoTelhadoGraus: params.inclinacaoTelhadoGraus,
+      temperaturaAguaInicial: params.temperaturaAguaInicial,
+      latitudeAbs: SOLAR_LATITUDE_ABS_BY_UF[params.uf],
       climate: {
         name: params.cidade?.trim() || params.uf,
         tempAmbiente: climate.temp,
@@ -164,6 +172,10 @@ export class SolarBudgetService {
       uf: (env.uf ?? 'SP') as string,
       cidade: env.cidade ?? null,
       collectorProductId: overrides?.collectorProductId ?? existingSolar.collectorProductId,
+      // v5: passa orientacao/inclinacao/tempInicial pro motor aplicar no ganhoDia
+      orientacaoTelhado: overrides?.orientacaoTelhado ?? (env.orientacaoTelhado as string | undefined),
+      inclinacaoTelhadoGraus: overrides?.inclinacaoTelhadoGraus ?? (env.inclinacaoTelhadoGraus as number | undefined),
+      temperaturaAguaInicial: overrides?.temperaturaAguaInicial ?? (env.temperaturaAguaInicial as number | undefined),
     };
 
     const report = await this.simulate(companyId, params);
