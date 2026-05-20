@@ -1,6 +1,6 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.01 — proxima release: Solar v4 (redesign datasheet profissional)
+## Versao atual em prod: v1.12.02 — proxima release: Solar v4 (refino pos-preview)
 
 ## Em andamento (sessao 208 — 20/05/2026)
 
@@ -9,7 +9,16 @@
 - ✅ **Upload de imagem no header**: nova coluna `PoolBudget.solarHeaderImage` + migration `20260520140000_add_pool_budget_solar_header_image`. Endpoints `POST/DELETE /pool-budgets/:id/solar-header-image` (multer, JPEG/PNG/WebP, max 5MB, salvo em `/uploads/<companyId>/pool-budgets/<id>/`).
 - ✅ **Layout A4 portrait no print**: CSS @media print reescrito.
 
-### Solar v4 — redesign profissional (PENDING DEPLOY)
+### Solar v4 — refino pos-preview local (PENDING DEPLOY)
+- ✅ Preview local validado em /demo/solar-preview (temporario, removido)
+- ✅ TIPO: PRIVATIVA movido pra dentro do bloco DIMENSOES (header da secao)
+- ✅ Aviso NBR mudou de italic amarelo pra vermelho regular com simbolo ⚠
+- ✅ HeaderImageBlock min-height aumentado pra 110px (melhor proporcao com cliente)
+- ✅ CLIENTE / OBRA: 6/6 cols (em vez de 7/5) — imagem com mais espaco
+- ✅ SolarChart refeito: curva bezier suave (em vez de polilinha angular), sem flechinhas Excel-style, label META verde no canto esquerdo (evita sobreposicao com pontos), labels DIA 1-4 centralizados, eixo X "inicio/fim" em segunda linha, grid Y discreto 5 em 5 graus
+- tsc clean
+
+### Solar v3.5 — redesign profissional (DEPLOYED ANTERIORMENTE em v1.12.02)
 - ✅ **SolarTab refatorado** em datasheet profissional A4 (max-w-[820px], borda + sombra na tela; A4 cheio no print):
   - **Header banner** gradient slate-900→blue-900, codigo do orcamento em destaque, badge "Aquecimento solar para piscinas"
   - **Cliente + Imagem produto** em 7/5 cols (imagem maior, dados focados)

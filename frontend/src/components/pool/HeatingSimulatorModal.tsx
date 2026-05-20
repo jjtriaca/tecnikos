@@ -1427,16 +1427,16 @@ function SolarTab({
           </header>
 
           {/* ============ CLIENTE + IMAGEM PRODUTO ============ */}
-          <section className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-slate-200 avoid-break">
-            <div className="col-span-7">
+          <section className="grid grid-cols-12 gap-4 px-5 py-3 border-b border-slate-200 avoid-break">
+            <div className="col-span-6 flex flex-col justify-center">
               <SectionLabel>Cliente / Obra</SectionLabel>
-              <dl className="mt-1.5 grid grid-cols-1 gap-y-1 text-[11px]">
+              <dl className="mt-2 grid grid-cols-1 gap-y-1.5 text-[11px]">
                 <DataRow term="Nome" desc={budget.clientPartner?.name ?? "—"} emphasize />
                 <DataRow term="Local" desc={localName} />
                 <DataRow term="Projeto" desc={budget.title || "—"} />
               </dl>
             </div>
-            <div className="col-span-5">
+            <div className="col-span-6">
               <HeaderImageBlock
                 imageUrl={headerImage}
                 uploading={headerImageUploading}
@@ -1450,7 +1450,12 @@ function SolarTab({
           <section className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-slate-200 avoid-break">
             {/* PISCINA — 5 col */}
             <div className="col-span-5">
-              <SectionLabel>Dimensoes da piscina</SectionLabel>
+              <div className="flex items-baseline justify-between">
+                <SectionLabel>Dimensoes da piscina</SectionLabel>
+                <span className="text-[9px] text-slate-500 uppercase tracking-wide">
+                  Tipo: <span className="text-slate-800 font-semibold">{tipoPiscinaTxt}</span>
+                </span>
+              </div>
               <div className="mt-1.5 grid grid-cols-2 gap-1.5">
                 <Stat label="Comprimento" value={`${len.toFixed(2).replace(".", ",")} m`} />
                 <Stat label="Largura" value={`${wid.toFixed(2).replace(".", ",")} m`} />
@@ -1459,7 +1464,6 @@ function SolarTab({
                 <Stat label="Area total" value={`${area.toFixed(2).replace(".", ",")} m²`} highlight />
                 <Stat label="Volume" value={`${volume.toFixed(2).replace(".", ",")} m³`} highlight />
               </div>
-              <div className="mt-1.5 text-[9px] text-slate-500 uppercase tracking-wide">Tipo: <span className="text-slate-700 font-semibold">{tipoPiscinaTxt}</span></div>
             </div>
 
             {/* CONFIGURACAO — 4 col */}
@@ -1524,8 +1528,8 @@ function SolarTab({
                 <NbrRow tipo="Bebes/Hidro" range="30 a 34°C" />
                 <NbrRow tipo="Criancas" range="29 a 32°C" />
               </div>
-              <div className="mt-1.5 text-[8px] text-amber-700 leading-tight italic">
-                Recomenda-se acompanhamento medico para temperaturas acima de 38°C.
+              <div className="mt-1.5 text-[8.5px] text-red-700 leading-tight font-medium border-t border-slate-100 pt-1">
+                ⚠ Acompanhamento medico para temperaturas acima de 38°C.
               </div>
             </div>
           </section>
@@ -1797,7 +1801,7 @@ function HeaderImageBlock({
   };
 
   return (
-    <div className="relative border border-slate-200 rounded overflow-hidden bg-slate-50 h-full min-h-[88px] flex items-center justify-center print:bg-white">
+    <div className="relative border border-slate-200 rounded overflow-hidden bg-slate-50 h-full min-h-[110px] flex items-center justify-center print:bg-white">
       <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleChange} />
       {imageUrl ? (
         <>
@@ -1855,10 +1859,10 @@ function RowField({ label, value, valueEditable, highlight, children }: {
   );
 }
 
-// Grafico estilo planilha: 8 pontos (4 dias × inicio/fim), area montanha laranja/amarela com labels
+// Grafico SVG profissional: linha suave da temperatura ao longo de 4 dias.
+// 8 pontos (inicio/fim de cada dia). Linha pontilhada marca a temperatura desejada.
 function SolarChart({ row, tempDesejada }: { row: SolarMonthlyRow; tempDesejada: number }) {
-  // Fallback defensivo: report cacheado antigo nao tinha tempInicial2d/3d/4d.
-  // Interpola usando a formula: tempInicial(n+1) = max(0, tempFinal(n) - perdaCorrigidaPorDia)
+  // Fallback defensivo pra reports cacheados antigos sem tempInicial2d/3d/4d
   const perda = Number(row.perdaCorrigidaPorDia) || 0;
   const tempIni1 = Number(row.tempInicial1d) || 0;
   const tempFim1 = Number(row.tempFinal1d) || 0;
@@ -1870,75 +1874,115 @@ function SolarChart({ row, tempDesejada }: { row: SolarMonthlyRow; tempDesejada:
   const tempFim4 = Number(row.tempFinal4d) || 0;
 
   const pts = [
-    { x: "Temp Inicial 1° Dia", y: tempIni1 },
-    { x: "Temp Final 1° Dia",   y: tempFim1 },
-    { x: "Temp Inicial 2° Dia", y: tempIni2 },
-    { x: "Temp Final 2° Dia",   y: tempFim2 },
-    { x: "Temp Inicial 3° Dia", y: tempIni3 },
-    { x: "Temp Final 3° Dia",   y: tempFim3 },
-    { x: "Temp Inicial 4° Dia", y: tempIni4 },
-    { x: "Temp Final 4° Dia",   y: tempFim4 },
+    { y: tempIni1, label: "Inicial" },
+    { y: tempFim1, label: "Final" },
+    { y: tempIni2, label: "Inicial" },
+    { y: tempFim2, label: "Final" },
+    { y: tempIni3, label: "Inicial" },
+    { y: tempFim3, label: "Final" },
+    { y: tempIni4, label: "Inicial" },
+    { y: tempFim4, label: "Final" },
   ];
-  const W = 560;
-  const H = 220;
-  const padL = 28, padR = 12, padT = 24, padB = 56;
+
+  const W = 600;
+  const H = 230;
+  const padL = 32, padR = 14, padT = 22, padB = 38;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
-  const yMin = 20;
-  const yMax = Math.max(40, tempDesejada + 2);
+  const yMax = Math.max(40, tempDesejada + 2, ...pts.map((p) => p.y));
+  const yMin = Math.min(20, Math.floor(Math.min(...pts.map((p) => p.y)) - 2));
   const stepX = innerW / (pts.length - 1);
   const xOf = (i: number) => padL + i * stepX;
   const yOf = (v: number) => padT + innerH - ((v - yMin) / (yMax - yMin)) * innerH;
 
-  const linePath = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${xOf(i).toFixed(1)} ${yOf(p.y).toFixed(1)}`).join(" ");
-  const areaPath = `${linePath} L ${xOf(pts.length - 1).toFixed(1)} ${padT + innerH} L ${xOf(0).toFixed(1)} ${padT + innerH} Z`;
+  // Curva suave usando cubic bezier (catmull-rom alternativa simples)
+  const smoothPath = (() => {
+    const parts: string[] = [];
+    pts.forEach((p, i) => {
+      if (i === 0) {
+        parts.push(`M ${xOf(i).toFixed(1)} ${yOf(p.y).toFixed(1)}`);
+      } else {
+        const prev = pts[i - 1];
+        const x0 = xOf(i - 1), y0 = yOf(prev.y);
+        const x1 = xOf(i), y1 = yOf(p.y);
+        const cpx1 = x0 + stepX * 0.5;
+        const cpx2 = x1 - stepX * 0.5;
+        parts.push(`C ${cpx1.toFixed(1)} ${y0.toFixed(1)}, ${cpx2.toFixed(1)} ${y1.toFixed(1)}, ${x1.toFixed(1)} ${y1.toFixed(1)}`);
+      }
+    });
+    return parts.join(" ");
+  })();
+  const areaPath = `${smoothPath} L ${xOf(pts.length - 1).toFixed(1)} ${(padT + innerH).toFixed(1)} L ${xOf(0).toFixed(1)} ${(padT + innerH).toFixed(1)} Z`;
+
+  // Ticks Y de 5 em 5 dentro do range
+  const yTicks: number[] = [];
+  for (let v = Math.ceil(yMin / 5) * 5; v <= yMax; v += 5) yTicks.push(v);
 
   return (
-    <div className="border border-slate-300 print:border-slate-400 rounded-sm bg-blue-50/30 p-2 print:bg-white">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
+    <div className="border border-slate-200 rounded bg-white p-2 print:border-slate-300">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" preserveAspectRatio="xMidYMid meet">
         <defs>
           <linearGradient id="solarGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#fb923c" stopOpacity="0.7" />
-            <stop offset="100%" stopColor="#fef08a" stopOpacity="0.3" />
+            <stop offset="0%" stopColor="#fb923c" stopOpacity="0.55" />
+            <stop offset="100%" stopColor="#fef08a" stopOpacity="0.05" />
           </linearGradient>
-          <marker id="arrUp" viewBox="0 0 10 10" refX="5" refY="0" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M0,10 L5,0 L10,10 z" fill="#3b82f6" />
-          </marker>
         </defs>
-        {/* Grid Y */}
-        {[20, 25, 30, 35, 40].filter((v) => v <= yMax).map((v) => (
+
+        {/* Frame */}
+        <rect x={padL} y={padT} width={innerW} height={innerH} fill="#fafafa" stroke="#e2e8f0" />
+
+        {/* Grid Y + labels */}
+        {yTicks.map((v) => (
           <g key={v}>
-            <line x1={padL} y1={yOf(v)} x2={W - padR} y2={yOf(v)} stroke="#e2e8f0" strokeDasharray="2 2" />
-            <text x={padL - 4} y={yOf(v) + 3} fontSize="9" fill="#94a3b8" textAnchor="end">({v}°)</text>
+            <line x1={padL} y1={yOf(v)} x2={W - padR} y2={yOf(v)} stroke="#e2e8f0" strokeWidth="0.5" />
+            <text x={padL - 6} y={yOf(v) + 3} fontSize="9" fill="#64748b" textAnchor="end">{v}°</text>
           </g>
         ))}
+
+        {/* Linha meta (tempDesejada) — label no canto esquerdo pra nao sobrepor pontos da direita */}
+        {tempDesejada >= yMin && tempDesejada <= yMax && (
+          <g>
+            <line x1={padL} y1={yOf(tempDesejada)} x2={W - padR} y2={yOf(tempDesejada)}
+              stroke="#10b981" strokeWidth="1" strokeDasharray="4 3" />
+            <rect x={padL + 2} y={yOf(tempDesejada) - 11} width="58" height="11" fill="#10b981" rx="2" />
+            <text x={padL + 31} y={yOf(tempDesejada) - 2} fontSize="8.5" fill="#fff" textAnchor="middle" fontWeight="700" letterSpacing="0.5">
+              META {tempDesejada}°
+            </text>
+          </g>
+        )}
+
+        {/* Separadores de dia (barras verticais sutis) */}
+        {[2, 4, 6].map((i) => (
+          <line key={i} x1={xOf(i)} y1={padT} x2={xOf(i)} y2={padT + innerH}
+            stroke="#cbd5e1" strokeWidth="0.5" strokeDasharray="2 2" />
+        ))}
+
         {/* Area gradient */}
         <path d={areaPath} fill="url(#solarGrad)" stroke="none" />
-        {/* Line */}
-        <path d={linePath} fill="none" stroke="#f97316" strokeWidth="2.5" />
-        {/* Pontos + labels + flechas */}
-        {pts.map((p, i) => {
-          const isInicial = i % 2 === 0;
+
+        {/* Linha principal */}
+        <path d={smoothPath} fill="none" stroke="#ea580c" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+
+        {/* Pontos + labels valor */}
+        {pts.map((p, i) => (
+          <g key={i}>
+            <circle cx={xOf(i)} cy={yOf(p.y)} r="3.2" fill="#ea580c" stroke="#fff" strokeWidth="1.5" />
+            <text x={xOf(i)} y={yOf(p.y) - 7} fontSize="9.5" fontWeight="700" fill="#1e293b" textAnchor="middle">
+              {p.y.toFixed(1).replace(".", ",")}°
+            </text>
+          </g>
+        ))}
+
+        {/* Labels eixo X — "DIA 1/2/3/4" centralizado a cada par */}
+        {[0, 1, 2, 3].map((d) => {
+          const xCenter = (xOf(d * 2) + xOf(d * 2 + 1)) / 2;
           return (
-            <g key={i}>
-              {/* Flecha vertical em pontos iniciais (estilo planilha) */}
-              {isInicial && (
-                <line x1={xOf(i)} y1={padT + innerH} x2={xOf(i)} y2={yOf(p.y) + 4}
-                  stroke="#3b82f6" strokeWidth="1" markerEnd="url(#arrUp)" />
-              )}
-              {/* Ponto */}
-              <circle cx={xOf(i)} cy={yOf(p.y)} r="3" fill="#f97316" stroke="#fff" strokeWidth="1.5" />
-              {/* Label valor */}
-              <text x={xOf(i)} y={yOf(p.y) - 8} fontSize="10" fontWeight="bold" fill="#1e3a8a" textAnchor="middle">
-                ({p.y.toFixed(2).replace(".", ",")}°)
+            <g key={d}>
+              <text x={xCenter} y={padT + innerH + 16} fontSize="10" fontWeight="700" fill="#334155" textAnchor="middle" letterSpacing="1">
+                DIA {d + 1}
               </text>
-              {/* Label eixo X (rotacionado) */}
-              <text x={xOf(i)} y={padT + innerH + 14} fontSize="8" fill="#475569" textAnchor="middle">
-                {p.x.split(" ").slice(0, 2).join(" ")}
-              </text>
-              <text x={xOf(i)} y={padT + innerH + 24} fontSize="8" fill="#475569" textAnchor="middle">
-                {p.x.split(" ").slice(2).join(" ")}
-              </text>
+              <text x={xOf(d * 2)} y={padT + innerH + 28} fontSize="8" fill="#94a3b8" textAnchor="middle">inicio</text>
+              <text x={xOf(d * 2 + 1)} y={padT + innerH + 28} fontSize="8" fill="#94a3b8" textAnchor="middle">fim</text>
             </g>
           );
         })}
