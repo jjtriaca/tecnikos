@@ -1499,20 +1499,22 @@ function SolarTab({
                       <div className="col-span-2">
                         <ConfigField label="Capa térmica">
                           <select value={capaTermica ? "SIM" : "NAO"} onChange={(e) => setCapaTermica(e.target.value === "SIM")}
-                            className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full">
+                            className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full print:hidden">
                             <option value="SIM">Sim</option>
                             <option value="NAO">Não</option>
                           </select>
+                          <span className="hidden print:inline-block bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full text-center">{capaTermica ? "Sim" : "Não"}</span>
                         </ConfigField>
                       </div>
                       <div className="col-span-3">
                         <ConfigField label="Vento">
                           <select value={vento} onChange={(e) => setVento(e.target.value)}
-                            className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full">
+                            className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full print:hidden">
                             <option value="FRACO">Fraco</option>
                             <option value="MODERADO">Moderado</option>
                             <option value="FORTE">Forte</option>
                           </select>
+                          <span className="hidden print:inline-block bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full text-center capitalize">{vento.toLowerCase()}</span>
                         </ConfigField>
                       </div>
                     </div>
@@ -1520,7 +1522,7 @@ function SolarTab({
                     <div className="grid grid-cols-2 gap-1">
                       <ConfigField label="Orientação do telhado">
                         <select value={orientacaoTelhado} onChange={(e) => setOrientacaoTelhado(e.target.value)}
-                          className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full">
+                          className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full print:hidden">
                           <option value="N">Norte</option>
                           <option value="NE">Nordeste</option>
                           <option value="L">Leste</option>
@@ -1530,12 +1532,14 @@ function SolarTab({
                           <option value="O">Oeste</option>
                           <option value="NO">Noroeste</option>
                         </select>
+                        <span className="hidden print:inline-block bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full text-center">{({ N: "Norte", NE: "Nordeste", L: "Leste", SE: "Sudeste", S: "Sul", SO: "Sudoeste", O: "Oeste", NO: "Noroeste" } as Record<string, string>)[orientacaoTelhado] ?? orientacaoTelhado}</span>
                       </ConfigField>
                       <ConfigField label="Inclinação">
                         <div className="flex items-center gap-1">
                           <input type="number" min={0} max={60} value={inclinacaoTelhado}
                             onChange={(e) => setInclinacaoTelhado(Number(e.target.value) || 0)}
-                            className="w-12 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 text-[11px] font-semibold text-center tabular-nums focus:border-amber-500 focus:outline-none" />
+                            className="w-12 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 text-[11px] font-semibold text-center tabular-nums focus:border-amber-500 focus:outline-none print:hidden" />
+                          <span className="hidden print:inline-block bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 text-center tabular-nums w-12">{inclinacaoTelhado}</span>
                           <span className="text-[10px] text-slate-500">°</span>
                         </div>
                       </ConfigField>
@@ -1545,15 +1549,17 @@ function SolarTab({
                       <div className="flex gap-1 flex-1 min-w-0">
                         <select value={cidade} onChange={(e) => setCidade(e.target.value)}
                           disabled={!uf}
-                          className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 flex-1 min-w-0 disabled:opacity-50">
+                          className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 flex-1 min-w-0 disabled:opacity-50 print:hidden">
                           <option value="">{uf ? "Capital" : "Selecione UF"}</option>
                           {availableCities.map((c) => <option key={c} value={c}>{c}</option>)}
                         </select>
                         <select value={uf} onChange={(e) => { setUf(e.target.value); setCidade(""); }}
-                          className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5">
+                          className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 print:hidden">
                           <option value="">--</option>
                           {availableUfs.map((u) => <option key={u.uf} value={u.uf}>{u.uf}</option>)}
                         </select>
+                        <span className="hidden print:inline-block bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 flex-1 text-center">{cidade || "—"}</span>
+                        <span className="hidden print:inline-block bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 text-center w-10">{uf || "—"}</span>
                       </div>
                     </ConfigField>
                     {/* Linha 4: Temperatura inicial + Temperatura final — 2 cols */}
@@ -1561,12 +1567,14 @@ function SolarTab({
                       <ConfigField label="Temp. inicial (°C)">
                         <input type="number" min={5} max={40} value={temperaturaInicial}
                           onChange={(e) => setTemperaturaInicial(Number(e.target.value) || 22)}
-                          className="bg-amber-50 border border-amber-200 rounded px-1 py-0.5 text-[11px] font-semibold text-center tabular-nums focus:border-amber-500 focus:outline-none w-full" />
+                          className="bg-amber-50 border border-amber-200 rounded px-1 py-0.5 text-[11px] font-semibold text-center tabular-nums focus:border-amber-500 focus:outline-none w-full print:hidden" />
+                        <span className="hidden print:inline-block bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full text-center tabular-nums">{temperaturaInicial}</span>
                       </ConfigField>
                       <ConfigField label="Temp. final (°C)">
                         <input type="number" min={20} max={40} value={tempAguaDesejada}
                           onChange={(e) => setTempAguaDesejada(Number(e.target.value) || 30)}
-                          className="bg-amber-50 border border-amber-200 rounded px-1 py-0.5 text-[11px] font-semibold text-center tabular-nums focus:border-amber-500 focus:outline-none w-full" />
+                          className="bg-amber-50 border border-amber-200 rounded px-1 py-0.5 text-[11px] font-semibold text-center tabular-nums focus:border-amber-500 focus:outline-none w-full print:hidden" />
+                        <span className="hidden print:inline-block bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full text-center tabular-nums">{tempAguaDesejada}</span>
                       </ConfigField>
                     </div>
                   </div>
@@ -1823,15 +1831,28 @@ function SolarTab({
           table { page-break-inside: auto; }
           tr { page-break-inside: avoid; }
 
+          /* CRITICO: zera o min-h-[1120px] da tela e o flex-1 espacejador — no print
+             a altura do datasheet deve ser NATURAL (apenas o necessario) pra caber em A4 */
+          #solar-pdf-area {
+            min-height: 0 !important;
+            height: auto !important;
+            display: block !important;
+          }
+          #solar-pdf-area > div.flex-1 {
+            display: none !important;
+            flex: none !important;
+            height: 0 !important;
+          }
+
           /* Compacta secoes pra caber em 1 pagina A4 (1123px @ 96dpi - 16mm margem = ~1063px util) */
           #solar-pdf-area section { padding-top: 4px !important; padding-bottom: 4px !important; }
           #solar-pdf-area footer { padding-top: 3px !important; padding-bottom: 3px !important; }
           #solar-pdf-area header { padding-top: 6px !important; padding-bottom: 6px !important; }
           #solar-pdf-area .px-5 { padding-left: 10px !important; padding-right: 10px !important; }
-          /* Espacejador flex-1 nao deve crescer no print (deixa altura natural) */
-          #solar-pdf-area .flex-1.print\\:hidden { display: none !important; }
-          /* Esconde o espacejador entre secoes — no print compactamos naturalmente */
-          #solar-pdf-area > div.flex-1 { flex: 0 0 0 !important; min-height: 0 !important; }
+
+          /* Esconde controles interativos (select/input) e mostra o equivalente print:block (texto puro) */
+          #solar-pdf-area .print-hide-interactive { display: none !important; }
+          #solar-pdf-area .print-show-value { display: inline-block !important; }
 
           /* SVG do grafico — limita altura mas acomoda altura aumentada do v5 (~85mm) */
           #solar-pdf-area svg { max-height: 80mm; width: 100%; height: auto; }
