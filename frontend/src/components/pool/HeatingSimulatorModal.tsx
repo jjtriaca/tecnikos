@@ -1824,7 +1824,8 @@ function SolarTab({
             box-shadow: none !important;
             border: 0 !important;
           }
-          @page { size: A4 portrait; margin: 8mm 6mm; }
+          @page { size: A4 portrait; margin: 4mm; }
+          html, body { margin: 0 !important; padding: 0 !important; }
 
           /* Avoid page breaks dentro dos blocos principais */
           .avoid-break { page-break-inside: avoid !important; break-inside: avoid !important; }
