@@ -1429,10 +1429,10 @@ function SolarTab({
       </div>
 
       {/* === Folha A4 (datasheet) ===
-          Container central com max-w aproximando 210mm (~794px). Borda + sombra na tela
-          dão sensação de "folha". No print, ocupa A4 inteiro sem nada disso. */}
+          Tela: max-w-[820px] (≈210mm) + min-h-[1120px] (≈A4) com flex-1 pra empurrar conteudo pra baixo
+          Print: fluxo natural, sem min-h (deixa o conteudo se acomodar na A4 sem forcar) */}
       <div className="mx-auto max-w-[820px] print:max-w-none">
-        <div id="solar-pdf-area" className="bg-white text-slate-900 font-sans border border-slate-200 shadow-sm print:border-0 print:shadow-none">
+        <div id="solar-pdf-area" className="bg-white text-slate-900 font-sans border border-slate-200 shadow-sm print:border-0 print:shadow-none flex flex-col min-h-[1120px] print:min-h-0">
 
           {/* ============ HEADER BANNER ============ */}
           <header className="bg-gradient-to-r from-slate-900 to-blue-900 text-white px-5 py-3 flex items-center justify-between print:bg-slate-900 print:text-white">
@@ -1463,68 +1463,31 @@ function SolarTab({
 
               {/* Dimensoes+NBR | Configuracao em 2 colunas — h-full pra alinhar altura */}
               <div className="grid grid-cols-2 gap-3 items-stretch flex-1">
-                {/* Dimensoes (com NBR card embaixo na mesma coluna) */}
-                <div className="flex flex-col gap-2 h-full">
-                  <div>
-                    <div className="flex items-baseline justify-between gap-2">
-                      <SectionLabel>Dimensões da piscina</SectionLabel>
-                      <span className="text-[8.5px] text-slate-500 uppercase tracking-wide whitespace-nowrap">
-                        <span className="text-slate-900 font-bold">{tipoPiscinaTxt}</span>
-                      </span>
-                    </div>
-                    <div className="mt-1 grid grid-cols-2 gap-0.5">
-                      <StatCompact label="Comp" value={`${len.toFixed(2).replace(".", ",")} m`} />
-                      <StatCompact label="Larg" value={`${wid.toFixed(2).replace(".", ",")} m`} />
-                      <StatCompact label="Prof. min" value={`${profMin.toFixed(2).replace(".", ",")} m`} />
-                      <StatCompact label="Prof. max" value={`${profMax.toFixed(2).replace(".", ",")} m`} />
-                      <StatCompact label="Area" value={`${area.toFixed(2).replace(".", ",")} m²`} highlight />
-                      <StatCompact label="Volume" value={`${volume.toFixed(2).replace(".", ",")} m³`} highlight />
-                    </div>
+                {/* Dimensoes (NBR foi movido pro footer) */}
+                <div className="flex flex-col h-full">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <SectionLabel>Dimensões da piscina</SectionLabel>
+                    <span className="text-[8.5px] text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                      <span className="text-slate-900 font-bold">{tipoPiscinaTxt}</span>
+                    </span>
                   </div>
-
-                  {/* NBR — card unico ultra-compacto, header vermelho/dourado gradient */}
-                  <div className="rounded border border-red-200 overflow-hidden bg-white print:bg-white flex-1 flex flex-col">
-                    <div className="bg-gradient-to-r from-red-700 via-red-600 to-amber-700 text-white px-2 py-1 print:bg-red-700">
-                      <div className="text-[9.5px] font-bold leading-tight">
-                        NBR 10339:2018 — ABNT
-                      </div>
-                      <div className="text-[8px] text-red-100 leading-tight">
-                        Faixas de temperatura recomendadas por uso
-                      </div>
-                    </div>
-                    <div className="px-1.5 py-1 grid grid-cols-2 gap-x-2 text-[8px] leading-[1.15] flex-1">
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">SPA</span>
-                        <span className="font-bold text-slate-900 tabular-nums">36–38°</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Competição</span>
-                        <span className="font-bold text-slate-900 tabular-nums">25–28°</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Recreação</span>
-                        <span className="font-bold text-slate-900 tabular-nums">27–29°</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Bebês/Hidro</span>
-                        <span className="font-bold text-slate-900 tabular-nums">30–34°</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-600">Crianças</span>
-                        <span className="font-bold text-slate-900 tabular-nums">29–32°</span>
-                      </div>
-                      <div className="text-red-700 font-medium">⚠ médico &gt;38°</div>
-                    </div>
-                    {((budget.environmentParams as any)?.hidromassagensQtd > 0 ||
-                      (budget.environmentParams as any)?.cascataLarguraCm > 0 ||
-                      (budget.environmentParams as any)?.bordaInfinitaM > 0) && (
-                      <div className="text-[7.5px] text-slate-600 flex gap-2 border-t border-slate-200 pt-0.5 mt-0.5 leading-tight">
-                        {(budget.environmentParams as any)?.hidromassagensQtd > 0 && <span>Hidro: <b>{(budget.environmentParams as any).hidromassagensQtd}</b></span>}
-                        {(budget.environmentParams as any)?.cascataLarguraCm > 0 && <span>Casc: <b>{(budget.environmentParams as any).cascataLarguraCm}cm</b></span>}
-                        {(budget.environmentParams as any)?.bordaInfinitaM > 0 && <span>Borda: <b>{(budget.environmentParams as any).bordaInfinitaM}m</b></span>}
-                      </div>
-                    )}
+                  <div className="mt-1 grid grid-cols-2 gap-0.5">
+                    <StatCompact label="Comp." value={`${len.toFixed(2).replace(".", ",")} m`} />
+                    <StatCompact label="Larg." value={`${wid.toFixed(2).replace(".", ",")} m`} />
+                    <StatCompact label="Prof. mín" value={`${profMin.toFixed(2).replace(".", ",")} m`} />
+                    <StatCompact label="Prof. máx" value={`${profMax.toFixed(2).replace(".", ",")} m`} />
+                    <StatCompact label="Área" value={`${area.toFixed(2).replace(".", ",")} m²`} highlight />
+                    <StatCompact label="Volume" value={`${volume.toFixed(2).replace(".", ",")} m³`} highlight />
                   </div>
+                  {((budget.environmentParams as any)?.hidromassagensQtd > 0 ||
+                    (budget.environmentParams as any)?.cascataLarguraCm > 0 ||
+                    (budget.environmentParams as any)?.bordaInfinitaM > 0) && (
+                    <div className="mt-1 text-[8.5px] text-slate-600 flex gap-3 leading-tight">
+                      {(budget.environmentParams as any)?.hidromassagensQtd > 0 && <span>Hidromass.: <b>{(budget.environmentParams as any).hidromassagensQtd}</b></span>}
+                      {(budget.environmentParams as any)?.cascataLarguraCm > 0 && <span>Cascata: <b>{(budget.environmentParams as any).cascataLarguraCm} cm</b></span>}
+                      {(budget.environmentParams as any)?.bordaInfinitaM > 0 && <span>Borda inf.: <b>{(budget.environmentParams as any).bordaInfinitaM} m</b></span>}
+                    </div>
+                  )}
                 </div>
 
                 {/* Configuracao */}
@@ -1620,6 +1583,10 @@ function SolarTab({
               />
             </div>
           </section>
+
+          {/* Espacejador que empurra o conteudo fixo (DIMENSIONAMENTO ate footer) pra baixo da folha.
+              v5.2: sobra ≈ 100-300px vai aqui, deixando ar logo abaixo da imagem do produto */}
+          <div className="flex-1" />
 
           {/* ============ TITULO BANNER DIMENSIONAMENTO ============ */}
           <div className="bg-blue-900 text-white px-5 py-1.5 print:bg-blue-900 print:text-white">
@@ -1718,14 +1685,14 @@ function SolarTab({
               </div>
 
               {/* ============ GRAFICO + TABELA ============ */}
-              <section className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-slate-200 avoid-break">
+              <section className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-slate-200 avoid-break items-stretch">
                 <div className="col-span-7 flex flex-col">
                   {selectedMonth && (
                     <SolarChart row={selectedMonth} tempDesejada={tempAguaDesejada} monthName={selectedMonth.monthName} />
                   )}
                 </div>
-                <div className="col-span-5">
-                  <div className="border border-slate-200 rounded overflow-hidden">
+                <div className="col-span-5 flex flex-col">
+                  <div className="border border-slate-200 rounded overflow-hidden h-full flex flex-col">
                     <table className="w-full text-[9.5px] tabular-nums">
                       <thead className="bg-slate-100 text-slate-700">
                         <tr>
@@ -1761,13 +1728,55 @@ function SolarTab({
               </section>
 
               {/* ============ FOOTER ============ */}
-              <footer className="px-5 py-2.5 bg-slate-50 print:bg-white">
-                <div className="text-[8.5px] uppercase tracking-wide text-slate-500 font-semibold mb-1">Observações</div>
-                <ol className="text-[8.5px] text-slate-700 leading-tight space-y-0.5 list-decimal list-inside">
-                  <li>Os valores acima são estimativos e podem sofrer variações conforme temperatura ambiente real.</li>
-                  <li>Perda térmica acima do tolerado (sem capa, vento forte) reduz a temperatura final.</li>
-                  <li>Dias frios e nublados podem reiniciar o ciclo de aquecimento.</li>
-                </ol>
+              <footer className="px-5 py-2 bg-slate-50 print:bg-white">
+                <div className="grid grid-cols-12 gap-3 items-start">
+                  {/* Observacoes — 7 cols */}
+                  <div className="col-span-7">
+                    <div className="text-[8.5px] uppercase tracking-wide text-slate-500 font-semibold mb-1">Observações</div>
+                    <ol className="text-[8.5px] text-slate-700 leading-tight space-y-0.5 list-decimal list-inside">
+                      <li>Os valores acima são estimativos e podem sofrer variações conforme temperatura ambiente real.</li>
+                      <li>Perda térmica acima do tolerado (sem capa, vento forte) reduz a temperatura final.</li>
+                      <li>Dias frios e nublados podem reiniciar o ciclo de aquecimento.</li>
+                    </ol>
+                  </div>
+
+                  {/* NBR card — movido pra ca, ao lado das Observacoes — 5 cols */}
+                  <div className="col-span-5">
+                    <div className="rounded border border-red-200 overflow-hidden bg-white print:bg-white">
+                      <div className="bg-gradient-to-r from-red-700 via-red-600 to-amber-700 text-white px-2 py-1 print:bg-red-700">
+                        <div className="text-[9.5px] font-bold leading-tight">
+                          NBR 10339:2018 — ABNT
+                        </div>
+                        <div className="text-[8px] text-red-100 leading-tight">
+                          Faixas de temperatura recomendadas por uso
+                        </div>
+                      </div>
+                      <div className="px-1.5 py-1 grid grid-cols-2 gap-x-2 text-[8px] leading-[1.15]">
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">SPA</span>
+                          <span className="font-bold text-slate-900 tabular-nums">36–38°</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Competição</span>
+                          <span className="font-bold text-slate-900 tabular-nums">25–28°</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Recreação</span>
+                          <span className="font-bold text-slate-900 tabular-nums">27–29°</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Bebês/Hidro</span>
+                          <span className="font-bold text-slate-900 tabular-nums">30–34°</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-600">Crianças</span>
+                          <span className="font-bold text-slate-900 tabular-nums">29–32°</span>
+                        </div>
+                        <div className="text-red-700 font-medium">⚠ médico &gt;38°</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </footer>
             </>
           ) : (
@@ -1795,24 +1804,34 @@ function SolarTab({
             color-adjust: exact !important;
           }
 
+          /* Usa fluxo normal (sem position absolute) — top:0 + margin @page cortava o header */
+          html, body { background: #fff !important; }
           #solar-pdf-area {
-            position: absolute; left: 0; top: 0;
-            width: 100%; padding: 0; margin: 0;
+            width: 100%;
+            padding: 0; margin: 0;
             font-size: 10px;
             line-height: 1.2;
+            min-height: 0 !important;          /* libera o min-h-[1120px] da tela */
+            height: auto !important;
+            box-shadow: none !important;
+            border: 0 !important;
           }
-          @page { size: A4 portrait; margin: 6mm; }
+          @page { size: A4 portrait; margin: 8mm 6mm; }
 
           /* Avoid page breaks dentro dos blocos principais */
           .avoid-break { page-break-inside: avoid !important; break-inside: avoid !important; }
           table { page-break-inside: auto; }
           tr { page-break-inside: avoid; }
 
-          /* Compacta secoes pra caber em 1 pagina A4 (1123px @ 96dpi - 22.5mm margem = ~1040px util) */
-          #solar-pdf-area section { padding-top: 5px !important; padding-bottom: 5px !important; }
+          /* Compacta secoes pra caber em 1 pagina A4 (1123px @ 96dpi - 16mm margem = ~1063px util) */
+          #solar-pdf-area section { padding-top: 4px !important; padding-bottom: 4px !important; }
           #solar-pdf-area footer { padding-top: 3px !important; padding-bottom: 3px !important; }
-          #solar-pdf-area header { padding-top: 7px !important; padding-bottom: 7px !important; }
+          #solar-pdf-area header { padding-top: 6px !important; padding-bottom: 6px !important; }
           #solar-pdf-area .px-5 { padding-left: 10px !important; padding-right: 10px !important; }
+          /* Espacejador flex-1 nao deve crescer no print (deixa altura natural) */
+          #solar-pdf-area .flex-1.print\\:hidden { display: none !important; }
+          /* Esconde o espacejador entre secoes — no print compactamos naturalmente */
+          #solar-pdf-area > div.flex-1 { flex: 0 0 0 !important; min-height: 0 !important; }
 
           /* SVG do grafico — limita altura mas acomoda altura aumentada do v5 (~85mm) */
           #solar-pdf-area svg { max-height: 80mm; width: 100%; height: auto; }
@@ -1986,7 +2005,8 @@ function HeaderImageBlock({
               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
             </svg>
             <div className="text-[10px] font-semibold">{uploading ? "Enviando..." : "Adicionar imagem"}</div>
-            <div className="text-[8.5px] text-slate-400 mt-0.5">JPEG · PNG · WebP — max 5MB</div>
+            <div className="text-[8.5px] text-slate-400 mt-0.5 leading-tight">Quadrada (ex: 600×600px)</div>
+            <div className="text-[8px] text-slate-400 leading-tight">JPEG · PNG · WebP — max 5MB</div>
           </button>
           {/* No print sem imagem: bloco vazio discreto */}
           <div className="hidden print:flex flex-col items-center justify-center text-center py-2 px-3 text-slate-400 text-[10px]">
