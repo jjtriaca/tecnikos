@@ -9,7 +9,7 @@ import ConfirmModal from "@/components/ui/ConfirmModal";
 import PartnerCombobox from "@/components/PartnerCombobox";
 import { HeatingSimulatorModal } from "@/components/pool/HeatingSimulatorModal";
 
-type AutoSelectRule = {
+export type AutoSelectRule = {
   filterPoolType?: string | null;
   filterCategoria?: string | null;
   filterDescription?: string | null;
@@ -116,7 +116,7 @@ type PoolPaymentTerm = {
   structure: PoolPaymentTermPart[];
 };
 
-type CatalogConfig = {
+export type CatalogConfig = {
   id: string;
   poolSection: string;
   product: { id: string; code?: string | null; description: string; brand?: string | null; salePriceCents: number; unit: string; technicalSpecs?: Record<string, any> | null; poolType?: string | null; defaultQty?: number | null } | null;
@@ -2918,7 +2918,7 @@ const INDICATOR_TEMPLATES: Array<{ label: string; preset: { label: string; expr:
   },
 ];
 
-function AutoSelectModal({
+export function AutoSelectModal({
   initialRule,
   catalog,
   dimensions,

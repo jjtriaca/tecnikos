@@ -4,8 +4,10 @@
 // Ver memory/project_heating_simulator_plan.md pra contexto.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api, getAccessToken } from "@/lib/api";
 import { useDebounce } from "@/hooks/useDebounce";
+import { AutoSelectModal, type AutoSelectRule, type CatalogConfig } from "@/app/(dashboard)/quotes/pool/[id]/page";
 
 // ============ Tipos ============
 
@@ -1203,10 +1205,10 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
                   <>
                     {/* 4 cards de totais */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                      <BigStat label="Consumo anual" value={(report.annualKwh ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} unit="kWh/ano" emphasis="cyan" />
-                      <BigStat label="Custo medio mensal" value={fmtBRL(Math.round((report.annualCostBRLCents ?? 0) / 12))} unit="por mes" emphasis="orange" />
-                      <BigStat label="Custo anual operacao" value={fmtBRL(report.annualCostBRLCents ?? 0)} unit="por ano" emphasis="orange" />
-                      <BigStat label="Custo aquec. inicial" value={fmtBRL(report.initialHeatingCostBRLCents ?? 0)} unit="1a vez" emphasis="emerald" />
+                      <BigStatLegacy label="Consumo anual" value={(report.annualKwh ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} unit="kWh/ano" emphasis="cyan" />
+                      <BigStatLegacy label="Custo medio mensal" value={fmtBRL(Math.round((report.annualCostBRLCents ?? 0) / 12))} unit="por mes" emphasis="orange" />
+                      <BigStatLegacy label="Custo anual operacao" value={fmtBRL(report.annualCostBRLCents ?? 0)} unit="por ano" emphasis="orange" />
+                      <BigStatLegacy label="Custo aquec. inicial" value={fmtBRL(report.initialHeatingCostBRLCents ?? 0)} unit="1a vez" emphasis="emerald" />
                     </div>
 
                     {/* Tabela mensal */}
@@ -1398,8 +1400,57 @@ function SolarTab({
   const [orientacaoTelhado, setOrientacaoTelhado] = useState<string>(initOrient);
   const [inclinacaoTelhado, setInclinacaoTelhado] = useState<number>(initIncl);
   const [temperaturaInicial, setTemperaturaInicial] = useState<number>(initTempIni);
+
+  // v5.5 — Tipo piscina + Tipo construção + Modos de dimensão/configuração (UI only por enquanto).
+  // Modo AUTOMATICO: campos vem do orcamento, readonly, cor amber (padrao).
+  // Modo MANUAL: libera edicao + cor verde nos cards highlight (Area/Volume e Temp Inicial/Final).
+  const initTipoPisc = (budget.environmentParams as any)?.tipoPiscina ?? "PRIVATIVA";
+  const initTipoConstr = (budget.environmentParams as any)?.tipoConstrucao ?? "ABERTA";
+  const initModoDim = (budget.environmentParams as any)?.modoDimensao ?? "AUTOMATICO";
+  const initModoCfg = (budget.environmentParams as any)?.modoConfigAquec ?? "AUTOMATICO";
+  const [tipoPiscinaSel, setTipoPiscinaSel] = useState<string>(initTipoPisc);
+  const [tipoConstrucao, setTipoConstrucao] = useState<string>(initTipoConstr);
+  const [modoDimensao, setModoDimensao] = useState<string>(initModoDim);
+  const [modoConfigAquec, setModoConfigAquec] = useState<string>(initModoCfg);
+  const dimManual = modoDimensao === "MANUAL";
+  const cfgManual = modoConfigAquec === "MANUAL";
+
+  // v5.5 — Overrides das dimensões quando modo = MANUAL (UI only). Inicializados das props.
+  const [lenOverride, setLenOverride] = useState<number>(len);
+  const [widOverride, setWidOverride] = useState<number>(wid);
+  const [profMinOverride, setProfMinOverride] = useState<number>(profMin);
+  const [profMaxOverride, setProfMaxOverride] = useState<number>(profMax);
+  const [areaOverride, setAreaOverride] = useState<number>(area);
+  const [volumeOverride, setVolumeOverride] = useState<number>(volume);
+  const dispLen = dimManual ? lenOverride : len;
+  const dispWid = dimManual ? widOverride : wid;
+  const dispProfMin = dimManual ? profMinOverride : profMin;
+  const dispProfMax = dimManual ? profMaxOverride : profMax;
+  const dispArea = dimManual ? areaOverride : area;
+  const dispVolume = dimManual ? volumeOverride : volume;
   // v5.3 — modal de selecao do coletor (abrira ao clicar ✨)
   const [showColetorPicker, setShowColetorPicker] = useState(false);
+  // v5.3 — pre-visualizacao do PDF dentro da propria pagina.
+  // Clona o #solar-pdf-area pra dentro do body via JS quando ativa, pra fugir dos containers Next.js.
+  const [pdfPreviewMode, setPdfPreviewMode] = useState(false);
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const cleanup = () => {
+      document.documentElement.classList.remove("simulating-print");
+      document.querySelectorAll(".solar-pdf-clone-container").forEach((el) => el.remove());
+    };
+    if (!pdfPreviewMode) { cleanup(); return; }
+    const original = document.getElementById("solar-pdf-area");
+    if (!original) return;
+    const container = document.createElement("div");
+    container.className = "solar-pdf-clone-container";
+    const clone = original.cloneNode(true) as HTMLElement;
+    clone.id = "solar-pdf-clone";
+    container.appendChild(clone);
+    document.body.appendChild(container);
+    document.documentElement.classList.add("simulating-print");
+    return cleanup;
+  }, [pdfPreviewMode]);
 
   if (loading) {
     return <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">Carregando dados solares...</div>;
@@ -1423,6 +1474,10 @@ function SolarTab({
             className="rounded-md bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:bg-slate-300 transition shadow-sm">
             {recomputing ? "Recalculando..." : "Recalcular dimensionamento"}
           </button>
+          <button onClick={() => setPdfPreviewMode(true)}
+            className="rounded-md border border-blue-300 bg-blue-50 text-blue-800 px-3.5 py-1.5 text-xs font-semibold hover:bg-blue-100 transition shadow-sm">
+            👁️ Pré-visualizar PDF
+          </button>
           <button onClick={() => window.print()}
             className="rounded-md border border-slate-300 bg-white text-slate-700 px-3.5 py-1.5 text-xs font-semibold hover:bg-slate-50 transition shadow-sm">
             Imprimir / PDF
@@ -1436,16 +1491,19 @@ function SolarTab({
       <div className="mx-auto max-w-[820px] print:max-w-none solar-screen-wrapper">
         <div id="solar-pdf-area" className="bg-white text-slate-900 font-sans border border-slate-200 shadow-sm print:border-0 print:shadow-none flex flex-col min-h-[1120px]">
 
-          {/* ============ HEADER BANNER ============ */}
-          <header className="bg-gradient-to-r from-slate-900 to-blue-900 text-white px-5 py-3 flex items-center justify-between print:bg-slate-900 print:text-white">
+          {/* ============ HEADER BANNER ============
+              Tela: gradient slate-900 → blue-900 com texto branco
+              Print: fundo BRANCO com texto azul escuro + borda inferior (funciona mesmo sem
+              "Gráficos de segundo plano" marcado no painel do Chrome) */}
+          <header className="bg-gradient-to-r from-slate-900 to-blue-900 text-white px-5 py-3 flex items-center justify-between print:bg-white print:text-blue-900 print:border-b-4 print:border-blue-900">
             <div>
-              <div className="text-[9px] uppercase tracking-[0.18em] text-amber-300 font-medium">Aquecimento solar para piscinas</div>
-              <h2 className="text-base font-bold mt-0.5 leading-tight">Dimensionamento para Coletor Solar</h2>
+              <div className="text-[9px] uppercase tracking-[0.18em] text-amber-300 font-medium print:text-amber-700">Aquecimento solar para piscinas</div>
+              <h2 className="text-base font-bold mt-0.5 leading-tight print:text-blue-900">Dimensionamento para Coletor Solar</h2>
             </div>
             <div className="text-right">
-              <div className="text-[9px] uppercase tracking-[0.18em] text-slate-300">Orçamento</div>
-              <div className="text-xl font-bold tabular-nums leading-tight">{budget.code ?? "—"}</div>
-              <div className="text-[10px] text-slate-300 mt-0.5">{today}</div>
+              <div className="text-[9px] uppercase tracking-[0.18em] text-slate-300 print:text-slate-600">Orçamento</div>
+              <div className="text-xl font-bold tabular-nums leading-tight print:text-blue-900">{budget.code ?? "—"}</div>
+              <div className="text-[10px] text-slate-300 mt-0.5 print:text-slate-600">{today}</div>
             </div>
           </header>
 
@@ -1465,26 +1523,45 @@ function SolarTab({
 
               {/* Dimensoes+NBR | Configuracao em 2 colunas — h-full pra alinhar altura */}
               <div className="grid grid-cols-2 gap-3 items-stretch flex-1">
-                {/* Dimensoes (NBR foi movido pro footer) */}
+                {/* Dimensoes — layout do print: 4 cards top (Comp/Larg/ProfMin/ProfMax) +
+                    2 cards tipo (Privativa/Aberta) + 2 cards GRANDES highlight (Area/Volume) +
+                    dropdown Automatico/manual (modo seleção do coletor) */}
                 <div className="flex flex-col h-full">
                   <div className="flex items-baseline justify-between gap-2">
                     <SectionLabel>Dimensões da piscina</SectionLabel>
-                    <span className="text-[8.5px] text-slate-500 uppercase tracking-wide whitespace-nowrap">
-                      <span className="text-slate-900 font-bold">{tipoPiscinaTxt}</span>
-                    </span>
                   </div>
-                  <div className="mt-1 grid grid-cols-2 gap-0.5">
-                    <StatCompact label="Comp." value={`${len.toFixed(2).replace(".", ",")} m`} />
-                    <StatCompact label="Larg." value={`${wid.toFixed(2).replace(".", ",")} m`} />
-                    <StatCompact label="Prof. mín" value={`${profMin.toFixed(2).replace(".", ",")} m`} />
-                    <StatCompact label="Prof. máx" value={`${profMax.toFixed(2).replace(".", ",")} m`} />
-                    <StatCompact label="Área" value={`${area.toFixed(2).replace(".", ",")} m²`} highlight />
-                    <StatCompact label="Volume" value={`${volume.toFixed(2).replace(".", ",")} m³`} highlight />
+                  <div className="mt-1 grid grid-cols-2 gap-1">
+                    {/* Linha 1: COMP. | LARG. */}
+                    <StatEditable label="Comp." value={dispLen} onChange={setLenOverride} unit="m" manual={dimManual} />
+                    <StatEditable label="Larg." value={dispWid} onChange={setWidOverride} unit="m" manual={dimManual} />
+                    {/* Linha 2: PROF.MIN | PROF.MAX */}
+                    <StatEditable label="Prof. mín" value={dispProfMin} onChange={setProfMinOverride} unit="m" manual={dimManual} />
+                    <StatEditable label="Prof. máx" value={dispProfMax} onChange={setProfMaxOverride} unit="m" manual={dimManual} />
+                  </div>
+                  {/* Linha 3: Tipo piscina | Tipo construção (compactos) */}
+                  <div className="mt-1 grid grid-cols-2 gap-1">
+                    <SelectCard label="Tipo de piscina" value={tipoPiscinaSel}
+                      options={[{ v: "PRIVATIVA", l: "Privativa" }, { v: "COLETIVA", l: "Coletiva" }, { v: "CLINICA_SPA", l: "Clínica SPA" }]}
+                      onChange={(v) => setTipoPiscinaSel(v)} />
+                    <SelectCard label="Tipo de construção" value={tipoConstrucao}
+                      options={[{ v: "ABERTA", l: "Aberta" }, { v: "COBERTA", l: "Coberta" }, { v: "CLIMATIZADA", l: "Climatizada" }]}
+                      onChange={(v) => setTipoConstrucao(v)} />
+                  </div>
+                  {/* Linha 4: AREA | VOLUME — cor amber (auto) ou verde+editavel (manual) */}
+                  <div className="mt-1 grid grid-cols-2 gap-1">
+                    <BigHighlightInput label="Área" value={dispArea} onChange={setAreaOverride} unit="m²" min={0} max={9999} manual={dimManual} />
+                    <BigHighlightInput label="Volume" value={dispVolume} onChange={setVolumeOverride} unit="m³" min={0} max={99999} manual={dimManual} />
+                  </div>
+                  {/* Linha 5: dropdown Modo de dimensão da piscina */}
+                  <div className="mt-1">
+                    <SelectCard label="Modo de dimensão da piscina" value={modoDimensao}
+                      options={[{ v: "AUTOMATICO", l: "Automático" }, { v: "MANUAL", l: "Manual" }]}
+                      onChange={(v) => setModoDimensao(v)} fullWidth />
                   </div>
                   {((budget.environmentParams as any)?.hidromassagensQtd > 0 ||
                     (budget.environmentParams as any)?.cascataLarguraCm > 0 ||
                     (budget.environmentParams as any)?.bordaInfinitaM > 0) && (
-                    <div className="mt-1 text-[8.5px] text-slate-600 flex gap-3 leading-tight">
+                    <div className="mt-1.5 text-[8.5px] text-slate-600 flex gap-3 leading-tight">
                       {(budget.environmentParams as any)?.hidromassagensQtd > 0 && <span>Hidromass.: <b>{(budget.environmentParams as any).hidromassagensQtd}</b></span>}
                       {(budget.environmentParams as any)?.cascataLarguraCm > 0 && <span>Cascata: <b>{(budget.environmentParams as any).cascataLarguraCm} cm</b></span>}
                       {(budget.environmentParams as any)?.bordaInfinitaM > 0 && <span>Borda inf.: <b>{(budget.environmentParams as any).bordaInfinitaM} m</b></span>}
@@ -1492,39 +1569,39 @@ function SolarTab({
                   )}
                 </div>
 
-                {/* Configuracao */}
+                {/* Configuracao — mesmo padrao compacto da Dimensoes (label dentro, fonte pequena).
+                    Quando cfgManual=true: borda verde + editavel. Quando AUTO: cinza + disabled. */}
                 <div className="flex flex-col h-full">
                   <SectionLabel>Configuração do aquecimento</SectionLabel>
                   <div className="mt-1 space-y-1 flex-1">
-                    {/* Linha 1: Capa(2) + Vento(3) — sem Temp Final aqui (movida pra linha 4) */}
-                    <div className="grid grid-cols-5 gap-1">
-                      <div className="col-span-2">
-                        <ConfigField label="Capa térmica">
-                          <select value={capaTermica ? "SIM" : "NAO"} onChange={(e) => setCapaTermica(e.target.value === "SIM")}
-                            className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full print:hidden">
-                            <option value="SIM">Sim</option>
-                            <option value="NAO">Não</option>
-                          </select>
-                          <span className="hidden print:inline-block bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full text-center">{capaTermica ? "Sim" : "Não"}</span>
-                        </ConfigField>
-                      </div>
-                      <div className="col-span-3">
-                        <ConfigField label="Vento">
-                          <select value={vento} onChange={(e) => setVento(e.target.value)}
-                            className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full print:hidden">
-                            <option value="FRACO">Fraco</option>
-                            <option value="MODERADO">Moderado</option>
-                            <option value="FORTE">Forte</option>
-                          </select>
-                          <span className="hidden print:inline-block bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full text-center capitalize">{vento.toLowerCase()}</span>
-                        </ConfigField>
-                      </div>
-                    </div>
-                    {/* Linha 2: Orientação + Inclinação — 2 cols */}
+                    {/* L1: Capa | Vento */}
                     <div className="grid grid-cols-2 gap-1">
-                      <ConfigField label="Orientação do telhado">
+                      <ConfigFieldBig label="Capa térmica" manual={cfgManual}>
+                        <select value={capaTermica ? "SIM" : "NAO"} onChange={(e) => setCapaTermica(e.target.value === "SIM")}
+                          disabled={!cfgManual}
+                          className={`w-full bg-transparent text-[10.5px] font-bold leading-[1.1] focus:outline-none print:hidden h-[14px] -mt-0.5 disabled:cursor-not-allowed ${cfgManual ? "text-emerald-900" : "text-slate-900"}`}>
+                          <option value="SIM">Sim</option>
+                          <option value="NAO">Não</option>
+                        </select>
+                        <span className="hidden print:inline-block text-[10.5px] font-bold text-slate-900 leading-[1.1]">{capaTermica ? "Sim" : "Não"}</span>
+                      </ConfigFieldBig>
+                      <ConfigFieldBig label="Vento" manual={cfgManual}>
+                        <select value={vento} onChange={(e) => setVento(e.target.value)}
+                          disabled={!cfgManual}
+                          className={`w-full bg-transparent text-[10.5px] font-bold leading-[1.1] focus:outline-none print:hidden h-[14px] -mt-0.5 capitalize disabled:cursor-not-allowed ${cfgManual ? "text-emerald-900" : "text-slate-900"}`}>
+                          <option value="FRACO">Fraco</option>
+                          <option value="MODERADO">Moderado</option>
+                          <option value="FORTE">Forte</option>
+                        </select>
+                        <span className="hidden print:inline-block text-[10.5px] font-bold text-slate-900 leading-[1.1] capitalize">{vento.toLowerCase()}</span>
+                      </ConfigFieldBig>
+                    </div>
+                    {/* L2: Orientação | Inclinação */}
+                    <div className="grid grid-cols-2 gap-1">
+                      <ConfigFieldBig label="Orientação telhado" manual={cfgManual}>
                         <select value={orientacaoTelhado} onChange={(e) => setOrientacaoTelhado(e.target.value)}
-                          className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full print:hidden">
+                          disabled={!cfgManual}
+                          className={`w-full bg-transparent text-[10.5px] font-bold leading-[1.1] focus:outline-none print:hidden h-[14px] -mt-0.5 disabled:cursor-not-allowed ${cfgManual ? "text-emerald-900" : "text-slate-900"}`}>
                           <option value="N">Norte</option>
                           <option value="NE">Nordeste</option>
                           <option value="L">Leste</option>
@@ -1534,51 +1611,47 @@ function SolarTab({
                           <option value="O">Oeste</option>
                           <option value="NO">Noroeste</option>
                         </select>
-                        <span className="hidden print:inline-block bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full text-center">{({ N: "Norte", NE: "Nordeste", L: "Leste", SE: "Sudeste", S: "Sul", SO: "Sudoeste", O: "Oeste", NO: "Noroeste" } as Record<string, string>)[orientacaoTelhado] ?? orientacaoTelhado}</span>
-                      </ConfigField>
-                      <ConfigField label="Inclinação">
-                        <div className="flex items-center gap-1">
+                        <span className="hidden print:inline-block text-[10.5px] font-bold text-slate-900 leading-[1.1]">{({ N: "Norte", NE: "Nordeste", L: "Leste", SE: "Sudeste", S: "Sul", SO: "Sudoeste", O: "Oeste", NO: "Noroeste" } as Record<string, string>)[orientacaoTelhado] ?? orientacaoTelhado}</span>
+                      </ConfigFieldBig>
+                      <ConfigFieldBig label="Inclinação" manual={cfgManual}>
+                        <div className="flex items-baseline gap-0.5 w-full">
                           <input type="number" min={0} max={60} value={inclinacaoTelhado}
                             onChange={(e) => setInclinacaoTelhado(Number(e.target.value) || 0)}
-                            className="w-12 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 text-[11px] font-semibold text-center tabular-nums focus:border-amber-500 focus:outline-none print:hidden" />
-                          <span className="hidden print:inline-block bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 text-center tabular-nums w-12">{inclinacaoTelhado}</span>
-                          <span className="text-[10px] text-slate-500">°</span>
+                            disabled={!cfgManual}
+                            className={`flex-1 bg-transparent text-[10.5px] font-bold leading-[1.1] tabular-nums focus:outline-none print:hidden w-0 min-w-0 disabled:cursor-not-allowed ${cfgManual ? "text-emerald-900" : "text-slate-900"}`} />
+                          <span className="hidden print:inline-block text-[10.5px] font-bold text-slate-900 leading-[1.1] tabular-nums flex-1">{inclinacaoTelhado}</span>
+                          <span className={`text-[9px] ${cfgManual ? "text-emerald-600" : "text-slate-500"}`}>°</span>
                         </div>
-                      </ConfigField>
+                      </ConfigFieldBig>
                     </div>
-                    {/* Linha 3: UF + Cidade */}
-                    <ConfigField label="Cidade / Estado">
-                      <div className="flex gap-1 flex-1 min-w-0">
+                    {/* L3: Cidade / Estado */}
+                    <ConfigFieldBig label="Cidade / Estado" manual={cfgManual}>
+                      <div className="flex gap-1 w-full items-center">
                         <select value={cidade} onChange={(e) => setCidade(e.target.value)}
-                          disabled={!uf}
-                          className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 flex-1 min-w-0 disabled:opacity-50 print:hidden">
+                          disabled={!uf || !cfgManual}
+                          className={`flex-1 min-w-0 bg-transparent text-[11.5px] font-bold leading-[1.15] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed print:hidden h-[16px] -mt-0.5 ${cfgManual ? "text-emerald-900" : "text-slate-900"}`}>
                           <option value="">{uf ? "Capital" : "Selecione UF"}</option>
                           {availableCities.map((c) => <option key={c} value={c}>{c}</option>)}
                         </select>
                         <select value={uf} onChange={(e) => { setUf(e.target.value); setCidade(""); }}
-                          className="bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 print:hidden">
+                          disabled={!cfgManual}
+                          className={`w-12 bg-transparent text-[11.5px] font-bold leading-[1.15] focus:outline-none disabled:cursor-not-allowed print:hidden h-[16px] -mt-0.5 ${cfgManual ? "text-emerald-900" : "text-slate-900"}`}>
                           <option value="">--</option>
                           {availableUfs.map((u) => <option key={u.uf} value={u.uf}>{u.uf}</option>)}
                         </select>
-                        <span className="hidden print:inline-block bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 flex-1 text-center">{cidade || "—"}</span>
-                        <span className="hidden print:inline-block bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 text-center w-10">{uf || "—"}</span>
+                        <span className="hidden print:inline-block text-[11.5px] font-bold text-slate-900 leading-[1.15] flex-1">{cidade || "—"}</span>
+                        <span className="hidden print:inline-block text-[11.5px] font-bold text-slate-900 leading-[1.15] w-10">{uf || "—"}</span>
                       </div>
-                    </ConfigField>
-                    {/* Linha 4: Temperatura inicial + Temperatura final — 2 cols */}
+                    </ConfigFieldBig>
+                    {/* L4: Temp. inicial | Temp. final — cor amber (auto) ou verde (manual) */}
                     <div className="grid grid-cols-2 gap-1">
-                      <ConfigField label="Temp. inicial (°C)">
-                        <input type="number" min={5} max={40} value={temperaturaInicial}
-                          onChange={(e) => setTemperaturaInicial(Number(e.target.value) || 22)}
-                          className="bg-amber-50 border border-amber-200 rounded px-1 py-0.5 text-[11px] font-semibold text-center tabular-nums focus:border-amber-500 focus:outline-none w-full print:hidden" />
-                        <span className="hidden print:inline-block bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full text-center tabular-nums">{temperaturaInicial}</span>
-                      </ConfigField>
-                      <ConfigField label="Temp. final (°C)">
-                        <input type="number" min={20} max={40} value={tempAguaDesejada}
-                          onChange={(e) => setTempAguaDesejada(Number(e.target.value) || 30)}
-                          className="bg-amber-50 border border-amber-200 rounded px-1 py-0.5 text-[11px] font-semibold text-center tabular-nums focus:border-amber-500 focus:outline-none w-full print:hidden" />
-                        <span className="hidden print:inline-block bg-amber-50 border border-amber-200 rounded text-[11px] font-semibold px-1 py-0.5 w-full text-center tabular-nums">{tempAguaDesejada}</span>
-                      </ConfigField>
+                      <BigHighlightInput label="Temp. inicial" value={temperaturaInicial} onChange={setTemperaturaInicial} unit="°C" min={5} max={40} manual={cfgManual} />
+                      <BigHighlightInput label="Temp. final" value={tempAguaDesejada} onChange={setTempAguaDesejada} unit="°C" min={20} max={40} manual={cfgManual} />
                     </div>
+                    {/* L5: dropdown Modo da configuração do aquecimento (mesmo padrao do Modo de dimensão) */}
+                    <SelectCard label="Modo da configuração do aquecimento" value={modoConfigAquec}
+                      options={[{ v: "AUTOMATICO", l: "Automático" }, { v: "MANUAL", l: "Manual" }]}
+                      onChange={(v) => setModoConfigAquec(v)} fullWidth />
                   </div>
                 </div>
               </div>
@@ -1594,12 +1667,15 @@ function SolarTab({
             </div>
           </section>
 
-          {/* Espacejador que empurra o conteudo fixo (DIMENSIONAMENTO ate footer) pra baixo da folha.
-              v5.2: sobra ≈ 100-300px vai aqui, deixando ar logo abaixo da imagem do produto */}
-          <div className="flex-1" />
+          {/* v5.5 — CIDADE/ORIENTAÇÃO/INCLINAÇÃO voltaram pra dentro da Configuração do Aquecimento.
+              Espaço em branco foi deslocado pra logo acima do gráfico das temperaturas. */}
 
-          {/* ============ TITULO BANNER DIMENSIONAMENTO ============ */}
-          <div className="bg-blue-900 text-white px-5 py-1.5 print:bg-blue-900 print:text-white">
+          {/* v5.5 — Espacejador movido pra entre o banner SIMULACAO TERMICA MENSAL e o grafico/tabela.
+              Antes ficava aqui (acima de DIMENSIONAMENTO), agora sai do fluxo pra empurrar o gráfico pra baixo. */}
+
+          {/* ============ TITULO BANNER DIMENSIONAMENTO ============
+              Print: fundo branco + texto azul + borda (sem depender de "Gráficos de segundo plano") */}
+          <div className="bg-blue-900 text-white px-5 py-1.5 print:bg-white print:text-blue-900 print:border-y print:border-blue-900">
             <span className="text-[10px] uppercase tracking-[0.18em] font-bold">Dimensionamento</span>
           </div>
 
@@ -1683,8 +1759,9 @@ function SolarTab({
                 </div>
               </section>
 
-              {/* ============ TITULO BANNER SIMULACAO ============ */}
-              <div className="bg-blue-900 text-white px-5 py-1.5 flex items-center gap-3 print:bg-blue-900 print:text-white">
+              {/* ============ TITULO BANNER SIMULACAO ============
+                  Print: fundo branco + texto azul + borda (independente de config Chrome) */}
+              <div className="bg-blue-900 text-white px-5 py-1.5 flex items-center gap-3 print:bg-white print:text-blue-900 print:border-y print:border-blue-900">
                 <span className="text-[10px] uppercase tracking-[0.18em] font-bold">Simulação térmica mensal</span>
                 <div className="flex items-center gap-1.5 print:hidden">
                   <span className="text-[9px] text-blue-200 uppercase tracking-wide">Gráfico:</span>
@@ -1693,8 +1770,12 @@ function SolarTab({
                     {SOLAR_MONTH_NAMES_FULL.map((m, i) => <option key={i} value={i}>{m}</option>)}
                   </select>
                 </div>
-                <span className="hidden print:inline text-[10px] text-blue-200">{selectedMonth ? selectedMonth.monthName : ""}</span>
+                <span className="hidden print:inline text-[10px] text-slate-600">— {selectedMonth ? selectedMonth.monthName : ""}</span>
               </div>
+
+              {/* v5.5 — Espacejador que empurra o grafico+tabela pra baixo se sobrar espaco na folha A4.
+                  Antes ficava acima do banner DIMENSIONAMENTO. Movido pra cá conforme pedido do user. */}
+              <div className="flex-1" />
 
               {/* ============ GRAFICO + TABELA ============ */}
               <section className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-slate-200 avoid-break items-stretch">
@@ -1799,18 +1880,45 @@ function SolarTab({
         </div>
       </div>
 
-      {/* Modal de selecao do coletor — abre via icone ✨ ao lado do dropdown */}
+      {/* Toolbar do pre-visualizacao via Portal (renderiza direto no body, sobrevive ao display:none) */}
+      {pdfPreviewMode && typeof document !== "undefined" && createPortal(
+        <div className="pdf-preview-toolbar">
+          <span>📄 Pré-visualização PDF — como ficará impresso em A4</span>
+          <button onClick={() => setPdfPreviewMode(false)}
+            className="bg-white text-blue-900 font-bold px-2 py-0.5 rounded text-[11px] hover:bg-amber-50">
+            ✕ Fechar
+          </button>
+          <button onClick={() => window.print()}
+            className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded text-[11px] hover:bg-amber-600">
+            🖨️ Imprimir agora
+          </button>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal AutoSelect REAL (reusa do orcamento) — abre via icone ✨ ao lado do dropdown.
+          Permite configurar regra de auto-selecao do coletor (filtro de tipo, criterio, ordenacao). */}
       {showColetorPicker && (
-        <ColetorPickerModal
-          collectors={collectors}
-          selectedCollectorId={selectedCollectorId}
-          areaPiscina={area}
-          onSelect={(id) => {
-            setSelectedCollectorId(id);
-            setShowColetorPicker(false);
-            onRecompute(undefined, id);
-          }}
+        <AutoSelectModal
+          initialRule={(budget.environmentParams as any)?.solarColetorAutoSelectRule ?? null}
+          catalog={[]}
+          dimensions={budget.poolDimensions}
+          environmentParams={budget.environmentParams}
+          heatingReport={report}
+          siblingVars={{}}
+          sectionItems={[]}
+          itemDescription="Coletor Solar (Simulador Solar)"
+          currentProductName={collectors.find((c) => c.productId === selectedCollectorId)?.modelName ?? null}
           onClose={() => setShowColetorPicker(false)}
+          onSave={(rule: AutoSelectRule) => {
+            // TODO: persistir rule em environmentParams.solarColetorAutoSelectRule
+            console.log("[Solar] AutoSelect rule salva (em memoria):", rule);
+            setShowColetorPicker(false);
+          }}
+          onClear={() => {
+            console.log("[Solar] AutoSelect rule limpa");
+            setShowColetorPicker(false);
+          }}
         />
       )}
 
@@ -1865,15 +1973,24 @@ function SolarTab({
             height: 0 !important;
             min-height: 0 !important;
           }
-          /* Header banner — garantia que aparece (alguns browsers descartam gradient sem color-adjust) */
-          #solar-pdf-area header.bg-gradient-to-r {
-            background-color: #1e3a8a !important;
-            background-image: linear-gradient(to right, #0f172a, #1e3a8a) !important;
-            color: #fff !important;
+          /* Header banner no print — fundo BRANCO com texto AZUL e borda azul.
+             Funciona independente de "Gráficos de segundo plano" do Chrome estar marcado ou não. */
+          #solar-pdf-area header {
+            background-color: #fff !important;
+            background-image: none !important;
+            color: #1e3a8a !important;
+            border-bottom: 4px solid #1e3a8a !important;
+            display: flex !important;
+            visibility: visible !important;
+            padding: 8px 16px !important;
           }
-          #solar-pdf-area header * { color: inherit !important; }
-          #solar-pdf-area header .text-amber-300 { color: #fcd34d !important; }
-          #solar-pdf-area header .text-slate-300 { color: #cbd5e1 !important; }
+          #solar-pdf-area header h2,
+          #solar-pdf-area header div {
+            visibility: visible !important;
+            color: #1e3a8a !important;
+          }
+          #solar-pdf-area header .text-amber-300 { color: #b45309 !important; }
+          #solar-pdf-area header .text-slate-300 { color: #475569 !important; }
 
           /* Compacta secoes pra caber em 1 pagina A4 (1123px @ 96dpi - 16mm margem = ~1063px util) */
           #solar-pdf-area section { padding-top: 4px !important; padding-bottom: 4px !important; }
@@ -1891,14 +2008,84 @@ function SolarTab({
           /* Imagem do header — quadrada compact */
           #solar-pdf-area img { max-height: 38mm; }
 
-          /* Banner DIMENSIONAMENTO/SIMULACAO — fundo escuro preservado */
-          #solar-pdf-area .bg-blue-900 { background-color: #1e3a8a !important; color: #fff !important; }
-          #solar-pdf-area .bg-slate-900 { background-color: #0f172a !important; color: #fff !important; }
-          #solar-pdf-area .bg-gradient-to-r { background: linear-gradient(to right, #0f172a, #1e3a8a) !important; color: #fff !important; }
+          /* Banners DIMENSIONAMENTO / SIMULACAO TERMICA MENSAL no print: fundo branco + texto azul + borda */
+          #solar-pdf-area .bg-blue-900,
+          #solar-pdf-area .bg-slate-900 {
+            background-color: #fff !important;
+            background-image: none !important;
+            color: #1e3a8a !important;
+            border-top: 1px solid #1e3a8a !important;
+            border-bottom: 1px solid #1e3a8a !important;
+          }
+          #solar-pdf-area .bg-blue-900 *,
+          #solar-pdf-area .bg-slate-900 * { color: #1e3a8a !important; }
+          #solar-pdf-area .bg-blue-200 { color: #475569 !important; }
 
           /* Esconde elementos da UI interativa */
           .print\\:hidden { display: none !important; }
         }
+
+        /* === Simulacao do @media print — usado pelo botao "Pre-visualizar PDF" ===
+           Estrategia: clone JS do #solar-pdf-area dentro de .solar-pdf-clone-container
+           inserido direto no body. Tudo o resto do body fica escondido. */
+        html.simulating-print body { background: #6b7280 !important; overflow: auto !important; }
+        html.simulating-print body > *:not(.solar-pdf-clone-container):not(.pdf-preview-toolbar) { display: none !important; }
+        html.simulating-print .solar-pdf-clone-container {
+          display: block !important;
+          padding: 30px 0 30px 0 !important;
+          min-height: 100vh !important;
+        }
+        html.simulating-print .solar-pdf-clone-container #solar-pdf-clone {
+          margin: 0 auto !important;
+          width: 210mm !important;
+          max-width: 210mm !important;
+          background: #fff !important;
+          box-shadow: 0 6px 32px rgba(0,0,0,0.4) !important;
+          font-size: 10px !important; line-height: 1.2 !important;
+          padding: 0 !important;
+          min-height: 0 !important; height: auto !important;
+          display: block !important;
+          border: 0 !important;
+        }
+        html.simulating-print #solar-pdf-clone > div.flex-1 { display: none !important; }
+        html.simulating-print #solar-pdf-clone section { padding-top: 4px !important; padding-bottom: 4px !important; }
+        html.simulating-print #solar-pdf-clone footer { padding-top: 3px !important; padding-bottom: 3px !important; }
+        html.simulating-print #solar-pdf-clone header { padding-top: 6px !important; padding-bottom: 6px !important; }
+        html.simulating-print #solar-pdf-clone .px-5 { padding-left: 10px !important; padding-right: 10px !important; }
+        html.simulating-print #solar-pdf-clone svg { max-height: 80mm !important; width: 100% !important; height: auto !important; }
+        html.simulating-print #solar-pdf-clone img { max-height: 38mm !important; }
+        html.simulating-print #solar-pdf-clone select { display: none !important; }
+        html.simulating-print #solar-pdf-clone input[type=range] { display: none !important; }
+        /* Ativa as classes print:* do Tailwind no modo simulacao */
+        html.simulating-print #solar-pdf-clone .print\\:inline-block { display: inline-block !important; }
+        html.simulating-print #solar-pdf-clone .print\\:hidden { display: none !important; }
+        html.simulating-print #solar-pdf-clone .print\\:bg-white { background: #fff !important; background-image: none !important; }
+        html.simulating-print #solar-pdf-clone .print\\:text-blue-900 { color: #1e3a8a !important; }
+        html.simulating-print #solar-pdf-clone .print\\:text-amber-700 { color: #b45309 !important; }
+        html.simulating-print #solar-pdf-clone .print\\:text-slate-600 { color: #475569 !important; }
+        html.simulating-print #solar-pdf-clone .print\\:border-b-4 { border-bottom-width: 4px !important; }
+        html.simulating-print #solar-pdf-clone .print\\:border-y { border-top-width: 1px !important; border-bottom-width: 1px !important; border-top-style: solid !important; border-bottom-style: solid !important; }
+        html.simulating-print #solar-pdf-clone .print\\:border-blue-900 { border-color: #1e3a8a !important; }
+
+        /* Toolbar fixa pra fechar a pre-visualizacao (sai do display:none geral) */
+        html.simulating-print body > .pdf-preview-toolbar-wrapper { display: block !important; }
+        html.simulating-print .pdf-preview-toolbar {
+          display: flex !important;
+          position: fixed !important;
+          top: 10px !important; left: 50% !important;
+          transform: translateX(-50%) !important;
+          z-index: 10000 !important;
+          background: #1e3a8a !important;
+          color: #fff !important;
+          padding: 6px 14px !important;
+          border-radius: 6px !important;
+          gap: 12px !important;
+          align-items: center !important;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+          font-size: 12px !important;
+          font-family: ui-sans-serif, system-ui, sans-serif !important;
+        }
+        .pdf-preview-toolbar { display: none; }
       ` }} />
     </>
   );
@@ -1936,9 +2123,33 @@ function DataRow({ term, desc, emphasize }: { term: string; desc: string; emphas
 
 function Stat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
-    <div className={`rounded px-2 py-1 border ${highlight ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white"}`}>
-      <div className="text-[8.5px] uppercase tracking-wide text-slate-500 font-semibold leading-tight">{label}</div>
-      <div className={`text-[12px] tabular-nums font-bold leading-tight ${highlight ? "text-amber-800" : "text-slate-900"}`}>{value}</div>
+    <div className={`rounded px-1.5 py-px border leading-tight ${highlight ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white"}`}>
+      <div className="text-[7.5px] uppercase tracking-wide text-slate-500 font-semibold leading-[1.1]">{label}</div>
+      <div className={`text-[10.5px] tabular-nums font-bold leading-[1.1] ${highlight ? "text-amber-800" : "text-slate-900"}`}>{value}</div>
+    </div>
+  );
+}
+
+// v5.5 — Versao editavel do Stat (Comp/Larg/Prof.min/Prof.max). Quando manual=false fica disabled (cinza),
+// quando manual=true vira verde editavel.
+function StatEditable({ label, value, onChange, unit, manual }: {
+  label: string; value: number; onChange: (n: number) => void; unit: string; manual?: boolean;
+}) {
+  const colors = manual
+    ? { border: "border-emerald-300", bg: "bg-emerald-50", labelText: "text-emerald-700", valueText: "text-emerald-900", unitText: "text-emerald-600" }
+    : { border: "border-slate-200", bg: "bg-white", labelText: "text-slate-500", valueText: "text-slate-900", unitText: "text-slate-500" };
+  return (
+    <div className={`rounded px-1.5 py-px border leading-tight ${colors.border} ${colors.bg}`}>
+      <div className={`text-[7.5px] uppercase tracking-wide ${colors.labelText} font-semibold leading-[1.1]`}>{label}</div>
+      <div className="flex items-baseline gap-0.5">
+        <input type="number" step="0.01" value={value}
+          onChange={(e) => onChange(Number(e.target.value) || 0)}
+          disabled={!manual}
+          className={`bg-transparent text-[10.5px] tabular-nums font-bold leading-[1.1] focus:outline-none w-full min-w-0 print:hidden disabled:cursor-not-allowed ${colors.valueText}`}
+          style={{ height: '12px', padding: 0, margin: 0, border: 0, minHeight: 0 }} />
+        <span className={`hidden print:inline-block text-[10.5px] tabular-nums font-bold leading-[1.1] ${colors.valueText}`}>{value.toFixed(2).replace(".", ",")}</span>
+        <span className={`text-[8.5px] font-semibold ${colors.unitText}`}>{unit}</span>
+      </div>
     </div>
   );
 }
@@ -2099,6 +2310,90 @@ function ConfigField({ label, children }: { label: string; children: React.React
     <div className="flex flex-col gap-0.5">
       <span className="text-[8.5px] uppercase tracking-wide text-slate-500 font-semibold">{label}</span>
       <div className="flex items-center">{children}</div>
+    </div>
+  );
+}
+
+// v5.5 — Mesmo padrao compacto do Stat/SelectCard (Dimensoes) — label 7px, valor 10.5px, padding mínimo.
+// Cor cinza (auto/disabled) ou verde (manual/editavel) baseado em prop manual.
+function ConfigFieldBig({ label, children, manual }: { label: string; children: React.ReactNode; manual?: boolean }) {
+  const colors = manual
+    ? { border: "border-emerald-300", bg: "bg-emerald-50", label: "text-emerald-700" }
+    : { border: "border-slate-200", bg: "bg-white", label: "text-slate-500" };
+  return (
+    <div className={`rounded border px-1.5 py-px leading-tight overflow-hidden ${colors.border} ${colors.bg}`}>
+      <div className={`text-[7px] uppercase tracking-tight font-semibold leading-[1.1] whitespace-nowrap truncate ${colors.label}`}>{label}</div>
+      <div className="flex items-center">{children}</div>
+    </div>
+  );
+}
+
+// v5.5 — Card compacto com dropdown integrado (Tipo piscina / Tipo construção / Modo coletor).
+// Wrapper flex pra dar mesma altura dos ConfigFieldBig (envolve o select pra comprimir altura nativa).
+function SelectCard({ label, value, options, onChange, readOnly, fullWidth }: {
+  label: string;
+  value: string;
+  options: { v: string; l: string }[];
+  onChange: (v: string) => void;
+  readOnly?: boolean;
+  fullWidth?: boolean;
+}) {
+  const currentLabel = options.find((o) => o.v === value)?.l ?? value;
+  return (
+    <div className={`rounded border border-slate-200 bg-white px-1.5 py-px leading-tight overflow-hidden ${fullWidth ? "w-full" : ""}`}>
+      <div className="text-[7px] uppercase tracking-tight text-slate-500 font-semibold leading-[1.1] whitespace-nowrap truncate">{label}</div>
+      {readOnly ? (
+        <div className="flex items-center h-[14px]">
+          <span className="text-[9.5px] font-bold text-slate-900 leading-[1.1]">{currentLabel}</span>
+        </div>
+      ) : (
+        <div className="flex items-center h-[14px]">
+          <select value={value} onChange={(e) => onChange(e.target.value)}
+            className="w-full bg-transparent text-[9.5px] font-bold text-slate-900 leading-[1.1] focus:outline-none print:hidden appearance-auto">
+            {options.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+          </select>
+        </div>
+      )}
+      <span className="hidden print:inline-block text-[9.5px] font-bold text-slate-900 leading-[1.1]">{currentLabel}</span>
+    </div>
+  );
+}
+
+// v5.5 — Card compacto pra Area e Volume (highlight amber, altura fixa pra alinhar com BigHighlightInput)
+function BigHighlight({ label, value, unit, manual }: { label: string; value: string; unit: string; manual?: boolean }) {
+  const colors = manual
+    ? { border: "border-emerald-300", bg: "bg-emerald-50", labelText: "text-emerald-700", valueText: "text-emerald-900", unitText: "text-emerald-700" }
+    : { border: "border-amber-300", bg: "bg-amber-50", labelText: "text-amber-700", valueText: "text-amber-900", unitText: "text-amber-700" };
+  return (
+    <div className={`rounded border ${colors.border} ${colors.bg} px-1.5 py-0.5 flex flex-col justify-center overflow-hidden`} style={{ height: '29px' }}>
+      <div className={`text-[8px] uppercase tracking-wide ${colors.labelText} font-semibold leading-tight`}>{label}</div>
+      <div className="flex items-baseline gap-1 leading-tight">
+        <span className={`text-[13px] font-bold ${colors.valueText} tabular-nums leading-none`}>{value}</span>
+        <span className={`text-[9.5px] font-semibold ${colors.unitText}`}>{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+// v5.5 — Versao editavel do BigHighlight pra Temp. inicial / Temp. final (cor amber auto / verde manual)
+function BigHighlightInput({ label, value, onChange, unit, min, max, manual }: {
+  label: string; value: number; onChange: (n: number) => void; unit: string; min: number; max: number; manual?: boolean;
+}) {
+  const colors = manual
+    ? { border: "border-emerald-300", bg: "bg-emerald-50", labelText: "text-emerald-700", valueText: "text-emerald-900", unitText: "text-emerald-700" }
+    : { border: "border-amber-300", bg: "bg-amber-50", labelText: "text-amber-700", valueText: "text-amber-900", unitText: "text-amber-700" };
+  return (
+    <div className={`rounded border ${colors.border} ${colors.bg} px-1.5 py-0.5 flex flex-col justify-center overflow-hidden`} style={{ height: '29px' }}>
+      <div className={`text-[8px] uppercase tracking-wide ${colors.labelText} font-semibold leading-tight`}>{label}</div>
+      <div className="flex items-baseline gap-1 leading-tight">
+        <input type="number" min={min} max={max} value={value}
+          onChange={(e) => onChange(Number(e.target.value) || min)}
+          disabled={!manual}
+          className={`bg-transparent text-[13px] font-bold ${colors.valueText} tabular-nums leading-none focus:outline-none w-full min-w-0 print:hidden disabled:cursor-not-allowed`}
+          style={{ height: '14px', padding: 0, margin: 0, border: 0, minHeight: 0 }} />
+        <span className={`hidden print:inline-block text-[13px] font-bold ${colors.valueText} tabular-nums leading-none`}>{value}</span>
+        <span className={`text-[9.5px] font-semibold ${colors.unitText}`}>{unit}</span>
+      </div>
     </div>
   );
 }
@@ -2426,7 +2721,27 @@ function ReadField({ label, value }: { label: string; value: string }) {
   );
 }
 
-function BigStat({ label, value, unit, emphasis }: { label: string; value: string; unit: string; emphasis: "cyan" | "orange" | "emerald" }) {
+// Componente BigStat novo do Resumo Térmico — cards horizontais alinhados, estilo Bomba de Calor
+function BigStat({ color, label, value, unit }: { color: "emerald" | "blue" | "amber" | "violet"; label: string; value: string; unit: string }) {
+  const colors = {
+    emerald: { border: "border-emerald-200", labelText: "text-emerald-700", valueText: "text-emerald-900", unitText: "text-emerald-600", bg: "bg-white" },
+    blue: { border: "border-blue-200", labelText: "text-blue-700", valueText: "text-blue-900", unitText: "text-blue-600", bg: "bg-white" },
+    amber: { border: "border-amber-300", labelText: "text-amber-700", valueText: "text-amber-900", unitText: "text-amber-600", bg: "bg-white" },
+    violet: { border: "border-violet-200", labelText: "text-violet-700", valueText: "text-violet-900", unitText: "text-violet-600", bg: "bg-white" },
+  }[color];
+  return (
+    <div className={`rounded border ${colors.border} ${colors.bg} px-2 py-1.5 flex flex-col`}>
+      <div className={`text-[8.5px] uppercase tracking-wide ${colors.labelText} font-semibold leading-tight`}>{label}</div>
+      <div className="flex items-baseline gap-1 mt-0.5">
+        <span className={`text-[18px] font-bold ${colors.valueText} tabular-nums leading-none`}>{value}</span>
+        <span className={`text-[9.5px] font-medium ${colors.unitText}`}>{unit}</span>
+      </div>
+    </div>
+  );
+}
+
+// Versao legada (mantida pra nao quebrar refs antigas)
+function BigStatLegacy({ label, value, unit, emphasis }: { label: string; value: string; unit: string; emphasis: "cyan" | "orange" | "emerald" }) {
   const cls = emphasis === "cyan" ? "border-cyan-200 from-cyan-50 to-blue-50 text-cyan-900" :
               emphasis === "orange" ? "border-orange-200 from-orange-50 to-amber-50 text-orange-900" :
               "border-emerald-200 from-emerald-50 to-teal-50 text-emerald-900";

@@ -1,6 +1,6 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.03 — proxima release: Solar v5 (datasheet redesign + bug fixes)
+## Versao atual em prod: v1.12.09 — proxima release: Solar v5.6 (header redesign + AutoSelectModal integrado)
 
 ## Em andamento (sessao 208 — 20/05/2026)
 
@@ -9,7 +9,42 @@
 - ✅ **Upload de imagem no header**: nova coluna `PoolBudget.solarHeaderImage` + migration `20260520140000_add_pool_budget_solar_header_image`. Endpoints `POST/DELETE /pool-budgets/:id/solar-header-image` (multer, JPEG/PNG/WebP, max 5MB, salvo em `/uploads/<companyId>/pool-budgets/<id>/`).
 - ✅ **Layout A4 portrait no print**: CSS @media print reescrito.
 
-### Solar v5 — redesign datasheet + bug fixes (PENDING DEPLOY)
+### Solar v5.6 — header redesign + AutoSelectModal integrado (PENDING DEPLOY)
+**Iteracao longa via preview local com usuario (sessao 209+).** 30+ ajustes finos no header do datasheet:
+
+- ✅ **Bloco Cliente/Obra**: nome em destaque, Local + Projeto inline (sem label "CLIENTE / OBRA" acima)
+- ✅ **Dimensoes da piscina** com 5 linhas:
+  - L1: Comp | Larg (Stat compacto)
+  - L2: Prof.min | Prof.max (Stat compacto)
+  - L3: Tipo de piscina (Privativa/Coletiva/Clínica SPA) | Tipo de construção (Aberta/Coberta/Climatizada) — SelectCard
+  - L4: Área | Volume (BigHighlightInput — editável quando MANUAL, verde; readonly quando AUTO, amber)
+  - L5: **Modo de dimensão da piscina** [Automático/Manual] — SelectCard full-width
+- ✅ **Configuracao do aquecimento** com 5 linhas:
+  - L1: Capa termica | Vento (ConfigFieldBig — verde editavel quando MANUAL, cinza disabled quando AUTO)
+  - L2: Orientação telhado | Inclinação
+  - L3: Cidade / Estado (fonte 11.5px maior pra dar destaque)
+  - L4: Temp. inicial | Temp. final (BigHighlightInput — mesma cor amber/verde de Area/Volume)
+  - L5: **Modo da configuração do aquecimento** [Automático/Manual] — SelectCard full-width
+- ✅ **Comportamento Auto/Manual**: campos ficam disabled (auto, cor cinza/amber) ou editaveis (manual, cor verde emerald). Aplicado em Comp/Larg/Prof.min/Prof.max/Area/Volume (Dimensoes) e em todos os campos da Config + Temp. inicial/Temp. final.
+- ✅ **Padronizacao visual**: todos os cards do header (Dim + Config) com mesmo padding (px-1.5 py-px), label dentro 7-7.5px uppercase, valor bold 9.5-11.5px tabular-nums, alturas uniformes (25.3px pros selects, 29px pros highlight Area/Volume/Temp).
+- ✅ **Imagem do produto** mantida em col-span-4 aspect-square no canto direito.
+- ✅ **Espaço em branco que sobrava acima do banner DIMENSIONAMENTO**: movido pro `flex-1` espacejador ENTRE o banner SIMULACAO TERMICA MENSAL e o gráfico (deixa ar antes do grafico, conteudo grudado no banner DIMENSIONAMENTO).
+- ✅ **Banner DIMENSIONAMENTO + SIMULACAO TERMICA**: cor de fundo trocada de slate-900 (preto) → blue-900 (azul marinho mais leve).
+- ✅ **Print CSS print-safe**: header banner azul não dependia mais de "Gráficos de segundo plano" do Chrome (background-color sólido + linear-gradient).
+- ✅ **Selects/Inputs no print**: cada select tem versão `<span className="hidden print:inline-block">` com texto puro do valor selecionado, pra aparecer corretamente no PDF.
+- ✅ **`@media print`**: zera min-height, esconde espacejador flex-1, compacta paddings/font-sizes pra caber em 1 página A4.
+- ✅ **Botão "👁️ Pré-visualizar PDF"** no toolbar do SolarTab — clica e ativa `html.simulating-print`, clona o `#solar-pdf-area` pra `#solar-pdf-clone` direto no body (escapa do tree React), aplica CSS print-like + toolbar de fechar via Portal. Permite testar print SEM abrir o diálogo do Chrome.
+- ✅ **Ícone ✨ (Configurar auto-seleção)** ao lado do dropdown de Coletor Selecionado e da Bomba Recomendada — mesmo padrão da linha das etapas do orçamento.
+- ✅ **AutoSelectModal real integrado**: ao clicar no ✨ do Coletor, abre o `AutoSelectModal` extraido de `quotes/pool/[id]/page.tsx` (export adicionado), com Templates Prontos + Candidatos + Critério + Aplicar regra.
+
+**Pendente futura (não bloqueia deploy):**
+- ⏳ Passar `catalog` real (lista de produtos do tenant) pro AutoSelectModal via props do `SolarTab`. Hoje passa `[]` — em prod "Nenhum candidato" aparece até implementar essa propagação.
+- ⏳ Persistir `rule` salva (callback `onSave`) em `PoolBudget.environmentParams.solarColetorAutoSelectRule` via PATCH `/pool-budgets/:id`.
+- ⏳ Mesmo tratamento pra Bomba Recomendada (✨ ao lado dela).
+- ⏳ Persistir `tipoConstrucao`, `tipoPiscinaSel`, `modoDimensao`, `modoConfigAquec`, `lenOverride`, `widOverride`, `profMin/Max Override`, `area/volumeOverride` em `environmentParams` quando modo=MANUAL. Hoje sao state local UI-only.
+- ⏳ Quando `modoDimensao=MANUAL`, fazer o motor usar os overrides em vez de `budget.poolDimensions` no calculo.
+
+### Solar v5.5 — header completo (PENDING DEPLOY — integrado em v5.6)
 **Iteracao via preview local com usuario (sessao 209).** Mudancas:
 - ✅ **Header**: "Dimensionamento para Coletor Solar" + "ORÇAMENTO" (com cedilha). Removido linha NBR redundante.
 - ✅ **Cliente/Obra**: nome em destaque, sem label "CLIENTE/OBRA" acima. `LOCAL:` e `PROJETO:` com `:` separando label.
