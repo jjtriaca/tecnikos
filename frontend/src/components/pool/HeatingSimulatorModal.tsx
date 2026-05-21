@@ -135,6 +135,10 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onSaved?: () => void;
+  // Catalog do tenant — passado pelo pai (quotes/pool/[id]/page.tsx) pra alimentar
+  // o AutoSelectModal do icone ✨ no Coletor Solar. Sem isso, o modal abre com
+  // catalog=[] e Tipo (Piscina)/Categoria/Candidatos ficam vazios.
+  catalog?: CatalogConfig[];
 }
 
 // ============ Constantes UI ============
@@ -192,6 +196,9 @@ interface SolarCollectorCandidate {
   kwhPorM2: number;
   eficiencia: number;
   salePriceCents?: number;
+  // Specs tecnicas obrigatorias que faltam no cadastro do produto. Quando
+  // populado, dropdown marca ⚠ e recompute lanca erro com a lista de campos.
+  missingSpecs?: string[];
 }
 
 interface SolarMonthlyRow {
@@ -242,7 +249,7 @@ interface SolarReport {
 
 type TabKey = "solar" | "bomba" | "comparativo";
 
-export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props) {
+export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>("solar");
   const [cities, setCities] = useState<HeatingCity[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1300,6 +1307,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved }: Props)
               headerImageUploading={headerImageUploading}
               onUploadHeaderImage={uploadSolarHeaderImage}
               onRemoveHeaderImage={removeSolarHeaderImage}
+              catalog={catalog ?? []}
             />
           )}
 
@@ -1353,6 +1361,7 @@ function SolarTab({
   tempAguaDesejada, setTempAguaDesejada,
   onRecompute,
   headerImage, headerImageUploading, onUploadHeaderImage, onRemoveHeaderImage,
+  catalog,
 }: {
   budget: BudgetForHeating;
   report: SolarReport | null;
@@ -1382,6 +1391,7 @@ function SolarTab({
   headerImageUploading: boolean;
   onUploadHeaderImage: (file: File) => void | Promise<void>;
   onRemoveHeaderImage: () => void | Promise<void>;
+  catalog: CatalogConfig[];
 }) {
   const dims = budget.poolDimensions ?? {};
   const area = Number(dims.area) || 0;
@@ -1430,6 +1440,8 @@ function SolarTab({
   const dispVolume = dimManual ? volumeOverride : volume;
   // v5.3 — modal de selecao do coletor (abrira ao clicar ✨)
   const [showColetorPicker, setShowColetorPicker] = useState(false);
+  // v5.7 — modal de auto-selecao da bomba hidraulica (✨ ao lado da Bomba recomendada)
+  const [showBombaPicker, setShowBombaPicker] = useState(false);
   // v5.3 — pre-visualizacao do PDF dentro da propria pagina.
   // Clona o #solar-pdf-area pra dentro do body via JS quando ativa, pra fugir dos containers Next.js.
   const [pdfPreviewMode, setPdfPreviewMode] = useState(false);
@@ -1715,14 +1727,36 @@ function SolarTab({
                         <option value="">— Padrão —</option>
                         {collectors.map((c) => (
                           <option key={c.productId} value={c.productId}>
-                            {c.modelName} ({c.areaM2.toFixed(2)} m²)
+                            {(c.missingSpecs && c.missingSpecs.length > 0) ? "⚠ " : ""}{c.modelName}
                           </option>
                         ))}
                       </select>
                       <div className="hidden print:block text-[12px] font-semibold bg-amber-50 px-2 py-1 border border-amber-200 rounded flex-1">
-                        {report.selectedCollector.modelName} ({report.selectedCollector.areaM2.toFixed(2)} m²)
+                        {report.selectedCollector.modelName}
                       </div>
                     </div>
+                    {/* Aviso de specs faltando no coletor selecionado (lido do GET /collectors) */}
+                    {(() => {
+                      const sel = collectors.find((c) => c.productId === selectedCollectorId)
+                        ?? (selectedCollectorId == null ? collectors[collectors.length - 1] : null);
+                      const missing = sel?.missingSpecs ?? [];
+                      if (missing.length === 0) return null;
+                      const labels: Record<string, string> = {
+                        areaM2: "Área (m²)",
+                        kwhPorM2: "Radiação útil (kWh por m²/dia)",
+                        eficiencia: "Eficiência (fração 0-1)",
+                      };
+                      return (
+                        <div className="mt-1.5 rounded border border-red-300 bg-red-50 px-2 py-1.5 text-[10.5px] text-red-800 print:hidden">
+                          <strong>⚠ Cadastro incompleto:</strong> faltam {missing.map((k) => labels[k] ?? k).join(", ")} em <a href="/products" className="underline font-semibold">/products</a> (aba Especificações técnicas). O cálculo solar não rodará até completar.
+                        </div>
+                      );
+                    })()}
+                    {collectors.length === 0 && (
+                      <div className="mt-1.5 rounded border border-red-300 bg-red-50 px-2 py-1.5 text-[10.5px] text-red-800 print:hidden">
+                        <strong>⚠ Nenhum coletor solar cadastrado.</strong> Cadastre produtos com <em>Tipo de equipamento = Coletor Solar Piscina</em> em <a href="/products" className="underline font-semibold">/products</a>.
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -1741,10 +1775,11 @@ function SolarTab({
                   <div>
                     <SectionLabel>Bomba recomendada</SectionLabel>
                     <div className="mt-1.5 flex items-center gap-1.5">
-                      {/* Botao ✨ — futuro: modal de auto-selecao de bomba por vazao */}
+                      {/* v5.7: abre AutoSelectModal pra Bomba. Template "🚰 Bomba do Coletor Solar
+                          (vazao do simulador)" filtra produtos por vazaoM3h >= vazaoSolarM3h. */}
                       <button type="button"
-                        onClick={() => alert("Auto-seleção da bomba — em desenvolvimento. Por enquanto, ajuste o modelo manualmente no orçamento.")}
-                        title="Configurar auto-seleção da bomba (em desenvolvimento)"
+                        onClick={() => setShowBombaPicker(true)}
+                        title="Configurar auto-seleção da bomba (filtra por vazão calculada)"
                         className="text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300 print:hidden flex-shrink-0">
                         ✨
                       </button>
@@ -1901,7 +1936,7 @@ function SolarTab({
       {showColetorPicker && (
         <AutoSelectModal
           initialRule={(budget.environmentParams as any)?.solarColetorAutoSelectRule ?? null}
-          catalog={[]}
+          catalog={catalog ?? []}
           dimensions={budget.poolDimensions}
           environmentParams={budget.environmentParams}
           heatingReport={report}
@@ -1918,6 +1953,33 @@ function SolarTab({
           onClear={() => {
             console.log("[Solar] AutoSelect rule limpa");
             setShowColetorPicker(false);
+          }}
+        />
+      )}
+
+      {/* Modal AutoSelect da Bomba hidraulica (v5.7). Usa o mesmo componente do
+          orcamento. Template prefereido: "🚰 Bomba do Coletor Solar (vazao do
+          simulador)" — vazaoM3h >= vazaoSolarM3h (vem de report.vazaoTotalM3h). */}
+      {showBombaPicker && (
+        <AutoSelectModal
+          initialRule={(budget.environmentParams as any)?.solarBombaAutoSelectRule ?? null}
+          catalog={catalog ?? []}
+          dimensions={budget.poolDimensions}
+          environmentParams={budget.environmentParams}
+          heatingReport={report}
+          siblingVars={{}}
+          sectionItems={[]}
+          itemDescription="Bomba do Coletor Solar (Simulador Solar)"
+          currentProductName={report?.bombaRecomendada ?? null}
+          onClose={() => setShowBombaPicker(false)}
+          onSave={(rule: AutoSelectRule) => {
+            // TODO: persistir em environmentParams.solarBombaAutoSelectRule
+            console.log("[Solar] Bomba AutoSelect rule salva (em memoria):", rule);
+            setShowBombaPicker(false);
+          }}
+          onClear={() => {
+            console.log("[Solar] Bomba AutoSelect rule limpa");
+            setShowBombaPicker(false);
           }}
         />
       )}
@@ -2086,6 +2148,16 @@ function SolarTab({
           font-family: ui-sans-serif, system-ui, sans-serif !important;
         }
         .pdf-preview-toolbar { display: none; }
+
+        /* === Tela: escala o datasheet proporcionalmente em viewports grandes ===
+           PDF/print mantem A4 inalterado (zoom: 1 forcado em @media print e
+           em html.simulating-print abaixo). So afeta a visualizacao na tela. */
+        @media (min-width: 1024px) { .solar-screen-wrapper { zoom: 1.15; } }
+        @media (min-width: 1280px) { .solar-screen-wrapper { zoom: 1.30; } }
+        @media (min-width: 1536px) { .solar-screen-wrapper { zoom: 1.50; } }
+        @media (min-width: 1792px) { .solar-screen-wrapper { zoom: 1.70; } }
+        @media print { .solar-screen-wrapper { zoom: 1 !important; } }
+        html.simulating-print .solar-screen-wrapper { zoom: 1 !important; }
       ` }} />
     </>
   );

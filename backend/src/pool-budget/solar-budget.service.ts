@@ -11,12 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SolarService, SolarInputs, SolarReport } from './solar.service';
 import { ClimateDataService } from './climate-data.service';
 import { SolarRecomputeDto } from './dto/solar-simulate.dto';
-import {
-  SOLAR_DEFAULT_COLETOR_AREA_M2,
-  SOLAR_DEFAULT_COLETOR_KWH_M2,
-  SOLAR_DEFAULT_COLETOR_EFICIENCIA,
-  SOLAR_LATITUDE_ABS_BY_UF,
-} from './solar-constants';
+import { SOLAR_LATITUDE_ABS_BY_UF } from './solar-constants';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
@@ -32,7 +27,18 @@ export interface SolarCollectorCandidate {
   kwhPorM2: number;
   eficiencia: number;
   salePriceCents?: number;
+  // Lista de specs tecnicas obrigatorias que NAO estao preenchidas no cadastro do
+  // produto. Quando preenchida, o coletor aparece no dropdown com ⚠ e o motor
+  // lanca BadRequest se for selecionado (em vez de usar defaults silenciosos).
+  missingSpecs?: string[];
 }
+
+// Labels amigaveis pra cada spec exibida ao usuario no erro/aviso.
+const SPEC_FIELD_LABELS: Record<string, string> = {
+  areaM2: 'Area (m²)',
+  kwhPorM2: 'Radiacao util (kWh por m²/dia)',
+  eficiencia: 'Eficiencia (fracao 0-1)',
+};
 
 @Injectable()
 export class SolarBudgetService {
@@ -69,16 +75,22 @@ export class SolarBudgetService {
       })
       .map((p) => {
         const specs = (p.technicalSpecs ?? {}) as Record<string, any>;
-        const areaM2 = Number(specs.areaM2) || Number(specs.coletorAreaM2) || SOLAR_DEFAULT_COLETOR_AREA_M2;
-        const kwhPorM2 = Number(specs.kwhPorM2) || Number(specs.kwhM2) || SOLAR_DEFAULT_COLETOR_KWH_M2;
-        const eficiencia = Number(specs.eficiencia) || SOLAR_DEFAULT_COLETOR_EFICIENCIA;
+        const areaM2 = Number(specs.areaM2) || Number(specs.coletorAreaM2) || 0;
+        const kwhPorM2 = Number(specs.kwhPorM2) || Number(specs.kwhM2) || 0;
+        const eficiencia = Number(specs.eficiencia) || 0;
+        const missingSpecs: string[] = [];
+        if (areaM2 <= 0) missingSpecs.push('areaM2');
+        if (kwhPorM2 <= 0) missingSpecs.push('kwhPorM2');
+        if (eficiencia <= 0) missingSpecs.push('eficiencia');
         return {
           productId: p.id,
-          modelName: p.model || p.description || p.code || 'Coletor Solar',
+          // Usa EXATAMENTE a description cadastrada — fallback so se vazia
+          modelName: p.description?.trim() || p.model?.trim() || p.code || 'Coletor Solar',
           areaM2,
           kwhPorM2,
           eficiencia,
           salePriceCents: p.salePriceCents ?? undefined,
+          ...(missingSpecs.length > 0 ? { missingSpecs } : {}),
         };
       })
       .sort((a, b) => a.areaM2 - b.areaM2);
@@ -107,17 +119,25 @@ export class SolarBudgetService {
     }
 
     const candidates = await this.listSolarCollectors(companyId);
+    if (candidates.length === 0) {
+      throw new BadRequestException(
+        'Nenhum coletor solar cadastrado. Cadastre produtos com Tipo de equipamento = "Coletor Solar Piscina" em /products.',
+      );
+    }
     const selected = params.collectorProductId
       ? candidates.find((c) => c.productId === params.collectorProductId)
       : candidates[candidates.length - 1]; // padrao = ultimo (geralmente maior modelo)
 
-    const coletor = selected ?? {
-      productId: undefined,
-      modelName: 'Coletor Solar (padrao)',
-      areaM2: SOLAR_DEFAULT_COLETOR_AREA_M2,
-      kwhPorM2: SOLAR_DEFAULT_COLETOR_KWH_M2,
-      eficiencia: SOLAR_DEFAULT_COLETOR_EFICIENCIA,
-    };
+    if (!selected) {
+      throw new BadRequestException('Coletor solar selecionado nao foi encontrado no catalogo do tenant.');
+    }
+    if (selected.missingSpecs && selected.missingSpecs.length > 0) {
+      const lista = selected.missingSpecs.map((k) => SPEC_FIELD_LABELS[k] ?? k).join(', ');
+      throw new BadRequestException(
+        `Coletor "${selected.modelName}" esta com cadastro incompleto. Caracteristicas faltando: ${lista}. Edite o produto em /products na aba Especificacoes tecnicas.`,
+      );
+    }
+    const coletor = selected;
 
     const inputs: SolarInputs = {
       areaPiscinaM2: params.areaPiscinaM2,

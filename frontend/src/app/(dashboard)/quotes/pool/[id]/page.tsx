@@ -987,6 +987,7 @@ export default function PoolBudgetDetailPage() {
         open={showHeatingSimulator}
         onClose={() => setShowHeatingSimulator(false)}
         onSaved={async () => { await load(); }}
+        catalog={catalog}
       />
 
 
@@ -1944,6 +1945,7 @@ const FORMULA_VARS = [
   // Solar (Fase 6) — vars do dimensionamento solar (environmentParams.solarReport)
   'solarQty',
   'solarNumBaterias',
+  'vazaoSolarM3h',
   'hidromassagens', 'cascataCm', 'bordaInfinitaM',
 ] as const;
 const FORMULA_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
@@ -2171,6 +2173,10 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
     // Fase 6 (Solar): vars do solarReport (environmentParams.solarReport)
     solarQty: Number((environmentParams as any)?.solarReport?.qtdColetores) || 0,
     solarNumBaterias: Number((environmentParams as any)?.solarReport?.numBaterias) || 0,
+    // Vazao total calculada pelo Simulador Solar — usada pelo template
+    // "Bomba do Coletor Solar (vazao do simulador)" pra filtrar bombas com
+    // vazaoM3h >= vazaoSolarM3h.
+    vazaoSolarM3h: Number((environmentParams as any)?.solarReport?.vazaoTotalM3h) || 0,
     hidromassagens: Number(environmentParams?.hidromassagensQtd) || 0,
     cascataCm: Number(environmentParams?.cascataLarguraCm) || 0,
     bordaInfinitaM: Number(environmentParams?.bordaInfinitaM) || 0,
@@ -2724,6 +2730,30 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
     },
   },
   {
+    icon: '🚰',
+    label: 'Bomba do Coletor Solar (vazao do simulador)',
+    description: 'Bomba hidraulica de recirculacao pros coletores solares. Filtra bombas com vazaoM3h >= vazaoSolarM3h (calculada pelo Simulador Solar). Escolhe a menor que atende. Folga ideal 0-50%.',
+    rule: {
+      filterPoolType: 'Bomba',
+      filterCategoria: null,
+      filterDescription: 'Bomba',
+      where: 'vazaoM3h >= vazaoSolarM3h',
+      orderBy: 'vazaoM3h asc',
+      indicator: {
+        label: 'Folga vazao',
+        expr: '(vazaoM3h - vazaoSolarM3h) / vazaoSolarM3h * 100',
+        unit: '%',
+        levels: [
+          { max: 0, label: 'Insuficiente', color: 'red' },
+          { max: 10, label: 'Justo', color: 'orange' },
+          { max: 50, label: 'Adequado', color: 'emerald' },
+          { max: 150, label: 'Folgado', color: 'yellow' },
+          { max: 99999, label: 'Super-dim.', color: 'red' },
+        ],
+      },
+    },
+  },
+  {
     icon: '🔥',
     label: 'Bomba de Calor (preciso — termodinamico)',
     description: 'Seleciona Bomba de Calor com base no Simulador de Aquecimento. Usa calorNecessarioKcalH calculado por fisica termodinamica + dados climaticos do UF/cidade configurados em "🔥 Aquecimento". Folga ideal 30-70%.',
@@ -3070,6 +3100,10 @@ export function AutoSelectModal({
       // Calor necessario do simulador de aquecimento (v1.11.69) — usado pelo
       // template "Bomba de Calor (preciso)" pra filtrar candidatos.
       calorNecessarioKcalH: Number(heatingReport?.calorNecessarioKcalH) || 0,
+      // Vazao total do Simulador Solar — usada pelo template "Bomba do Coletor
+      // Solar (vazao do simulador)". Le de heatingReport (que quando aberto pelo
+      // SolarTab eh o SolarReport com vazaoTotalM3h).
+      vazaoSolarM3h: Number((heatingReport as any)?.vazaoTotalM3h) || 0,
       // Sibling vars resolvidas: linkedCellRef se definido, senao siblingVars genericos.
       ...effectiveSiblingVars,
     };
