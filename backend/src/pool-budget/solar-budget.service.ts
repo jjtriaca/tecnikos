@@ -27,6 +27,9 @@ export interface SolarCollectorCandidate {
   kwhPorM2: number;
   eficiencia: number;
   salePriceCents?: number;
+  // URL da imagem cadastrada no Product (aparece no header do PDF do Simulador
+  // quando este coletor esta selecionado).
+  imageUrl?: string | null;
   // Lista de specs tecnicas obrigatorias que NAO estao preenchidas no cadastro do
   // produto. Quando preenchida, o coletor aparece no dropdown com ⚠ e o motor
   // lanca BadRequest se for selecionado (em vez de usar defaults silenciosos).
@@ -74,7 +77,7 @@ export class SolarBudgetService {
       },
       select: {
         id: true, code: true, description: true, model: true,
-        poolType: true,
+        poolType: true, imageUrl: true,
         salePriceCents: true, technicalSpecs: true,
       },
     });
@@ -109,6 +112,7 @@ export class SolarBudgetService {
           kwhPorM2,
           eficiencia,
           salePriceCents: p.salePriceCents ?? undefined,
+          imageUrl: p.imageUrl ?? null,
           ...(missingSpecs.length > 0 ? { missingSpecs } : {}),
         };
       })

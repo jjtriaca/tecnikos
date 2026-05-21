@@ -338,7 +338,6 @@ interface ProductForm {
   specEficiencia: string;            // UI em % (0..100); storage como fracao 0..1
   specClasseEficiencia: string;      // 'A'..'E' (Classificacao PBE — Procel)
   specPressaoFuncionamentokPa: string; // kPa (Pressao de Funcionamento — Procel)
-  specMaterialAbsorvedor: string;    // ex: 'Polipropileno', 'Polietileno', 'Vidro Borossilicato'
   // Specs especificas por tipo de equipamento (F6.2 — agregadas pelo Simulador)
   specQtdJatos: string;            // Hidromassagem/SPA — qtde de jatos do kit
   specCascataComprimentoCm: string; // Cascata — comprimento do bocal em cm
@@ -400,7 +399,6 @@ const EMPTY_FORM: ProductForm = {
   specEficiencia: "",
   specClasseEficiencia: "",
   specPressaoFuncionamentokPa: "",
-  specMaterialAbsorvedor: "",
   specQtdJatos: "",
   specCascataComprimentoCm: "",
   specBordaAlturaQuedaM: "",
@@ -460,7 +458,6 @@ function productToForm(p: Product): ProductForm {
     specKwhPorM2: numericSpecToStr(p.technicalSpecs?.kwhPorM2 ?? p.technicalSpecs?.kwhM2),
     specClasseEficiencia: typeof p.technicalSpecs?.classeEficiencia === 'string' ? p.technicalSpecs.classeEficiencia : "",
     specPressaoFuncionamentokPa: numericSpecToStr(p.technicalSpecs?.pressaoFuncionamentokPa),
-    specMaterialAbsorvedor: typeof p.technicalSpecs?.materialAbsorvedor === 'string' ? p.technicalSpecs.materialAbsorvedor : "",
     // Eficiencia: storage como fracao 0..1 → UI em % (0..100). Ex: 0.732 → "73.2"
     specEficiencia: (() => {
       const v = p.technicalSpecs?.eficiencia;
@@ -517,11 +514,9 @@ function buildTechnicalSpecs(f: ProductForm, existing?: Record<string, any>): Re
   setOrUnset("areaM2", f.specColetorAreaM2);
   setOrUnset("kwhPorM2", f.specKwhPorM2);
   setOrUnset("pressaoFuncionamentokPa", f.specPressaoFuncionamentokPa);
-  // classeEficiencia e materialAbsorvedor sao strings — salva direto ou remove se vazio
+  // classeEficiencia eh string — salva direto ou remove se vazio
   if (f.specClasseEficiencia.trim()) merged.classeEficiencia = f.specClasseEficiencia.trim().toUpperCase();
   else delete merged.classeEficiencia;
-  if (f.specMaterialAbsorvedor.trim()) merged.materialAbsorvedor = f.specMaterialAbsorvedor.trim();
-  else delete merged.materialAbsorvedor;
   // Eficiencia: UI em % → storage como fracao 0..1. Ex: 73.2 → 0.732
   if (f.specEficiencia.trim() === "") {
     delete merged.eficiencia;
@@ -1222,6 +1217,19 @@ export default function ProductsPage() {
             <div className="flex-1 overflow-y-auto px-6 py-5">
               {/* ── Tab: Geral ─────────────────────────── */}
               {modalTab === "geral" && (
+                <>
+                  {/* Imagem do produto — aparece no inicio da aba Geral */}
+                  {editingProduct ? (
+                    <ProductImageBlock
+                      productId={editingProduct.id}
+                      currentImageUrl={editingProduct.imageUrl ?? null}
+                      onChange={async () => { await loadProducts(); }}
+                    />
+                  ) : (
+                    <div className="mb-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                      📷 <strong>Imagem do produto:</strong> salve o produto primeiro. Depois reabra pra fazer upload.
+                    </div>
+                  )}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   <div>
                     <label className={labelClass}>Código de Barras</label>
@@ -1352,6 +1360,7 @@ export default function ProductsPage() {
                     </select>
                   </div>
                 </div>
+                </>
               )}
 
               {/* ── Tab: Impostos ──────────────────────── */}
@@ -2073,7 +2082,7 @@ export default function ProductsPage() {
                       </div>
                     </div>
                     {/* Linha 2: campos informativos da etiqueta Procel (nao afetam calculo) */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                       <div>
                         <FieldLabel required={currentRequiredSpecs.has('classeEficiencia')} help="Classificacao do PBE Procel — letra A a E baseada na Producao Especifica (PMEe). A: >98 kWh/mes·m². B: 90-98. C: 80-90. D: 70-80. E: 65-70.">
                           Classificacao PBE (A-E)
@@ -2093,15 +2102,9 @@ export default function ProductsPage() {
                         </FieldLabel>
                         <input type="number" step="1" min="0" value={form.specPressaoFuncionamentokPa} onChange={(e) => setField("specPressaoFuncionamentokPa", e.target.value)} placeholder="Ex: 196" className={inputClass} />
                       </div>
-                      <div>
-                        <FieldLabel required={currentRequiredSpecs.has('materialAbsorvedor')} help="Material da superficie que absorve a radiacao solar. Comum: Polipropileno, Polietileno, Vidro Borossilicato, Polimero Especial. Vai na etiqueta Procel.">
-                          Material absorvedor
-                        </FieldLabel>
-                        <input type="text" value={form.specMaterialAbsorvedor} onChange={(e) => setField("specMaterialAbsorvedor", e.target.value)} placeholder="Ex: Polipropileno" className={inputClass} />
-                      </div>
                     </div>
                     <p className="mt-2 text-[11px] text-slate-500">
-                      <strong>Obrigatorios pro Simulador Solar</strong>: Area, Producao Especifica e Eficiencia. <strong>Informativos</strong> (vao pro PDF do orcamento): Classificacao, Pressao e Material. Todos os campos espelham a <a href="https://www.gov.br/inmetro/pt-br/assuntos/avaliacao-da-conformidade/programa-brasileiro-de-etiquetagem/tabelas-de-eficiencia-energetica/equipamentos-de-aquecimento-solar-de-agua" target="_blank" rel="noopener" className="underline text-cyan-700">etiqueta Procel/Inmetro PBE</a>.
+                      <strong>Obrigatorios pro Simulador Solar</strong>: Area, Producao Especifica e Eficiencia. <strong>Informativos</strong> (vao pro PDF): Classificacao e Pressao. Todos os campos espelham a <a href="https://www.gov.br/inmetro/pt-br/assuntos/avaliacao-da-conformidade/programa-brasileiro-de-etiquetagem/tabelas-de-eficiencia-energetica/equipamentos-de-aquecimento-solar-de-agua" target="_blank" rel="noopener" className="underline text-cyan-700">etiqueta Procel/Inmetro PBE</a>.
                     </p>
                   </CollapsibleCard>
 
@@ -2165,6 +2168,101 @@ export default function ProductsPage() {
           onChanged={reloadPoolTypes}
         />
       )}
+    </div>
+  );
+}
+
+// ============ Bloco de imagem do produto ============
+// Upload via multipart pra POST /products/:id/image. Mostra preview.
+// Usado tanto no cadastro normal quanto exibido no Simulador Solar (coletor selecionado).
+function ProductImageBlock({
+  productId,
+  currentImageUrl,
+  onChange,
+}: {
+  productId: string;
+  currentImageUrl: string | null;
+  onChange: () => void | Promise<void>;
+}) {
+  const { toast } = useToast();
+  const [uploading, setUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(currentImageUrl);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => { setPreviewUrl(currentImageUrl); }, [currentImageUrl]);
+
+  async function handleSelectFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      toast("Use JPEG, PNG ou WebP.", "error");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast("Imagem muito grande (max 5MB).", "error");
+      return;
+    }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await api.post<{ imageUrl: string }>(`/products/${productId}/image`, fd);
+      setPreviewUrl(res.imageUrl);
+      toast("Imagem enviada.", "success");
+      await onChange();
+    } catch (err: any) {
+      toast(String(err?.payload?.message ?? err?.message ?? "Erro ao enviar imagem"), "error");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  async function handleRemove() {
+    if (!previewUrl) return;
+    if (!confirm("Remover a imagem deste produto?")) return;
+    setUploading(true);
+    try {
+      await api.del(`/products/${productId}/image`);
+      setPreviewUrl(null);
+      toast("Imagem removida.", "success");
+      await onChange();
+    } catch (err: any) {
+      toast(String(err?.payload?.message ?? err?.message ?? "Erro ao remover imagem"), "error");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div className="mb-4 rounded-lg border border-slate-200 bg-white p-3 flex items-center gap-4">
+      <div className="w-24 h-24 shrink-0 rounded-lg border border-dashed border-slate-300 bg-slate-50 overflow-hidden flex items-center justify-center">
+        {previewUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={previewUrl} alt="Produto" className="w-full h-full object-cover" />
+        ) : (
+          <span className="text-[10px] text-slate-400 text-center px-2">Sem imagem</span>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-semibold text-slate-900">📷 Imagem do produto</div>
+        <div className="text-[11px] text-slate-600 mt-0.5">
+          JPEG / PNG / WebP — max 5MB. Aparece no PDF do orçamento e no Simulador (quando o produto for o coletor solar selecionado).
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleSelectFile} className="hidden" />
+          <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading}
+            className="rounded border border-cyan-300 bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-800 hover:bg-cyan-100 disabled:opacity-50">
+            {uploading ? "Enviando..." : previewUrl ? "Trocar imagem" : "Enviar imagem"}
+          </button>
+          {previewUrl && (
+            <button type="button" onClick={handleRemove} disabled={uploading}
+              className="rounded border border-rose-300 bg-white px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">
+              Remover
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2246,7 +2344,6 @@ export const PRODUCT_SPECS_GROUPED: Array<{ block: string; group: string; specs:
     { key: 'eficiencia', label: 'Eficiencia energetica media (%)' },
     { key: 'classeEficiencia', label: 'Classificacao PBE (A-E)' },
     { key: 'pressaoFuncionamentokPa', label: 'Pressao funcionamento (kPa)' },
-    { key: 'materialAbsorvedor', label: 'Material da superficie absorvedora' },
   ]},
   { block: 'eletrico', group: '⚡ Eletrico', specs: [
     { key: 'potenciaCv', label: 'Potencia (CV)' },
@@ -2293,7 +2390,6 @@ export const SPEC_KEY_TO_FORM_FIELD: Record<string, string> = {
   eficiencia: 'specEficiencia',
   classeEficiencia: 'specClasseEficiencia',
   pressaoFuncionamentokPa: 'specPressaoFuncionamentokPa',
-  materialAbsorvedor: 'specMaterialAbsorvedor',
   potenciaCv: 'specPotenciaCv',
   voltagem: 'specVoltagem',
   amperagem: 'specAmperagem',

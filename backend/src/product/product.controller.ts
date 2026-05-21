@@ -7,7 +7,10 @@ import {
   Param,
   Query,
   Body,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
 import { ProductService } from './product.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
@@ -97,6 +100,25 @@ export class ProductController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.setTypeRequiredFields(user.companyId, body?.name, body?.requiredFields ?? []);
+  }
+
+  /* ── Upload de imagem do produto ── */
+
+  @Roles(UserRole.ADMIN)
+  @Post(':id/image')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadImage(
+    @Param('id') id: string,
+    @UploadedFile() file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.uploadImage(id, user.companyId, file);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Delete(':id/image')
+  removeImage(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.removeImage(id, user.companyId);
   }
 
   /* ── List filter options (categories + brands + poolTypes) ── */

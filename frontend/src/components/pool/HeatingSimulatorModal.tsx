@@ -196,6 +196,7 @@ interface SolarCollectorCandidate {
   kwhPorM2: number;
   eficiencia: number;
   salePriceCents?: number;
+  imageUrl?: string | null;
   // Specs tecnicas obrigatorias que faltam no cadastro do produto. Quando
   // populado, dropdown marca ⚠ e recompute lanca erro com a lista de campos.
   missingSpecs?: string[];
@@ -265,6 +266,9 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
   // v5.8 — regras de auto-selecao do tenant (config global, nao por orcamento)
   const [solarColetorRule, setSolarColetorRule] = useState<AutoSelectRule | null>(null);
   const [solarBombaRule, setSolarBombaRule] = useState<AutoSelectRule | null>(null);
+
+  // v5.9 — ref do container scrollavel pra preservar scrollTop em recomputes
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [solarExtraPct, setSolarExtraPct] = useState(0);
   const [solarSelectedCollectorId, setSolarSelectedCollectorId] = useState<string | null>(null);
   const [selectedMonthIdx, setSelectedMonthIdx] = useState<number>(5); // Junho default (mes critico)
@@ -451,11 +455,14 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
 
   // Recompute solar — chamado quando o operador muda coletor/extra/temp ou clica botao.
   // v5: aceita orientacao/inclinacao/tempInicial como overrides extras pra persistir em env.
+  // v5.9: preserva scrollTop do container — re-render do setSolarReport + onSaved
+  // (await load() no parent) reseta o layout e jogava o scroll pro topo.
   async function recomputeSolar(
     extraPct?: number,
     collectorId?: string | null,
     extras?: { orientacaoTelhado?: string; inclinacaoTelhadoGraus?: number; temperaturaAguaInicial?: number },
   ) {
+    const savedScrollTop = scrollContainerRef.current?.scrollTop ?? 0;
     setSolarRecomputing(true);
     setError(null);
     try {
@@ -476,6 +483,12 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
       const r = await api.post<SolarReport>(`/pool-budgets/${budget.id}/solar-report/recompute`, body);
       setSolarReport(r);
       onSaved?.();
+      // Restaura scroll apos o re-render (2 RAFs pra cobrir layout + repaint do zoom CSS)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (scrollContainerRef.current) scrollContainerRef.current.scrollTop = savedScrollTop;
+        });
+      });
     } catch (e: any) {
       setError(String(e?.message ?? e));
     } finally {
@@ -740,7 +753,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
         </div>
 
         {/* Conteudo */}
-        <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-6 bg-slate-50">
           {error && (
             <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-900">
               ⚠ {error}
@@ -1502,6 +1515,20 @@ function SolarTab({
   // v5.3 — pre-visualizacao do PDF dentro da propria pagina.
   // Clona o #solar-pdf-area pra dentro do body via JS quando ativa, pra fugir dos containers Next.js.
   const [pdfPreviewMode, setPdfPreviewMode] = useState(false);
+
+  // v5.9 — zoom manual do datasheet, alem do zoom automatico por viewport (CSS).
+  // Persistido em localStorage. null = usa o auto via CSS @media (lg/xl/2xl).
+  const [manualZoom, setManualZoom] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    const v = window.localStorage.getItem("solar:manualZoom");
+    const n = v ? Number(v) : NaN;
+    return Number.isFinite(n) && n >= 0.5 && n <= 2.5 ? n : null;
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (manualZoom == null) window.localStorage.removeItem("solar:manualZoom");
+    else window.localStorage.setItem("solar:manualZoom", String(manualZoom));
+  }, [manualZoom]);
   useEffect(() => {
     if (typeof document === "undefined") return;
     const cleanup = () => {
@@ -1539,6 +1566,27 @@ function SolarTab({
           <a href="/settings/climate-data" className="ml-2 text-cyan-700 hover:underline">Editar dados climaticos</a>
         </div>
         <div className="flex items-center gap-2">
+          {/* Controle de zoom manual (v5.9). Sobrescreve o automatico baseado em viewport. */}
+          <div className="flex items-center gap-0.5 rounded-md border border-slate-300 bg-white px-1 py-0.5" title="Zoom da pre-visualizacao">
+            <button
+              type="button"
+              onClick={() => setManualZoom((z) => Math.max(0.6, Math.round(((z ?? 1) - 0.1) * 10) / 10))}
+              className="w-6 h-6 rounded text-xs font-bold text-slate-700 hover:bg-slate-100"
+              title="Diminuir zoom"
+            >−</button>
+            <button
+              type="button"
+              onClick={() => setManualZoom(null)}
+              className="px-1.5 h-6 rounded text-[10px] font-semibold text-slate-600 hover:bg-slate-100 tabular-nums min-w-[42px]"
+              title="Resetar zoom (volta ao automatico por viewport)"
+            >{manualZoom != null ? `${Math.round(manualZoom * 100)}%` : "Auto"}</button>
+            <button
+              type="button"
+              onClick={() => setManualZoom((z) => Math.min(2.5, Math.round(((z ?? 1) + 0.1) * 10) / 10))}
+              className="w-6 h-6 rounded text-xs font-bold text-slate-700 hover:bg-slate-100"
+              title="Aumentar zoom"
+            >+</button>
+          </div>
           <button onClick={() => onRecompute()} disabled={recomputing || !uf}
             className="rounded-md bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:bg-slate-300 transition shadow-sm">
             {recomputing ? "Recalculando..." : "Recalcular dimensionamento"}
@@ -1557,7 +1605,10 @@ function SolarTab({
       {/* === Folha A4 (datasheet) ===
           Tela: max-w-[820px] + altura A4 via wrapper (sem min-h direto no solar-pdf-area)
           Print: o min-h fica num wrapper.solar-screen-only, neutralizado via display:contents */}
-      <div className="mx-auto max-w-[820px] print:max-w-none solar-screen-wrapper">
+      <div
+        className="mx-auto max-w-[820px] print:max-w-none solar-screen-wrapper"
+        style={manualZoom != null ? ({ zoom: manualZoom } as React.CSSProperties) : undefined}
+      >
         <div id="solar-pdf-area" className="bg-white text-slate-900 font-sans border border-slate-200 shadow-sm print:border-0 print:shadow-none flex flex-col min-h-[1120px]">
 
           {/* ============ HEADER BANNER ============
@@ -1727,12 +1778,28 @@ function SolarTab({
             </div>
 
             <div className="col-span-4">
-              <HeaderImageBlock
-                imageUrl={headerImage}
-                uploading={headerImageUploading}
-                onUpload={onUploadHeaderImage}
-                onRemove={onRemoveHeaderImage}
-              />
+              {/* v5.9: prioriza imagem do produto coletor selecionado. Fallback pra
+                  imagem cadastrada manualmente no orcamento (legado solarHeaderImage). */}
+              {(() => {
+                const selectedColetor = collectors.find((c) => c.productId === selectedCollectorId);
+                const productImg = selectedColetor?.imageUrl ?? null;
+                if (productImg) {
+                  return (
+                    <div className="w-full aspect-square rounded border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={productImg} alt={selectedColetor?.modelName ?? "Coletor"} className="w-full h-full object-contain" />
+                    </div>
+                  );
+                }
+                return (
+                  <HeaderImageBlock
+                    imageUrl={headerImage}
+                    uploading={headerImageUploading}
+                    onUpload={onUploadHeaderImage}
+                    onRemove={onRemoveHeaderImage}
+                  />
+                );
+              })()}
             </div>
           </section>
 

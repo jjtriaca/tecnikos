@@ -44,6 +44,8 @@ export interface Product {
   // voltagem, amperagem, bifTrif, tempoMontagemH.
   // Usadas pelo auto-selecao de produto (auto-select.helper.ts).
   technicalSpecs?: Record<string, any>;
+  // URL relativa da imagem do produto (CDN ou /uploads/<companyId>/products/<id>/...)
+  imageUrl?: string | null;
   createdAt: string;
   updatedAt: string;
   equivalents?: ProductEquivalent[];

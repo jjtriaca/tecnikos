@@ -111,6 +111,7 @@ export function HelpHint({ text, width = 288, tone = "slate" }: Props) {
       <button
         ref={btnRef}
         type="button"
+        tabIndex={-1}
         onClick={handleClick}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}

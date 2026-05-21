@@ -12,6 +12,13 @@ import { buildOrderBy } from '../common/util/build-order-by';
 import { buildSearchWhere } from '../common/util/build-search-where';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import * as fs from 'fs';
+import * as path from 'path';
+import { randomUUID } from 'crypto';
+
+const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
+const IMG_ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
+const IMG_MAX_SIZE = 5 * 1024 * 1024; // 5MB
 
 const PRODUCT_SORTABLE = [
   'description',
@@ -313,6 +320,59 @@ export class ProductService {
       where: { id: companyId },
       data: { systemConfig: cfg as any },
     });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     Upload da imagem do produto — segue padrao do solar-budget.service
+     Salva em /uploads/<companyId>/products/<productId>/<file>
+     ═══════════════════════════════════════════════════════════════ */
+
+  async uploadImage(
+    productId: string,
+    companyId: string,
+    file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+  ): Promise<{ imageUrl: string }> {
+    if (!IMG_ALLOWED_MIME.includes(file.mimetype)) {
+      throw new BadRequestException('Tipo de arquivo nao permitido. Use JPEG, PNG ou WebP.');
+    }
+    if (file.size > IMG_MAX_SIZE) {
+      throw new BadRequestException('Arquivo muito grande. Maximo: 5MB.');
+    }
+
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, companyId, deletedAt: null },
+      select: { id: true, imageUrl: true },
+    });
+    if (!product) throw new NotFoundException('Produto nao encontrado');
+
+    if (product.imageUrl) this.deleteFileIfLocal(product.imageUrl);
+
+    const ext = (path.extname(file.originalname) || '.png').toLowerCase();
+    const fileName = `image-${randomUUID()}${ext}`;
+    const dirPath = path.join(UPLOAD_DIR, companyId, 'products', productId);
+    fs.mkdirSync(dirPath, { recursive: true });
+    fs.writeFileSync(path.join(dirPath, fileName), file.buffer);
+
+    const imageUrl = `/uploads/${companyId}/products/${productId}/${fileName}`;
+    await this.prisma.product.update({ where: { id: productId }, data: { imageUrl } });
+    return { imageUrl };
+  }
+
+  async removeImage(productId: string, companyId: string): Promise<{ imageUrl: null }> {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, companyId, deletedAt: null },
+      select: { id: true, imageUrl: true },
+    });
+    if (!product) throw new NotFoundException('Produto nao encontrado');
+    if (product.imageUrl) this.deleteFileIfLocal(product.imageUrl);
+    await this.prisma.product.update({ where: { id: productId }, data: { imageUrl: null } });
+    return { imageUrl: null };
+  }
+
+  private deleteFileIfLocal(urlOrPath: string): void {
+    if (!urlOrPath || !urlOrPath.startsWith('/uploads/')) return;
+    const abs = path.join(process.cwd(), urlOrPath.replace(/^\//, ''));
+    try { if (fs.existsSync(abs)) fs.unlinkSync(abs); } catch { /* ignora */ }
   }
 
   /* ═══════════════════════════════════════════════════════════════
