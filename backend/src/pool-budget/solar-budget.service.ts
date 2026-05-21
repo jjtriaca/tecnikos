@@ -1,7 +1,7 @@
 // Wrapper de SolarService que integra com Prisma (PoolBudget + Product + ClimateData).
 // Responsabilidades:
 //  - Resolve dados climaticos via ClimateDataService
-//  - Lista coletores cadastrados (Product.technicalSpecs.tipoEquipamento=SOLAR)
+//  - Lista coletores aplicando a regra do tenant (Company.systemConfig.pool.solarCollectorRule)
 //  - Computa report e salva em PoolBudget.environmentParams.solarReport
 //
 // SolarService permanece puro pra ser testavel sem DB.
@@ -52,8 +52,18 @@ export class SolarBudgetService {
 
   // ============ Coletores ============
 
-  /** Lista produtos com tipoEquipamento=SOLAR cadastrados no tenant. */
+  /**
+   * Lista candidatos a coletor solar do tenant aplicando a regra de filtro
+   * salva em Company.systemConfig.pool.solarCollectorRule.
+   *
+   * Sem regra configurada (ou regra com todos os filtros vazios), retorna [] —
+   * o frontend exibe aviso "Configure a regra no ✨". Nao ha mais filtro fixo
+   * por tipoEquipamento — TUDO depende da regra que o usuario configura.
+   */
   async listSolarCollectors(companyId: string): Promise<SolarCollectorCandidate[]> {
+    const rule = await this.getSolarCollectorRule(companyId);
+    if (!this.ruleHasAnyFilter(rule)) return [];
+
     const products = await this.prisma.product.findMany({
       where: {
         companyId,
@@ -63,15 +73,23 @@ export class SolarBudgetService {
       },
       select: {
         id: true, code: true, description: true, model: true,
+        poolType: true,
         salePriceCents: true, technicalSpecs: true,
       },
     });
+
+    const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const filterPoolType = String(rule.filterPoolType ?? '').trim();
+    const filterCategoria = String(rule.filterCategoria ?? '').trim();
+    const filterDescription = String(rule.filterDescription ?? '').trim();
+
     return products
       .filter((p) => {
         const specs = (p.technicalSpecs ?? {}) as Record<string, any>;
-        // Aceita o novo tipo (COLETOR_SOLAR_PISCINA) e o legado (SOLAR) pra nao quebrar
-        // produtos cadastrados antes da migracao
-        return specs.tipoEquipamento === 'COLETOR_SOLAR_PISCINA' || specs.tipoEquipamento === 'SOLAR';
+        if (filterPoolType && norm(p.poolType ?? '') !== norm(filterPoolType)) return false;
+        if (filterCategoria && norm(String(specs.categoriaPlanilha ?? '')) !== norm(filterCategoria)) return false;
+        if (filterDescription && !norm(p.description ?? '').includes(norm(filterDescription))) return false;
+        return true;
       })
       .map((p) => {
         const specs = (p.technicalSpecs ?? {}) as Record<string, any>;
@@ -120,8 +138,14 @@ export class SolarBudgetService {
 
     const candidates = await this.listSolarCollectors(companyId);
     if (candidates.length === 0) {
+      const rule = await this.getSolarCollectorRule(companyId);
+      if (!this.ruleHasAnyFilter(rule)) {
+        throw new BadRequestException(
+          'Regra de auto-selecao do coletor solar nao configurada. Abra o Simulador, clique no ✨ ao lado do Coletor e defina o filtro (filterPoolType ou filterDescription) pra escolher quais produtos do catalogo entram no dropdown.',
+        );
+      }
       throw new BadRequestException(
-        'Nenhum coletor solar cadastrado. Cadastre produtos com Tipo de equipamento = "Coletor Solar Piscina" em /products.',
+        'Nenhum produto do catalogo passa na regra atual de auto-selecao do coletor solar. Revise a regra no ✨ ou ajuste os filtros (filterPoolType / filterDescription / filterCategoria).',
       );
     }
     const selected = params.collectorProductId
@@ -228,6 +252,63 @@ export class SolarBudgetService {
     if (!budget) throw new NotFoundException('Orcamento nao encontrado');
     const env = (budget.environmentParams ?? {}) as Record<string, any>;
     return (env.solarReport as SolarReport) ?? null;
+  }
+
+  // ============ Regra de auto-selecao do Coletor e da Bomba (config do tenant) ============
+  // Salva em Company.systemConfig.pool.{solarCollectorRule|solarBombaRule}.
+  // O Simulador Solar le essas regras pra montar o dropdown — sem regra, dropdown vazio.
+
+  async getSolarCollectorRule(companyId: string): Promise<any | null> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    const rule = (company?.systemConfig as any)?.pool?.solarCollectorRule;
+    return rule && typeof rule === 'object' ? rule : null;
+  }
+
+  async setSolarCollectorRule(companyId: string, rule: any | null): Promise<{ rule: any | null }> {
+    return this.setTenantPoolKey(companyId, 'solarCollectorRule', rule);
+  }
+
+  async getSolarBombaRule(companyId: string): Promise<any | null> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    const rule = (company?.systemConfig as any)?.pool?.solarBombaRule;
+    return rule && typeof rule === 'object' ? rule : null;
+  }
+
+  async setSolarBombaRule(companyId: string, rule: any | null): Promise<{ rule: any | null }> {
+    return this.setTenantPoolKey(companyId, 'solarBombaRule', rule);
+  }
+
+  private ruleHasAnyFilter(rule: any): boolean {
+    if (!rule || typeof rule !== 'object') return false;
+    const fields = [rule.filterPoolType, rule.filterCategoria, rule.filterDescription];
+    return fields.some((f) => typeof f === 'string' && f.trim().length > 0);
+  }
+
+  private async setTenantPoolKey(
+    companyId: string,
+    key: 'solarCollectorRule' | 'solarBombaRule',
+    value: any | null,
+  ): Promise<{ rule: any | null }> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    const cfg = (company?.systemConfig ?? {}) as Record<string, any>;
+    const pool = (cfg.pool ?? {}) as Record<string, any>;
+    if (value === null) delete pool[key];
+    else pool[key] = value;
+    cfg.pool = pool;
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { systemConfig: cfg as any },
+    });
+    return { rule: value };
   }
 
   // ============ Upload da imagem do header (Solar PDF) ============

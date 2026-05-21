@@ -45,8 +45,10 @@ export const SOLAR_VAZAO_DOBRA_BATERIAS = 4;        // num_baterias >= 4 dobra a
 //   Solis 4.00x1.12 (4.48m²): kWh/m² 102.3, eficiencia 0.732
 //   Solis 5.00x1.12 (5.60m²): kWh/m² 102.3, eficiencia 0.732
 //   Solis 6.00x1.12 (6.72m²): kWh/m² 102.3, eficiencia 0.732
-// Operador pode editar via Product.technicalSpecs (Fase 7 — backfill SLS):
-//   technicalSpecs.areaM2, .kwhPorM2, .eficiencia, .tipoEquipamento='SOLAR'
+// Operador pode editar via Product.technicalSpecs:
+//   technicalSpecs.areaM2, .kwhPorM2, .eficiencia
+// Quais produtos entram no Simulador eh definido pela regra do tenant
+// (Company.systemConfig.pool.solarCollectorRule), nao por hardcode.
 export const SOLAR_DEFAULT_COLETOR_AREA_M2 = 4.48;        // Solis 4.00 = padrao mais usado
 export const SOLAR_DEFAULT_COLETOR_KWH_M2 = 102.3;
 export const SOLAR_DEFAULT_COLETOR_EFICIENCIA = 0.732;

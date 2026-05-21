@@ -89,10 +89,42 @@ export class PoolBudgetController {
 
   // ============ Simulador Solar (Fase 4) ============
 
-  @ApiOperation({ summary: 'Lista coletores solares cadastrados no tenant (Product.tipoEquipamento=SOLAR)' })
+  @ApiOperation({ summary: 'Lista coletores solares aplicando a regra do tenant (vazia se sem regra)' })
   @Get('solar/collectors')
   listSolarCollectors(@CurrentUser() user: AuthenticatedUser) {
     return this.solarBudget.listSolarCollectors(user.companyId);
+  }
+
+  // ============ Regras de auto-selecao (config do tenant) ============
+
+  @ApiOperation({ summary: 'Retorna a regra de auto-selecao do coletor solar do tenant' })
+  @Get('solar/collector-rule')
+  getSolarCollectorRule(@CurrentUser() user: AuthenticatedUser) {
+    return this.solarBudget.getSolarCollectorRule(user.companyId).then((rule) => ({ rule }));
+  }
+
+  @ApiOperation({ summary: 'Salva a regra de auto-selecao do coletor solar no tenant (body.rule pode ser null)' })
+  @Post('solar/collector-rule')
+  setSolarCollectorRule(
+    @Body() body: { rule: any | null },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.solarBudget.setSolarCollectorRule(user.companyId, body?.rule ?? null);
+  }
+
+  @ApiOperation({ summary: 'Retorna a regra de auto-selecao da bomba do coletor solar' })
+  @Get('solar/bomba-rule')
+  getSolarBombaRule(@CurrentUser() user: AuthenticatedUser) {
+    return this.solarBudget.getSolarBombaRule(user.companyId).then((rule) => ({ rule }));
+  }
+
+  @ApiOperation({ summary: 'Salva a regra de auto-selecao da bomba (body.rule pode ser null)' })
+  @Post('solar/bomba-rule')
+  setSolarBombaRule(
+    @Body() body: { rule: any | null },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.solarBudget.setSolarBombaRule(user.companyId, body?.rule ?? null);
   }
 
   @ApiOperation({ summary: 'Simulacao solar — calculo rapido sem salvar' })

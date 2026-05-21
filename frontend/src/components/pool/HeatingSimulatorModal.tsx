@@ -3,7 +3,7 @@
 // Modal full-screen com abas. Ordem: Solar | Bomba de Calor | Comparativo.
 // Ver memory/project_heating_simulator_plan.md pra contexto.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api, getAccessToken } from "@/lib/api";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -262,11 +262,52 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
   const [solarLoading, setSolarLoading] = useState(false);
   const [solarRecomputing, setSolarRecomputing] = useState(false);
   const [solarCollectors, setSolarCollectors] = useState<SolarCollectorCandidate[]>([]);
+  // v5.8 — regras de auto-selecao do tenant (config global, nao por orcamento)
+  const [solarColetorRule, setSolarColetorRule] = useState<AutoSelectRule | null>(null);
+  const [solarBombaRule, setSolarBombaRule] = useState<AutoSelectRule | null>(null);
   const [solarExtraPct, setSolarExtraPct] = useState(0);
   const [solarSelectedCollectorId, setSolarSelectedCollectorId] = useState<string | null>(null);
   const [selectedMonthIdx, setSelectedMonthIdx] = useState<number>(5); // Junho default (mes critico)
   const [solarHeaderImage, setSolarHeaderImage] = useState<string | null>(budget.solarHeaderImage ?? null);
   const [headerImageUploading, setHeaderImageUploading] = useState(false);
+
+  // Recarrega coletores via GET (apos salvar regra, lista nova reflete o filtro)
+  const reloadSolarCollectors = useCallback(async () => {
+    try {
+      const cs = await api.get<SolarCollectorCandidate[]>("/pool-budgets/solar/collectors");
+      setSolarCollectors(cs);
+      setSolarSelectedCollectorId((prev) => {
+        if (cs.length === 0) return null;
+        if (prev && cs.some((c) => c.productId === prev)) return prev;
+        return cs[cs.length - 1].productId;
+      });
+    } catch {
+      setSolarCollectors([]);
+    }
+  }, []);
+
+  // Salva regra do coletor no tenant + recarrega lista. Null = limpa regra.
+  const saveSolarColetorRule = useCallback(async (rule: AutoSelectRule | null) => {
+    try {
+      await api.post("/pool-budgets/solar/collector-rule", { rule });
+      setSolarColetorRule(rule);
+      await reloadSolarCollectors();
+    } catch (e: any) {
+      setError(String(e?.message ?? "Erro ao salvar regra do coletor"));
+    }
+  }, [reloadSolarCollectors]);
+
+  // Salva regra da bomba no tenant. (Bomba nao tem dropdown proprio hoje —
+  // string em report.bombaRecomendada. Regra fica disponivel pra futura
+  // selecao automatica via catalog.)
+  const saveSolarBombaRule = useCallback(async (rule: AutoSelectRule | null) => {
+    try {
+      await api.post("/pool-budgets/solar/bomba-rule", { rule });
+      setSolarBombaRule(rule);
+    } catch (e: any) {
+      setError(String(e?.message ?? "Erro ao salvar regra da bomba"));
+    }
+  }, []);
 
   // Sincroniza com budget quando o parent re-fetcha (apos onSaved)
   useEffect(() => {
@@ -340,6 +381,13 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
         if (typeof solOv.extraColetoresPct === "number") setSolarExtraPct(solOv.extraColetoresPct);
       })
       .catch(() => setSolarCollectors([]));
+    // v5.8: carrega regras do tenant pro AutoSelectModal pre-popular + dropdown filtrar
+    api.get<{ rule: AutoSelectRule | null }>("/pool-budgets/solar/collector-rule")
+      .then((r) => setSolarColetorRule(r?.rule ?? null))
+      .catch(() => setSolarColetorRule(null));
+    api.get<{ rule: AutoSelectRule | null }>("/pool-budgets/solar/bomba-rule")
+      .then((r) => setSolarBombaRule(r?.rule ?? null))
+      .catch(() => setSolarBombaRule(null));
     setSolarLoading(true);
     api.get<SolarReport | null>(`/pool-budgets/${budget.id}/solar-report`)
       .then((r) => {
@@ -1308,6 +1356,10 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
               onUploadHeaderImage={uploadSolarHeaderImage}
               onRemoveHeaderImage={removeSolarHeaderImage}
               catalog={catalog ?? []}
+              coletorRule={solarColetorRule}
+              bombaRule={solarBombaRule}
+              onSaveColetorRule={saveSolarColetorRule}
+              onSaveBombaRule={saveSolarBombaRule}
             />
           )}
 
@@ -1362,6 +1414,7 @@ function SolarTab({
   onRecompute,
   headerImage, headerImageUploading, onUploadHeaderImage, onRemoveHeaderImage,
   catalog,
+  coletorRule, bombaRule, onSaveColetorRule, onSaveBombaRule,
 }: {
   budget: BudgetForHeating;
   report: SolarReport | null;
@@ -1392,6 +1445,10 @@ function SolarTab({
   onUploadHeaderImage: (file: File) => void | Promise<void>;
   onRemoveHeaderImage: () => void | Promise<void>;
   catalog: CatalogConfig[];
+  coletorRule: AutoSelectRule | null;
+  bombaRule: AutoSelectRule | null;
+  onSaveColetorRule: (rule: AutoSelectRule | null) => void | Promise<void>;
+  onSaveBombaRule: (rule: AutoSelectRule | null) => void | Promise<void>;
 }) {
   const dims = budget.poolDimensions ?? {};
   const area = Number(dims.area) || 0;
@@ -1752,9 +1809,14 @@ function SolarTab({
                         </div>
                       );
                     })()}
-                    {collectors.length === 0 && (
+                    {collectors.length === 0 && !coletorRule && (
+                      <div className="mt-1.5 rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-[10.5px] text-amber-900 print:hidden">
+                        <strong>⚠ Regra de auto-selecao nao configurada.</strong> Sem filtro definido, nenhum produto eh listado. Clique no <button type="button" onClick={() => setShowColetorPicker(true)} className="underline font-bold text-violet-700 hover:text-violet-900">✨ pra configurar</button> qual filtro (tipo / descricao / categoria) escolhe os coletores do catalogo.
+                      </div>
+                    )}
+                    {collectors.length === 0 && coletorRule && (
                       <div className="mt-1.5 rounded border border-red-300 bg-red-50 px-2 py-1.5 text-[10.5px] text-red-800 print:hidden">
-                        <strong>⚠ Nenhum coletor solar cadastrado.</strong> Cadastre produtos com <em>Tipo de equipamento = Coletor Solar Piscina</em> em <a href="/products" className="underline font-semibold">/products</a>.
+                        <strong>⚠ Nenhum produto passa na regra atual.</strong> Revise o filtro no <button type="button" onClick={() => setShowColetorPicker(true)} className="underline font-bold">✨</button> ou ajuste produtos em <a href="/products" className="underline font-semibold">/products</a>.
                       </div>
                     )}
                   </div>
@@ -1935,7 +1997,7 @@ function SolarTab({
           Permite configurar regra de auto-selecao do coletor (filtro de tipo, criterio, ordenacao). */}
       {showColetorPicker && (
         <AutoSelectModal
-          initialRule={(budget.environmentParams as any)?.solarColetorAutoSelectRule ?? null}
+          initialRule={coletorRule ?? null}
           catalog={catalog ?? []}
           dimensions={budget.poolDimensions}
           environmentParams={budget.environmentParams}
@@ -1945,13 +2007,12 @@ function SolarTab({
           itemDescription="Coletor Solar (Simulador Solar)"
           currentProductName={collectors.find((c) => c.productId === selectedCollectorId)?.modelName ?? null}
           onClose={() => setShowColetorPicker(false)}
-          onSave={(rule: AutoSelectRule) => {
-            // TODO: persistir rule em environmentParams.solarColetorAutoSelectRule
-            console.log("[Solar] AutoSelect rule salva (em memoria):", rule);
+          onSave={async (rule: AutoSelectRule) => {
+            await onSaveColetorRule(rule);
             setShowColetorPicker(false);
           }}
-          onClear={() => {
-            console.log("[Solar] AutoSelect rule limpa");
+          onClear={async () => {
+            await onSaveColetorRule(null);
             setShowColetorPicker(false);
           }}
         />
@@ -1962,7 +2023,7 @@ function SolarTab({
           simulador)" — vazaoM3h >= vazaoSolarM3h (vem de report.vazaoTotalM3h). */}
       {showBombaPicker && (
         <AutoSelectModal
-          initialRule={(budget.environmentParams as any)?.solarBombaAutoSelectRule ?? null}
+          initialRule={bombaRule ?? null}
           catalog={catalog ?? []}
           dimensions={budget.poolDimensions}
           environmentParams={budget.environmentParams}
@@ -1972,13 +2033,12 @@ function SolarTab({
           itemDescription="Bomba do Coletor Solar (Simulador Solar)"
           currentProductName={report?.bombaRecomendada ?? null}
           onClose={() => setShowBombaPicker(false)}
-          onSave={(rule: AutoSelectRule) => {
-            // TODO: persistir em environmentParams.solarBombaAutoSelectRule
-            console.log("[Solar] Bomba AutoSelect rule salva (em memoria):", rule);
+          onSave={async (rule: AutoSelectRule) => {
+            await onSaveBombaRule(rule);
             setShowBombaPicker(false);
           }}
-          onClear={() => {
-            console.log("[Solar] Bomba AutoSelect rule limpa");
+          onClear={async () => {
+            await onSaveBombaRule(null);
             setShowBombaPicker(false);
           }}
         />

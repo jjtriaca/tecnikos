@@ -40,8 +40,8 @@ export interface Product {
   defaultQty?: number | null;
   // Specs tecnicas livres em JSON (modulo Piscina). Chaves comuns:
   // vazaoM3h, tuboEntradaMm, kcalHNominal, kwNominal, btuH, copMax,
-  // copAt50Air26, copAt50Air15, ratedInputPowerKW, tipoEquipamento,
-  // potenciaCv, voltagem, amperagem, bifTrif, tempoMontagemH.
+  // copAt50Air26, copAt50Air15, ratedInputPowerKW, potenciaCv,
+  // voltagem, amperagem, bifTrif, tempoMontagemH.
   // Usadas pelo auto-selecao de produto (auto-select.helper.ts).
   technicalSpecs?: Record<string, any>;
   createdAt: string;

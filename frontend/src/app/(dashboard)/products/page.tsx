@@ -319,7 +319,6 @@ interface ProductForm {
   specVazaoM3h: string;       // m³/h (filtros, bombas)
   specTuboEntradaMm: string;  // mm (todos equipamentos hidraulicos — chave do auto-select de tubos)
   // ====== Specs detalhadas do Simulador de Aquecimento (F3+) ======
-  specTipoEquipamento: string; // 'BOMBA_CALOR' | 'SOLAR' | 'GAS_GLP' | 'GAS_GN' | 'ELETRICO' | ''
   specKcalHNominal: string;    // kcal/h nominal (capacidade real, alimenta auto-select preciso)
   specKwNominal: string;       // kW termico (capacidade)
   specBtuH: string;            // BTU/h (capacidade)
@@ -377,7 +376,6 @@ const EMPTY_FORM: ProductForm = {
   defaultQty: "1",
   specVazaoM3h: "",
   specTuboEntradaMm: "",
-  specTipoEquipamento: "",
   specKcalHNominal: "",
   specKwNominal: "",
   specBtuH: "",
@@ -433,7 +431,6 @@ function productToForm(p: Product): ProductForm {
     defaultQty: (p as any).defaultQty != null ? String((p as any).defaultQty) : "",
     specVazaoM3h: numericSpecToStr(p.technicalSpecs?.vazaoM3h),
     specTuboEntradaMm: numericSpecToStr(p.technicalSpecs?.tuboEntradaMm),
-    specTipoEquipamento: typeof p.technicalSpecs?.tipoEquipamento === 'string' ? p.technicalSpecs.tipoEquipamento : "",
     specKcalHNominal: numericSpecToStr(p.technicalSpecs?.kcalHNominal),
     specKwNominal: numericSpecToStr(p.technicalSpecs?.kwNominal),
     specBtuH: numericSpecToStr(p.technicalSpecs?.btuH),
@@ -494,9 +491,6 @@ function buildTechnicalSpecs(f: ProductForm, existing?: Record<string, any>): Re
   setOrUnset("bordaAlturaQuedaM", f.specBordaAlturaQuedaM);
   setOrUnset("bordaVazaoLminPorM", f.specBordaVazaoLminPorM);
   setOrUnset("bordaHorasAtivaDia", f.specBordaHorasAtivaDia);
-  // tipoEquipamento eh string (select), tratado abaixo
-  if (f.specTipoEquipamento.trim() === "") delete merged.tipoEquipamento;
-  else merged.tipoEquipamento = f.specTipoEquipamento.trim();
   setOrUnset("potenciaCv", f.specPotenciaCv);
   setOrUnset("voltagem", f.specVoltagem);
   setOrUnset("amperagem", f.specAmperagem);
@@ -1878,23 +1872,11 @@ export default function ProductsPage() {
                   <div className="rounded-xl border border-slate-200 bg-white p-5">
                     <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">🔥 Aquecimento — Bombas de Calor, Solar, Trocadores</h4>
 
-                    {/* Tipo + Capacidade nominal — usados no Simulador */}
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-4">
-                      <div>
-                        <FieldLabel help="Tipo do equipamento de aquecimento. Filtra candidatos no Simulador de Aquecimento. Bomba de Calor eh o padrao mais comum (alta eficiencia).">
-                          Tipo de equipamento
-                        </FieldLabel>
-                        <select value={form.specTipoEquipamento} onChange={(e) => setField("specTipoEquipamento", e.target.value)} className={inputClass}>
-                          <option value="">— Nao definido —</option>
-                          <option value="BOMBA_CALOR">Bomba de Calor</option>
-                          <option value="COLETOR_SOLAR_PISCINA">Coletor Solar — Piscina</option>
-                          <option value="COLETOR_SOLAR_BOILER">Coletor Solar — Boiler</option>
-                          <option value="GAS_GLP">Aquecedor a Gas GLP</option>
-                          <option value="GAS_GN">Aquecedor a Gas Natural</option>
-                          <option value="ELETRICO">Eletrico (resistencia)</option>
-                          <option value="SOLAR">Solar (legado — migrar pra Coletor Solar — Piscina)</option>
-                        </select>
-                      </div>
+                    {/* Capacidade nominal — usada no Simulador.
+                        Identificacao do produto como "coletor solar" / "bomba de calor" /
+                        etc agora eh feita pelo Tipo (poolType) — campo livre gerenciavel
+                        via ⚙ Gerenciar tipos. Nada filtra por technicalSpecs.tipoEquipamento. */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                       <div>
                         <FieldLabel tone="cyan" help="Capacidade nominal de aquecimento em Kcal/h — NUMERO PRINCIPAL DO CALCULO. Usado pelo Simulador pra selecionar o modelo (kcalHNominal >= calorNecessarioKcalH). Ex Tholz X23-40C = 34.400 Kcal/h.">
                           Kcal/h nominal ✓
