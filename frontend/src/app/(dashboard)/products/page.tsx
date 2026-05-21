@@ -330,10 +330,15 @@ interface ProductForm {
   specCopCurveA: string;
   specCopCurveB: string;
   specCopCurveC: string;
-  // Coletor Solar — specs do dimensionamento solar (alimentam solar.service.ts)
-  specColetorAreaM2: string;   // m²/coletor (area util de captacao)
-  specKwhPorM2: string;        // kWh/m²/dia (radiacao util captada)
-  specEficiencia: string;      // 0..1 (fracao da radiacao convertida em calor)
+  // Coletor Solar — specs alinhadas com etiqueta Procel/Inmetro PBE Coletor Piscina
+  // - areaM2 / kwhPorM2 / eficiencia alimentam o motor (solar.service.ts)
+  // - classe / pressao / material sao informativos (vao pro PDF do orcamento)
+  specColetorAreaM2: string;         // m² (Area externa do coletor — Procel)
+  specKwhPorM2: string;              // kWh/mes·m² (Producao Especifica PMEe — Procel)
+  specEficiencia: string;            // UI em % (0..100); storage como fracao 0..1
+  specClasseEficiencia: string;      // 'A'..'E' (Classificacao PBE — Procel)
+  specPressaoFuncionamentokPa: string; // kPa (Pressao de Funcionamento — Procel)
+  specMaterialAbsorvedor: string;    // ex: 'Polipropileno', 'Polietileno', 'Vidro Borossilicato'
   // Specs especificas por tipo de equipamento (F6.2 — agregadas pelo Simulador)
   specQtdJatos: string;            // Hidromassagem/SPA — qtde de jatos do kit
   specCascataComprimentoCm: string; // Cascata — comprimento do bocal em cm
@@ -393,6 +398,9 @@ const EMPTY_FORM: ProductForm = {
   specColetorAreaM2: "",
   specKwhPorM2: "",
   specEficiencia: "",
+  specClasseEficiencia: "",
+  specPressaoFuncionamentokPa: "",
+  specMaterialAbsorvedor: "",
   specQtdJatos: "",
   specCascataComprimentoCm: "",
   specBordaAlturaQuedaM: "",
@@ -450,7 +458,17 @@ function productToForm(p: Product): ProductForm {
     specCopCurveC: numericSpecToStr(p.technicalSpecs?.copCurveC),
     specColetorAreaM2: numericSpecToStr(p.technicalSpecs?.areaM2 ?? p.technicalSpecs?.coletorAreaM2),
     specKwhPorM2: numericSpecToStr(p.technicalSpecs?.kwhPorM2 ?? p.technicalSpecs?.kwhM2),
-    specEficiencia: numericSpecToStr(p.technicalSpecs?.eficiencia),
+    specClasseEficiencia: typeof p.technicalSpecs?.classeEficiencia === 'string' ? p.technicalSpecs.classeEficiencia : "",
+    specPressaoFuncionamentokPa: numericSpecToStr(p.technicalSpecs?.pressaoFuncionamentokPa),
+    specMaterialAbsorvedor: typeof p.technicalSpecs?.materialAbsorvedor === 'string' ? p.technicalSpecs.materialAbsorvedor : "",
+    // Eficiencia: storage como fracao 0..1 → UI em % (0..100). Ex: 0.732 → "73.2"
+    specEficiencia: (() => {
+      const v = p.technicalSpecs?.eficiencia;
+      if (v == null) return "";
+      const n = Number(v);
+      if (!Number.isFinite(n)) return "";
+      return String(Math.round(n * 1000) / 10); // 0.732 → 73.2
+    })(),
     specQtdJatos: numericSpecToStr(p.technicalSpecs?.qtdJatos),
     specCascataComprimentoCm: numericSpecToStr(p.technicalSpecs?.cascataComprimentoCm),
     specBordaAlturaQuedaM: numericSpecToStr(p.technicalSpecs?.bordaAlturaQuedaM),
@@ -498,7 +516,19 @@ function buildTechnicalSpecs(f: ProductForm, existing?: Record<string, any>): Re
   setOrUnset("copCurveC", f.specCopCurveC);
   setOrUnset("areaM2", f.specColetorAreaM2);
   setOrUnset("kwhPorM2", f.specKwhPorM2);
-  setOrUnset("eficiencia", f.specEficiencia);
+  setOrUnset("pressaoFuncionamentokPa", f.specPressaoFuncionamentokPa);
+  // classeEficiencia e materialAbsorvedor sao strings — salva direto ou remove se vazio
+  if (f.specClasseEficiencia.trim()) merged.classeEficiencia = f.specClasseEficiencia.trim().toUpperCase();
+  else delete merged.classeEficiencia;
+  if (f.specMaterialAbsorvedor.trim()) merged.materialAbsorvedor = f.specMaterialAbsorvedor.trim();
+  else delete merged.materialAbsorvedor;
+  // Eficiencia: UI em % → storage como fracao 0..1. Ex: 73.2 → 0.732
+  if (f.specEficiencia.trim() === "") {
+    delete merged.eficiencia;
+  } else {
+    const pct = parseFloat(f.specEficiencia.replace(",", "."));
+    if (Number.isFinite(pct)) merged.eficiencia = Math.round(pct * 10) / 1000; // 73.2 → 0.732
+  }
   setOrUnset("qtdJatos", f.specQtdJatos);
   setOrUnset("cascataComprimentoCm", f.specCascataComprimentoCm);
   setOrUnset("bordaAlturaQuedaM", f.specBordaAlturaQuedaM);
@@ -2017,32 +2047,61 @@ export default function ProductsPage() {
                       X23-09C: A=16.55 B=-38.92 C=29.92 · X23-14C: A=15.95 B=-37.83 C=29.43 · X23-18C: A=0.83 B=-10.25 C=18.42 · X23-26C: A=15.80 B=-38.06 C=29.18 · X23-40C: A=15.49 B=-37.51 C=29.88
                     </p>
 
-                    {/* Coletor Solar — specs do dimensionamento solar.
-                        Os 3 campos abaixo alimentam o solar.service.ts: o motor calcula
-                        qtd. coletores, vazao, area total, ganho diario e cobertura. */}
-                    <h5 className="text-[11px] font-bold text-slate-500 uppercase mb-2 mt-4">⛅ Coletor Solar — specs do dimensionamento</h5>
+                    {/* Coletor Solar — specs alinhadas com etiqueta Procel/Inmetro pra
+                        Coletor Solar Piscina. Producao Especifica + Eficiencia + Area
+                        alimentam o solar.service.ts. Classificacao + Pressao + Material
+                        sao informativos (vao pro PDF do orcamento, sem impacto no calc). */}
+                    <h5 className="text-[11px] font-bold text-slate-500 uppercase mb-2 mt-4">⛅ Coletor Solar — etiqueta Procel/Inmetro (PBE)</h5>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
-                        <FieldLabel required={currentRequiredSpecs.has('areaM2')} help="Area util de captacao do coletor em m². Eh o tamanho do painel solar. O motor calcula qtd de coletores = m² necessario ÷ area. Ex Solis 3.00x1.12 = 3.36 m².">
-                          Area do coletor (m²) ✓
+                        <FieldLabel required={currentRequiredSpecs.has('areaM2')} help="Area externa do coletor em m² (resultado de ensaio Procel). O motor calcula qtd de coletores = m² necessario ÷ area. Ex Solis NEW TROPICOS 3000 = 3.4 m².">
+                          Area externa (m²) ✓
                         </FieldLabel>
-                        <input type="number" step="0.01" value={form.specColetorAreaM2} onChange={(e) => setField("specColetorAreaM2", e.target.value)} placeholder="Ex: 3.36" className={inputClass} />
+                        <input type="number" step="0.01" value={form.specColetorAreaM2} onChange={(e) => setField("specColetorAreaM2", e.target.value)} placeholder="Ex: 3.4" className={inputClass} />
                       </div>
                       <div>
-                        <FieldLabel required={currentRequiredSpecs.has('kwhPorM2')} help="Radiacao util captada pelo coletor — quanto kWh por m² por dia ele entrega de energia util. Vem da ficha tecnica do fabricante. Ex Solis: 102.3 kWh/m²/dia.">
-                          Radiacao util (kWh/m²/dia) ✓
+                        <FieldLabel required={currentRequiredSpecs.has('kwhPorM2')} help="Producao Especifica (PMEe) — resultado de ensaio Procel medido em kWh por mes por m² de area do coletor. Eh o numero que define a classificacao A-E. Ex Solis NEW TROPICOS = 102,3 kWh/mes·m². Faixas: A > 98 / B 90-98 / C 80-90 / D 70-80 / E 65-70.">
+                          Producao especifica (kWh/mes·m²) ✓
                         </FieldLabel>
                         <input type="number" step="0.1" value={form.specKwhPorM2} onChange={(e) => setField("specKwhPorM2", e.target.value)} placeholder="Ex: 102.3" className={inputClass} />
                       </div>
                       <div>
-                        <FieldLabel required={currentRequiredSpecs.has('eficiencia')} help="Fracao da radiacao solar convertida em calor util — valor entre 0 e 1. Ex 0.732 = 73,2% de eficiencia (Solis padrao). Coletor melhor = mais proximo de 1.">
-                          Eficiencia (0..1) ✓
+                        <FieldLabel required={currentRequiredSpecs.has('eficiencia')} help="Eficiencia Energetica Media (%) — resultado de ensaio Procel. Porcentagem da radiacao convertida em calor util. Ex Solis = 73,2%. Coletor melhor = mais proximo de 100%.">
+                          Eficiencia energetica media (%) ✓
                         </FieldLabel>
-                        <input type="number" step="0.001" min="0" max="1" value={form.specEficiencia} onChange={(e) => setField("specEficiencia", e.target.value)} placeholder="Ex: 0.732" className={inputClass} />
+                        <input type="number" step="0.1" min="0" max="100" value={form.specEficiencia} onChange={(e) => setField("specEficiencia", e.target.value)} placeholder="Ex: 73,2" className={inputClass} />
+                      </div>
+                    </div>
+                    {/* Linha 2: campos informativos da etiqueta Procel (nao afetam calculo) */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+                      <div>
+                        <FieldLabel required={currentRequiredSpecs.has('classeEficiencia')} help="Classificacao do PBE Procel — letra A a E baseada na Producao Especifica (PMEe). A: >98 kWh/mes·m². B: 90-98. C: 80-90. D: 70-80. E: 65-70.">
+                          Classificacao PBE (A-E)
+                        </FieldLabel>
+                        <select value={form.specClasseEficiencia} onChange={(e) => setField("specClasseEficiencia", e.target.value)} className={inputClass}>
+                          <option value="">— Nao informado —</option>
+                          <option value="A">A (mais eficiente)</option>
+                          <option value="B">B</option>
+                          <option value="C">C</option>
+                          <option value="D">D</option>
+                          <option value="E">E (menos eficiente)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <FieldLabel required={currentRequiredSpecs.has('pressaoFuncionamentokPa')} help="Pressao de Funcionamento (kPa) — resultado de ensaio Procel. Pressao maxima de trabalho que o coletor aguenta. Ex Solis NEW TROPICOS = 196 kPa (~20 mca). Valor tipico vai de 49 a 490 kPa.">
+                          Pressao funcionamento (kPa)
+                        </FieldLabel>
+                        <input type="number" step="1" min="0" value={form.specPressaoFuncionamentokPa} onChange={(e) => setField("specPressaoFuncionamentokPa", e.target.value)} placeholder="Ex: 196" className={inputClass} />
+                      </div>
+                      <div>
+                        <FieldLabel required={currentRequiredSpecs.has('materialAbsorvedor')} help="Material da superficie que absorve a radiacao solar. Comum: Polipropileno, Polietileno, Vidro Borossilicato, Polimero Especial. Vai na etiqueta Procel.">
+                          Material absorvedor
+                        </FieldLabel>
+                        <input type="text" value={form.specMaterialAbsorvedor} onChange={(e) => setField("specMaterialAbsorvedor", e.target.value)} placeholder="Ex: Polipropileno" className={inputClass} />
                       </div>
                     </div>
                     <p className="mt-2 text-[11px] text-slate-500">
-                      <strong>Obrigatorios pro Simulador Solar</strong> — sem esses 3 valores o coletor aparece com ⚠ no dropdown e o calculo nao roda. Operador edita aqui caso o fabricante atualize a ficha tecnica.
+                      <strong>Obrigatorios pro Simulador Solar</strong>: Area, Producao Especifica e Eficiencia. <strong>Informativos</strong> (vao pro PDF do orcamento): Classificacao, Pressao e Material. Todos os campos espelham a <a href="https://www.gov.br/inmetro/pt-br/assuntos/avaliacao-da-conformidade/programa-brasileiro-de-etiquetagem/tabelas-de-eficiencia-energetica/equipamentos-de-aquecimento-solar-de-agua" target="_blank" rel="noopener" className="underline text-cyan-700">etiqueta Procel/Inmetro PBE</a>.
                     </p>
                   </CollapsibleCard>
 
@@ -2181,10 +2240,13 @@ export const PRODUCT_SPECS_GROUPED: Array<{ block: string; group: string; specs:
     { key: 'copCurveB', label: 'COP B (carga)' },
     { key: 'copCurveC', label: 'COP C (intercepto)' },
   ]},
-  { block: 'coletorSolar', group: '⛅ Coletor Solar', specs: [
-    { key: 'areaM2', label: 'Area do coletor (m²)' },
-    { key: 'kwhPorM2', label: 'Radiacao util (kWh/m²/dia)' },
-    { key: 'eficiencia', label: 'Eficiencia (0..1)' },
+  { block: 'coletorSolar', group: '⛅ Coletor Solar (Procel/Inmetro)', specs: [
+    { key: 'areaM2', label: 'Area externa (m²)' },
+    { key: 'kwhPorM2', label: 'Producao especifica (kWh/mes·m²)' },
+    { key: 'eficiencia', label: 'Eficiencia energetica media (%)' },
+    { key: 'classeEficiencia', label: 'Classificacao PBE (A-E)' },
+    { key: 'pressaoFuncionamentokPa', label: 'Pressao funcionamento (kPa)' },
+    { key: 'materialAbsorvedor', label: 'Material da superficie absorvedora' },
   ]},
   { block: 'eletrico', group: '⚡ Eletrico', specs: [
     { key: 'potenciaCv', label: 'Potencia (CV)' },
@@ -2229,6 +2291,9 @@ export const SPEC_KEY_TO_FORM_FIELD: Record<string, string> = {
   areaM2: 'specColetorAreaM2',
   kwhPorM2: 'specKwhPorM2',
   eficiencia: 'specEficiencia',
+  classeEficiencia: 'specClasseEficiencia',
+  pressaoFuncionamentokPa: 'specPressaoFuncionamentokPa',
+  materialAbsorvedor: 'specMaterialAbsorvedor',
   potenciaCv: 'specPotenciaCv',
   voltagem: 'specVoltagem',
   amperagem: 'specAmperagem',

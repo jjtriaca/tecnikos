@@ -34,10 +34,11 @@ export interface SolarCollectorCandidate {
 }
 
 // Labels amigaveis pra cada spec exibida ao usuario no erro/aviso.
+// Labels alinhados com a etiqueta Procel/Inmetro PBE Coletor Solar Piscina
 const SPEC_FIELD_LABELS: Record<string, string> = {
-  areaM2: 'Area (m²)',
-  kwhPorM2: 'Radiacao util (kWh por m²/dia)',
-  eficiencia: 'Eficiencia (fracao 0-1)',
+  areaM2: 'Area externa (m²)',
+  kwhPorM2: 'Producao especifica (kWh/mes·m²)',
+  eficiencia: 'Eficiencia energetica media (%)',
 };
 
 @Injectable()

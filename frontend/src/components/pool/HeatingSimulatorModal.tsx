@@ -1799,9 +1799,9 @@ function SolarTab({
                       const missing = sel?.missingSpecs ?? [];
                       if (missing.length === 0) return null;
                       const labels: Record<string, string> = {
-                        areaM2: "Área (m²)",
-                        kwhPorM2: "Radiação útil (kWh por m²/dia)",
-                        eficiencia: "Eficiência (fração 0-1)",
+                        areaM2: "Área externa (m²)",
+                        kwhPorM2: "Produção específica (kWh/mês·m²)",
+                        eficiencia: "Eficiência energética média (%)",
                       };
                       return (
                         <div className="mt-1.5 rounded border border-red-300 bg-red-50 px-2 py-1.5 text-[10.5px] text-red-800 print:hidden">
