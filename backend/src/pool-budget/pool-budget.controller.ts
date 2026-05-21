@@ -222,6 +222,18 @@ export class PoolBudgetController {
     return this.service.update(id, user.companyId, body, user);
   }
 
+  @ApiOperation({ summary: 'Atualiza configuracao de etapas customizadas do orcamento' })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/sections')
+  updateSections(
+    @Param('id') id: string,
+    @Body() body: { labels?: Record<string, string>; order?: string[]; hidden?: string[] },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.updateSections(id, user.companyId, body);
+  }
+
   @ApiOperation({ summary: 'Soft delete (não permite se aprovado)' })
   @RequireVerification()
   @Roles(UserRole.ADMIN)

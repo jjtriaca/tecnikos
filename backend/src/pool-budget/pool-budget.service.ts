@@ -1408,6 +1408,48 @@ export class PoolBudgetService {
     return budget;
   }
 
+  /**
+   * Atualiza configuracao de etapas customizadas do orcamento.
+   * - labels: salvo em environmentParams.customSections.labels — sobrescreve label
+   *   padrao (ex: CONSTRUCAO -> "Estrutura"). Tambem armazena labels de etapas
+   *   custom criadas pelo operador (ex: CUSTOM_DECK -> "Deck Madeira")
+   * - order: salvo no campo dedicado sectionOrder do PoolBudget
+   * - hidden: salvo em environmentParams.customSections.hidden — etapas
+   *   escondidas (mesmo que existam no SECTION_ORDER padrao)
+   * Mantem retrocompatibilidade: orcamentos sem custom usam defaults do front.
+   */
+  async updateSections(
+    id: string,
+    companyId: string,
+    body: { labels?: Record<string, string>; order?: string[]; hidden?: string[] },
+  ) {
+    const budget = await this.prisma.poolBudget.findFirst({
+      where: { id, companyId, deletedAt: null },
+      select: { id: true, status: true, environmentParams: true, sectionOrder: true },
+    });
+    if (!budget) throw new NotFoundException('Orçamento não encontrado');
+    if (budget.status === PoolBudgetStatus.APROVADO) {
+      throw new BadRequestException('Orçamento aprovado não pode ter etapas alteradas.');
+    }
+
+    const env = (budget.environmentParams ?? {}) as Record<string, any>;
+    const current = (env.customSections ?? {}) as Record<string, any>;
+    const nextCustom = {
+      labels: { ...(current.labels ?? {}), ...(body.labels ?? {}) },
+      hidden: body.hidden ?? current.hidden ?? [],
+    };
+    const nextEnv = { ...env, customSections: nextCustom };
+    const updateData: Prisma.PoolBudgetUpdateInput = {
+      environmentParams: nextEnv as Prisma.InputJsonValue,
+    };
+    if (body.order !== undefined) updateData.sectionOrder = body.order;
+    await this.prisma.poolBudget.update({ where: { id }, data: updateData });
+    return {
+      customSections: nextCustom,
+      sectionOrder: body.order ?? budget.sectionOrder ?? [],
+    };
+  }
+
   async update(
     id: string,
     companyId: string,

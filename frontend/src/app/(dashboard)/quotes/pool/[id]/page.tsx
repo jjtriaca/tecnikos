@@ -307,6 +307,14 @@ export default function PoolBudgetDetailPage() {
   const [addSection, setAddSection] = useState<string | null>(null);
   // Etapas adicionadas manualmente que ainda nao tem items (pra UI ja ter card vazio)
   const [extraSections, setExtraSections] = useState<string[]>([]);
+  // UI: renomeacao inline de etapa (key, valor temporario)
+  const [renamingSection, setRenamingSection] = useState<string | null>(null);
+  const [renamingValue, setRenamingValue] = useState<string>("");
+  // Modal de adicionar etapa custom (nome livre)
+  const [showAddSection, setShowAddSection] = useState(false);
+  const [newSectionName, setNewSectionName] = useState("");
+  // Modal de confirmacao de exclusao (mostra items que serao movidos pra OUTROS)
+  const [deleteSectionConfirm, setDeleteSectionConfirm] = useState<{ key: string; count: number } | null>(null);
   // Etapas vem MINIMIZADAS por padrao — operador expande as que precisa. Reduz scroll
   // inicial. Etapas com linhas amarelas (qty fora do padrao) ficam destacadas no header
   // mesmo minimizadas, pra chamar atencao.
@@ -337,6 +345,75 @@ export default function PoolBudgetDetailPage() {
   }
   function expandAll() {
     setCollapsedSections(new Set());
+  }
+
+  // ===== Helpers de etapas customizadas (label override + ordem + hidden) =====
+  // customSections: { labels: {KEY: 'Label custom'}, hidden: [KEYS] }
+  // sectionOrder: campo dedicado do PoolBudget — define ordem incl. custom
+  const customLabelsMap = useMemo<Record<string, string>>(() => {
+    return ((budget?.environmentParams as any)?.customSections?.labels ?? {}) as Record<string, string>;
+  }, [budget?.environmentParams]);
+
+  const hiddenSections = useMemo<Set<string>>(() => {
+    const arr = ((budget?.environmentParams as any)?.customSections?.hidden ?? []) as string[];
+    return new Set(Array.isArray(arr) ? arr : []);
+  }, [budget?.environmentParams]);
+
+  // Retorna o label efetivo: custom > default > key
+  const secLabel = useCallback((key: string): string => {
+    return customLabelsMap[key] ?? SECTION_LABEL[key] ?? key;
+  }, [customLabelsMap]);
+
+  // Persiste mudancas de etapas no backend
+  const persistSections = useCallback(async (body: { labels?: Record<string, string>; order?: string[]; hidden?: string[] }) => {
+    if (!budget) return;
+    try {
+      await api.post(`/pool-budgets/${budget.id}/sections`, body);
+      await load();
+    } catch (e: any) {
+      toast(String(e?.payload?.message ?? e?.message ?? "Erro ao salvar etapas"), "error");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [budget?.id]);
+
+  async function handleRenameSection() {
+    if (!renamingSection) return;
+    const newLabel = renamingValue.trim();
+    if (!newLabel) { setRenamingSection(null); return; }
+    await persistSections({ labels: { [renamingSection]: newLabel } });
+    setRenamingSection(null);
+    setRenamingValue("");
+  }
+
+  async function handleAddCustomSection() {
+    const label = newSectionName.trim();
+    if (!label) return;
+    // Gera key unica (CUSTOM_ + slug do nome + random suffix)
+    const slug = label.toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Z0-9]/g, "_").slice(0, 30);
+    const key = `CUSTOM_${slug}_${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    const currentOrder = (budget as any)?.sectionOrder?.length > 0 ? (budget as any).sectionOrder : SECTION_ORDER;
+    const nextOrder = [...currentOrder, key];
+    await persistSections({ labels: { [key]: label }, order: nextOrder });
+    setExtraSections((prev) => [...prev, key]);
+    setShowAddSection(false);
+    setNewSectionName("");
+  }
+
+  async function handleDeleteSection(key: string) {
+    // Move items dessa etapa pra OUTROS (se houver)
+    const itemsInSection = (budget?.items ?? []).filter((it) => it.poolSection === key);
+    for (const it of itemsInSection) {
+      try { await api.put(`/pool-budgets/items/${it.id}`, { poolSection: "OUTROS" }); } catch { /* segue */ }
+    }
+    // Esconde a etapa e remove da ordem
+    const hidden = Array.from(hiddenSections);
+    if (!hidden.includes(key)) hidden.push(key);
+    const currentOrder = (budget as any)?.sectionOrder?.length > 0 ? (budget as any).sectionOrder : SECTION_ORDER;
+    const nextOrder = currentOrder.filter((k: string) => k !== key);
+    await persistSections({ hidden, order: nextOrder });
+    setExtraSections((prev) => prev.filter((k) => k !== key));
+    setDeleteSectionConfirm(null);
+    toast(itemsInSection.length > 0 ? `Etapa excluida. ${itemsInSection.length} item(s) movido(s) pra Outros.` : "Etapa excluida.", "success");
   }
 
   const load = useCallback(async () => {
@@ -693,11 +770,14 @@ export default function PoolBudgetDetailPage() {
 
       {/* Etapas — cada secao em um card separado, com totais no rodape (espelha aba Linear da planilha) */}
       {(() => {
-        // Ordem efetiva: usa sectionOrder do budget se preenchido, senao default. Inclui extras nao listadas no fim.
+        // Ordem efetiva: usa sectionOrder do budget se preenchido, senao default.
+        // Inclui keys custom do customLabelsMap (etapas criadas pelo operador).
+        // Filtra hidden (etapas que o operador escondeu).
         const orderBase = budget.sectionOrder && budget.sectionOrder.length > 0 ? budget.sectionOrder : SECTION_ORDER;
-        const allWithItems = [...new Set([...orderBase, ...SECTION_ORDER, ...extraSections])];
+        const customKeys = Object.keys(customLabelsMap).filter((k) => k.startsWith('CUSTOM_'));
+        const allWithItems = [...new Set([...orderBase, ...SECTION_ORDER, ...customKeys, ...extraSections])].filter((k) => !hiddenSections.has(k));
         const presentSections = allWithItems.filter(
-          (sec) => itemsBySection[sec]?.length > 0 || extraSections.includes(sec),
+          (sec) => itemsBySection[sec]?.length > 0 || extraSections.includes(sec) || customKeys.includes(sec),
         );
 
         async function moveSection(section: string, dir: -1 | 1) {
@@ -796,22 +876,41 @@ export default function PoolBudgetDetailPage() {
                   ref={(el) => { sectionRefs.current[section] = el; }}
                   className={`rounded-xl border bg-white shadow-sm overflow-hidden ${sectionSeverity === 'red' ? 'border-red-200' : sectionSeverity === 'amber' ? 'border-amber-200' : 'border-slate-200'}`}>
                   <div className={`flex items-center justify-between px-4 py-3 border-b ${headerBg}`}>
-                    <button
-                      type="button"
-                      onClick={() => toggleSection(section)}
-                      className={`flex items-center gap-2 text-sm font-semibold uppercase tracking-wide ${headerText}`}
-                      title={isCollapsed ? "Expandir etapa" : "Minimizar etapa"}
-                    >
-                      <span className="inline-flex w-4 justify-center text-xs">{isCollapsed ? "▶" : "▼"}</span>
-                      Etapa: {SECTION_LABEL[section] || section}
-                      {sectionSeverity === 'amber' && (
-                        <span className="text-[10px] font-normal text-amber-700 normal-case" title="Tem linha com qty fora do padrao">⚠ alerta</span>
-                      )}
-                      {sectionSeverity === 'red' && (
-                        <span className="text-[10px] font-normal text-red-700 normal-case" title="Tem erro grave">⛔ erro</span>
-                      )}
-                      {isCollapsed && <span className="ml-2 normal-case font-normal text-xs text-slate-600 tabular-nums">— {fmtCurrency(totEtapa)}</span>}
-                    </button>
+                    {renamingSection === section ? (
+                      <div className="flex items-center gap-2 flex-1">
+                        <span className={`text-sm font-semibold uppercase tracking-wide ${headerText}`}>Etapa:</span>
+                        <input
+                          type="text"
+                          autoFocus
+                          value={renamingValue}
+                          onChange={(e) => setRenamingValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleRenameSection();
+                            if (e.key === "Escape") { setRenamingSection(null); setRenamingValue(""); }
+                          }}
+                          className="rounded border border-cyan-300 px-2 py-0.5 text-sm font-semibold uppercase"
+                        />
+                        <button onClick={handleRenameSection} className="text-xs font-semibold text-cyan-700 hover:text-cyan-900">Salvar</button>
+                        <button onClick={() => { setRenamingSection(null); setRenamingValue(""); }} className="text-xs text-slate-600 hover:text-slate-900">Cancelar</button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => toggleSection(section)}
+                        className={`flex items-center gap-2 text-sm font-semibold uppercase tracking-wide ${headerText}`}
+                        title={isCollapsed ? "Expandir etapa" : "Minimizar etapa"}
+                      >
+                        <span className="inline-flex w-4 justify-center text-xs">{isCollapsed ? "▶" : "▼"}</span>
+                        Etapa: {secLabel(section)}
+                        {sectionSeverity === 'amber' && (
+                          <span className="text-[10px] font-normal text-amber-700 normal-case" title="Tem linha com qty fora do padrao">⚠ alerta</span>
+                        )}
+                        {sectionSeverity === 'red' && (
+                          <span className="text-[10px] font-normal text-red-700 normal-case" title="Tem erro grave">⛔ erro</span>
+                        )}
+                        {isCollapsed && <span className="ml-2 normal-case font-normal text-xs text-slate-600 tabular-nums">— {fmtCurrency(totEtapa)}</span>}
+                      </button>
+                    )}
                     <div className="flex items-center gap-2">
                       {!isLocked && (
                         <div className="flex items-center gap-0.5">
@@ -830,6 +929,20 @@ export default function PoolBudgetDetailPage() {
                         </div>
                       )}
                       <span className="text-xs text-slate-500">{items.length} linha{items.length !== 1 ? "s" : ""}</span>
+                      {!isLocked && renamingSection !== section && (
+                        <>
+                          <button
+                            onClick={() => { setRenamingSection(section); setRenamingValue(secLabel(section)); }}
+                            className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[11px] text-slate-500 hover:text-cyan-700 hover:border-cyan-300"
+                            title="Renomear etapa"
+                          >✎</button>
+                          <button
+                            onClick={() => setDeleteSectionConfirm({ key: section, count: items.length })}
+                            className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[11px] text-slate-500 hover:text-rose-700 hover:border-rose-300"
+                            title="Excluir etapa"
+                          >🗑</button>
+                        </>
+                      )}
                       {!isLocked && (
                         <button
                           onClick={() => { setAddSection(section); setShowAdd(true); }}
@@ -898,7 +1011,7 @@ export default function PoolBudgetDetailPage() {
                         <td />
                       </tr>
                       <tr className="text-sm font-semibold bg-cyan-100 border-t border-cyan-200">
-                        <td colSpan={6} className="px-3 py-2 text-right text-cyan-900 uppercase tracking-wide">Total {SECTION_LABEL[section] || section}</td>
+                        <td colSpan={6} className="px-3 py-2 text-right text-cyan-900 uppercase tracking-wide">Total {secLabel(section)}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-cyan-900">{fmtCurrency(totEtapa)}</td>
                         <td />
                       </tr>
@@ -911,19 +1024,24 @@ export default function PoolBudgetDetailPage() {
 
             {/* Adicionar nova etapa */}
             {!isLocked && (() => {
-              const availableSections = SECTION_ORDER.filter((s) => !presentSections.includes(s));
-              if (availableSections.length === 0) return null;
+              const availableSections = SECTION_ORDER.filter((s) => !presentSections.includes(s) && !hiddenSections.has(s));
               return (
-                <div className="flex items-center gap-2 pt-2">
+                <div className="flex items-center gap-2 pt-2 flex-wrap">
                   <span className="text-xs text-slate-500">+ Adicionar etapa:</span>
                   {availableSections.map((s) => (
                     <button key={s} type="button"
                       onClick={() => setExtraSections((prev) => [...prev, s])}
                       className="rounded-full border border-dashed border-slate-300 bg-white px-3 py-1 text-xs text-slate-600 hover:border-cyan-400 hover:text-cyan-700"
                     >
-                      {SECTION_LABEL[s] || s}
+                      {secLabel(s)}
                     </button>
                   ))}
+                  <button type="button"
+                    onClick={() => { setShowAddSection(true); setNewSectionName(""); }}
+                    className="rounded-full border border-dashed border-violet-400 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700 hover:bg-violet-100"
+                  >
+                    + Nova etapa custom...
+                  </button>
                 </div>
               );
             })()}
@@ -980,6 +1098,64 @@ export default function PoolBudgetDetailPage() {
           onClose={() => setShowEditHeader(false)}
           onSaved={async () => { setShowEditHeader(false); await load(); }}
         />
+      )}
+
+      {/* Modal: Nova etapa custom */}
+      {showAddSection && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowAddSection(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-slate-900 mb-2">+ Nova etapa</h3>
+            <p className="text-xs text-slate-600 mb-3">
+              Crie uma etapa com nome livre (ex: <em>Deck Madeira</em>, <em>Cobertura Termica</em>, <em>Spa Premium</em>). A etapa fica salva neste orcamento.
+            </p>
+            <input
+              type="text"
+              autoFocus
+              value={newSectionName}
+              onChange={(e) => setNewSectionName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAddCustomSection();
+                if (e.key === "Escape") setShowAddSection(false);
+              }}
+              placeholder="Nome da etapa"
+              className="w-full rounded-lg border border-violet-300 px-3 py-2 text-sm focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
+            />
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button onClick={() => setShowAddSection(false)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                Cancelar
+              </button>
+              <button onClick={handleAddCustomSection} disabled={!newSectionName.trim()}
+                className="rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50">
+                Criar etapa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Confirmar exclusao de etapa */}
+      {deleteSectionConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setDeleteSectionConfirm(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-slate-900 mb-2">Excluir etapa "{secLabel(deleteSectionConfirm.key)}"?</h3>
+            <p className="text-sm text-slate-700 mb-4">
+              {deleteSectionConfirm.count > 0
+                ? `Esta etapa tem ${deleteSectionConfirm.count} linha(s). Eles serao movidos pra etapa "Outros" — voce pode reclassificar depois.`
+                : `Esta etapa nao tem linhas. Sera removida da lista.`}
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button onClick={() => setDeleteSectionConfirm(null)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                Cancelar
+              </button>
+              <button onClick={() => handleDeleteSection(deleteSectionConfirm.key)}
+                className="rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-700">
+                Excluir etapa
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <HeatingSimulatorModal
