@@ -330,6 +330,10 @@ interface ProductForm {
   specCopCurveA: string;
   specCopCurveB: string;
   specCopCurveC: string;
+  // Coletor Solar — specs do dimensionamento solar (alimentam solar.service.ts)
+  specColetorAreaM2: string;   // m²/coletor (area util de captacao)
+  specKwhPorM2: string;        // kWh/m²/dia (radiacao util captada)
+  specEficiencia: string;      // 0..1 (fracao da radiacao convertida em calor)
   // Specs especificas por tipo de equipamento (F6.2 — agregadas pelo Simulador)
   specQtdJatos: string;            // Hidromassagem/SPA — qtde de jatos do kit
   specCascataComprimentoCm: string; // Cascata — comprimento do bocal em cm
@@ -386,6 +390,9 @@ const EMPTY_FORM: ProductForm = {
   specCopCurveA: "",
   specCopCurveB: "",
   specCopCurveC: "",
+  specColetorAreaM2: "",
+  specKwhPorM2: "",
+  specEficiencia: "",
   specQtdJatos: "",
   specCascataComprimentoCm: "",
   specBordaAlturaQuedaM: "",
@@ -441,6 +448,9 @@ function productToForm(p: Product): ProductForm {
     specCopCurveA: numericSpecToStr(p.technicalSpecs?.copCurveA),
     specCopCurveB: numericSpecToStr(p.technicalSpecs?.copCurveB),
     specCopCurveC: numericSpecToStr(p.technicalSpecs?.copCurveC),
+    specColetorAreaM2: numericSpecToStr(p.technicalSpecs?.areaM2 ?? p.technicalSpecs?.coletorAreaM2),
+    specKwhPorM2: numericSpecToStr(p.technicalSpecs?.kwhPorM2 ?? p.technicalSpecs?.kwhM2),
+    specEficiencia: numericSpecToStr(p.technicalSpecs?.eficiencia),
     specQtdJatos: numericSpecToStr(p.technicalSpecs?.qtdJatos),
     specCascataComprimentoCm: numericSpecToStr(p.technicalSpecs?.cascataComprimentoCm),
     specBordaAlturaQuedaM: numericSpecToStr(p.technicalSpecs?.bordaAlturaQuedaM),
@@ -486,6 +496,9 @@ function buildTechnicalSpecs(f: ProductForm, existing?: Record<string, any>): Re
   setOrUnset("copCurveA", f.specCopCurveA);
   setOrUnset("copCurveB", f.specCopCurveB);
   setOrUnset("copCurveC", f.specCopCurveC);
+  setOrUnset("areaM2", f.specColetorAreaM2);
+  setOrUnset("kwhPorM2", f.specKwhPorM2);
+  setOrUnset("eficiencia", f.specEficiencia);
   setOrUnset("qtdJatos", f.specQtdJatos);
   setOrUnset("cascataComprimentoCm", f.specCascataComprimentoCm);
   setOrUnset("bordaAlturaQuedaM", f.specBordaAlturaQuedaM);
@@ -654,15 +667,29 @@ export default function ProductsPage() {
   // "Tipo (Piscina)" no formulario de cadastro).
   const [poolTypes, setPoolTypes] = useState<string[]>([]);
   const [showPoolTypesManager, setShowPoolTypesManager] = useState(false);
+  // Mapa tipo → campos obrigatorios. Carregado de /pool-types/manage. Usado pra
+  // (1) marcar asterisco vermelho nos campos obrigatorios; (2) auto-expandir
+  // CollapsibleCards que tem ao menos 1 campo obrigatorio; (3) validar antes do
+  // submit (backend tambem valida).
+  const [poolTypeRequiredMap, setPoolTypeRequiredMap] = useState<Record<string, string[]>>({});
 
-  // Recarrega pool types — chamado depois de CRUD no modal de gerenciamento
-  // pra refletir mudancas no datalist e no estado do form atual.
+  // Recarrega pool types + mapa de obrigatorios — chamado depois de CRUD no
+  // modal de gerenciamento pra refletir mudancas no datalist e no form atual.
   const reloadPoolTypes = useCallback(async () => {
     try {
-      const r = await api.get<string[]>("/products/pool-types");
-      setPoolTypes(Array.isArray(r) ? r : []);
+      const [list, manage] = await Promise.all([
+        api.get<string[]>("/products/pool-types"),
+        api.get<Array<{ name: string; requiredFields: string[] }>>("/products/pool-types/manage").catch(() => []),
+      ]);
+      setPoolTypes(Array.isArray(list) ? list : []);
+      const map: Record<string, string[]> = {};
+      for (const row of manage ?? []) {
+        if (row.requiredFields?.length) map[row.name] = row.requiredFields;
+      }
+      setPoolTypeRequiredMap(map);
     } catch {
       setPoolTypes([]);
+      setPoolTypeRequiredMap({});
     }
   }, []);
   // Opcoes pros filtros da lista (DISTINCT do backend).
@@ -713,12 +740,11 @@ export default function ProductsPage() {
     loadProducts();
   }, [loadProducts]);
 
-  // Carrega tipos ja cadastrados pra alimentar dropdown da aba Piscina.
+  // Carrega tipos ja cadastrados pra alimentar dropdown da aba Piscina +
+  // mapa de campos obrigatorios por tipo (asterisco/auto-expandir/validacao).
   useEffect(() => {
-    api.get<string[]>("/products/pool-types")
-      .then((r) => setPoolTypes(Array.isArray(r) ? r : []))
-      .catch(() => setPoolTypes([]));
-  }, []);
+    reloadPoolTypes();
+  }, [reloadPoolTypes]);
 
   // Carrega opcoes pros filtros da lista (DISTINCT de category, brand, poolType).
   useEffect(() => {
@@ -728,6 +754,23 @@ export default function ProductsPage() {
   }, []);
 
   const productFilters = useMemo(() => buildProductFilters(filterOptions), [filterOptions]);
+
+  // Specs obrigatorias do tipo atualmente selecionado no form.
+  const currentRequiredSpecs = useMemo(() => {
+    const t = (form.poolType ?? "").trim();
+    if (!t) return new Set<string>();
+    return new Set(poolTypeRequiredMap[t] ?? []);
+  }, [form.poolType, poolTypeRequiredMap]);
+
+  // Blocks que tem ao menos 1 spec obrigatoria pelo tipo atual (auto-expandir).
+  const blocksWithRequired = useMemo(() => {
+    const out = new Set<string>();
+    for (const key of currentRequiredSpecs) {
+      const b = SPEC_BLOCK_BY_KEY[key];
+      if (b) out.add(b);
+    }
+    return out;
+  }, [currentRequiredSpecs]);
 
   /* ── Load equivalents for a product ─────────────────── */
 
@@ -786,6 +829,28 @@ export default function ProductsPage() {
     if (!form.description.trim()) {
       toast("Descricao e obrigatoria.", "error");
       return;
+    }
+    // Valida campos obrigatorios pelo poolType selecionado. Backend tambem
+    // valida (defesa em camadas) mas frontend bloqueia antes da request.
+    if (currentRequiredSpecs.size > 0) {
+      const missing: string[] = [];
+      for (const key of currentRequiredSpecs) {
+        const formField = SPEC_KEY_TO_FORM_FIELD[key];
+        if (!formField) continue;
+        const val = (form as any)[formField];
+        if (val === undefined || val === null || String(val).trim() === "") {
+          missing.push(SPEC_LABEL_BY_KEY[key] ?? key);
+        }
+      }
+      if (missing.length > 0) {
+        toast(
+          `Faltam preencher: ${missing.join(", ")}. Aba Piscina → secao(oes) destacada(s).`,
+          "error",
+        );
+        // Se modal estiver na aba Geral, leva pra Piscina
+        if (modalTab !== "piscina") setModalTab("piscina");
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -1784,7 +1849,7 @@ export default function ProductsPage() {
                   <div className="rounded-xl border border-slate-200 bg-white p-5">
                     <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">⏱ Tempo de instalacao</h4>
                     <div className="max-w-sm">
-                      <FieldLabel help="Tempo padrao de montagem/instalacao desse equipamento. Usado pra calcular automaticamente o servico de montagem no orcamento de piscina. Equipamentos pequenos vs grandes podem ter tempos bem diferentes.">
+                      <FieldLabel required={currentRequiredSpecs.has('tempoMontagemH')} help="Tempo padrao de montagem/instalacao desse equipamento. Usado pra calcular automaticamente o servico de montagem no orcamento de piscina. Equipamentos pequenos vs grandes podem ter tempos bem diferentes.">
                         Tempo padrao de montagem (horas)
                       </FieldLabel>
                       <input
@@ -1797,100 +1862,94 @@ export default function ProductsPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 bg-white p-5">
-                    <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">🚿 Hidraulico — Filtros, Bombas, Aquecedores, SPA, Cascata</h4>
+                  <CollapsibleCard title="🚿 Hidraulico — Filtros, Bombas, Aquecedores, SPA, Cascata" defaultOpen={blocksWithRequired.has('hidraulico')}>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <FieldLabel help="Vazao do equipamento (litros por hora dividido por 1000). Usada pra calcular tempo de filtragem da piscina (volume / vazao).">
+                        <FieldLabel required={currentRequiredSpecs.has('vazaoM3h')} help="Vazao do equipamento (litros por hora dividido por 1000). Usada pra calcular tempo de filtragem da piscina (volume / vazao).">
                           Vazao (m³/h)
                         </FieldLabel>
                         <input type="number" step="0.1" value={form.specVazaoM3h} onChange={(e) => setField("specVazaoM3h", e.target.value)} placeholder="Ex: 9" className={inputClass} />
                       </div>
                       <div>
-                        <FieldLabel help="Diametro da conexao hidraulica em milimetros. Auto-selecao de tubos usa esse campo pra escolher o tubo correto (mesma medida do equipamento principal da etapa).">
+                        <FieldLabel required={currentRequiredSpecs.has('tuboEntradaMm')} help="Diametro da conexao hidraulica em milimetros. Auto-selecao de tubos usa esse campo pra escolher o tubo correto (mesma medida do equipamento principal da etapa).">
                           Tubo de entrada (mm)
                         </FieldLabel>
                         <input type="number" step="1" value={form.specTuboEntradaMm} onChange={(e) => setField("specTuboEntradaMm", e.target.value)} placeholder="Ex: 50, 60, 75" className={inputClass} />
                       </div>
                     </div>
-                  </div>
+                  </CollapsibleCard>
 
                   {/* Specs especificas por tipo de equipamento — alimentam o Simulador automatico (F6.2) */}
                   {/^cascata/i.test(form.poolType) && (
-                    <div className="rounded-xl border border-slate-200 bg-white p-5">
-                      <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">🌊 Cascata — Spec especifica</h4>
+                    <CollapsibleCard title="🌊 Cascata — Spec especifica" defaultOpen={blocksWithRequired.has('cascata')}>
                       <div className="max-w-sm">
-                        <FieldLabel tone="cyan" help="Comprimento do bocal de cascata em centimetros. O Simulador de Aquecimento agrega a soma de qty × comprimento das linhas de Cascata pra calcular a perda termica extra. Ex: Cascata Inox 100cm = 100.">
+                        <FieldLabel required={currentRequiredSpecs.has('cascataComprimentoCm')} tone="cyan" help="Comprimento do bocal de cascata em centimetros. O Simulador de Aquecimento agrega a soma de qty × comprimento das linhas de Cascata pra calcular a perda termica extra. Ex: Cascata Inox 100cm = 100.">
                           Comprimento do bocal (cm) ✓
                         </FieldLabel>
                         <input type="number" step="1" value={form.specCascataComprimentoCm} onChange={(e) => setField("specCascataComprimentoCm", e.target.value)} placeholder="Ex: 100, 150, 200" className={inputClass} />
                       </div>
-                    </div>
+                    </CollapsibleCard>
                   )}
 
                   {(/^kit spa/i.test(form.poolType) || /hidromassagem/i.test(form.poolType) || /\bjato/i.test(form.poolType)) && (
-                    <div className="rounded-xl border border-slate-200 bg-white p-5">
-                      <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">🛁 SPA / Hidromassagem — Spec especifica</h4>
+                    <CollapsibleCard title="🛁 SPA / Hidromassagem — Spec especifica" defaultOpen={blocksWithRequired.has('spa')}>
                       <div className="max-w-sm">
-                        <FieldLabel tone="cyan" help="Quantidade de jatos do kit. Simulador agrega qty × jatos das linhas pra calcular perda extra (cada jato adiciona ~150 Kcal/h). Ex: Kit SPA Master = 8 jatos.">
+                        <FieldLabel required={currentRequiredSpecs.has('qtdJatos')} tone="cyan" help="Quantidade de jatos do kit. Simulador agrega qty × jatos das linhas pra calcular perda extra (cada jato adiciona ~150 Kcal/h). Ex: Kit SPA Master = 8 jatos.">
                           Quantidade de jatos ✓
                         </FieldLabel>
                         <input type="number" step="1" min="0" value={form.specQtdJatos} onChange={(e) => setField("specQtdJatos", e.target.value)} placeholder="Ex: 4, 6, 8" className={inputClass} />
                       </div>
-                    </div>
+                    </CollapsibleCard>
                   )}
 
                   {/borda/i.test(form.poolType) && (
-                    <div className="rounded-xl border border-slate-200 bg-white p-5">
-                      <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">💧 Borda Infinita — Specs especificas</h4>
+                    <CollapsibleCard title="💧 Borda Infinita — Specs especificas" defaultOpen={blocksWithRequired.has('borda')}>
                       <div className="text-[11px] text-slate-500 mb-3">
                         Estes campos alimentam o Simulador automaticamente. O comprimento total vira da soma das qty das linhas de Borda Infinita das etapas. Altura/vazao/horas sao do primeiro produto encontrado.
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div>
-                          <FieldLabel tone="cyan" help="Altura da queda d'agua da borda ate o reservatorio. Maior altura = mais area de filme exposta ao ar = mais evaporacao. Canaleta nivelada: ~0.1m. Cascata baixa: 0.5m. Cascata alta: 1.5m.">
+                          <FieldLabel required={currentRequiredSpecs.has('bordaAlturaQuedaM')} tone="cyan" help="Altura da queda d'agua da borda ate o reservatorio. Maior altura = mais area de filme exposta ao ar = mais evaporacao. Canaleta nivelada: ~0.1m. Cascata baixa: 0.5m. Cascata alta: 1.5m.">
                             Altura de queda (m) ✓
                           </FieldLabel>
                           <input type="number" step="0.05" min="0.05" max="3" value={form.specBordaAlturaQuedaM} onChange={(e) => setField("specBordaAlturaQuedaM", e.target.value)} placeholder="Ex: 0.5" className={inputClass} />
                         </div>
                         <div>
-                          <FieldLabel tone="cyan" help="Vazao da bomba de transbordamento por metro linear. Mais vazao = filme mais espesso/largo = mais evaporacao. Tipico: 20-40 L/min/m (bomba 0.5cv). Plateua acima de 60.">
+                          <FieldLabel required={currentRequiredSpecs.has('bordaVazaoLminPorM')} tone="cyan" help="Vazao da bomba de transbordamento por metro linear. Mais vazao = filme mais espesso/largo = mais evaporacao. Tipico: 20-40 L/min/m (bomba 0.5cv). Plateua acima de 60.">
                             Vazao (L/min por metro) ✓
                           </FieldLabel>
                           <input type="number" step="5" min="5" max="120" value={form.specBordaVazaoLminPorM} onChange={(e) => setField("specBordaVazaoLminPorM", e.target.value)} placeholder="Ex: 30" className={inputClass} />
                         </div>
                         <div>
-                          <FieldLabel tone="cyan" help="Quantas horas por dia a bomba da borda fica ligada. 24h = sempre. Reduza se a bomba desliga (capa fechada/noite). Multiplica a perda diaria por (horas/24).">
+                          <FieldLabel required={currentRequiredSpecs.has('bordaHorasAtivaDia')} tone="cyan" help="Quantas horas por dia a bomba da borda fica ligada. 24h = sempre. Reduza se a bomba desliga (capa fechada/noite). Multiplica a perda diaria por (horas/24).">
                             Horas/dia ativa ✓
                           </FieldLabel>
                           <input type="number" step="1" min="0" max="24" value={form.specBordaHorasAtivaDia} onChange={(e) => setField("specBordaHorasAtivaDia", e.target.value)} placeholder="Ex: 24" className={inputClass} />
                         </div>
                       </div>
-                    </div>
+                    </CollapsibleCard>
                   )}
 
-                  <div className="rounded-xl border border-slate-200 bg-white p-5">
-                    <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">🔥 Aquecimento — Bombas de Calor, Solar, Trocadores</h4>
-
+                  <CollapsibleCard title="🔥 Aquecimento — Bombas de Calor, Solar, Trocadores" defaultOpen={blocksWithRequired.has('aquecimento') || blocksWithRequired.has('coletorSolar')}>
                     {/* Capacidade nominal — usada no Simulador.
                         Identificacao do produto como "coletor solar" / "bomba de calor" /
                         etc agora eh feita pelo Tipo (poolType) — campo livre gerenciavel
                         via ⚙ Gerenciar tipos. Nada filtra por technicalSpecs.tipoEquipamento. */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                       <div>
-                        <FieldLabel tone="cyan" help="Capacidade nominal de aquecimento em Kcal/h — NUMERO PRINCIPAL DO CALCULO. Usado pelo Simulador pra selecionar o modelo (kcalHNominal >= calorNecessarioKcalH). Ex Tholz X23-40C = 34.400 Kcal/h.">
+                        <FieldLabel required={currentRequiredSpecs.has('kcalHNominal')} tone="cyan" help="Capacidade nominal de aquecimento em Kcal/h — NUMERO PRINCIPAL DO CALCULO. Usado pelo Simulador pra selecionar o modelo (kcalHNominal >= calorNecessarioKcalH). Ex Tholz X23-40C = 34.400 Kcal/h.">
                           Kcal/h nominal ✓
                         </FieldLabel>
                         <input type="number" step="100" value={form.specKcalHNominal} onChange={(e) => setField("specKcalHNominal", e.target.value)} placeholder="Ex: 34400" className={inputClass} />
                       </div>
                       <div>
-                        <FieldLabel help="Potencia termica equivalente em kW. Apenas INFORMATIVO no relatorio do Simulador. Equivale a Kcal/h ÷ 860.">
+                        <FieldLabel required={currentRequiredSpecs.has('kwNominal')} help="Potencia termica equivalente em kW. Apenas INFORMATIVO no relatorio do Simulador. Equivale a Kcal/h ÷ 860.">
                           kW termico (info)
                         </FieldLabel>
                         <input type="number" step="0.1" value={form.specKwNominal} onChange={(e) => setField("specKwNominal", e.target.value)} placeholder="Ex: 40" className={inputClass} />
                       </div>
                       <div>
-                        <FieldLabel help="Capacidade em BTU/h. Apenas INFORMATIVO no relatorio (comum em datasheets importados). Calculo do Simulador NAO usa este campo — usa Kcal/h nominal. Equivale a Kcal/h × 3.9683.">
+                        <FieldLabel required={currentRequiredSpecs.has('btuH')} help="Capacidade em BTU/h. Apenas INFORMATIVO no relatorio (comum em datasheets importados). Calculo do Simulador NAO usa este campo — usa Kcal/h nominal. Equivale a Kcal/h × 3.9683.">
                           BTU/h (info)
                         </FieldLabel>
                         <input type="number" step="1000" value={form.specBtuH} onChange={(e) => setField("specBtuH", e.target.value)} placeholder="Ex: 140000" className={inputClass} />
@@ -1901,7 +1960,7 @@ export default function ProductsPage() {
                     <h5 className="text-[11px] font-bold text-slate-500 uppercase mb-2 mt-2">Consumo eletrico</h5>
                     <div className="grid grid-cols-1 sm:grid-cols-1 gap-4 mb-4 max-w-sm">
                       <div>
-                        <FieldLabel help="Consumo eletrico MEDIO em kW (em ar 15°C, 50% capacidade). Usado pra estimar custo mensal e anual de operacao. Ex Tholz X23-40C = 3.145 kW.">
+                        <FieldLabel required={currentRequiredSpecs.has('ratedInputPowerKW')} help="Consumo eletrico MEDIO em kW (em ar 15°C, 50% capacidade). Usado pra estimar custo mensal e anual de operacao. Ex Tholz X23-40C = 3.145 kW.">
                           Consumo medio (kW)
                         </FieldLabel>
                         <input type="number" step="0.1" value={form.specRatedInputPowerKW} onChange={(e) => setField("specRatedInputPowerKW", e.target.value)} placeholder="Ex: 3.145" className={inputClass} />
@@ -1912,19 +1971,19 @@ export default function ProductsPage() {
                     <h5 className="text-[11px] font-bold text-slate-500 uppercase mb-2 mt-2">COP (Coeficiente de Performance)</h5>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
-                        <FieldLabel help="COP MAXIMO em condicao ideal (ar 26°C, carga baixa). Eh o numero de marketing — 'Bomba COP 23' = esse valor. Nao representa operacao tipica.">
+                        <FieldLabel required={currentRequiredSpecs.has('copMax')} help="COP MAXIMO em condicao ideal (ar 26°C, carga baixa). Eh o numero de marketing — 'Bomba COP 23' = esse valor. Nao representa operacao tipica.">
                           COP maximo (marketing)
                         </FieldLabel>
                         <input type="number" step="0.1" value={form.specCopMax} onChange={(e) => setField("specCopMax", e.target.value)} placeholder="Ex: 23.0" className={inputClass} />
                       </div>
                       <div>
-                        <FieldLabel help="COP em 50% capacidade com ar a 26°C — operacao tipica de verao. Pra Tholz X23-40C = 15.">
+                        <FieldLabel required={currentRequiredSpecs.has('copAt50Air26')} help="COP em 50% capacidade com ar a 26°C — operacao tipica de verao. Pra Tholz X23-40C = 15.">
                           COP 50% verao (ar 26°C)
                         </FieldLabel>
                         <input type="number" step="0.1" value={form.specCopAt50Air26} onChange={(e) => setField("specCopAt50Air26", e.target.value)} placeholder="Ex: 15.0" className={inputClass} />
                       </div>
                       <div>
-                        <FieldLabel tone="cyan" help="COP em 50% capacidade com ar a 15°C — operacao de inverno BR. USADO PRA CALCULO conservador de consumo no Simulador (fallback). Pra Tholz X23-40C = 7.5.">
+                        <FieldLabel required={currentRequiredSpecs.has('copAt50Air15')} tone="cyan" help="COP em 50% capacidade com ar a 15°C — operacao de inverno BR. USADO PRA CALCULO conservador de consumo no Simulador (fallback). Pra Tholz X23-40C = 7.5.">
                           COP 50% inverno (ar 15°C) ✓
                         </FieldLabel>
                         <input type="number" step="0.1" value={form.specCopAt50Air15} onChange={(e) => setField("specCopAt50Air15", e.target.value)} placeholder="Ex: 7.5" className={inputClass} />
@@ -1935,19 +1994,19 @@ export default function ProductsPage() {
                     <h5 className="text-[11px] font-bold text-slate-500 uppercase mb-2 mt-4">Curva COP × Carga — Polinomio quadratico</h5>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
-                        <FieldLabel help="Coeficiente A do polinomio COP(carga) = A·carga² + B·carga + C. Onde 'carga' eh a fracao de uso (0..1.3) e COP eh o resultado. Permite calculo TAB006-style: meses com carga alta tem COP baixo. Pra Tholz X23-40C: A=15.49.">
+                        <FieldLabel required={currentRequiredSpecs.has('copCurveA')} help="Coeficiente A do polinomio COP(carga) = A·carga² + B·carga + C. Onde 'carga' eh a fracao de uso (0..1.3) e COP eh o resultado. Permite calculo TAB006-style: meses com carga alta tem COP baixo. Pra Tholz X23-40C: A=15.49.">
                           A (coef carga²)
                         </FieldLabel>
                         <input type="number" step="0.001" value={form.specCopCurveA} onChange={(e) => setField("specCopCurveA", e.target.value)} placeholder="Ex: 15.49" className={inputClass} />
                       </div>
                       <div>
-                        <FieldLabel help="Coeficiente B do polinomio COP(carga) = A·carga² + B·carga + C. Tipicamente NEGATIVO (COP cai com aumento de carga). Pra Tholz X23-40C: B=-37.51.">
+                        <FieldLabel required={currentRequiredSpecs.has('copCurveB')} help="Coeficiente B do polinomio COP(carga) = A·carga² + B·carga + C. Tipicamente NEGATIVO (COP cai com aumento de carga). Pra Tholz X23-40C: B=-37.51.">
                           B (coef carga)
                         </FieldLabel>
                         <input type="number" step="0.001" value={form.specCopCurveB} onChange={(e) => setField("specCopCurveB", e.target.value)} placeholder="Ex: -37.51" className={inputClass} />
                       </div>
                       <div>
-                        <FieldLabel help="Coeficiente C do polinomio COP(carga) = A·carga² + B·carga + C. Intercepto. Pra Tholz X23-40C: C=29.88.">
+                        <FieldLabel required={currentRequiredSpecs.has('copCurveC')} help="Coeficiente C do polinomio COP(carga) = A·carga² + B·carga + C. Intercepto. Pra Tholz X23-40C: C=29.88.">
                           C (intercepto)
                         </FieldLabel>
                         <input type="number" step="0.001" value={form.specCopCurveC} onChange={(e) => setField("specCopCurveC", e.target.value)} placeholder="Ex: 29.88" className={inputClass} />
@@ -1957,27 +2016,54 @@ export default function ProductsPage() {
                       <strong>Opcional</strong> — se preenchidos, o Simulador calcula consumo mensal por curva (TAB006-style). Senao, usa interpolacao linear entre COP maximo e COP 50% inverno (menos preciso). Valores TAB006:
                       X23-09C: A=16.55 B=-38.92 C=29.92 · X23-14C: A=15.95 B=-37.83 C=29.43 · X23-18C: A=0.83 B=-10.25 C=18.42 · X23-26C: A=15.80 B=-38.06 C=29.18 · X23-40C: A=15.49 B=-37.51 C=29.88
                     </p>
-                  </div>
 
-                  <div className="rounded-xl border border-slate-200 bg-white p-5">
-                    <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">⚡ Eletrico — Bombas, Motores, Equipamentos</h4>
+                    {/* Coletor Solar — specs do dimensionamento solar.
+                        Os 3 campos abaixo alimentam o solar.service.ts: o motor calcula
+                        qtd. coletores, vazao, area total, ganho diario e cobertura. */}
+                    <h5 className="text-[11px] font-bold text-slate-500 uppercase mb-2 mt-4">⛅ Coletor Solar — specs do dimensionamento</h5>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <FieldLabel required={currentRequiredSpecs.has('areaM2')} help="Area util de captacao do coletor em m². Eh o tamanho do painel solar. O motor calcula qtd de coletores = m² necessario ÷ area. Ex Solis 3.00x1.12 = 3.36 m².">
+                          Area do coletor (m²) ✓
+                        </FieldLabel>
+                        <input type="number" step="0.01" value={form.specColetorAreaM2} onChange={(e) => setField("specColetorAreaM2", e.target.value)} placeholder="Ex: 3.36" className={inputClass} />
+                      </div>
+                      <div>
+                        <FieldLabel required={currentRequiredSpecs.has('kwhPorM2')} help="Radiacao util captada pelo coletor — quanto kWh por m² por dia ele entrega de energia util. Vem da ficha tecnica do fabricante. Ex Solis: 102.3 kWh/m²/dia.">
+                          Radiacao util (kWh/m²/dia) ✓
+                        </FieldLabel>
+                        <input type="number" step="0.1" value={form.specKwhPorM2} onChange={(e) => setField("specKwhPorM2", e.target.value)} placeholder="Ex: 102.3" className={inputClass} />
+                      </div>
+                      <div>
+                        <FieldLabel required={currentRequiredSpecs.has('eficiencia')} help="Fracao da radiacao solar convertida em calor util — valor entre 0 e 1. Ex 0.732 = 73,2% de eficiencia (Solis padrao). Coletor melhor = mais proximo de 1.">
+                          Eficiencia (0..1) ✓
+                        </FieldLabel>
+                        <input type="number" step="0.001" min="0" max="1" value={form.specEficiencia} onChange={(e) => setField("specEficiencia", e.target.value)} placeholder="Ex: 0.732" className={inputClass} />
+                      </div>
+                    </div>
+                    <p className="mt-2 text-[11px] text-slate-500">
+                      <strong>Obrigatorios pro Simulador Solar</strong> — sem esses 3 valores o coletor aparece com ⚠ no dropdown e o calculo nao roda. Operador edita aqui caso o fabricante atualize a ficha tecnica.
+                    </p>
+                  </CollapsibleCard>
+
+                  <CollapsibleCard title="⚡ Eletrico — Bombas, Motores, Equipamentos" defaultOpen={blocksWithRequired.has('eletrico')}>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                       <div>
-                        <FieldLabel help="Potencia do motor em CV (cavalo-vapor). 1 CV ≈ 0.736 kW.">Potencia (CV)</FieldLabel>
+                        <FieldLabel required={currentRequiredSpecs.has('potenciaCv')} help="Potencia do motor em CV (cavalo-vapor). 1 CV ≈ 0.736 kW.">Potencia (CV)</FieldLabel>
                         <input type="number" step="0.1" value={form.specPotenciaCv} onChange={(e) => setField("specPotenciaCv", e.target.value)} placeholder="Ex: 0.75" className={inputClass} />
                       </div>
                       <div>
-                        <FieldLabel help="Tensao de operacao em Volts. 220V eh padrao residencial BR, 380V eh trifasico industrial.">Voltagem (V)</FieldLabel>
+                        <FieldLabel required={currentRequiredSpecs.has('voltagem')} help="Tensao de operacao em Volts. 220V eh padrao residencial BR, 380V eh trifasico industrial.">Voltagem (V)</FieldLabel>
                         <input type="number" step="1" value={form.specVoltagem} onChange={(e) => setField("specVoltagem", e.target.value)} placeholder="Ex: 220" className={inputClass} />
                       </div>
                       <div>
-                        <FieldLabel help="Corrente nominal em Amperes. Usado pra dimensionar disjuntor e fiacao.">Amperagem (A)</FieldLabel>
+                        <FieldLabel required={currentRequiredSpecs.has('amperagem')} help="Corrente nominal em Amperes. Usado pra dimensionar disjuntor e fiacao.">Amperagem (A)</FieldLabel>
                         <input type="number" step="0.1" value={form.specAmperagem} onChange={(e) => setField("specAmperagem", e.target.value)} placeholder="Ex: 5.1" className={inputClass} />
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <FieldLabel help="Tipo de alimentacao eletrica. Influencia disjuntor, quadro de distribuicao e fiacao.">Tipo eletrico</FieldLabel>
+                        <FieldLabel required={currentRequiredSpecs.has('bifTrif')} help="Tipo de alimentacao eletrica. Influencia disjuntor, quadro de distribuicao e fiacao.">Tipo eletrico</FieldLabel>
                         <select value={form.specBifTrif} onChange={(e) => setField("specBifTrif", e.target.value)} className={inputClass}>
                           <option value="">— Nao se aplica —</option>
                           <option value="Bif">Bifasico (220V — 2 fases)</option>
@@ -1985,11 +2071,11 @@ export default function ProductsPage() {
                         </select>
                       </div>
                       <div>
-                        <FieldLabel help="Quantos modulos/espacos o disjuntor ou contactor desse equipamento ocupa no quadro. Usado pra dimensionar quadro automaticamente.">Espacos no quadro</FieldLabel>
+                        <FieldLabel required={currentRequiredSpecs.has('bifTrifConta')} help="Quantos modulos/espacos o disjuntor ou contactor desse equipamento ocupa no quadro. Usado pra dimensionar quadro automaticamente.">Espacos no quadro</FieldLabel>
                         <input type="number" step="1" min="0" value={form.specBifTrifConta} onChange={(e) => setField("specBifTrifConta", e.target.value)} placeholder="Ex: 2 (Bif) ou 3 (Trif)" className={inputClass} />
                       </div>
                     </div>
-                  </div>
+                  </CollapsibleCard>
                 </div>
               )}
             </div>
@@ -2024,6 +2110,30 @@ export default function ProductsPage() {
   );
 }
 
+// ============ Card colapsavel reutilizavel ============
+// Usado nos blocos pesados da aba Piscina (Hidraulico, Aquecimento, Eletrico, etc).
+// Padrao minimizado — usuario expande clicando no header. Visual identico ao
+// <div rounded-xl border> antigo, mas com triangulo indicador.
+function CollapsibleCard({
+  title,
+  defaultOpen = false,
+  children,
+}: {
+  title: React.ReactNode;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="rounded-xl border border-slate-200 bg-white p-5 group" {...(defaultOpen ? { open: true } : {})}>
+      <summary className="text-xs font-semibold text-slate-700 uppercase cursor-pointer list-none flex items-center gap-2 select-none [&::-webkit-details-marker]:hidden">
+        <span className="text-slate-400 transition-transform inline-block group-open:rotate-90">▸</span>
+        <span className="flex-1">{title}</span>
+      </summary>
+      <div className="mt-4">{children}</div>
+    </details>
+  );
+}
+
 // ============ Modal: Gerenciar tipos de produto Piscina ============
 // Lista tipos cadastrados (DISTINCT Product.poolType + extras manuais salvos
 // em Company.systemConfig.pool.extraTypes) com contagem de produtos por tipo.
@@ -2034,7 +2144,97 @@ interface PoolTypeRow {
   name: string;
   count: number;
   isExtra: boolean;
+  requiredFields: string[];
 }
+
+// Catalogo de specs disponiveis na aba Piscina do cadastro de produto, agrupadas
+// pelos blocos visuais. Usado pelo modal "Campos obrigatorios" (e tambem pelo
+// auto-expandir dos CollapsibleCards no formulario do produto).
+export const PRODUCT_SPECS_GROUPED: Array<{ block: string; group: string; specs: { key: string; label: string }[] }> = [
+  { block: 'tempo', group: '⏱ Tempo de instalacao', specs: [
+    { key: 'tempoMontagemH', label: 'Tempo de montagem (h)' },
+  ]},
+  { block: 'hidraulico', group: '🚿 Hidraulico', specs: [
+    { key: 'vazaoM3h', label: 'Vazao (m³/h)' },
+    { key: 'tuboEntradaMm', label: 'Tubo de entrada (mm)' },
+  ]},
+  { block: 'cascata', group: '🌊 Cascata', specs: [
+    { key: 'cascataComprimentoCm', label: 'Comprimento do bocal (cm)' },
+  ]},
+  { block: 'spa', group: '🛁 SPA / Hidromassagem', specs: [
+    { key: 'qtdJatos', label: 'Qtde de jatos' },
+  ]},
+  { block: 'borda', group: '💧 Borda Infinita', specs: [
+    { key: 'bordaAlturaQuedaM', label: 'Altura de queda (m)' },
+    { key: 'bordaVazaoLminPorM', label: 'Vazao (L/min por m)' },
+    { key: 'bordaHorasAtivaDia', label: 'Horas/dia ativa' },
+  ]},
+  { block: 'aquecimento', group: '🔥 Aquecimento', specs: [
+    { key: 'kcalHNominal', label: 'Kcal/h nominal' },
+    { key: 'kwNominal', label: 'kW termico' },
+    { key: 'btuH', label: 'BTU/h' },
+    { key: 'ratedInputPowerKW', label: 'Consumo medio (kW)' },
+    { key: 'copMax', label: 'COP maximo' },
+    { key: 'copAt50Air26', label: 'COP 50% verao' },
+    { key: 'copAt50Air15', label: 'COP 50% inverno' },
+    { key: 'copCurveA', label: 'COP A (carga²)' },
+    { key: 'copCurveB', label: 'COP B (carga)' },
+    { key: 'copCurveC', label: 'COP C (intercepto)' },
+  ]},
+  { block: 'coletorSolar', group: '⛅ Coletor Solar', specs: [
+    { key: 'areaM2', label: 'Area do coletor (m²)' },
+    { key: 'kwhPorM2', label: 'Radiacao util (kWh/m²/dia)' },
+    { key: 'eficiencia', label: 'Eficiencia (0..1)' },
+  ]},
+  { block: 'eletrico', group: '⚡ Eletrico', specs: [
+    { key: 'potenciaCv', label: 'Potencia (CV)' },
+    { key: 'voltagem', label: 'Voltagem (V)' },
+    { key: 'amperagem', label: 'Amperagem (A)' },
+    { key: 'bifTrif', label: 'Tipo eletrico (Bif/Trif)' },
+    { key: 'bifTrifConta', label: 'Espacos no quadro' },
+  ]},
+];
+
+// Mapa key -> label pra mensagens de erro amigaveis no submit
+export const SPEC_LABEL_BY_KEY: Record<string, string> = Object.fromEntries(
+  PRODUCT_SPECS_GROUPED.flatMap((b) => b.specs.map((s) => [s.key, s.label])),
+);
+
+// Mapa key -> nome do bloco (pra auto-expandir o CollapsibleCard certo)
+export const SPEC_BLOCK_BY_KEY: Record<string, string> = Object.fromEntries(
+  PRODUCT_SPECS_GROUPED.flatMap((b) => b.specs.map((s) => [s.key, b.block])),
+);
+
+// Mapa spec key (technicalSpecs.X) -> campo do form (spec...). Algumas specs tem
+// nomes do form diferentes do nome da chave (ex: areaM2 -> specColetorAreaM2).
+export const SPEC_KEY_TO_FORM_FIELD: Record<string, string> = {
+  tempoMontagemH: 'specTempoMontagemH',
+  vazaoM3h: 'specVazaoM3h',
+  tuboEntradaMm: 'specTuboEntradaMm',
+  cascataComprimentoCm: 'specCascataComprimentoCm',
+  qtdJatos: 'specQtdJatos',
+  bordaAlturaQuedaM: 'specBordaAlturaQuedaM',
+  bordaVazaoLminPorM: 'specBordaVazaoLminPorM',
+  bordaHorasAtivaDia: 'specBordaHorasAtivaDia',
+  kcalHNominal: 'specKcalHNominal',
+  kwNominal: 'specKwNominal',
+  btuH: 'specBtuH',
+  ratedInputPowerKW: 'specRatedInputPowerKW',
+  copMax: 'specCopMax',
+  copAt50Air26: 'specCopAt50Air26',
+  copAt50Air15: 'specCopAt50Air15',
+  copCurveA: 'specCopCurveA',
+  copCurveB: 'specCopCurveB',
+  copCurveC: 'specCopCurveC',
+  areaM2: 'specColetorAreaM2',
+  kwhPorM2: 'specKwhPorM2',
+  eficiencia: 'specEficiencia',
+  potenciaCv: 'specPotenciaCv',
+  voltagem: 'specVoltagem',
+  amperagem: 'specAmperagem',
+  bifTrif: 'specBifTrif',
+  bifTrifConta: 'specBifTrifConta',
+};
 
 function PoolTypesManagerModal({
   onClose,
@@ -2052,6 +2252,7 @@ function PoolTypesManagerModal({
   const [editingValue, setEditingValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<PoolTypeRow | null>(null);
+  const [editingRequiredFields, setEditingRequiredFields] = useState<PoolTypeRow | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -2104,6 +2305,21 @@ function PoolTypesManagerModal({
       toast(`Renomeado. ${r.productsUpdated} produto(s) atualizado(s).`, "success");
     } catch (e: any) {
       toast(String(e?.message ?? "Erro ao renomear"), "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveRequiredFields(name: string, requiredFields: string[]) {
+    setBusy(true);
+    try {
+      await api.post("/products/pool-types/required-fields", { name, requiredFields });
+      setEditingRequiredFields(null);
+      await load();
+      await onChanged();
+      toast(`Campos obrigatorios de "${name}" salvos.`, "success");
+    } catch (e: any) {
+      toast(String(e?.message ?? "Erro ao salvar campos obrigatorios"), "error");
     } finally {
       setBusy(false);
     }
@@ -2213,6 +2429,17 @@ function PoolTypesManagerModal({
                       <span className="text-[11px] text-slate-500">
                         {row.count > 0 ? `${row.count} produto(s)` : "sem produtos"}
                       </span>
+                      {row.requiredFields.length > 0 && (
+                        <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200" title={row.requiredFields.join(", ")}>
+                          {row.requiredFields.length} obrigatorio(s)
+                        </span>
+                      )}
+                      <button
+                        onClick={() => setEditingRequiredFields(row)}
+                        disabled={busy}
+                        title="Definir campos obrigatorios"
+                        className="text-xs text-slate-500 hover:text-amber-700 px-1.5"
+                      >📋</button>
                       <button
                         onClick={() => { setEditingName(row.name); setEditingValue(row.name); }}
                         disabled={busy}
@@ -2241,6 +2468,15 @@ function PoolTypesManagerModal({
         </div>
       </div>
 
+      {editingRequiredFields && (
+        <RequiredFieldsModal
+          row={editingRequiredFields}
+          onClose={() => setEditingRequiredFields(null)}
+          onSave={(fields) => handleSaveRequiredFields(editingRequiredFields.name, fields)}
+          busy={busy}
+        />
+      )}
+
       {confirmDelete && (
         <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4" onClick={() => setConfirmDelete(null)}>
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-5" onClick={(e) => e.stopPropagation()}>
@@ -2263,6 +2499,106 @@ function PoolTypesManagerModal({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ============ Modal: Campos obrigatorios por tipo ============
+// Marca quais specs (de PRODUCT_SPECS_GROUPED) sao obrigatorias quando o produto
+// tem este poolType. Ao salvar produto sem preencher = backend lanca BadRequest
+// + frontend bloqueia submit com toast e scroll pro primeiro campo faltando.
+
+function RequiredFieldsModal({
+  row,
+  onClose,
+  onSave,
+  busy,
+}: {
+  row: PoolTypeRow;
+  onClose: () => void;
+  onSave: (fields: string[]) => void | Promise<void>;
+  busy: boolean;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(new Set(row.requiredFields));
+
+  function toggle(key: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function toggleGroup(specs: { key: string }[], allSelected: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const s of specs) {
+        if (allSelected) next.delete(s.key);
+        else next.add(s.key);
+      }
+      return next;
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-amber-50 to-yellow-50">
+          <h2 className="text-base font-bold text-slate-900">📋 Campos obrigatorios — tipo "{row.name}"</h2>
+          <p className="text-xs text-slate-600 mt-0.5">
+            Marque as specs que TODO produto deste tipo DEVE preencher. Sem isso, o sistema bloqueia o save com erro.
+          </p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {PRODUCT_SPECS_GROUPED.map((bloc) => {
+            const allSelected = bloc.specs.every((s) => selected.has(s.key));
+            const someSelected = bloc.specs.some((s) => selected.has(s.key));
+            return (
+              <div key={bloc.block} className="rounded-lg border border-slate-200">
+                <div className="flex items-center justify-between px-4 py-2 bg-slate-50 border-b border-slate-200">
+                  <h3 className="text-xs font-bold text-slate-700 uppercase">{bloc.group}</h3>
+                  <button onClick={() => toggleGroup(bloc.specs, allSelected)}
+                    className="text-[10px] font-semibold text-violet-700 hover:text-violet-900 uppercase">
+                    {allSelected ? "desmarcar todos" : someSelected ? "marcar todos" : "marcar todos"}
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 p-3">
+                  {bloc.specs.map((s) => (
+                    <label key={s.key} className="flex items-center gap-2 text-sm text-slate-700 hover:bg-slate-50 px-2 py-1 rounded cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(s.key)}
+                        onChange={() => toggle(s.key)}
+                        className="rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                      />
+                      <span>{s.label}</span>
+                      <span className="text-[10px] text-slate-400 ml-auto">{s.key}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="px-6 py-3 border-t border-slate-200 flex items-center justify-between bg-slate-50">
+          <div className="text-xs text-slate-600">
+            <strong>{selected.size}</strong> campo(s) marcado(s)
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={onClose}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+              Cancelar
+            </button>
+            <button onClick={() => onSave(Array.from(selected))} disabled={busy}
+              className="rounded-lg bg-amber-600 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50">
+              Salvar
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

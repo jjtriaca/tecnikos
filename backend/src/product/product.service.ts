@@ -114,10 +114,10 @@ export class ProductService {
      guardados em Company.systemConfig.pool.extraTypes (string[]).
      ═══════════════════════════════════════════════════════════════ */
 
-  /** Lista detalhada pra UI de gerenciamento — inclui contagem de produtos por tipo. */
+  /** Lista detalhada pra UI de gerenciamento — inclui contagem + campos obrigatorios. */
   async listPoolTypesManage(
     companyId: string,
-  ): Promise<{ name: string; count: number; isExtra: boolean }[]> {
+  ): Promise<{ name: string; count: number; isExtra: boolean; requiredFields: string[] }[]> {
     const grouped = await this.prisma.product.groupBy({
       by: ['poolType'],
       where: { companyId, deletedAt: null, poolType: { not: null } },
@@ -128,6 +128,7 @@ export class ProductService {
       if (g.poolType && g.poolType.trim()) counts.set(g.poolType, g._count._all);
     }
     const extras = await this.getExtraPoolTypes(companyId);
+    const reqFieldsAll = await this.getAllTypeRequiredFields(companyId);
     const allNames = new Set<string>([...counts.keys(), ...extras]);
     const extrasSet = new Set(extras);
     return Array.from(allNames)
@@ -135,8 +136,80 @@ export class ProductService {
         name,
         count: counts.get(name) ?? 0,
         isExtra: extrasSet.has(name) && (counts.get(name) ?? 0) === 0,
+        requiredFields: reqFieldsAll[name] ?? [],
       }))
       .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  }
+
+  /** Salva quais specs sao obrigatorias quando o produto tem este poolType. */
+  async setTypeRequiredFields(
+    companyId: string,
+    name: string,
+    requiredFields: string[],
+  ): Promise<{ name: string; requiredFields: string[] }> {
+    const trimmed = (name ?? '').trim();
+    if (!trimmed) throw new BadRequestException('Nome do tipo nao pode ser vazio.');
+    const fields = Array.isArray(requiredFields)
+      ? requiredFields.filter((f): f is string => typeof f === 'string' && f.trim().length > 0).map((f) => f.trim())
+      : [];
+    const cfg = await this.readSystemConfig(companyId);
+    const pool = (cfg.pool ?? {}) as Record<string, any>;
+    const map = (pool.typeRequiredFields ?? {}) as Record<string, string[]>;
+    if (fields.length === 0) delete map[trimmed];
+    else map[trimmed] = Array.from(new Set(fields));
+    pool.typeRequiredFields = map;
+    cfg.pool = pool;
+    await this.prisma.company.update({ where: { id: companyId }, data: { systemConfig: cfg as any } });
+    return { name: trimmed, requiredFields: map[trimmed] ?? [] };
+  }
+
+  /** Lista todos os mapeamentos {tipoName → campos[]} salvos no tenant. */
+  async getAllTypeRequiredFields(companyId: string): Promise<Record<string, string[]>> {
+    const cfg = await this.readSystemConfig(companyId);
+    const raw = ((cfg.pool ?? {}) as any).typeRequiredFields ?? {};
+    if (!raw || typeof raw !== 'object') return {};
+    const out: Record<string, string[]> = {};
+    for (const [k, v] of Object.entries(raw)) {
+      if (Array.isArray(v)) out[k] = (v as unknown[]).filter((s): s is string => typeof s === 'string');
+    }
+    return out;
+  }
+
+  private async readSystemConfig(companyId: string): Promise<Record<string, any>> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    return ((company?.systemConfig ?? {}) as Record<string, any>);
+  }
+
+  /**
+   * Valida que technicalSpecs tem todos os campos marcados como obrigatorios
+   * pelo poolType do produto. Sem poolType ou sem regra, passa direto.
+   * Lanca BadRequestException com a lista dos campos faltando.
+   */
+  private async validateTypeRequiredFields(
+    companyId: string,
+    poolType: string | null | undefined,
+    technicalSpecs: Record<string, any> | null | undefined,
+  ): Promise<void> {
+    const type = (poolType ?? '').trim();
+    if (!type) return;
+    const map = await this.getAllTypeRequiredFields(companyId);
+    const required = map[type];
+    if (!required || required.length === 0) return;
+    const specs = (technicalSpecs ?? {}) as Record<string, any>;
+    const missing: string[] = [];
+    for (const f of required) {
+      const v = specs[f];
+      const isEmpty = v === undefined || v === null || v === '' || (typeof v === 'number' && Number.isNaN(v));
+      if (isEmpty) missing.push(f);
+    }
+    if (missing.length > 0) {
+      throw new BadRequestException(
+        `Produto do tipo "${type}" exige preencher: ${missing.join(', ')}. Edite o produto e preencha esses campos nas Especificacoes tecnicas (aba Piscina).`,
+      );
+    }
   }
 
   async createPoolType(companyId: string, name: string): Promise<{ name: string }> {
@@ -179,6 +252,14 @@ export class ProductService {
       await this.setExtraPoolTypes(companyId, next);
     }
 
+    // Move tambem os requiredFields salvos pra nova chave
+    const reqMap = await this.getAllTypeRequiredFields(companyId);
+    if (reqMap[oldTrim]) {
+      const fields = reqMap[oldTrim];
+      await this.setTypeRequiredFields(companyId, oldTrim, []);
+      await this.setTypeRequiredFields(companyId, newTrim, fields);
+    }
+
     return { oldName: oldTrim, newName: newTrim, productsUpdated: upd.count };
   }
 
@@ -201,6 +282,9 @@ export class ProductService {
         extras.filter((t) => t !== trimmed),
       );
     }
+
+    // Limpa requiredFields do tipo excluido
+    await this.setTypeRequiredFields(companyId, trimmed, []);
 
     return { name: trimmed, productsCleared: upd.count };
   }
@@ -345,6 +429,7 @@ export class ProductService {
      ═══════════════════════════════════════════════════════════════ */
 
   async create(data: CreateProductDto, companyId: string) {
+    await this.validateTypeRequiredFields(companyId, data.poolType ?? null, data.technicalSpecs ?? null);
     const code = await this.codeGenerator.generateCode(companyId, 'PRODUCT');
 
     return this.prisma.product.create({
@@ -416,6 +501,13 @@ export class ProductService {
         );
       }
     }
+
+    // Valida campos obrigatorios do tipo (poolType pode estar no dto ou no produto)
+    const effectivePoolType = data.poolType !== undefined ? data.poolType : (product as any).poolType;
+    const effectiveSpecs = data.technicalSpecs !== undefined
+      ? data.technicalSpecs
+      : ((product as any).technicalSpecs ?? null);
+    await this.validateTypeRequiredFields(companyId, effectivePoolType, effectiveSpecs as any);
 
     return this.prisma.product.update({
       where: { id },

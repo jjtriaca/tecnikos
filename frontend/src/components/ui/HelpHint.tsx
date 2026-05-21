@@ -139,10 +139,11 @@ export function HelpHint({ text, width = 288, tone = "slate" }: Props) {
  * Helper component que combina label + HelpHint pra usar em forms.
  * Substitui o padrao antigo de "label + hint de 3 linhas embaixo do input".
  */
-export function FieldLabel({ children, help, htmlFor, className = "", tone = "slate" }: { children: React.ReactNode; help?: string; htmlFor?: string; className?: string; tone?: "slate" | "violet" | "cyan" | "amber" }) {
+export function FieldLabel({ children, help, htmlFor, className = "", tone = "slate", required = false }: { children: React.ReactNode; help?: string; htmlFor?: string; className?: string; tone?: "slate" | "violet" | "cyan" | "amber"; required?: boolean }) {
   return (
     <label htmlFor={htmlFor} className={`flex items-center gap-1.5 text-xs font-semibold text-slate-700 mb-1 ${className}`}>
       <span>{children}</span>
+      {required && <span className="text-rose-600 font-bold leading-none" title="Obrigatorio pelo tipo do produto">*</span>}
       {help && <HelpHint text={help} tone={tone} />}
     </label>
   );

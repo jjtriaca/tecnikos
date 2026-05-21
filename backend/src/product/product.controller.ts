@@ -90,6 +90,15 @@ export class ProductController {
     return this.service.deletePoolType(user.companyId, body?.name);
   }
 
+  @Roles(UserRole.ADMIN)
+  @Post('pool-types/required-fields')
+  setTypeRequiredFields(
+    @Body() body: { name: string; requiredFields: string[] },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.setTypeRequiredFields(user.companyId, body?.name, body?.requiredFields ?? []);
+  }
+
   /* ── List filter options (categories + brands + poolTypes) ── */
 
   @Roles(UserRole.ADMIN)
