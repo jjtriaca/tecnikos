@@ -659,6 +659,18 @@ export default function ProductsPage() {
   // Tipos de produto Piscina ja cadastrados (alimenta datalist do dropdown
   // "Tipo (Piscina)" no formulario de cadastro).
   const [poolTypes, setPoolTypes] = useState<string[]>([]);
+  const [showPoolTypesManager, setShowPoolTypesManager] = useState(false);
+
+  // Recarrega pool types — chamado depois de CRUD no modal de gerenciamento
+  // pra refletir mudancas no datalist e no estado do form atual.
+  const reloadPoolTypes = useCallback(async () => {
+    try {
+      const r = await api.get<string[]>("/products/pool-types");
+      setPoolTypes(Array.isArray(r) ? r : []);
+    } catch {
+      setPoolTypes([]);
+    }
+  }, []);
   // Opcoes pros filtros da lista (DISTINCT do backend).
   const [filterOptions, setFilterOptions] = useState<{ categories: string[]; brands: string[]; poolTypes: string[] }>({ categories: [], brands: [], poolTypes: [] });
 
@@ -1726,7 +1738,17 @@ export default function ProductsPage() {
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
                       <div>
-                        <label className={labelClass}>Tipo</label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className={`${labelClass} mb-0`}>Tipo</label>
+                          <button
+                            type="button"
+                            onClick={() => setShowPoolTypesManager(true)}
+                            title="Gerenciar tipos (adicionar, renomear, excluir)"
+                            className="text-[10px] font-semibold text-violet-700 hover:text-violet-900 hover:underline inline-flex items-center gap-1"
+                          >
+                            ⚙ Gerenciar tipos
+                          </button>
+                        </div>
                         <input
                           type="text"
                           list="poolTypeOptions"
@@ -2004,6 +2026,256 @@ export default function ProductsPage() {
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
               >
                 {saving ? "Salvando..." : editingProduct ? "Salvar Alteracoes" : "Criar Produto"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPoolTypesManager && (
+        <PoolTypesManagerModal
+          onClose={() => setShowPoolTypesManager(false)}
+          onChanged={reloadPoolTypes}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============ Modal: Gerenciar tipos de produto Piscina ============
+// Lista tipos cadastrados (DISTINCT Product.poolType + extras manuais salvos
+// em Company.systemConfig.pool.extraTypes) com contagem de produtos por tipo.
+// Permite adicionar, renomear (bulk update em todos produtos do tipo) e excluir
+// (bulk update setando poolType=null + remove do array de extras).
+
+interface PoolTypeRow {
+  name: string;
+  count: number;
+  isExtra: boolean;
+}
+
+function PoolTypesManagerModal({
+  onClose,
+  onChanged,
+}: {
+  onClose: () => void;
+  onChanged: () => void | Promise<void>;
+}) {
+  const { toast } = useToast();
+  const [rows, setRows] = useState<PoolTypeRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [editingName, setEditingName] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<PoolTypeRow | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const r = await api.get<PoolTypeRow[]>("/products/pool-types/manage");
+      setRows(Array.isArray(r) ? r : []);
+    } catch (e: any) {
+      toast(String(e?.message ?? "Erro ao carregar tipos"), "error");
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => { load(); }, [load]);
+
+  async function handleAdd() {
+    const name = newName.trim();
+    if (!name) return;
+    setBusy(true);
+    try {
+      await api.post("/products/pool-types", { name });
+      setNewName("");
+      setAdding(false);
+      await load();
+      await onChanged();
+      toast(`Tipo "${name}" cadastrado`, "success");
+    } catch (e: any) {
+      toast(String(e?.message ?? "Erro ao adicionar tipo"), "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRename(oldName: string) {
+    const newNameTrim = editingValue.trim();
+    if (!newNameTrim || newNameTrim === oldName) {
+      setEditingName(null);
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await api.post<{ productsUpdated: number }>("/products/pool-types/rename", {
+        oldName,
+        newName: newNameTrim,
+      });
+      setEditingName(null);
+      await load();
+      await onChanged();
+      toast(`Renomeado. ${r.productsUpdated} produto(s) atualizado(s).`, "success");
+    } catch (e: any) {
+      toast(String(e?.message ?? "Erro ao renomear"), "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDelete(row: PoolTypeRow) {
+    setBusy(true);
+    try {
+      const r = await api.post<{ productsCleared: number }>("/products/pool-types/delete", {
+        name: row.name,
+      });
+      setConfirmDelete(null);
+      await load();
+      await onChanged();
+      toast(
+        r.productsCleared > 0
+          ? `Tipo excluido. ${r.productsCleared} produto(s) ficaram sem tipo.`
+          : `Tipo "${row.name}" excluido.`,
+        "success",
+      );
+    } catch (e: any) {
+      toast(String(e?.message ?? "Erro ao excluir"), "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-violet-50 to-blue-50">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">⚙ Gerenciar tipos de produto (Piscina)</h2>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Renomeie, exclua ou cadastre tipos. Renomear atualiza todos os produtos do tipo. Excluir
+              deixa os produtos sem tipo (poolType = null).
+            </p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100">✕</button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="mb-4">
+            {adding ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  autoFocus
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleAdd();
+                    if (e.key === "Escape") { setAdding(false); setNewName(""); }
+                  }}
+                  placeholder="Nome do novo tipo (ex: Aquecedor)"
+                  className="flex-1 rounded-lg border border-violet-300 px-3 py-2 text-sm focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
+                />
+                <button onClick={handleAdd} disabled={busy || !newName.trim()}
+                  className="rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50">
+                  Adicionar
+                </button>
+                <button onClick={() => { setAdding(false); setNewName(""); }}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => setAdding(true)}
+                className="rounded-lg border border-dashed border-violet-300 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-100 w-full">
+                + Adicionar tipo novo
+              </button>
+            )}
+          </div>
+
+          {loading ? (
+            <div className="text-center text-slate-500 py-8">Carregando...</div>
+          ) : rows.length === 0 ? (
+            <div className="text-center text-slate-500 py-8">Nenhum tipo cadastrado ainda.</div>
+          ) : (
+            <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 overflow-hidden">
+              {rows.map((row) => (
+                <li key={row.name} className="flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50">
+                  {editingName === row.name ? (
+                    <>
+                      <input
+                        type="text"
+                        autoFocus
+                        value={editingValue}
+                        onChange={(e) => setEditingValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleRename(row.name);
+                          if (e.key === "Escape") setEditingName(null);
+                        }}
+                        className="flex-1 rounded border border-violet-300 px-2 py-1 text-sm"
+                      />
+                      <button onClick={() => handleRename(row.name)} disabled={busy}
+                        className="text-xs font-semibold text-violet-700 hover:text-violet-900">Salvar</button>
+                      <button onClick={() => setEditingName(null)}
+                        className="text-xs text-slate-600 hover:text-slate-900">Cancelar</button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1 text-sm font-medium text-slate-900">{row.name}</span>
+                      <span className="text-[11px] text-slate-500">
+                        {row.count > 0 ? `${row.count} produto(s)` : "sem produtos"}
+                      </span>
+                      <button
+                        onClick={() => { setEditingName(row.name); setEditingValue(row.name); }}
+                        disabled={busy}
+                        title="Renomear"
+                        className="text-xs text-slate-500 hover:text-violet-700 px-1.5"
+                      >✎</button>
+                      <button
+                        onClick={() => setConfirmDelete(row)}
+                        disabled={busy}
+                        title="Excluir"
+                        className="text-xs text-slate-500 hover:text-rose-700 px-1.5"
+                      >🗑</button>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="px-6 py-3 border-t border-slate-200 flex items-center justify-end">
+          <button onClick={onClose}
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
+            Fechar
+          </button>
+        </div>
+      </div>
+
+      {confirmDelete && (
+        <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4" onClick={() => setConfirmDelete(null)}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-slate-900 mb-2">Excluir tipo "{confirmDelete.name}"?</h3>
+            <p className="text-sm text-slate-700 mb-4">
+              {confirmDelete.count > 0
+                ? `${confirmDelete.count} produto(s) atualmente classificados como "${confirmDelete.name}" ficarao SEM tipo (poolType = null). Voce pode reclassificar depois.`
+                : `Esse tipo nao esta em uso por nenhum produto. Sera removido da lista.`}
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <button onClick={() => setConfirmDelete(null)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                Cancelar
+              </button>
+              <button onClick={() => handleDelete(confirmDelete)} disabled={busy}
+                className="rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50">
+                Excluir
               </button>
             </div>
           </div>

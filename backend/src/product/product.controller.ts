@@ -55,6 +55,41 @@ export class ProductController {
     return this.service.listPoolTypes(user.companyId);
   }
 
+  /* ── CRUD de pool types pra UI de gerenciamento ── */
+
+  @Roles(UserRole.ADMIN)
+  @Get('pool-types/manage')
+  listPoolTypesManage(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.listPoolTypesManage(user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Post('pool-types')
+  createPoolType(
+    @Body() body: { name: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.createPoolType(user.companyId, body?.name);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Post('pool-types/rename')
+  renamePoolType(
+    @Body() body: { oldName: string; newName: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.renamePoolType(user.companyId, body?.oldName, body?.newName);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @Post('pool-types/delete')
+  deletePoolType(
+    @Body() body: { name: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.deletePoolType(user.companyId, body?.name);
+  }
+
   /* ── List filter options (categories + brands + poolTypes) ── */
 
   @Roles(UserRole.ADMIN)

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -101,7 +102,133 @@ export class ProductService {
       distinct: ['poolType'],
       orderBy: { poolType: 'asc' },
     });
-    return rows.map((r) => r.poolType!).filter((t) => t && t.trim().length > 0);
+    const fromProducts = rows.map((r) => r.poolType!).filter((t) => t && t.trim().length > 0);
+    const extras = await this.getExtraPoolTypes(companyId);
+    const merged = new Set<string>([...fromProducts, ...extras]);
+    return Array.from(merged).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     CRUD de Pool Types — UI de gerenciamento
+     Lista combina DISTINCT(Product.poolType) com tipos extras manuais
+     guardados em Company.systemConfig.pool.extraTypes (string[]).
+     ═══════════════════════════════════════════════════════════════ */
+
+  /** Lista detalhada pra UI de gerenciamento — inclui contagem de produtos por tipo. */
+  async listPoolTypesManage(
+    companyId: string,
+  ): Promise<{ name: string; count: number; isExtra: boolean }[]> {
+    const grouped = await this.prisma.product.groupBy({
+      by: ['poolType'],
+      where: { companyId, deletedAt: null, poolType: { not: null } },
+      _count: { _all: true },
+    });
+    const counts = new Map<string, number>();
+    for (const g of grouped) {
+      if (g.poolType && g.poolType.trim()) counts.set(g.poolType, g._count._all);
+    }
+    const extras = await this.getExtraPoolTypes(companyId);
+    const allNames = new Set<string>([...counts.keys(), ...extras]);
+    const extrasSet = new Set(extras);
+    return Array.from(allNames)
+      .map((name) => ({
+        name,
+        count: counts.get(name) ?? 0,
+        isExtra: extrasSet.has(name) && (counts.get(name) ?? 0) === 0,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  }
+
+  async createPoolType(companyId: string, name: string): Promise<{ name: string }> {
+    const trimmed = (name ?? '').trim();
+    if (!trimmed) throw new BadRequestException('Nome do tipo nao pode ser vazio.');
+    const existing = await this.listPoolTypes(companyId);
+    if (existing.some((t) => t.toLowerCase() === trimmed.toLowerCase())) {
+      throw new ConflictException(`Tipo "${trimmed}" ja existe.`);
+    }
+    const extras = await this.getExtraPoolTypes(companyId);
+    await this.setExtraPoolTypes(companyId, [...extras, trimmed]);
+    return { name: trimmed };
+  }
+
+  async renamePoolType(
+    companyId: string,
+    oldName: string,
+    newName: string,
+  ): Promise<{ oldName: string; newName: string; productsUpdated: number }> {
+    const oldTrim = (oldName ?? '').trim();
+    const newTrim = (newName ?? '').trim();
+    if (!oldTrim || !newTrim) throw new BadRequestException('Nome antigo e novo sao obrigatorios.');
+    if (oldTrim === newTrim) return { oldName: oldTrim, newName: newTrim, productsUpdated: 0 };
+
+    const existing = await this.listPoolTypes(companyId);
+    if (existing.some((t) => t.toLowerCase() === newTrim.toLowerCase())) {
+      throw new ConflictException(`Tipo "${newTrim}" ja existe — escolha outro nome.`);
+    }
+
+    const upd = await this.prisma.product.updateMany({
+      where: { companyId, deletedAt: null, poolType: oldTrim },
+      data: { poolType: newTrim },
+    });
+
+    const extras = await this.getExtraPoolTypes(companyId);
+    const idx = extras.findIndex((t) => t === oldTrim);
+    if (idx >= 0) {
+      const next = [...extras];
+      next[idx] = newTrim;
+      await this.setExtraPoolTypes(companyId, next);
+    }
+
+    return { oldName: oldTrim, newName: newTrim, productsUpdated: upd.count };
+  }
+
+  async deletePoolType(
+    companyId: string,
+    name: string,
+  ): Promise<{ name: string; productsCleared: number }> {
+    const trimmed = (name ?? '').trim();
+    if (!trimmed) throw new BadRequestException('Nome do tipo nao pode ser vazio.');
+
+    const upd = await this.prisma.product.updateMany({
+      where: { companyId, deletedAt: null, poolType: trimmed },
+      data: { poolType: null },
+    });
+
+    const extras = await this.getExtraPoolTypes(companyId);
+    if (extras.includes(trimmed)) {
+      await this.setExtraPoolTypes(
+        companyId,
+        extras.filter((t) => t !== trimmed),
+      );
+    }
+
+    return { name: trimmed, productsCleared: upd.count };
+  }
+
+  private async getExtraPoolTypes(companyId: string): Promise<string[]> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    const raw = ((company?.systemConfig as any)?.pool?.extraTypes ?? []) as unknown[];
+    return Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string' && v.trim().length > 0) : [];
+  }
+
+  private async setExtraPoolTypes(companyId: string, extras: string[]): Promise<void> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    const cfg = (company?.systemConfig ?? {}) as Record<string, any>;
+    const pool = (cfg.pool ?? {}) as Record<string, any>;
+    pool.extraTypes = Array.from(new Set(extras.map((t) => t.trim()).filter((t) => t.length > 0))).sort((a, b) =>
+      a.localeCompare(b, 'pt-BR'),
+    );
+    cfg.pool = pool;
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { systemConfig: cfg as any },
+    });
   }
 
   /* ═══════════════════════════════════════════════════════════════
