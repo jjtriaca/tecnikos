@@ -11,6 +11,7 @@ import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto, EntryAccountAssign
 import { CodeGeneratorService } from '../common/code-generator.service';
 import { breakInTenantTz, endOfTenantDay } from '../common/util/tenant-date.util';
 import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
+import { ClosedMonthGuardService } from './closed-month-guard.service';
 
 /**
  * Detecta paymentMethod pela descricao da linha do extrato bancario.
@@ -41,6 +42,7 @@ export class ReconciliationService {
     private readonly ofxParser: OfxParserService,
     private readonly csvParser: CsvParserService,
     private readonly codeGenerator: CodeGeneratorService,
+    private readonly closedMonthGuard: ClosedMonthGuardService,
   ) {}
 
   /**
@@ -627,6 +629,13 @@ export class ReconciliationService {
     if (line.status === 'MATCHED') {
       throw new BadRequestException('Linha já está conciliada.');
     }
+    // v1.12.16: trava de mes fechado
+    await this.closedMonthGuard.assertNotClosed(
+      companyId,
+      line.cashAccountId,
+      line.transactionDate,
+      'Conciliar linha do extrato',
+    );
 
     if (!dto.entryId && !dto.installmentId) {
       throw new BadRequestException('Informe o lançamento ou parcela para conciliar.');
@@ -1000,6 +1009,15 @@ export class ReconciliationService {
     if (lineA.status !== 'UNMATCHED' || lineB.status !== 'UNMATCHED') {
       throw new BadRequestException('Ambas as linhas devem estar pendentes.');
     }
+    // v1.12.16: trava de mes fechado — ambas as linhas
+    await this.closedMonthGuard.assertNoneClosed(
+      companyId,
+      [
+        { cashAccountId: lineA.cashAccountId, affectedDate: lineA.transactionDate },
+        { cashAccountId: lineB.cashAccountId, affectedDate: lineB.transactionDate },
+      ],
+      'Conciliar como estorno',
+    );
 
     // 2. Validate: opposite signs, same absolute value (tolerance 1 cent)
     const signA = lineA.amountCents > 0;
@@ -1292,6 +1310,13 @@ export class ReconciliationService {
     if (!dto.entryIds || dto.entryIds.length === 0) {
       throw new BadRequestException('Selecione ao menos um lançamento.');
     }
+    // v1.12.16: trava de mes fechado
+    await this.closedMonthGuard.assertNotClosed(
+      companyId,
+      line.cashAccountId,
+      line.transactionDate,
+      'Conciliar fatura de cartão',
+    );
 
     const entries = await this.prisma.financialEntry.findMany({
       where: {
@@ -1421,6 +1446,8 @@ export class ReconciliationService {
     };
 
     return this.prisma.$transaction(async (tx) => {
+      // Conta do banco que paga a fatura (usada pra decrement do lineAbs e pra ancorar encargos sem cartao)
+      const bankAccountId = line.cashAccountId;
       // Creditos acumulados por conta destino — aplicados no final como transferencia consolidada
       const creditByAccount = new Map<string, number>();
 
@@ -1447,6 +1474,16 @@ export class ReconciliationService {
             });
             // entry tambem recebe a cashAccountId (pra refletir onde o dinheiro foi "contabilizado")
             if (!e.cashAccountId) entryUpdate.cashAccountId = destAccountId;
+          } else if (e.isInvoiceCharge) {
+            // v1.12.16: encargo da fatura sem cartao especifico (anuidade, IOF, taxa do banco).
+            // O decrement de lineAbs no banco (mais abaixo) ja contempla o valor desses encargos.
+            // Setamos cashAccountId=bankAccountId pra o encargo virar uma saida PAYABLE PAID
+            // rastreavel pela conferencia de saldo (filtro cashAccountId + paidAt > D).
+            // Sem isso, o encargo some do balance-compare e quebra retroativamente todos os
+            // meses anteriores ao paidAt da fatura (banco mostra dinheiro saido mas sistema nao
+            // contabiliza o R$ do encargo, gerando diff = -valor do encargo em todo mes < paidAt).
+            // Ver memory/bug-encargo-fatura-orfao.md.
+            if (!e.cashAccountId) entryUpdate.cashAccountId = bankAccountId;
           }
         }
 
@@ -1463,7 +1500,6 @@ export class ReconciliationService {
 
       // Transferencia consolidada via AccountTransfer (banco → cada conta de cartao).
       // AccountTransfer e rastreavel pelo balance-compare (via transferDate), diferente de decrement direto.
-      const bankAccountId = line.cashAccountId;
       for (const [cardAccountId, amount] of creditByAccount.entries()) {
         await tx.accountTransfer.create({
           data: withCreate({
@@ -1529,6 +1565,13 @@ export class ReconciliationService {
     if (!dto.entryIds || dto.entryIds.length === 0) {
       throw new BadRequestException('Selecione ao menos um lançamento.');
     }
+    // v1.12.16: trava de mes fechado
+    await this.closedMonthGuard.assertNotClosed(
+      companyId,
+      line.cashAccountId,
+      line.transactionDate,
+      'Conciliar com múltiplos lançamentos',
+    );
 
     const expectedType: 'RECEIVABLE' | 'PAYABLE' = line.amountCents >= 0 ? 'RECEIVABLE' : 'PAYABLE';
 
@@ -1791,6 +1834,15 @@ export class ReconciliationService {
     if (!otherAccount.isActive) {
       throw new BadRequestException('Conta de origem/destino está inativa.');
     }
+    // v1.12.16: trava de mes fechado — ambas as contas envolvidas no transfer
+    await this.closedMonthGuard.assertNoneClosed(
+      companyId,
+      [
+        { cashAccountId: line.cashAccountId, affectedDate: line.transactionDate },
+        { cashAccountId: dto.sourceAccountId, affectedDate: line.transactionDate },
+      ],
+      'Conciliar como transferência',
+    );
 
     const absAmount = Math.abs(line.amountCents);
     if (absAmount <= 0) {
@@ -1871,6 +1923,14 @@ export class ReconciliationService {
     if (line.status !== 'MATCHED') {
       throw new BadRequestException('Linha não está conciliada.');
     }
+    // v1.12.16: trava de mes fechado — desfazer conciliacao tambem altera saldo retroativo.
+    // Se a linha esta em mes fechado, bloquear.
+    await this.closedMonthGuard.assertNotClosed(
+      companyId,
+      line.cashAccountId,
+      line.transactionDate,
+      'Desfazer conciliação',
+    );
 
     // Transferencia (deposito em dinheiro, etc): reverte saldos e deleta a AccountTransfer
     if (line.transferMatchId) {
@@ -1911,10 +1971,15 @@ export class ReconciliationService {
     if (line.isCardInvoice) {
       const groupEntries = await this.prisma.financialEntry.findMany({
         where: { invoiceMatchLineId: lineId, companyId },
-        select: { id: true, autoMarkedPaid: true, cashAccountId: true, paymentInstrumentId: true, netCents: true, grossCents: true },
+        select: { id: true, autoMarkedPaid: true, cashAccountId: true, paymentInstrumentId: true, netCents: true, grossCents: true, isInvoiceCharge: true },
       });
       const autoPaidIds = groupEntries.filter((e) => e.autoMarkedPaid).map((e) => e.id);
       const otherIds = groupEntries.filter((e) => !e.autoMarkedPaid).map((e) => e.id);
+      // v1.12.16: encargos sem cartao que tiveram cashAccountId=bankAccountId setado pelo match.
+      // No revert, voltamos cashAccountId pra null (estado original do encargo).
+      const autoPaidChargeIds = groupEntries
+        .filter((e) => e.autoMarkedPaid && e.isInvoiceCharge && !e.paymentInstrumentId)
+        .map((e) => e.id);
 
       // Resolve conta destino por entry (pode ter fallback via instrument)
       const instrumentsToFetch = Array.from(new Set(
@@ -1987,6 +2052,14 @@ export class ReconciliationService {
               paidAt: null,
               autoMarkedPaid: false,
             },
+          });
+        }
+        // 3b. v1.12.16: encargos auto-pagos (isInvoiceCharge sem cartao) tiveram cashAccountId
+        // setado pelo match — limpar pra restaurar estado original (null).
+        if (autoPaidChargeIds.length > 0) {
+          await tx.financialEntry.updateMany({
+            where: { id: { in: autoPaidChargeIds }, companyId },
+            data: { cashAccountId: null },
           });
         }
         // 4. Entries que ja estavam PAID antes do match: so remove o vinculo com a fatura

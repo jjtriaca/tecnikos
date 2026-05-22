@@ -13,6 +13,7 @@ import { InstallmentService } from './installment.service';
 import { PaymentInstrumentService } from './payment-instrument.service';
 import { AuditService } from '../common/audit/audit.service';
 import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
+import { ClosedMonthGuardService } from './closed-month-guard.service';
 
 const LEDGER_SORTABLE = ['grossCents', 'commissionCents', 'netCents', 'confirmedAt'];
 const ENTRY_SORTABLE = ['grossCents', 'netCents', 'dueDate', 'createdAt', 'status', 'confirmedAt', 'paidAt'];
@@ -32,6 +33,7 @@ export class FinanceService {
     private readonly installmentService: InstallmentService,
     private readonly paymentInstrumentService: PaymentInstrumentService,
     private readonly audit: AuditService,
+    private readonly closedMonthGuard: ClosedMonthGuardService,
   ) {}
 
   /* ═══════════════════════════════════════════════════════════════
@@ -265,6 +267,17 @@ export class FinanceService {
       netCents,
       purchaseDate: data.purchaseDate ? new Date(data.purchaseDate) : undefined,
     });
+
+    // v1.12.16: trava de mes fechado — se entry vai nascer PAID com cashAccountId+paidAt
+    // dentro de mes ja conferido, bloqueia.
+    if (autoPay.status === 'PAID' && autoPay.cashAccountId && autoPay.paidAt) {
+      await this.closedMonthGuard.assertNotClosed(
+        companyId,
+        autoPay.cashAccountId,
+        autoPay.paidAt,
+        'Criar lançamento pago',
+      );
+    }
 
     // Transaction atomica: cria entry + aplica saldo juntos (IC-03)
     const entry = await this.prisma.$transaction(async (tx) => {
@@ -953,6 +966,34 @@ export class FinanceService {
     const { status: currentStatus } = entry;
     const { status: newStatus, notes } = dto;
 
+    // v1.12.16: trava de mes fechado.
+    // - Marcar como PAID: verificar paidAt+cashAccountId novos (do DTO ou do entry)
+    // - Estornar (PAID -> REVERSED): verificar paidAt+cashAccountId atuais do entry
+    if (newStatus === 'PAID') {
+      const targetPaidAt = dto.paidAt ? new Date(dto.paidAt) : new Date();
+      const targetCashAccountId = dto.cashAccountId || entry.cashAccountId;
+      await this.closedMonthGuard.assertNotClosed(
+        companyId,
+        targetCashAccountId,
+        targetPaidAt,
+        'Marcar lançamento como pago',
+      );
+    } else if (newStatus === 'REVERSED' && currentStatus === 'PAID') {
+      await this.closedMonthGuard.assertNotClosed(
+        companyId,
+        entry.cashAccountId,
+        entry.paidAt,
+        'Estornar lançamento',
+      );
+    } else if (newStatus === 'CANCELLED' && currentStatus === 'PAID') {
+      await this.closedMonthGuard.assertNotClosed(
+        companyId,
+        entry.cashAccountId,
+        entry.paidAt,
+        'Cancelar lançamento pago',
+      );
+    }
+
     // REVERSED is an alias — transitions to PENDING while reversing side effects
     const isReversal = newStatus === 'REVERSED';
 
@@ -1206,6 +1247,16 @@ export class FinanceService {
       include: { serviceOrder: { select: { code: true, status: true } } },
     });
     if (!entry) throw new NotFoundException('Lancamento nao encontrado');
+
+    // v1.12.16: trava de mes fechado — excluir entry PAID em mes fechado quebra saldo retroativo
+    if (entry.status === 'PAID' && entry.cashAccountId && entry.paidAt) {
+      await this.closedMonthGuard.assertNotClosed(
+        companyId,
+        entry.cashAccountId,
+        entry.paidAt,
+        'Excluir lançamento pago',
+      );
+    }
 
     // v1.10.19: bloquear delete de entry vinculado a OS em status terminal
     // (CONCLUIDA/APROVADA). Pra excluir, gestor deve cancelar a OS primeiro

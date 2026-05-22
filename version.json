@@ -1,5 +1,5 @@
 {
-  "version": "1.12.15",
-  "codename": "isMaster bypass billing/expiry crons",
-  "releasedAt": "2026-05-21T20:04:30.291Z"
+  "version": "1.12.16",
+  "codename": "Fix encargo de fatura orfao + trava de mes fechado",
+  "releasedAt": "2026-05-22T21:04:04.123Z"
 }

@@ -7,10 +7,14 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransferDto } from './dto/transfer.dto';
 import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
+import { ClosedMonthGuardService } from './closed-month-guard.service';
 
 @Injectable()
 export class TransferService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly closedMonthGuard: ClosedMonthGuardService,
+  ) {}
 
   /**
    * Create a transfer between two accounts (in a transaction)
@@ -32,6 +36,17 @@ export class TransferService {
 
     if (!from) throw new NotFoundException('Conta de origem não encontrada.');
     if (!to) throw new NotFoundException('Conta de destino não encontrada.');
+
+    // v1.12.16: trava de mes fechado — transferDate afeta saldo de ambas as contas
+    const transferDate = dto.transferDate ? new Date(dto.transferDate) : new Date();
+    await this.closedMonthGuard.assertNoneClosed(
+      companyId,
+      [
+        { cashAccountId: dto.fromAccountId, affectedDate: transferDate },
+        { cashAccountId: dto.toAccountId, affectedDate: transferDate },
+      ],
+      'Criar transferência entre contas',
+    );
 
     // Execute transfer in a transaction
     return this.prisma.$transaction(async (tx) => {
@@ -56,7 +71,7 @@ export class TransferService {
           toAccountId: dto.toAccountId,
           amountCents: dto.amountCents,
           description: dto.description ?? null,
-          transferDate: dto.transferDate ? new Date(dto.transferDate) : new Date(),
+          transferDate,
           createdByName,
         }),
         include: {

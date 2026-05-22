@@ -13,6 +13,7 @@ import { CardFeeRateService } from './card-fee-rate.service';
 import { FinancialAccountService } from './financial-account.service';
 import { OfxParserService } from './ofx-parser.service';
 import { CsvParserService } from './csv-parser.service';
+import { ClosedMonthGuardService } from './closed-month-guard.service';
 import { FinanceController } from './finance.controller';
 import { NfseEmissionModule } from '../nfse-emission/nfse-emission.module';
 import { AuditModule } from '../common/audit/audit.module';
@@ -35,6 +36,7 @@ import { AuditModule } from '../common/audit/audit.module';
     FinancialAccountService,
     OfxParserService,
     CsvParserService,
+    ClosedMonthGuardService,
   ],
   exports: [
     FinanceService,
