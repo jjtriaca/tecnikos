@@ -140,6 +140,34 @@ Ao trabalhar com Meta (WhatsApp) ou Focus NFe:
 - NUNCA acessar dados cross-tenant
 - Guards: Throttler -> JWT -> Roles -> Verification
 
+### Filtros Prisma `not:` em Campos Nullable (CRITICO — incidente v1.12.17)
+**Em Postgres, `NULL <op> X` retorna NULL, que no `WHERE` é tratado como FALSE.** Prisma compila negações em campos String pra `NOT (col LIKE/=/...)` sem proteger NULL — resultado: rows com `col IS NULL` ficam silenciosamente **excluídos** do filtro.
+
+**Sintoma do incidente:** filtro `{ notes: { not: { contains: '[REBALANCE_AJUSTE]' } } }` excluía 16 lançamentos do SLS (todos com `notes=NULL`) da tela de Conciliação. Usuário criou duplicatas tentando contornar.
+
+**REGRA: toda negação em campo STRING nullable PRECISA aceitar NULL explicitamente.**
+
+| Filtro perigoso (esconde NULL) | Padrão correto |
+|---|---|
+| `{ campo: { not: 'X' } }` | `{ OR: [{ campo: null }, { campo: { not: 'X' } }] }` |
+| `{ campo: { not: { contains: 'X' } } }` | `{ OR: [{ campo: null }, { campo: { not: { contains: 'X' } } }] }` |
+| `{ campo: { not: { startsWith: 'X' } } }` | `{ OR: [{ campo: null }, { campo: { not: { startsWith: 'X' } } }] }` |
+| `{ campo: { not: { endsWith: 'X' } } }` | idem padrão acima |
+| `{ campo: { not: { in: [...] } } }` | idem padrão acima |
+| `{ campo: { not: { gt/lt/gte/lte: X } } }` | idem padrão acima |
+
+**Exceções (NULL-safe sem precisar de OR):**
+- `{ campo: { not: null } }` — esse padrão É o "is not null", correto pra excluir NULL
+- `{ campo: { not: <valor> } }` em campo **NOT NULL** (sem `?` no schema) — seguro
+- Campos `Json?` com `{ not: Prisma.JsonNull/DbNull/AnyNull }` — Prisma trata NULL-safe pra JSON
+
+**Como verificar:**
+1. Ler `schema.prisma`: o campo tem `?` (ex: `notes String?`)?
+2. Se sim e a negação é `not: { contains/startsWith/endsWith/in/gt/lt/etc }`: aplicar padrão `OR`.
+3. Pra confirmar bug existente, comparar query SQL pura `(col IS NULL OR col NOT LIKE ...)` com a query Prisma — se contagens diferem, é o bug.
+
+Ver `memory/bug-filtro-notes-null.md` (v1.12.17 — caso completo + checklist de detecção).
+
 ### Migrations Prisma em Multi-Tenant (CRITICO)
 - Multi-tenant e schema-per-tenant: Prisma `migrate deploy` so roda no `public`. `TenantMigratorService` sincroniza a estrutura nos tenants via `information_schema` + `ADD COLUMN IF NOT EXISTS`
 - **REGRA 1:** NAO adicionar coluna NOT NULL sem default em tabela ja populada — vai falhar silenciosamente nos tenants (pos sync ajusta o log com warning, mas nao preenche dado)

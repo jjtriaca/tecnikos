@@ -1,21 +1,16 @@
-# Bug: Filtro `notes NOT contains` excluía entries com `notes=NULL`
+# Bug: Filtro Prisma `not:` em campo nullable esconde rows com NULL
 
 ## Versão do fix
 v1.12.17 (23/05/2026)
 
-## Sintoma
-No modal de Conciliação, lançamentos válidos (RECEIVABLE/PAYABLE corretos, com cashAccountId compatível) **NÃO apareciam** na lista de candidates — mesmo existindo no banco e passando todos os outros filtros.
+## TL;DR
+**Em Postgres, `NULL <operador> X` retorna NULL, que no `WHERE` é FALSE.** Prisma compila negações em campos String pra `NOT (col LIKE/=/...)` sem proteger NULL. Resultado: rows com `col IS NULL` ficam **excluídos silenciosamente** do filtro — não aparecem em listas, contagens, joins. Bug sem mensagem de erro.
 
-Caso real (SLS, fatura cartão Visa Crédito R$ 4.409,61 de 18/05/2026):
-- A query SQL pura retornava 5 PAID + 13 PENDING = 18 candidates
-- A UI só mostrava 2 (FIN-00473 e FIN-00474)
-- FIN-00373 (R$ 4.525,00 com NFS-e emitida), FIN-00592, FIN-00463 sumiam
-- Diferença: os que apareciam tinham `notes` preenchido, os que sumiam tinham `notes=NULL`
+## Sintoma original
+No SLS, modal de Conciliação só mostrava 2 candidates ao invés de 18. FIN-00373 (com NFS-e emitida) e mais 15 lançamentos válidos sumiram. Usuário criou duplicatas (FIN-00592) tentando contornar — corrompendo saldo. 100% causado por `notes=NULL`.
 
-Resultado: usuário tentou contornar criando o duplicado FIN-00592, o que poluiu o saldo.
-
-## Causa raiz
-`backend/src/finance/finance.service.ts:findEntries` filtrava com:
+## Causa raiz técnica
+`backend/src/finance/finance.service.ts:447` (versão buggy):
 ```typescript
 where.AND = [
   { notes: { not: { contains: '[REBALANCE_AJUSTE]' } } },
@@ -23,17 +18,18 @@ where.AND = [
 ];
 ```
 
-O Prisma compila isso pra SQL como `NOT (notes LIKE '%[REBALANCE_AJUSTE]%')`.
+Prisma compila pra SQL:
+```sql
+WHERE NOT (notes LIKE '%[REBALANCE_AJUSTE]%')
+  AND NOT (notes LIKE '%[NO_RECONCILE]%')
+```
 
-Em Postgres com SQL ANSI:
-- Se `notes IS NULL`, então `NULL LIKE '%...%'` retorna `NULL` (não TRUE/FALSE).
-- `NOT NULL` continua sendo `NULL`.
-- No `WHERE`, `NULL` é tratado como FALSE — a linha **NÃO PASSA** no filtro.
+Quando `notes IS NULL`:
+- `NULL LIKE '%X%'` → `NULL` (não TRUE/FALSE)
+- `NOT NULL` → `NULL`
+- `WHERE NULL` → trata como FALSE → row **não passa**
 
-Resultado: qualquer entry com `notes=NULL` ficava silenciosamente excluído de toda lista de candidates da conciliação, mesmo que obviamente NÃO contivesse a tag `[REBALANCE_AJUSTE]` ou `[NO_RECONCILE]`.
-
-## Fix
-Aceitar NULL explicitamente:
+## Fix aplicado
 ```typescript
 where.AND = [
   { OR: [{ notes: null }, { notes: { not: { contains: '[REBALANCE_AJUSTE]' } } }] },
@@ -41,25 +37,115 @@ where.AND = [
 ];
 ```
 
-Em SQL vira `(notes IS NULL OR NOT (notes LIKE ...))` — aceita NULL.
+SQL gerado: `(notes IS NULL OR NOT (notes LIKE ...))` — aceita NULL.
 
-## Impacto antes do fix
-Bug afetava TODO tenant — qualquer entry sem `notes` preenchido sumia da conciliação. Como criar lançamento via UI **não exige** notes, a maioria dos lançamentos novos ficava invisível.
+---
 
-No SLS especificamente: 16 entries A Receber afetadas (5 PAID + 13 PENDING) — todas com notes=null.
+## Tabela de filtros Prisma — perigosos vs seguros
 
-## Limpeza pós-fix
-- FIN-00592 (duplicata criada pelo user tentando contornar) soft-deletado via UPDATE direto:
-  - `deletedAt = NOW()`
-  - Notes anotando o motivo
-  - TRANSITO decrementado em R$ 4.525,00 (reverte o increment do PAID original)
+### ❌ Perigosos em campo String nullable (precisam OR)
+| Padrão | Compila pra | NULL passa? |
+|---|---|---|
+| `{ campo: { not: 'X' } }` | `NOT (campo = 'X')` | ❌ não |
+| `{ campo: { not: { contains: 'X' } } }` | `NOT (campo LIKE '%X%')` | ❌ não |
+| `{ campo: { not: { startsWith: 'X' } } }` | `NOT (campo LIKE 'X%')` | ❌ não |
+| `{ campo: { not: { endsWith: 'X' } } }` | `NOT (campo LIKE '%X')` | ❌ não |
+| `{ campo: { not: { in: [...] } } }` | `NOT (campo IN (...))` | ❌ não |
+| `{ campo: { not: { gt: X } } }` | `NOT (campo > X)` | ❌ não |
+| `{ campo: { not: { gte/lt/lte: X } } }` | idem | ❌ não |
+
+**Padrão correto pra todos os acima:**
+```typescript
+{ OR: [{ campo: null }, { campo: { not: <expr> } }] }
+```
+
+### ✅ Seguros (NULL-safe por design)
+| Padrão | Por quê |
+|---|---|
+| `{ campo: { not: null } }` | É o "is not null" — exclui NULL intencionalmente |
+| `{ campo: { not: 'X' } }` em campo NOT NULL | Sem `?` no schema → NULL impossível |
+| `{ campo: null }` | Equality com NULL — Prisma traduz pra `IS NULL` |
+| Json fields `{ not: Prisma.JsonNull }` | Prisma trata NULL-safe pra JSON: `not JsonNull` retorna só rows com valor JSON ≠ null (exclui DbNull e JsonNull) |
+| Json fields `{ not: Prisma.DbNull }` | Retorna rows com SQL valor (inclui JsonNull, exclui DbNull) |
+| Json fields `{ not: Prisma.AnyNull }` | Retorna só rows com valor real (exclui DbNull + JsonNull) |
+| `{ campo: { gt: 0 } }` (positivo, sem `not`) | Sem negação — `NULL > 0` = NULL = FALSE, row é excluído (esperado) |
+
+### Diferença String vs Json fields
+**String:** Prisma NÃO trata NULL-safe em negações. Usar OR explícito.
+**Json:** Prisma trata NULL-safe via `Prisma.JsonNull/DbNull/AnyNull`. Usar esses tokens corretamente.
+
+---
+
+## Como detectar o bug em outras queries
+
+### Checklist manual
+1. **Identificar campo nullable:** abrir `backend/prisma/schema.prisma` e ver se o campo tem `?` (ex: `notes String?`, `paidAt DateTime?`).
+2. **Procurar negação:** `grep -rn "campo:.*\{ not:" backend/src` — qualquer `{ not:` aplicado àquele campo.
+3. **Excluir falsos positivos:**
+   - `{ not: null }` → seguro
+   - `{ id: { not: <id> } }` → id é sempre NOT NULL
+   - Campo NOT NULL no schema → seguro
+
+### Script de validação (rodar em produção)
+Copia `/tmp/test-prisma-null.js` no container backend e roda:
+
+```js
+const { PrismaClient } = require('@prisma/client');
+const url = process.env.DATABASE_URL.replace(/\?schema=[^&]+/, '?schema=tenant_sls');
+const p = new PrismaClient({ datasources: { db: { url } } });
+(async () => {
+  // Compara: filtro Prisma vs query SQL com IS NULL OR
+  const prismaCount = await p.financialEntry.count({
+    where: { notes: { not: { contains: '[REBALANCE_AJUSTE]' } } },
+  });
+  const sqlCount = await p.$queryRawUnsafe(`
+    SELECT COUNT(*) FROM tenant_sls."FinancialEntry"
+    WHERE notes IS NULL OR notes NOT LIKE '%[REBALANCE_AJUSTE]%'
+  `);
+  console.log('Prisma:', prismaCount, 'SQL NULL-safe:', sqlCount);
+  // Se diferem, é o bug.
+  await p.$disconnect();
+})();
+```
+
+Rodar via:
+```bash
+docker cp /tmp/test-prisma-null.js tecnikos_backend:/app/
+docker exec -w /app tecnikos_backend node test-prisma-null.js
+```
+
+### Auditoria sistemática (rodar antes de release maior)
+```bash
+grep -rn "not:" backend/src --include="*.ts" | grep -v "not: null" | grep -v "// "
+```
+Filtrar manualmente: pra cada match, conferir se o campo é nullable no schema.
+
+---
+
+## Outras armadilhas SQL similares (não eram esse bug, mas atenção)
+
+### NOT IN com subquery que retorna NULL
+```sql
+WHERE id NOT IN (SELECT matched_id FROM ... )
+```
+Se a subquery retorna QUALQUER NULL, o resultado vira NULL pra todas as linhas → exclui TUDO. Mitigar com `WHERE matched_id IS NOT NULL` na subquery (o código já faz isso em `excludeMatched`, mas vale validar).
+
+### UNION vs UNION ALL com NULL
+UNION dedup considera NULLs iguais entre si (não como SQL `=`). UNION ALL não. Em filtros agregados, escolher consciente.
+
+### COALESCE em comparações
+Pra evitar a armadilha, usar `WHERE COALESCE(campo, '') NOT LIKE '%X%'`. Em Prisma, não há equivalente direto — usar `$queryRaw` se a query for crítica e o OR explícito ficar verboso.
+
+---
+
+## Estado pós-fix (validado)
+- ✅ `finance.service.ts:447` corrigido pra OR-explicit
+- ✅ Auditoria do codebase (`backend/src`) confirmou: nenhum outro filtro com mesma classe de bug
+- ✅ Regra adicionada em `CLAUDE.md` (seção "Filtros Prisma `not:` em Campos Nullable")
+- ✅ FIN-00592 (duplicata criada pelo user durante o bug) soft-deletado + saldo TRANSITO ajustado
 
 ## Como evitar regressão
-- **Toda vez que escrever filtro com `not:` (negação) em campo nullable** em Prisma, lembrar que NULL é tratado como NÃO passa.
-- Padrão: `{ OR: [{ campo: null }, { campo: { not: { contains: 'x' } } }] }` ou `{ NOT: { campo: { contains: 'x' } } }` SEMPRE acompanhado de tratamento explícito de NULL.
-- Pra negações de igualdade simples (`not equals`), Prisma já trata NULL como passa por design.
-- Pra `not contains`, `not startsWith`, `not endsWith`, `not gt/lt`, **sempre** validar com SQL puro o que está sendo gerado.
-
-## Detecção
-- Foi diagnosticado comparando query SQL pura (5 candidates) vs query Prisma rodada via script de debug (2 candidates) — diferença óbvia apontou pro filtro.
-- Validation script em `/tmp/test-prisma3.js` (no servidor) ajuda a reproduzir queries Prisma manualmente.
+1. **CLAUDE.md** tem regra explícita — toda sessão Claude lê isso no início.
+2. **Memory MEMORY.md** linka este documento.
+3. **Code review checklist:** ao revisar PR que mexa em filtro Prisma com `not:`, conferir nullability do campo.
+4. **Antes de release maior:** rodar auditoria `grep -rn "not:" backend/src` e validar manualmente.

@@ -14,6 +14,7 @@ import { PaymentInstrumentService } from './payment-instrument.service';
 import { AuditService } from '../common/audit/audit.service';
 import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
 import { ClosedMonthGuardService } from './closed-month-guard.service';
+import { notContainsNullSafe } from '../common/util/prisma-null-safe';
 
 const LEDGER_SORTABLE = ['grossCents', 'commissionCents', 'netCents', 'confirmedAt'];
 const ENTRY_SORTABLE = ['grossCents', 'netCents', 'dueDate', 'createdAt', 'status', 'confirmedAt', 'paidAt'];
@@ -447,10 +448,13 @@ export class FinanceService {
         // pra `NOT (notes LIKE ...)`. Quando notes IS NULL, `NULL LIKE ...` = NULL, e `NOT NULL` =
         // NULL = FALSE, ou seja: entries com notes=null ficavam silenciosamente excluidos do filtro
         // de candidates da conciliacao (incidente: FIN-00373 com NFS-e nao aparecia no SLS).
-        // O OR com `notes: null` aceita explicitamente entries sem nota.
+        // Usa helper notContainsNullSafe que injeta o OR com `notes: null`. Ver:
+        //   - memory/bug-filtro-notes-null.md
+        //   - CLAUDE.md "Filtros Prisma `not:` em Campos Nullable"
+        //   - backend/src/common/util/prisma-null-safe.ts
         where.AND = [
-          { OR: [{ notes: null }, { notes: { not: { contains: '[REBALANCE_AJUSTE]' } } }] },
-          { OR: [{ notes: null }, { notes: { not: { contains: '[NO_RECONCILE]' } } }] },
+          notContainsNullSafe('notes', '[REBALANCE_AJUSTE]'),
+          notContainsNullSafe('notes', '[NO_RECONCILE]'),
         ];
       }
     }

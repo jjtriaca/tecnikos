@@ -1,5 +1,5 @@
 {
-  "version": "1.12.17",
-  "codename": "Fix filtro de candidates excluia entries com notes=null",
-  "releasedAt": "2026-05-23T13:36:54.994Z"
+  "version": "1.12.18",
+  "codename": "Helper prisma-null-safe + regra obrigatoria anti-regressao",
+  "releasedAt": "2026-05-23T13:53:25.687Z"
 }
