@@ -44,9 +44,11 @@ Tecnikos e uma plataforma SaaS B2B de Gestao de Servicos Tecnicos (Field Service
 ### Financeiro
 | Modulo | Responsabilidade | Service principal |
 |--------|-----------------|-------------------|
-| FinanceModule | A receber, a pagar, parcelas, contas | FinanceService |
+| FinanceModule | A receber, a pagar, parcelas, contas | FinanceService, ReconciliationService, TransferService, ClosedMonthGuardService |
 | QuoteModule | Orcamentos + PDF + aprovacao | QuoteService |
 | BoletoModule | Emissao de boletos bancarios (multi-banco) | BoletoService, BoletoConfigService |
+
+**ClosedMonthGuardService** (v1.12.16): bloqueia qualquer mutacao financeira (create/update/delete entry pago, match/unmatch, transfer) em mes com `BankStatement.statementBalanceCents` preenchido E diff banco/sistema = 0. Pra reabrir o mes, usuario edita/remove o saldo do banco em Conciliacao. Aplicado em ReconciliationService (matchLine/matchAsCardInvoice/matchAsMultiple/matchAsTransfer/matchAsRefund/unmatchLine), FinanceService (createEntry/changeEntryStatus/deleteEntry) e TransferService (create).
 
 ### Fiscal
 | Modulo | Responsabilidade | Service principal |
@@ -471,6 +473,9 @@ Arquivo `version.json` na raiz. Formato: `MAJOR.MINOR.PATCH` (ex: 1.04.33). Patc
 13. **NFS-e cancelamento 2 etapas**: Alguns municipios (ex: Primavera do Leste/MT) exigem 2 DELETE — status CANCELLING com retry automatico 3s
 14. **Focus NFe .env.production**: Arquivo correto em `/opt/tecnikos/app/.env.production` (NAO `/opt/tecnikos/`)
 15. **Focus NFe API de Empresas**: Token de revenda (producao) funciona em /v2/empresas. Token de homologacao NAO tem permissao
+21. **Filtro Prisma `not:` em campo nullable** (v1.12.17): `{ campo: { not: { contains/equals/in/etc: X } } }` em campo String **nullable** EXCLUI silenciosamente rows com `campo=NULL` (em Postgres, `NULL LIKE X` = NULL, `NOT NULL` = NULL, WHERE NULL = FALSE). Sempre usar `{ OR: [{ campo: null }, { campo: { not: ... } }] }` ou helpers `notContainsNullSafe/notEqualsNullSafe/notInNullSafe` de `backend/src/common/util/prisma-null-safe.ts`. Json fields sao NULL-safe via `Prisma.JsonNull/DbNull/AnyNull` — nao precisam de OR. Ver CLAUDE.md secao dedicada + `memory/bug-filtro-notes-null.md`.
+22. **Encargo de fatura sem cartao** (v1.12.16): `FinancialEntry` com `isInvoiceCharge=true` + `paymentInstrumentId=null` PRECISA ter `cashAccountId=bankAccountId` apos match em `matchAsCardInvoice`. Sem isso, o encargo fica orfao (`cashAccountId=null`) e quebra `balance-compare` retroativamente em todos os meses anteriores ao `paidAt` da fatura. Ver `memory/bug-encargo-fatura-orfao.md`.
+23. **Mes fechado nao pode quebrar** (v1.12.16): conferencia de saldo batendo = mes fechado. Qualquer mutacao retroativa e bloqueada pelo `ClosedMonthGuardService`. Pra alterar, reabrir mes (editar saldo do banco em Conciliacao).
 
 ---
 
@@ -488,6 +493,10 @@ Arquivo `version.json` na raiz. Formato: `MAJOR.MINOR.PATCH` (ex: 1.04.33). Patc
 | `backend/src/common/saas-config.service.ts` | Config global (DB + env fallback) |
 | `backend/src/notification/push-notification.service.ts` | Web Push API |
 | `backend/src/finance/finance.service.ts` | Lancamentos, parcelas, renegociacao |
+| `backend/src/finance/reconciliation.service.ts` | Conciliacao OFX: match/unmatch line/multiple/cardInvoice/transfer/refund + balance-compare |
+| `backend/src/finance/closed-month-guard.service.ts` | Trava de mes fechado (v1.12.16) |
+| `backend/src/common/util/prisma-null-safe.ts` | Helpers null-safe pra filtros Prisma `not:` em campos nullable (v1.12.18) |
+| `backend/src/common/util/tenant-date.util.ts` | Helpers de data BRT (tenantNoon, endOfTenantDay, etc) |
 | `backend/prisma/schema.prisma` | Modelo de dados completo (60+ models) |
 
 ### Frontend
