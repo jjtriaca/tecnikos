@@ -1,5 +1,5 @@
 {
-  "version": "1.12.16",
-  "codename": "Fix encargo de fatura orfao + trava de mes fechado",
-  "releasedAt": "2026-05-22T21:04:04.123Z"
+  "version": "1.12.17",
+  "codename": "Fix filtro de candidates excluia entries com notes=null",
+  "releasedAt": "2026-05-23T13:36:54.994Z"
 }

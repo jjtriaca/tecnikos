@@ -443,9 +443,14 @@ export class FinanceService {
         // criadas por script SQL pra fechar conferencia de saldo retroativa — saldo do banco ja
         // contempla elas, conciliar com OFX line geraria double counting e quebraria meses fechados.
         // Tag [REBALANCE_AJUSTE] e padrao nas notas. [NO_RECONCILE] reservado pra novos ajustes futuros.
+        // v1.12.17: NULL-safe — `{ notes: { not: { contains: ... } } }` em Prisma+Postgres compila
+        // pra `NOT (notes LIKE ...)`. Quando notes IS NULL, `NULL LIKE ...` = NULL, e `NOT NULL` =
+        // NULL = FALSE, ou seja: entries com notes=null ficavam silenciosamente excluidos do filtro
+        // de candidates da conciliacao (incidente: FIN-00373 com NFS-e nao aparecia no SLS).
+        // O OR com `notes: null` aceita explicitamente entries sem nota.
         where.AND = [
-          { notes: { not: { contains: '[REBALANCE_AJUSTE]' } } },
-          { notes: { not: { contains: '[NO_RECONCILE]' } } },
+          { OR: [{ notes: null }, { notes: { not: { contains: '[REBALANCE_AJUSTE]' } } }] },
+          { OR: [{ notes: null }, { notes: { not: { contains: '[NO_RECONCILE]' } } }] },
         ];
       }
     }
