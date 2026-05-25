@@ -1609,6 +1609,18 @@ export class PoolBudgetService {
     const totalCents = Math.round(effectiveQty * dto.unitPriceCents);
     const cellRef = await this.nextCellRef(budgetId);
 
+    // v1.12.25: sortOrder default = max(sortOrder da etapa) + 1, pra nova linha
+    // ir sempre pro FINAL da etapa em vez de pro topo (sortOrder=0 colidindo
+    // com items existentes). Mantém ordem natural "se ja tem 5, proxima eh a 6a".
+    let nextSortOrder = dto.sortOrder;
+    if (nextSortOrder === undefined) {
+      const agg = await this.prisma.poolBudgetItem.aggregate({
+        where: { budgetId, poolSection: dto.poolSection },
+        _max: { sortOrder: true },
+      });
+      nextSortOrder = (agg._max.sortOrder ?? -1) + 1;
+    }
+
     const item = await this.prisma.poolBudgetItem.create({
       data: {
         budgetId,
@@ -1617,7 +1629,7 @@ export class PoolBudgetService {
         serviceId: resolvedServiceId,
         poolSection: dto.poolSection,
         kind: dto.kind ?? 'PRODUCT',
-        sortOrder: dto.sortOrder ?? 0,
+        sortOrder: nextSortOrder,
         slotName: dto.slotName,
         description: dto.description,
         unit: dto.unit ?? 'UN',

@@ -1,6 +1,12 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.24 — Fix moveItem sortOrder negativo
+## Versao atual em prod: v1.12.25 — Nova linha vai pro final (sortOrder = max + 1)
+
+Sessao 211 (25/05/2026), 7 releases:
+
+**v1.12.25** — fix UX: nova linha agora entra no FINAL da etapa (sortOrder = max+1) em vez de no inicio (sortOrder=0 colidindo com items existentes). addItem do backend calcula max(sortOrder da secao) e soma 1. "Se ja tem 5 linhas, a proxima eh a 6a" — ordem natural.
+
+**v1.12.24** — Fix moveItem sortOrder negativo
 
 Sessao 211 (25/05/2026), 6 releases:
 
