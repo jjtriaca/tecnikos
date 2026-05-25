@@ -1,17 +1,26 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.19 — Modal +Linha simplificado + persistencia em etapa custom + criar do zero
+## Versao atual em prod: v1.12.20 — Etapa virou String puro, sem distincao padrao/custom, sem auto-link
 
-Sessao 211 (25/05/2026), 1 release:
+Sessao 211 (25/05/2026), 2 releases:
 
-**v1.12.19** — bug critico: linhas adicionadas em etapas customizadas (CUSTOM_*) eram silenciosamente rejeitadas pelo backend (DTO `@IsEnum(PoolSection)` + model com enum fixo de 12 valores). Etapa criada salvava OK em `environmentParams.customSections`, mas qualquer linha tentava ir com `poolSection=CUSTOM_*` e quebrava na ValidationPipe.
+**v1.12.20** — usuario pediu refatoracao do v1.12.19. A abordagem do v1.12.19 (`customSectionKey` como bandagem + `poolSection=OUTROS` fallback) criava distincao tecnica entre etapas padrao e custom: siblings de formula misturavam entre etapas custom diferentes (todas com `poolSection=OUTROS`). Regra do usuario: **uma etapa criada nova nao tem distincao de uma que ja existe**.
 
-Fix:
-- **Backend**: novo campo `PoolBudgetItem.customSectionKey String?` (nullable). Migration ADD COLUMN. DTO Create+Update aceita campo opcional. `addItem` salva o campo. `updateItem` agora aceita `poolSection` + `customSectionKey` (eram stripados antes — fix bonus que destravra a movimentacao de itens entre etapas via UI).
-- **Frontend**: modal `Adicionar item` foi radicalmente simplificado. Antes: Toggle catalogo/livre + busca + Secao + Unidade + Descricao + Qty + Preco. Agora: Nome do item + Etapa (dropdown com TODAS etapas, padrao+custom criadas). Preco/qty/unidade vem do auto-link do backend ou padroes (0/1/UN), operador edita inline depois.
-- **Frontend**: helper `effectiveSection(it) = customSectionKey ?? poolSection` usado em `itemsBySection`, `moveItem`, `handleDeleteSection`. Linha em etapa custom envia `poolSection='OUTROS', customSectionKey='CUSTOM_*'`.
-- **Frontend**: orçamento vazio agora mostra 3 botoes (+ Adicionar linha, + Nova etapa, Carregar template Linear). "+ Nova etapa" dentro do modal `Adicionar item` reabre o modal apos criar etapa, ja na etapa nova — fluxo "criar etapa + primeira linha em sequencia".
-- **Limitacao conhecida** (baixo impacto): siblings de formula no backend agrupam por `poolSection` direto, entao se houver multiplas etapas custom todas como `poolSection=OUTROS`, vars de sibling podem misturar entre elas. Itens em etapa custom raramente terao formula (modal simplificado nao permite). Documentar no memory.
+Fix correto:
+- **Schema**: `PoolBudgetItem.poolSection PoolSection` -> `String @default("CONSTRUCAO")`. Coluna `customSectionKey` REMOVIDA. Indice associado dropado.
+- **Migration Prisma**: `ALTER COLUMN poolSection TYPE TEXT USING ... ::text` + `DROP COLUMN customSectionKey`. So no schema public — TenantMigratorService nao propaga ALTER COLUMN TYPE.
+- **Script SQL standalone**: `scripts/sql/v1.12.20-poolsection-text-tenants.sql` itera schemas `tenant_*` e aplica a mesma mudanca. Rodado manualmente apos o deploy via SSH.
+- **DTOs**: `@IsEnum(PoolSection)` -> `@IsString() @MinLength(1) @MaxLength(64) @Matches(/^[A-Z0-9_]+$/i)`. Aceita qualquer chave (enum padrao OU CUSTOM_*).
+- **Service**: removido `customSectionKey` do create/update. Removido **auto-link silencioso por descricao** em 3 lugares (addItem PASSO inicial, updateItem, recalculateTotals PASSO -1). Linha sempre vem livre — operador vincula manualmente via ✨.
+- **Frontend**: removido helper `effectiveSection`, type `customSectionKey`, transformacao CUSTOM_*->OUTROS+customSectionKey. Volta a usar `it.poolSection` direto. Itens em etapa custom enviam `poolSection: 'CUSTOM_*'` diretamente — backend aceita.
+- Outros models (`PoolCatalogConfig`, `PoolProjectStage`, `PoolBudgetTemplate.itemsSnapshot`) continuam usando enum `PoolSection` (nao afetados pelo bug).
+
+Continuam funcionando do v1.12.19:
+- Modal `Adicionar item` super simples (Nome + Etapa).
+- Orcamento vazio mostra 3 botoes (+ Adicionar linha, + Nova etapa, Carregar template Linear).
+- "+ Nova etapa" no modal Adicionar item reabre o modal ja na etapa criada.
+
+**v1.12.19** (substituido pelo v1.12.20) — primeira tentativa: campo `customSectionKey` como bandagem + `poolSection=OUTROS` fallback. Bagulho funcionava na criacao mas misturava siblings de formula entre etapas custom diferentes. Usuario corrigiu o approach. Mantido na historia git pra rastreabilidade.
 
 ## Sessao 210 (anterior): v1.12.16 → v1.12.18 — Financeiro
 

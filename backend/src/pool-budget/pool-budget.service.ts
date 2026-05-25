@@ -700,37 +700,12 @@ export class PoolBudgetService {
       ...extractSolarVars((budget?.environmentParams as any)?.solarReport),
     };
 
-    // PASSO -1: auto-link por descricao em items SEM produto/servico vinculado.
-    // Resolve o caso em que o usuario criou linha com descricao identica a um
-    // Product/Service cadastrado mas sem passar pelo catalog picker (ex: snapshot
-    // de template, edicao manual). Sem isso, sibling vars da etapa ficam vazias
-    // e formulas com sibling* falham. Idempotente: nao toca em items ja vinculados.
-    // Pula items com manualUnlink=true (operador escolheu "Sem produto" no picker).
-    if (budget?.companyId) {
-      const unlinkedItems = await this.prisma.poolBudgetItem.findMany({
-        where: {
-          budgetId,
-          productId: null,
-          serviceId: null,
-          manualUnlink: false,
-          description: { not: '' },
-        },
-        select: { id: true, description: true },
-      });
-      for (const it of unlinkedItems) {
-        if (!it.description || !it.description.trim()) continue;
-        const matched = await this.findAutoLinkByDescription(it.description, budget.companyId);
-        if (matched.productId || matched.serviceId) {
-          await this.prisma.poolBudgetItem.update({
-            where: { id: it.id },
-            data: {
-              productId: matched.productId ?? null,
-              serviceId: matched.serviceId ?? null,
-            },
-          });
-        }
-      }
-    }
+    // v1.12.20: PASSO -1 (auto-link silencioso por descricao) REMOVIDO.
+    // Operador vincula manualmente via picker (icone ✨). Linha fica livre
+    // pra sempre se nao for vinculada explicitamente. Se aplicar template
+    // Linear, o proprio applyLinearTemplate ja faz o matching no batch
+    // create (findCatalog por descricao). recalculateTotals nao re-vincula
+    // mais nada — so calcula totais e roda auto-select de regras explicitas.
 
     // PASSO 0: auto-selecao do produto/servico em items que tem autoSelectRule.
     // Roda ANTES das formulas porque escolha do produto afeta technicalSpecs disponiveis.
@@ -1580,15 +1555,11 @@ export class PoolBudgetService {
       throw new BadRequestException('Orçamento aprovado — não pode adicionar items');
     }
 
-    // Auto-link: se DTO nao especificou productId/serviceId, busca match exato no cadastro
-    // (precisa rodar ANTES de avaliar formula pra que productSpecs estejam disponiveis)
-    let resolvedProductId = dto.productId ?? null;
-    let resolvedServiceId = dto.serviceId ?? null;
-    if (!resolvedProductId && !resolvedServiceId && dto.description) {
-      const matched = await this.findAutoLinkByDescription(dto.description, companyId);
-      if (matched.productId) resolvedProductId = matched.productId;
-      else if (matched.serviceId) resolvedServiceId = matched.serviceId;
-    }
+    // v1.12.20: auto-link silencioso por descricao foi REMOVIDO. Linha
+    // sempre vem livre (sem vinculo) a menos que DTO traga productId/serviceId
+    // explicito. Operador vincula manualmente via picker (icone ✨).
+    const resolvedProductId = dto.productId ?? null;
+    const resolvedServiceId = dto.serviceId ?? null;
 
     // Se formula foi enviada, avalia e sobrescreve qty + qtyCalculated
     let effectiveQty = dto.qty;
@@ -1645,7 +1616,6 @@ export class PoolBudgetService {
         productId: resolvedProductId,
         serviceId: resolvedServiceId,
         poolSection: dto.poolSection,
-        customSectionKey: dto.customSectionKey || null,
         sortOrder: dto.sortOrder ?? 0,
         slotName: dto.slotName,
         description: dto.description,
@@ -1784,23 +1754,9 @@ export class PoolBudgetService {
     const newUnitPrice = dto.unitPriceCents ?? item.unitPriceCents;
     const totalCents = Math.round(effectiveQty * newUnitPrice);
 
-    // Auto-link: se a descricao mudou e o item ainda nao tem vinculo (e DTO nao traz
-    // productId/serviceId explicito), tenta match exato no cadastro. Idempotente:
-    // nao desvincula nem sobrescreve vinculo existente.
-    let autoProductId: string | undefined;
-    let autoServiceId: string | undefined;
-    if (
-      dto.description !== undefined &&
-      dto.description !== item.description &&
-      dto.productId === undefined &&
-      dto.serviceId === undefined &&
-      !item.productId &&
-      !item.serviceId
-    ) {
-      const matched = await this.findAutoLinkByDescription(dto.description, companyId);
-      if (matched.productId) autoProductId = matched.productId;
-      else if (matched.serviceId) autoServiceId = matched.serviceId;
-    }
+    // v1.12.20: auto-link silencioso por descricao foi REMOVIDO. Operador
+    // vincula manualmente via picker (icone ✨). Sem essa logica magica,
+    // linha continua livre a menos que DTO traga productId/serviceId.
 
     const updated = await this.prisma.poolBudgetItem.update({
       where: { id: itemId },
@@ -1816,8 +1772,8 @@ export class PoolBudgetService {
         sortOrder: dto.sortOrder,
         notes: dto.notes,
         ...(dto.catalogConfigId !== undefined ? { catalogConfigId: dto.catalogConfigId } : {}),
-        ...(dto.productId !== undefined ? { productId: dto.productId } : (autoProductId ? { productId: autoProductId } : {})),
-        ...(dto.serviceId !== undefined ? { serviceId: dto.serviceId } : (autoServiceId ? { serviceId: autoServiceId } : {})),
+        ...(dto.productId !== undefined ? { productId: dto.productId } : {}),
+        ...(dto.serviceId !== undefined ? { serviceId: dto.serviceId } : {}),
         ...(dto.autoSelectRule !== undefined
           ? { autoSelectRule: (dto.autoSelectRule === null ? Prisma.JsonNull : dto.autoSelectRule) as Prisma.InputJsonValue }
           : {}),
@@ -1825,7 +1781,6 @@ export class PoolBudgetService {
         ...(dto.previousQty !== undefined ? { previousQty: dto.previousQty } : {}),
         ...(dto.qtyDecimals !== undefined ? { qtyDecimals: dto.qtyDecimals } : {}),
         ...(dto.poolSection !== undefined ? { poolSection: dto.poolSection } : {}),
-        ...(dto.customSectionKey !== undefined ? { customSectionKey: dto.customSectionKey } : {}),
         ...(autoCalculatedOverride !== undefined
           ? { isAutoCalculated: autoCalculatedOverride }
           : (dto.qty !== undefined || dto.unitPriceCents !== undefined

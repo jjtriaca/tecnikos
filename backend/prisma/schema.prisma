@@ -3580,15 +3580,13 @@ model PoolBudgetItem {
   productId       String?
   serviceId       String?
 
-  poolSection PoolSection
-  // Quando preenchido, a linha pertence a uma etapa customizada criada pelo
-  // operador (key tipo CUSTOM_<slug>_<rand>, armazenada em
-  // PoolBudget.environmentParams.customSections.labels). Nesse caso
-  // `poolSection` fica como OUTROS (fallback do enum) e o agrupamento
-  // efetivo da linha eh `customSectionKey ?? poolSection`. Adicionado em
-  // v1.12.19 pra resolver o bug onde linhas em etapa custom eram rejeitadas
-  // pelo @IsEnum(PoolSection) do DTO. Ver memory/bug-etapa-custom-linha-orfao.md.
-  customSectionKey String?
+  // Chave da etapa. Pode ser um valor do enum PoolSection (CONSTRUCAO,
+  // FILTRO, ..., OUTROS) ou uma chave custom criada pelo operador
+  // (CUSTOM_<slug>_<rand>). Armazenado como String pra permitir nomes
+  // livres — etapa criada pelo operador funciona identica a etapa padrao
+  // do enum. O label visivel vem de PoolBudget.environmentParams.customSections.labels
+  // (custom) ou da constante SECTION_LABEL do frontend (padrao). v1.12.20.
+  poolSection String      @default("CONSTRUCAO")
   sortOrder   Int         @default(0)
 
   // Rotulo do "papel" da linha dentro da etapa (ex: "Capa Termica",
@@ -3657,7 +3655,6 @@ model PoolBudgetItem {
 
   @@unique([budgetId, cellRef])
   @@index([budgetId, poolSection, sortOrder])
-  @@index([budgetId, customSectionKey, sortOrder])
 }
 
 // Forma de pagamento de OBRA (modulo Piscina)

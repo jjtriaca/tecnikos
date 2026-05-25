@@ -30,11 +30,10 @@ export type AutoSelectRule = {
 
 type BudgetItem = {
   id: string;
+  // Chave da etapa: pode ser um valor do enum padrao (CONSTRUCAO, FILTRO,
+  // ..., OUTROS) ou uma chave customizada criada pelo operador (CUSTOM_<slug>_<rand>).
+  // Funcionalmente identica — nao ha distincao entre etapa padrao e custom. v1.12.20.
   poolSection: string;
-  // Quando preenchido, linha pertence a uma etapa custom (CUSTOM_*) — o
-  // agrupamento efetivo eh `customSectionKey ?? poolSection`. Backend grava
-  // poolSection=OUTROS como fallback do enum.
-  customSectionKey?: string | null;
   sortOrder: number;
   cellRef: string | null; // Endereço estavel (L1, L2, ...) usado em formulas de outros items
   slotName: string | null; // Rotulo do papel da linha (ex: "Capa Termica", "Bomba Aquecimento")
@@ -415,11 +414,10 @@ export default function PoolBudgetDetailPage() {
   }
 
   async function handleDeleteSection(key: string) {
-    // Move items dessa etapa pra OUTROS (se houver). Filtra pela secao efetiva
-    // (cobre etapa custom via customSectionKey e padrao via poolSection).
-    const itemsInSection = (budget?.items ?? []).filter((it) => effectiveSection(it) === key);
+    // Move items dessa etapa pra OUTROS (se houver).
+    const itemsInSection = (budget?.items ?? []).filter((it) => it.poolSection === key);
     for (const it of itemsInSection) {
-      try { await api.put(`/pool-budgets/items/${it.id}`, { poolSection: "OUTROS", customSectionKey: null }); } catch { /* segue */ }
+      try { await api.put(`/pool-budgets/items/${it.id}`, { poolSection: "OUTROS" }); } catch { /* segue */ }
     }
     // Esconde a etapa e remove da ordem
     const hidden = Array.from(hiddenSections);
@@ -512,21 +510,16 @@ export default function PoolBudgetDetailPage() {
   }, []);
 
   const isLocked = budget?.status === "APROVADO" || budget?.status === "CANCELADO";
-  // Etapa efetiva: linhas em etapa custom tem customSectionKey preenchido e
-  // poolSection=OUTROS (fallback do enum). O agrupamento real eh por esta
-  // chave virtual. Mantém compat com itens antigos que so tem poolSection.
-  const effectiveSection = useCallback((it: Pick<BudgetItem, 'poolSection' | 'customSectionKey'>): string => {
-    return (it.customSectionKey && it.customSectionKey.length > 0) ? it.customSectionKey : it.poolSection;
-  }, []);
+  // Agrupamento por poolSection direto (string). Etapa padrao do enum e
+  // etapa custom CUSTOM_* sao indistinguiveis aqui. v1.12.20.
   const itemsBySection = useMemo(() => {
     const grouped: Record<string, BudgetItem[]> = {};
     budget?.items.forEach((it) => {
-      const sec = effectiveSection(it);
-      if (!grouped[sec]) grouped[sec] = [];
-      grouped[sec].push(it);
+      if (!grouped[it.poolSection]) grouped[it.poolSection] = [];
+      grouped[it.poolSection].push(it);
     });
     return grouped;
-  }, [budget, effectiveSection]);
+  }, [budget]);
 
   async function updateItem(itemId: string, patch: Partial<BudgetItem>) {
     try {
@@ -539,8 +532,7 @@ export default function PoolBudgetDetailPage() {
 
   async function moveItem(item: BudgetItem, dir: -1 | 1) {
     if (!budget) return;
-    const itemSec = effectiveSection(item);
-    const sectionItems = (budget.items.filter((i) => effectiveSection(i) === itemSec) || [])
+    const sectionItems = (budget.items.filter((i) => i.poolSection === item.poolSection) || [])
       .slice()
       .sort((a, b) => a.sortOrder - b.sortOrder);
     const idx = sectionItems.findIndex((i) => i.id === item.id);
@@ -585,15 +577,9 @@ export default function PoolBudgetDetailPage() {
 
   async function addItem(payload: any) {
     try {
-      // Quando o operador escolheu uma etapa custom (CUSTOM_*), o backend nao
-      // aceita no enum PoolSection. Salvamos poolSection=OUTROS como fallback
-      // e armazenamos a chave real em customSectionKey. O agrupamento na UI
-      // continua intacto via effectiveSection.
-      const isCustom = typeof payload.poolSection === 'string' && payload.poolSection.startsWith('CUSTOM_');
-      const body = isCustom
-        ? { ...payload, poolSection: 'OUTROS', customSectionKey: payload.poolSection }
-        : { ...payload, customSectionKey: null };
-      await api.post(`/pool-budgets/${id}/items`, body);
+      // v1.12.20: poolSection eh String pura no backend — manda a chave
+      // direto, seja enum padrao ou CUSTOM_*. Sem transformacoes.
+      await api.post(`/pool-budgets/${id}/items`, payload);
       toast("Item adicionado", "success");
       setShowAdd(false);
       await load();
@@ -1694,9 +1680,8 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
 }
 
 // Modal simplificado: pede Nome do item + Etapa (dropdown com todas etapas).
-// O backend auto-linka por descricao com Product/Service do tenant e puxa
-// preco/unidade do cadastro. Operador pode editar inline depois. Itens em
-// etapa custom enviam customSectionKey via funcao addItem do parent.
+// A linha vem sempre livre (sem vinculo, preco 0). Operador edita inline depois
+// ou clica ✨ pra vincular a Product/Service. v1.12.20.
 function AddItemModal({ availableSections, defaultSection, onClose, onSubmit, onAddCustomSection }: {
   availableSections: { key: string; label: string }[];
   defaultSection?: string | null;

@@ -1,6 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { PoolSection } from '@prisma/client';
-import { IsBoolean, IsEnum, IsInt, IsNumber, IsObject, IsOptional, IsString, Max, Min, ValidateIf } from 'class-validator';
+import { IsBoolean, IsInt, IsNumber, IsObject, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
 
 export class CreateBudgetItemDto {
   @ApiPropertyOptional({ description: 'CatalogConfig de origem' })
@@ -18,17 +17,16 @@ export class CreateBudgetItemDto {
   @IsString()
   serviceId?: string;
 
-  @ApiProperty({ enum: PoolSection })
-  @IsEnum(PoolSection)
-  poolSection!: PoolSection;
-
-  // Quando preenchido, a linha pertence a uma etapa customizada criada pelo
-  // operador. poolSection acima fica como OUTROS (fallback do enum) e o
-  // agrupamento efetivo da linha eh customSectionKey ?? poolSection.
-  @ApiPropertyOptional({ description: 'Chave da etapa customizada (CUSTOM_*). Se nao, NULL.' })
-  @IsOptional()
+  // Chave da etapa: aceita tanto valores do enum PoolSection (CONSTRUCAO,
+  // FILTRO, ...) quanto chaves customizadas geradas no frontend
+  // (CUSTOM_<slug>_<rand>). Validacao soft pra evitar abuso (so chars A-Z,
+  // 0-9 e _, max 64 chars). v1.12.20.
+  @ApiProperty({ description: 'Chave da etapa (enum padrao ou CUSTOM_*)' })
   @IsString()
-  customSectionKey?: string | null;
+  @MinLength(1)
+  @MaxLength(64)
+  @Matches(/^[A-Z0-9_]+$/i, { message: 'poolSection deve conter so letras, numeros e _' })
+  poolSection!: string;
 
   @ApiPropertyOptional({ description: 'Rotulo do papel da linha (ex: Capa Termica, Bomba Aquecimento)' })
   @IsOptional()
@@ -86,19 +84,14 @@ export class CreateBudgetItemDto {
 }
 
 export class UpdateBudgetItemDto {
-  // Mover item entre etapas: tanto poolSection quanto customSectionKey podem
-  // mudar. Pra mover de etapa padrao -> custom: poolSection='OUTROS' + customSectionKey='CUSTOM_*'.
-  // Pra mover de custom -> padrao: poolSection=X + customSectionKey=null.
-  @ApiPropertyOptional({ enum: PoolSection })
+  // Mover item entre etapas (qualquer chave: enum padrao ou CUSTOM_*).
+  @ApiPropertyOptional({ description: 'Chave da etapa (enum padrao ou CUSTOM_*)' })
   @IsOptional()
-  @IsEnum(PoolSection)
-  poolSection?: PoolSection;
-
-  @ApiPropertyOptional({ description: 'Chave da etapa custom. null = limpa (volta a ser etapa padrao).', nullable: true })
-  @IsOptional()
-  @ValidateIf((_o, v) => v !== null)
   @IsString()
-  customSectionKey?: string | null;
+  @MinLength(1)
+  @MaxLength(64)
+  @Matches(/^[A-Z0-9_]+$/i, { message: 'poolSection deve conter so letras, numeros e _' })
+  poolSection?: string;
 
   @ApiPropertyOptional({ description: 'Rotulo do papel da linha' })
   @IsOptional()
