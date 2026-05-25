@@ -1,6 +1,12 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.29 — Avisos no Simulador Solar (bombas sem vazao)
+## Versao atual em prod: v1.12.30 — Fix universal de upload (FormData via api.post)
+
+Sessao 211 (25/05/2026), 12 releases:
+
+**v1.12.30** — bugfix critico universal: `api.post(path, fd)` em todo o sistema dava erro "Cannot read properties of undefined (reading 'mimetype')" no backend. Causa: `lib/api.ts` linha 87 fazia `JSON.stringify(options.body)` em TODO body — incluindo `FormData`, que vira `"{}"`. O Multer/UploadedFile do NestJS ficava sem nada pra parsear. Fix: detectar `body instanceof FormData` antes do stringify; quando FormData, passar direto pro fetch e NAO setar Content-Type (browser seta multipart/form-data com boundary correto). Afeta 12 telas de upload (produtos, NFe, simulador solar, signup, settings, fotos OS, etc).
+
+**v1.12.29** — Avisos no Simulador Solar (bombas sem vazao)
 
 Sessao 211 (25/05/2026), 11 releases:
 

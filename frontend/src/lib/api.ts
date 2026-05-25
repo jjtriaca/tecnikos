@@ -84,9 +84,14 @@ async function request<T>(
   }
 
   const hasBody = options.body !== undefined && options.body !== null;
-  const body = hasBody ? JSON.stringify(options.body) : undefined;
+  // v1.12.30: FormData precisa passar direto pro fetch (nao stringify) pra o
+  // browser setar Content-Type: multipart/form-data com boundary correto.
+  // JSON.stringify(FormData) vira "{}" — Multer/UploadedFile do backend nao acha
+  // nada e da "Cannot read properties of undefined (reading 'mimetype')".
+  const isFormData = hasBody && typeof FormData !== 'undefined' && options.body instanceof FormData;
+  const body = !hasBody ? undefined : (isFormData ? (options.body as any) : JSON.stringify(options.body));
 
-  if (hasBody && !headers["Content-Type"]) {
+  if (hasBody && !isFormData && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
 
