@@ -1197,6 +1197,14 @@ model Product {
   linkedServiceId String?
   linkedService   Service? @relation("ProductLinkedService", fields: [linkedServiceId], references: [id])
 
+  // Curva caracteristica da bomba — array de pontos {vazaoM3h, alturaMca}
+  // ordenados por altura crescente (ex: [{vazao:18.2,alt:2},{vazao:14.2,alt:4},...]).
+  // Pra bombas: a vazao real entregue depende da altura manometrica do sistema.
+  // Auto-selecao interpola na curva pra ver se a bomba atende a vazao necessaria
+  // na altura manometrica calculada. NULL = bomba sem curva cadastrada (fallback
+  // pra comparacao simples pressaoTrabalhoMca >= alturaTelhadoMca). v1.12.32.
+  pumpCurve Json?
+
   // Especificacoes tecnicas extensiveis (modulo Piscina). Json livre:
   // { weightKg, lengthCm, widthCm, thicknessCm, powerHp, voltage, phaseType,
   //   powerWatts, amperage, wattsHourMax, wattsHourAvg, flowRateM3h, sandLoadKg,

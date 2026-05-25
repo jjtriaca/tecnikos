@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsString,
   IsOptional,
   IsInt,
@@ -166,6 +167,11 @@ export class UpdateProductDto {
   @IsOptional()
   @IsString()
   linkedServiceId?: string | null;
+
+  // Curva caracteristica da bomba — array de pontos {vazaoM3h, alturaMca}. v1.12.32.
+  @IsOptional()
+  @IsArray()
+  pumpCurve?: Array<{ vazaoM3h: number; alturaMca: number }> | null;
 }
 
 /* ── Ajuste de Estoque ──────────────────────────────────── */

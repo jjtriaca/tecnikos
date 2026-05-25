@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsString,
   IsOptional,
   IsNotEmpty,
@@ -162,4 +163,11 @@ export class CreateProductDto {
   @IsOptional()
   @IsString()
   linkedServiceId?: string | null;
+
+  // Curva caracteristica da bomba — array de pontos {vazaoM3h, alturaMca}.
+  // Pra bombas hidraulicas: a vazao entregue depende da altura manometrica.
+  // Auto-selecao interpola a curva. v1.12.32.
+  @IsOptional()
+  @IsArray()
+  pumpCurve?: Array<{ vazaoM3h: number; alturaMca: number }> | null;
 }

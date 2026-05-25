@@ -1,6 +1,12 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.31 — Pressao MCA + Altura do telhado na auto-selecao da bomba
+## Versao atual em prod: v1.12.32 — Curva da bomba (cadastro)
+
+Sessao 211 (25/05/2026), 14 releases:
+
+**v1.12.32** — base do calculo correto da bomba (replica metodo Solis). Cadastro de Produto ganha secao "📈 Curva da bomba" com tabela inline de pares (vazao, altura) — aparece somente quando `poolType` comeca com "Bomba". Schema: `Product.pumpCurve Json?` (array de `{vazaoM3h, alturaMca}`). Operador insere os pontos da tabela do manual do fabricante. Auto-selecao vai interpolar a curva na altura manometrica calculada pra ver vazao entregue (v1.12.34). Plano completo em 3 fases: v1.12.32 (cadastro), v1.12.33 (calculadora de perda de carga Darcy-Weisbach no Simulador), v1.12.34 (auto-selecao via curva).
+
+**v1.12.31** — Pressao MCA + Altura do telhado na auto-selecao da bomba
 
 Sessao 211 (25/05/2026), 13 releases:
 

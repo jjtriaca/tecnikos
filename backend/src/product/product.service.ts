@@ -528,6 +528,7 @@ export class ProductService {
         poolType: data.poolType,
         defaultQty: data.defaultQty,
         linkedServiceId: data.linkedServiceId,
+        pumpCurve: data.pumpCurve as any,
       },
       include: {
         _count: { select: { equivalents: true } },
@@ -606,6 +607,7 @@ export class ProductService {
         poolType: data.poolType,
         defaultQty: data.defaultQty,
         ...(data.linkedServiceId !== undefined ? { linkedServiceId: data.linkedServiceId } : {}),
+        ...(data.pumpCurve !== undefined ? { pumpCurve: data.pumpCurve as any } : {}),
       },
       include: {
         _count: { select: { equivalents: true } },

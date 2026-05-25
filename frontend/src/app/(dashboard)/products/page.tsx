@@ -353,6 +353,7 @@ interface ProductForm {
   specTempoMontagemH: string; // horas — tempo padrao de montagem/instalacao do equipamento
   specPressaoTrabalhoMca: string; // MCA (metros de coluna d'agua) — pressao maxima de trabalho da bomba
   linkedServiceId: string;    // Servico vinculado (instalacao/montagem). Vazio = sem vinculo.
+  pumpCurve: Array<{ vazaoM3h: string; alturaMca: string }>; // Curva caracteristica da bomba (pares vazao, altura)
 }
 
 const EMPTY_FORM: ProductForm = {
@@ -414,6 +415,7 @@ const EMPTY_FORM: ProductForm = {
   specTempoMontagemH: "",
   specPressaoTrabalhoMca: "",
   linkedServiceId: "",
+  pumpCurve: [],
 };
 
 function productToForm(p: Product): ProductForm {
@@ -483,6 +485,12 @@ function productToForm(p: Product): ProductForm {
     specTempoMontagemH: numericSpecToStr(p.technicalSpecs?.tempoMontagemH),
     specPressaoTrabalhoMca: numericSpecToStr(p.technicalSpecs?.pressaoTrabalhoMca),
     linkedServiceId: (p as any).linkedServiceId ?? "",
+    pumpCurve: Array.isArray((p as any).pumpCurve)
+      ? (p as any).pumpCurve.map((pt: any) => ({
+          vazaoM3h: pt?.vazaoM3h != null ? String(pt.vazaoM3h) : "",
+          alturaMca: pt?.alturaMca != null ? String(pt.alturaMca) : "",
+        }))
+      : [],
   };
 }
 
@@ -585,6 +593,17 @@ function formToPayload(f: ProductForm, existingSpecs?: Record<string, any>) {
     defaultQty: f.defaultQty.trim() === "" ? null : parseFloat(f.defaultQty.replace(",", ".")),
     // Servico vinculado (instalacao/montagem). Vazio = sem vinculo. null limpa vinculo.
     linkedServiceId: f.linkedServiceId || null,
+    // Curva da bomba — filtra pontos vazios, converte pra numero. Array vazio = sem curva.
+    pumpCurve: (() => {
+      const pts = (f.pumpCurve || [])
+        .map((p) => ({
+          vazaoM3h: parseFloat(String(p.vazaoM3h).replace(",", ".")),
+          alturaMca: parseFloat(String(p.alturaMca).replace(",", ".")),
+        }))
+        .filter((p) => Number.isFinite(p.vazaoM3h) && Number.isFinite(p.alturaMca))
+        .sort((a, b) => a.alturaMca - b.alturaMca);
+      return pts.length > 0 ? pts : null;
+    })(),
     // Inclui technicalSpecs no payload. Preserva chaves existentes que nao
     // tem input no form (eficiencia, bifTrifConta, multiplicador, etc seedadas
     // da planilha) — so atualiza as chaves expostas como inputs.
@@ -1943,6 +1962,93 @@ export default function ProductsPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* v1.12.32: curva caracteristica da bomba — tabela inline (vazao, altura).
+                      Aparece quando poolType comeca com "Bomba" (ex: "Bomba", "Bomba de Calor",
+                      "Bomba hidraulica"). Auto-selecao da bomba do coletor solar interpola
+                      esta curva pra ver vazao entregue na altura manometrica calculada. */}
+                  {/^bomba/i.test(form.poolType) && (
+                    <CollapsibleCard title="📈 Curva da bomba" defaultOpen={form.pumpCurve.length > 0}>
+                      <p className="text-[11px] text-slate-600 mb-3">
+                        Pares (vazão, altura manométrica) da curva caracteristica. Voce encontra estes dados no manual ou catalogo da bomba — tabela &ldquo;Caracteristicas hidraulicas&rdquo; ou similar. A auto-selecao da bomba interpola esta curva.
+                      </p>
+                      <div className="overflow-x-auto rounded border border-slate-200">
+                        <table className="w-full text-sm">
+                          <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-600">
+                            <tr>
+                              <th className="px-3 py-2 text-center w-16">#</th>
+                              <th className="px-3 py-2 text-left">Vazao (m³/h)</th>
+                              <th className="px-3 py-2 text-left">Altura manometrica (mca)</th>
+                              <th className="px-3 py-2 w-10"></th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {form.pumpCurve.length === 0 ? (
+                              <tr>
+                                <td colSpan={4} className="px-3 py-4 text-center text-[11px] text-slate-500 italic">
+                                  Sem curva cadastrada. Clique em &ldquo;+ Adicionar ponto&rdquo; pra comecar.
+                                </td>
+                              </tr>
+                            ) : (
+                              form.pumpCurve.map((point, idx) => (
+                                <tr key={idx}>
+                                  <td className="px-3 py-1.5 text-center text-[11px] text-slate-500 tabular-nums">{idx + 1}</td>
+                                  <td className="px-3 py-1.5">
+                                    <input
+                                      type="number" step="0.1" min="0"
+                                      value={point.vazaoM3h}
+                                      onChange={(e) => {
+                                        const next = [...form.pumpCurve];
+                                        next[idx] = { ...next[idx], vazaoM3h: e.target.value };
+                                        setField("pumpCurve", next);
+                                      }}
+                                      placeholder="Ex: 18.2"
+                                      className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+                                    />
+                                  </td>
+                                  <td className="px-3 py-1.5">
+                                    <input
+                                      type="number" step="0.5" min="0"
+                                      value={point.alturaMca}
+                                      onChange={(e) => {
+                                        const next = [...form.pumpCurve];
+                                        next[idx] = { ...next[idx], alturaMca: e.target.value };
+                                        setField("pumpCurve", next);
+                                      }}
+                                      placeholder="Ex: 2"
+                                      className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+                                    />
+                                  </td>
+                                  <td className="px-3 py-1.5 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const next = form.pumpCurve.filter((_, i) => i !== idx);
+                                        setField("pumpCurve", next);
+                                      }}
+                                      title="Remover ponto"
+                                      className="text-rose-500 hover:text-rose-700 px-1 py-0.5 rounded hover:bg-rose-50 text-sm"
+                                    >
+                                      ✕
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setField("pumpCurve", [...form.pumpCurve, { vazaoM3h: "", alturaMca: "" }]);
+                        }}
+                        className="mt-3 text-xs font-semibold text-blue-700 hover:text-blue-900 border border-blue-300 hover:border-blue-500 rounded px-3 py-1.5 bg-blue-50 hover:bg-blue-100"
+                      >
+                        + Adicionar ponto
+                      </button>
+                    </CollapsibleCard>
+                  )}
 
                   <CollapsibleCard title="🚿 Hidraulico — Filtros, Bombas, Aquecedores, SPA, Cascata" defaultOpen={blocksWithRequired.has('hidraulico')}>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
