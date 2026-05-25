@@ -31,6 +31,10 @@ export type AutoSelectRule = {
 type BudgetItem = {
   id: string;
   poolSection: string;
+  // Quando preenchido, linha pertence a uma etapa custom (CUSTOM_*) — o
+  // agrupamento efetivo eh `customSectionKey ?? poolSection`. Backend grava
+  // poolSection=OUTROS como fallback do enum.
+  customSectionKey?: string | null;
   sortOrder: number;
   cellRef: string | null; // Endereço estavel (L1, L2, ...) usado em formulas de outros items
   slotName: string | null; // Rotulo do papel da linha (ex: "Capa Termica", "Bomba Aquecimento")
@@ -313,6 +317,9 @@ export default function PoolBudgetDetailPage() {
   // Modal de adicionar etapa custom (nome livre)
   const [showAddSection, setShowAddSection] = useState(false);
   const [newSectionName, setNewSectionName] = useState("");
+  // Quando true, apos criar a etapa custom reabre o modal "+ Linha" ja
+  // apontando pra ela (fluxo "+ Nova etapa" dentro do modal Adicionar item).
+  const [reopenAddLineAfterCustomSection, setReopenAddLineAfterCustomSection] = useState(false);
   // Modal de confirmacao de exclusao (mostra items que serao movidos pra OUTROS)
   const [deleteSectionConfirm, setDeleteSectionConfirm] = useState<{ key: string; count: number } | null>(null);
   // Etapas vem MINIMIZADAS por padrao — operador expande as que precisa. Reduz scroll
@@ -385,7 +392,7 @@ export default function PoolBudgetDetailPage() {
     setRenamingValue("");
   }
 
-  async function handleAddCustomSection() {
+  async function handleAddCustomSection(opts?: { openAddLineAfter?: boolean }) {
     const label = newSectionName.trim();
     if (!label) return;
     // Gera key unica (CUSTOM_ + slug do nome + random suffix)
@@ -397,13 +404,22 @@ export default function PoolBudgetDetailPage() {
     setExtraSections((prev) => [...prev, key]);
     setShowAddSection(false);
     setNewSectionName("");
+    // Se veio do modal "Adicionar item" via "+ Nova etapa", reabre o modal
+    // ja apontando pra etapa recem-criada — fluxo natural "criar etapa e ja
+    // adicionar a primeira linha nela".
+    if (opts?.openAddLineAfter) {
+      setAddSection(key);
+      setShowAdd(true);
+    }
+    setReopenAddLineAfterCustomSection(false);
   }
 
   async function handleDeleteSection(key: string) {
-    // Move items dessa etapa pra OUTROS (se houver)
-    const itemsInSection = (budget?.items ?? []).filter((it) => it.poolSection === key);
+    // Move items dessa etapa pra OUTROS (se houver). Filtra pela secao efetiva
+    // (cobre etapa custom via customSectionKey e padrao via poolSection).
+    const itemsInSection = (budget?.items ?? []).filter((it) => effectiveSection(it) === key);
     for (const it of itemsInSection) {
-      try { await api.put(`/pool-budgets/items/${it.id}`, { poolSection: "OUTROS" }); } catch { /* segue */ }
+      try { await api.put(`/pool-budgets/items/${it.id}`, { poolSection: "OUTROS", customSectionKey: null }); } catch { /* segue */ }
     }
     // Esconde a etapa e remove da ordem
     const hidden = Array.from(hiddenSections);
@@ -496,14 +512,21 @@ export default function PoolBudgetDetailPage() {
   }, []);
 
   const isLocked = budget?.status === "APROVADO" || budget?.status === "CANCELADO";
+  // Etapa efetiva: linhas em etapa custom tem customSectionKey preenchido e
+  // poolSection=OUTROS (fallback do enum). O agrupamento real eh por esta
+  // chave virtual. Mantém compat com itens antigos que so tem poolSection.
+  const effectiveSection = useCallback((it: Pick<BudgetItem, 'poolSection' | 'customSectionKey'>): string => {
+    return (it.customSectionKey && it.customSectionKey.length > 0) ? it.customSectionKey : it.poolSection;
+  }, []);
   const itemsBySection = useMemo(() => {
     const grouped: Record<string, BudgetItem[]> = {};
     budget?.items.forEach((it) => {
-      if (!grouped[it.poolSection]) grouped[it.poolSection] = [];
-      grouped[it.poolSection].push(it);
+      const sec = effectiveSection(it);
+      if (!grouped[sec]) grouped[sec] = [];
+      grouped[sec].push(it);
     });
     return grouped;
-  }, [budget]);
+  }, [budget, effectiveSection]);
 
   async function updateItem(itemId: string, patch: Partial<BudgetItem>) {
     try {
@@ -516,7 +539,8 @@ export default function PoolBudgetDetailPage() {
 
   async function moveItem(item: BudgetItem, dir: -1 | 1) {
     if (!budget) return;
-    const sectionItems = (budget.items.filter((i) => i.poolSection === item.poolSection) || [])
+    const itemSec = effectiveSection(item);
+    const sectionItems = (budget.items.filter((i) => effectiveSection(i) === itemSec) || [])
       .slice()
       .sort((a, b) => a.sortOrder - b.sortOrder);
     const idx = sectionItems.findIndex((i) => i.id === item.id);
@@ -561,7 +585,15 @@ export default function PoolBudgetDetailPage() {
 
   async function addItem(payload: any) {
     try {
-      await api.post(`/pool-budgets/${id}/items`, payload);
+      // Quando o operador escolheu uma etapa custom (CUSTOM_*), o backend nao
+      // aceita no enum PoolSection. Salvamos poolSection=OUTROS como fallback
+      // e armazenamos a chave real em customSectionKey. O agrupamento na UI
+      // continua intacto via effectiveSection.
+      const isCustom = typeof payload.poolSection === 'string' && payload.poolSection.startsWith('CUSTOM_');
+      const body = isCustom
+        ? { ...payload, poolSection: 'OUTROS', customSectionKey: payload.poolSection }
+        : { ...payload, customSectionKey: null };
+      await api.post(`/pool-budgets/${id}/items`, body);
       toast("Item adicionado", "success");
       setShowAdd(false);
       await load();
@@ -789,53 +821,71 @@ export default function PoolBudgetDetailPage() {
           [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
           await updateBudget({ sectionOrder: next });
         }
-        if (presentSections.length === 0) {
-          return (
-            <div className="rounded-xl border border-dashed border-cyan-300 bg-cyan-50 p-12 text-center">
-              <p className="text-sm text-slate-600 mb-4">
-                Orçamento vazio. Voce pode adicionar etapas manualmente ou carregar o template padrao com todas as etapas e linhas.
-              </p>
-              <button
-                type="button"
-                onClick={async () => {
-                  if (!confirm("Aplicar template Linear (Padrao Juliano)?\n\nVai criar 125 items distribuidos em 12 etapas baseados na planilha original. Os valores e quantidades sao SUGESTOES — voce edita depois.")) return;
-                  try {
-                    const res = await api.post<{ itemsCreated: number; unmappedSections: string[] }>(
-                      `/pool-budgets/${id}/apply-linear`, {},
-                    );
-                    toast(`Template aplicado: ${res.itemsCreated} linhas criadas.`, "success");
-                    if (res.unmappedSections.length > 0) {
-                      toast(`Etapas nao mapeadas: ${res.unmappedSections.join(", ")}`, "info");
-                    }
-                    await load();
-                  } catch (err: any) {
-                    toast(err?.payload?.message || "Erro ao aplicar template", "error");
-                  }
-                }}
-                className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 shadow-sm"
-              >
-                Carregar template Linear (Padrao Juliano)
-              </button>
-              <p className="text-xs text-slate-600 mt-4">
-                Ou use os botoes &ldquo;+ Adicionar etapa&rdquo; abaixo pra montar manualmente.
-              </p>
-            </div>
-          );
-        }
+        // Orcamento vazio (nenhuma etapa criada nem com itens): mostra card
+        // explicativo COM o botao "+ Nova etapa" e o template Linear acessivel.
+        // O bloco "+ Adicionar etapa" abaixo do map continua sendo renderizado
+        // independente de ter sections — pra operador sempre poder adicionar.
+        const isEmpty = presentSections.length === 0;
         return (
           <div className="space-y-4">
-            <div className="flex justify-end gap-2 -mb-2">
-              <button type="button" onClick={collapseAll}
-                className="text-xs text-slate-600 hover:text-slate-900 px-2 py-1 rounded border border-slate-200 bg-white hover:bg-slate-50"
-                title="Minimizar todas as etapas">
-                Minimizar todas
-              </button>
-              <button type="button" onClick={expandAll}
-                className="text-xs text-slate-600 hover:text-slate-900 px-2 py-1 rounded border border-slate-200 bg-white hover:bg-slate-50"
-                title="Expandir todas as etapas">
-                Expandir todas
-              </button>
-            </div>
+            {isEmpty && (
+              <div className="rounded-xl border border-dashed border-cyan-300 bg-cyan-50 p-8 text-center">
+                <p className="text-sm text-slate-700 mb-4">
+                  Orçamento vazio. Adicione linhas ou etapas manualmente, ou carregue o template padrao com tudo pronto.
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setAddSection(null); setShowAdd(true); }}
+                    className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 shadow-sm"
+                  >
+                    + Adicionar linha
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowAddSection(true); setNewSectionName(""); }}
+                    className="inline-flex items-center gap-2 rounded-lg border border-violet-300 bg-white px-4 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-50 shadow-sm"
+                  >
+                    + Nova etapa
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!confirm("Aplicar template Linear (Padrao Juliano)?\n\nVai criar 125 items distribuidos em 12 etapas baseados na planilha original. Os valores e quantidades sao SUGESTOES — voce edita depois.")) return;
+                      try {
+                        const res = await api.post<{ itemsCreated: number; unmappedSections: string[] }>(
+                          `/pool-budgets/${id}/apply-linear`, {},
+                        );
+                        toast(`Template aplicado: ${res.itemsCreated} linhas criadas.`, "success");
+                        if (res.unmappedSections.length > 0) {
+                          toast(`Etapas nao mapeadas: ${res.unmappedSections.join(", ")}`, "info");
+                        }
+                        await load();
+                      } catch (err: any) {
+                        toast(err?.payload?.message || "Erro ao aplicar template", "error");
+                      }
+                    }}
+                    className="inline-flex items-center gap-2 rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 shadow-sm"
+                  >
+                    Carregar template Linear
+                  </button>
+                </div>
+              </div>
+            )}
+            {!isEmpty && (
+              <div className="flex justify-end gap-2 -mb-2">
+                <button type="button" onClick={collapseAll}
+                  className="text-xs text-slate-600 hover:text-slate-900 px-2 py-1 rounded border border-slate-200 bg-white hover:bg-slate-50"
+                  title="Minimizar todas as etapas">
+                  Minimizar todas
+                </button>
+                <button type="button" onClick={expandAll}
+                  className="text-xs text-slate-600 hover:text-slate-900 px-2 py-1 rounded border border-slate-200 bg-white hover:bg-slate-50"
+                  title="Expandir todas as etapas">
+                  Expandir todas
+                </button>
+              </div>
+            )}
             {presentSections.map((section) => {
               const items = itemsBySection[section] || [];
               const totProdutos = items.filter((it) => !isServicoItem(it)).reduce((s, it) => s + it.totalCents, 0);
@@ -1059,14 +1109,24 @@ export default function PoolBudgetDetailPage() {
       />
 
       {/* Modal adicionar item */}
-      {showAdd && (
-        <AddItemModal
-          catalog={catalog}
-          defaultSection={addSection}
-          onClose={() => { setShowAdd(false); setAddSection(null); }}
-          onSubmit={(p) => { addItem(p); setAddSection(null); }}
-        />
-      )}
+      {showAdd && (() => {
+        // Lista de TODAS as etapas disponiveis pro dropdown do modal:
+        // - Todas as 12 etapas padrao do enum PoolSection (mesmo as nao usadas)
+        // - Todas as custom criadas (mesmo as nao usadas)
+        // - Exclui hidden (operador escondeu)
+        const customKeys = Object.keys(customLabelsMap).filter((k) => k.startsWith('CUSTOM_'));
+        const allKeys = [...new Set([...SECTION_ORDER, ...customKeys])].filter((k) => !hiddenSections.has(k));
+        const availableSections = allKeys.map((k) => ({ key: k, label: secLabel(k) }));
+        return (
+          <AddItemModal
+            availableSections={availableSections}
+            defaultSection={addSection}
+            onClose={() => { setShowAdd(false); setAddSection(null); }}
+            onSubmit={(p) => { addItem(p); setAddSection(null); }}
+            onAddCustomSection={() => { setShowAdd(false); setAddSection(null); setReopenAddLineAfterCustomSection(true); setShowAddSection(true); }}
+          />
+        );
+      })()}
 
       {/* Modal confirmacao de acao */}
       <ConfirmModal
@@ -1101,38 +1161,42 @@ export default function PoolBudgetDetailPage() {
       )}
 
       {/* Modal: Nova etapa custom */}
-      {showAddSection && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowAddSection(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-slate-900 mb-2">+ Nova etapa</h3>
-            <p className="text-xs text-slate-600 mb-3">
-              Crie uma etapa com nome livre (ex: <em>Deck Madeira</em>, <em>Cobertura Termica</em>, <em>Spa Premium</em>). A etapa fica salva neste orcamento.
-            </p>
-            <input
-              type="text"
-              autoFocus
-              value={newSectionName}
-              onChange={(e) => setNewSectionName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleAddCustomSection();
-                if (e.key === "Escape") setShowAddSection(false);
-              }}
-              placeholder="Nome da etapa"
-              className="w-full rounded-lg border border-violet-300 px-3 py-2 text-sm focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
-            />
-            <div className="mt-4 flex items-center justify-end gap-2">
-              <button onClick={() => setShowAddSection(false)}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
-                Cancelar
-              </button>
-              <button onClick={handleAddCustomSection} disabled={!newSectionName.trim()}
-                className="rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50">
-                Criar etapa
-              </button>
+      {showAddSection && (() => {
+        const closeAndReset = () => { setShowAddSection(false); setReopenAddLineAfterCustomSection(false); };
+        const submit = () => handleAddCustomSection({ openAddLineAfter: reopenAddLineAfterCustomSection });
+        return (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={closeAndReset}>
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-base font-bold text-slate-900 mb-2">+ Nova etapa</h3>
+              <p className="text-xs text-slate-600 mb-3">
+                Crie uma etapa com nome livre (ex: <em>Deck Madeira</em>, <em>Cobertura Termica</em>, <em>Spa Premium</em>). A etapa fica salva neste orcamento.
+              </p>
+              <input
+                type="text"
+                autoFocus
+                value={newSectionName}
+                onChange={(e) => setNewSectionName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") submit();
+                  if (e.key === "Escape") closeAndReset();
+                }}
+                placeholder="Nome da etapa"
+                className="w-full rounded-lg border border-violet-300 px-3 py-2 text-sm focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
+              />
+              <div className="mt-4 flex items-center justify-end gap-2">
+                <button onClick={closeAndReset}
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+                  Cancelar
+                </button>
+                <button onClick={submit} disabled={!newSectionName.trim()}
+                  className="rounded-lg bg-violet-600 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50">
+                  Criar etapa
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Modal: Confirmar exclusao de etapa */}
       {deleteSectionConfirm && (
@@ -1629,209 +1693,64 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
   );
 }
 
-function AddItemModal({ catalog, defaultSection, onClose, onSubmit }: {
-  catalog: CatalogConfig[];
+// Modal simplificado: pede Nome do item + Etapa (dropdown com todas etapas).
+// O backend auto-linka por descricao com Product/Service do tenant e puxa
+// preco/unidade do cadastro. Operador pode editar inline depois. Itens em
+// etapa custom enviam customSectionKey via funcao addItem do parent.
+function AddItemModal({ availableSections, defaultSection, onClose, onSubmit, onAddCustomSection }: {
+  availableSections: { key: string; label: string }[];
   defaultSection?: string | null;
   onClose: () => void;
   onSubmit: (payload: any) => void;
+  onAddCustomSection: () => void;
 }) {
-  const [mode, setMode] = useState<"catalog" | "free">("catalog");
-  const [catalogConfigId, setCatalogConfigId] = useState("");
-  const [section, setSection] = useState(defaultSection || "OUTROS");
+  // Se defaultSection nao existe na lista (ex: foi escondida), cai pra OUTROS.
+  const initialSection = defaultSection && availableSections.some((s) => s.key === defaultSection)
+    ? defaultSection
+    : (availableSections[0]?.key ?? "OUTROS");
+  const [section, setSection] = useState<string>(initialSection);
   const [description, setDescription] = useState("");
-  const [unit, setUnit] = useState("UN");
-  const [qty, setQty] = useState(1);
-  const [unitPrice, setUnitPrice] = useState("0,00");
-  const [search, setSearch] = useState("");
-  const [showAllSections, setShowAllSections] = useState(false);
-
-  // Filtra catalogo: busca por descricao/marca/code/specs + secao
-  const filteredCatalog = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const tokens = q.length > 0 ? q.split(/\s+/) : [];
-    return catalog.filter((c) => {
-      // Filtra por secao se nao "mostrar todas"
-      if (!showAllSections && defaultSection && c.poolSection !== defaultSection) return false;
-      if (tokens.length === 0) return true;
-      const haystack = [
-        c.product?.code, c.product?.description, c.product?.brand,
-        c.service?.code, c.service?.name,
-        SECTION_LABEL[c.poolSection],
-        ...(c.product?.technicalSpecs ? Object.values(c.product.technicalSpecs).map(String) : []),
-        ...(c.service?.technicalSpecs ? Object.values(c.service.technicalSpecs).map(String) : []),
-      ].filter(Boolean).join(" ").toLowerCase();
-      return tokens.every((t) => haystack.includes(t));
-    });
-  }, [catalog, search, defaultSection, showAllSections]);
-
-  function handleCatalogPick(id: string) {
-    setCatalogConfigId(id);
-    const cfg = catalog.find((c) => c.id === id);
-    if (!cfg) return;
-    setSection(cfg.poolSection);
-    if (cfg.product) {
-      setDescription(cfg.product.description);
-      setUnit(cfg.product.unit);
-      setUnitPrice((cfg.product.salePriceCents / 100).toFixed(2).replace(".", ","));
-    } else if (cfg.service) {
-      setDescription(cfg.service.name);
-      setUnit(cfg.service.unit);
-      setUnitPrice((cfg.service.priceCents / 100).toFixed(2).replace(".", ","));
-    }
-  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const cfg = catalog.find((c) => c.id === catalogConfigId);
+    const desc = description.trim();
+    if (!desc) return;
     onSubmit({
-      catalogConfigId: mode === "catalog" ? catalogConfigId || undefined : undefined,
-      productId: mode === "catalog" ? cfg?.product?.id : undefined,
-      serviceId: mode === "catalog" ? cfg?.service?.id : undefined,
       poolSection: section,
-      description,
-      unit,
-      qty,
-      unitPriceCents: Math.round(parseFloat(unitPrice.replace(",", ".")) * 100),
+      description: desc,
+      unit: "UN",
+      qty: 1,
+      unitPriceCents: 0,
       isExtra: true,
     });
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-6">
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Adicionar item</h3>
-        <div className="flex gap-2 mb-4">
-          <button type="button" onClick={() => setMode("catalog")}
-            className={`px-3 py-1.5 rounded text-sm ${mode === "catalog" ? "bg-cyan-600 text-white" : "bg-slate-100 text-slate-700"}`}>
-            Do catalogo
-          </button>
-          <button type="button" onClick={() => setMode("free")}
-            className={`px-3 py-1.5 rounded text-sm ${mode === "free" ? "bg-cyan-600 text-white" : "bg-slate-100 text-slate-700"}`}>
-            Livre (manual)
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          {mode === "catalog" && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <label className="text-xs font-medium text-slate-600">Item do catalogo</label>
-                {defaultSection && (
-                  <label className="text-[10px] text-slate-500 flex items-center gap-1 cursor-pointer">
-                    <input type="checkbox" checked={showAllSections}
-                      onChange={(e) => setShowAllSections(e.target.checked)}
-                      className="h-3 w-3" />
-                    Buscar em todas as etapas
-                  </label>
-                )}
-              </div>
-              <div className="relative">
-                <input value={search} onChange={(e) => setSearch(e.target.value)} autoFocus
-                  placeholder="Buscar por descricao, marca, codigo, voltagem, vazao..."
-                  className="w-full rounded-lg border border-slate-300 pl-9 pr-8 py-2 text-sm focus:border-cyan-500 outline-none" />
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none">🔍</span>
-                {search && (
-                  <button type="button" onClick={() => setSearch("")}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-sm">✕</button>
-                )}
-              </div>
-              <div className="max-h-72 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100 bg-white">
-                {filteredCatalog.length === 0 ? (
-                  <div className="text-center text-xs text-slate-600 py-6">
-                    {search ? "Nenhum item encontrado" : "Catalogo vazio"}
-                  </div>
-                ) : filteredCatalog.slice(0, 200).map((c) => {
-                  const isProduct = !!c.product;
-                  const item = c.product ?? c.service!;
-                  const name = c.product?.description || c.service?.name || "";
-                  const code = c.product?.code || c.service?.code;
-                  const priceCents = c.product?.salePriceCents ?? c.service?.priceCents ?? 0;
-                  const itemUnit = c.product?.unit || c.service?.unit || "UN";
-                  const specs = c.product?.technicalSpecs || c.service?.technicalSpecs || null;
-                  const specBadges: string[] = [];
-                  if (specs) {
-                    if (specs.voltagem) specBadges.push(`${specs.voltagem}V`);
-                    if (specs.amperagem) specBadges.push(`${specs.amperagem}A`);
-                    if (specs.potenciaCv) specBadges.push(`${specs.potenciaCv}cv`);
-                    if (specs.potenciaWatts) specBadges.push(`${specs.potenciaWatts}W`);
-                    if (specs.vazaoM3h) specBadges.push(`${specs.vazaoM3h}m³/h`);
-                    if (specs.pesoKg) specBadges.push(`${specs.pesoKg}kg`);
-                    if (specs.eficiencia) specBadges.push(`${specs.eficiencia}%ef`);
-                    if (specs.kcalHNominal) specBadges.push(`${specs.kcalHNominal}kcal/h`);
-                    else if (specs.kcalHMax) specBadges.push(`${specs.kcalHMax}kcal/h`); // legacy fallback
-                  }
-                  const isSelected = catalogConfigId === c.id;
-                  return (
-                    <button key={c.id} type="button" onClick={() => handleCatalogPick(c.id)}
-                      className={`w-full text-left px-3 py-2 hover:bg-cyan-50 transition ${isSelected ? "bg-cyan-100" : ""}`}>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${isProduct ? "bg-blue-100 text-blue-700" : "bg-emerald-100 text-emerald-700"}`}>
-                              {isProduct ? "PROD" : "SERV"}
-                            </span>
-                            <span className="text-[9px] font-mono text-slate-600">{code}</span>
-                            <span className="text-[9px] text-slate-500">{SECTION_LABEL[c.poolSection]}</span>
-                          </div>
-                          <div className="text-sm font-medium text-slate-900 mt-0.5">{name}</div>
-                          {(c.product?.brand || specBadges.length > 0) && (
-                            <div className="flex flex-wrap gap-1 mt-0.5">
-                              {c.product?.brand && (
-                                <span className="text-[10px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">{c.product.brand}</span>
-                              )}
-                              {specBadges.map((b, i) => (
-                                <span key={i} className="text-[10px] text-violet-700 bg-violet-50 px-1.5 py-0.5 rounded font-mono">{b}</span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-right whitespace-nowrap">
-                          <div className="text-sm font-bold text-slate-900 tabular-nums">{fmtCurrency(priceCents)}</div>
-                          <div className="text-[10px] text-slate-500">/ {itemUnit}</div>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              {filteredCatalog.length > 200 && (
-                <div className="text-[10px] text-slate-500 text-center">
-                  Mostrando 200 de {filteredCatalog.length}. Refine a busca.
-                </div>
-              )}
-            </div>
-          )}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Secao</label>
-              <select value={section} onChange={(e) => setSection(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-                {Object.entries(SECTION_LABEL).map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Unidade</label>
-              <input value={unit} onChange={(e) => setUnit(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-            </div>
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
+        <h3 className="text-lg font-semibold text-slate-900 mb-1">Adicionar item</h3>
+        <p className="text-xs text-slate-500 mb-4">Digite so o nome. Preco e quantidade voce ajusta direto na tabela depois.</p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Nome do item *</label>
+            <input value={description} onChange={(e) => setDescription(e.target.value)} required autoFocus
+              placeholder="Ex: Capa termica 8x4m"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-cyan-500 outline-none" />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Descricao *</label>
-            <input value={description} onChange={(e) => setDescription(e.target.value)} required
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Quantidade</label>
-              <input type="number" step="0.01" value={qty} onChange={(e) => setQty(parseFloat(e.target.value) || 0)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-slate-600">Etapa</label>
+              <button type="button" onClick={onAddCustomSection}
+                className="text-[11px] text-cyan-700 hover:text-cyan-900 underline">
+                + Nova etapa
+              </button>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Preco unitario (R$)</label>
-              <input value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
-            </div>
+            <select value={section} onChange={(e) => setSection(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              {availableSections.map((s) => (
+                <option key={s.key} value={s.key}>{s.label}</option>
+              ))}
+            </select>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose}

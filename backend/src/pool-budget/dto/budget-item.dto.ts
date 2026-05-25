@@ -22,6 +22,14 @@ export class CreateBudgetItemDto {
   @IsEnum(PoolSection)
   poolSection!: PoolSection;
 
+  // Quando preenchido, a linha pertence a uma etapa customizada criada pelo
+  // operador. poolSection acima fica como OUTROS (fallback do enum) e o
+  // agrupamento efetivo da linha eh customSectionKey ?? poolSection.
+  @ApiPropertyOptional({ description: 'Chave da etapa customizada (CUSTOM_*). Se nao, NULL.' })
+  @IsOptional()
+  @IsString()
+  customSectionKey?: string | null;
+
   @ApiPropertyOptional({ description: 'Rotulo do papel da linha (ex: Capa Termica, Bomba Aquecimento)' })
   @IsOptional()
   @IsString()
@@ -78,6 +86,20 @@ export class CreateBudgetItemDto {
 }
 
 export class UpdateBudgetItemDto {
+  // Mover item entre etapas: tanto poolSection quanto customSectionKey podem
+  // mudar. Pra mover de etapa padrao -> custom: poolSection='OUTROS' + customSectionKey='CUSTOM_*'.
+  // Pra mover de custom -> padrao: poolSection=X + customSectionKey=null.
+  @ApiPropertyOptional({ enum: PoolSection })
+  @IsOptional()
+  @IsEnum(PoolSection)
+  poolSection?: PoolSection;
+
+  @ApiPropertyOptional({ description: 'Chave da etapa custom. null = limpa (volta a ser etapa padrao).', nullable: true })
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null)
+  @IsString()
+  customSectionKey?: string | null;
+
   @ApiPropertyOptional({ description: 'Rotulo do papel da linha' })
   @IsOptional()
   @IsString()

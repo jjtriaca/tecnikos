@@ -1645,6 +1645,7 @@ export class PoolBudgetService {
         productId: resolvedProductId,
         serviceId: resolvedServiceId,
         poolSection: dto.poolSection,
+        customSectionKey: dto.customSectionKey || null,
         sortOrder: dto.sortOrder ?? 0,
         slotName: dto.slotName,
         description: dto.description,
@@ -1823,6 +1824,8 @@ export class PoolBudgetService {
         ...(dto.manualUnlink !== undefined ? { manualUnlink: dto.manualUnlink } : {}),
         ...(dto.previousQty !== undefined ? { previousQty: dto.previousQty } : {}),
         ...(dto.qtyDecimals !== undefined ? { qtyDecimals: dto.qtyDecimals } : {}),
+        ...(dto.poolSection !== undefined ? { poolSection: dto.poolSection } : {}),
+        ...(dto.customSectionKey !== undefined ? { customSectionKey: dto.customSectionKey } : {}),
         ...(autoCalculatedOverride !== undefined
           ? { isAutoCalculated: autoCalculatedOverride }
           : (dto.qty !== undefined || dto.unitPriceCents !== undefined
