@@ -1497,16 +1497,18 @@ function SolarTab({
   const [pipeResult, setPipeResult] = useState<any | null>(initPipeResult);
   const [pipeRecomputing, setPipeRecomputing] = useState(false);
 
-  async function recomputePipe(overrides?: { comprimentoM?: number; desnivelM?: number }) {
+  async function recomputePipe(overrides?: { comprimentoM?: number; desnivelM?: number; diametroMm?: number | null }) {
     const comp = overrides?.comprimentoM ?? pipeComprimento;
     const desn = overrides?.desnivelM ?? pipeDesnivel;
     if (comp <= 0 || desn < 0) return;
     setPipeRecomputing(true);
     try {
-      const r = await api.post<{ inputs: any; result: any }>(`/pool-budgets/${budget.id}/solar-pipe/recompute`, {
-        comprimentoM: comp,
-        desnivelM: desn,
-      });
+      const body: any = { comprimentoM: comp, desnivelM: desn };
+      // diametroMm: undefined = auto-pick. number = forca o diametro. null = volta pra auto.
+      if (overrides && 'diametroMm' in overrides && overrides.diametroMm) {
+        body.diametroMm = overrides.diametroMm;
+      }
+      const r = await api.post<{ inputs: any; result: any }>(`/pool-budgets/${budget.id}/solar-pipe/recompute`, body);
       setPipeResult(r.result);
     } catch {
       // silencia — se vazaoM3h for 0 (Simulador nao rodou ainda), backend pode dar erro
@@ -1991,24 +1993,62 @@ function SolarTab({
                           />
                         </div>
                       </div>
-                      {pipeResult ? (
-                        <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2">
-                          <div className="text-[9px] uppercase tracking-wider text-amber-800 font-bold">Altura manometrica total</div>
-                          <div className="text-lg font-bold text-amber-900 tabular-nums">{pipeResult.alturaManometricaTotal?.toFixed(2)} mca</div>
-                          <div className="text-[10px] text-amber-800 mt-0.5">
-                            = {pipeResult.perdaDinamica?.toFixed(2)} mca de perda dinâmica + {pipeDesnivel} m de desnível · velocidade {pipeResult.velocidade?.toFixed(2)} m/s
+                      {pipeResult ? (() => {
+                        const velocidadeAlta = (pipeResult.velocidade ?? 0) > 2.5;
+                        const availableDns: number[] = pipeResult.availableDiametersMm ?? [32, 40, 50, 60, 75];
+                        // Fallback: se result salvo nao tem diametroDnMm (dado antigo), pega do input
+                        const dnAtual = pipeResult.diametroDnMm
+                          ?? (pipeResult as any)?.inputs?.diametroMm
+                          ?? availableDns.find((d) => d >= 50) ?? availableDns[0];
+                        // cardCls: vermelho se velocidade alta; senao amber
+                        const cardCls = velocidadeAlta
+                          ? "rounded border-2 border-red-400 bg-red-50 px-3 py-2"
+                          : "rounded border border-amber-300 bg-amber-50 px-3 py-2";
+                        const labelCls = velocidadeAlta ? "text-red-800" : "text-amber-800";
+                        const valueCls = velocidadeAlta ? "text-red-900" : "text-amber-900";
+                        const subCls = velocidadeAlta ? "text-red-800" : "text-amber-800";
+                        const veloCls = velocidadeAlta ? "font-bold text-red-700" : "";
+                        return (
+                          <div className={cardCls}>
+                            <div className={`text-[9px] uppercase tracking-wider font-bold ${labelCls}`}>Altura manometrica total</div>
+                            <div className={`text-lg font-bold tabular-nums ${valueCls}`}>{pipeResult.alturaManometricaTotal?.toFixed(2)} mca</div>
+                            <div className={`text-[10px] mt-0.5 ${subCls}`}>
+                              = {pipeResult.perdaDinamica?.toFixed(2)} mca de perda dinâmica + {pipeDesnivel} m de desnível · velocidade <span className={veloCls}>{pipeResult.velocidade?.toFixed(2)} m/s</span>
+                            </div>
+                            <div className="mt-2 flex items-center gap-2 flex-wrap">
+                              <label className={`text-[10px] uppercase tracking-wider font-bold ${labelCls}`}>📏 Tubo:</label>
+                              <span className={`text-[11px] font-semibold ${valueCls}`}>{pipeResult.material ?? 'PVC'}</span>
+                              <select
+                                value={dnAtual}
+                                onChange={(e) => recomputePipe({ diametroMm: Number(e.target.value) })}
+                                className={`text-xs font-bold rounded border px-2 py-0.5 ${velocidadeAlta ? 'border-red-400 bg-white text-red-900' : 'border-amber-400 bg-white text-amber-900'} focus:outline-none focus:ring-1 focus:ring-amber-500`}
+                              >
+                                {availableDns.map((d) => (
+                                  <option key={d} value={d}>{d} mm DN</option>
+                                ))}
+                              </select>
+                              {pipeResult.diametroAutoPicked
+                                ? <span className="text-[9px] uppercase tracking-wider text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">auto</span>
+                                : <span className="text-[9px] uppercase tracking-wider text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded">manual</span>}
+                              {pipeResult.diametroInternoMm && <span className={`text-[10px] ${subCls}`}>(DI {pipeResult.diametroInternoMm} mm)</span>}
+                              <button
+                                type="button"
+                                onClick={() => recomputePipe({ diametroMm: null })}
+                                className="text-[10px] underline text-slate-500 hover:text-slate-700"
+                                title="Volta a deixar o sistema escolher o tubo ideal pela vazao"
+                              >
+                                ↺ deixar automatico
+                              </button>
+                            </div>
+                            {velocidadeAlta && (
+                              <div className="mt-2 rounded bg-red-100 border border-red-300 px-2 py-1.5 text-[11px] font-bold text-red-800 uppercase tracking-wide text-center">
+                                ⚠ Velocidade {pipeResult.velocidade?.toFixed(2)} m/s acima do limite de 2,5 m/s — AUMENTE O DIÂMETRO DO TUBO
+                              </div>
+                            )}
+                            <div className={`text-[9px] mt-1 italic ${velocidadeAlta ? 'text-red-700' : 'text-amber-700'}`}>Defaults: PVC, fator 20%, 4 joelhos, 1 tê, 1 registro, 1 válvula.</div>
                           </div>
-                          <div className="text-[10px] text-amber-900 mt-1 font-medium">
-                            📏 Tubo escolhido: {pipeResult.material} <span className="tabular-nums">{pipeResult.diametroDnMm}mm DN</span>
-                            {pipeResult.diametroAutoPicked && <span className="ml-1 text-[9px] uppercase tracking-wider text-emerald-700 bg-emerald-100 px-1 py-0.5 rounded">auto</span>}
-                            <span className="text-amber-700 ml-1">(DI {pipeResult.diametroInternoMm} mm)</span>
-                          </div>
-                          {pipeResult.aviso && (
-                            <div className="mt-1 text-[10px] font-medium text-red-700">⚠ {pipeResult.aviso}</div>
-                          )}
-                          <div className="text-[9px] text-amber-700 mt-1 italic">Defaults: PVC, diâmetros [32, 40, 50, 60, 75], fator 20%, 4 joelhos, 1 tê, 1 registro, 1 válvula.</div>
-                        </div>
-                      ) : (
+                        );
+                      })() : (
                         <div className="text-[10px] text-slate-500 italic">
                           {pipeRecomputing ? 'Calculando…' : 'Preencha comprimento e desnível pra o sistema escolher o melhor tubo + calcular a altura manométrica.'}
                         </div>

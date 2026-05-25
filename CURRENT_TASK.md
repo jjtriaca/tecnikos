@@ -1,6 +1,16 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.35 — Auto-pick de diametro PVC [32,40,50,60,75]
+## Versao atual em prod: v1.12.36 — Dropdown de tubo + alerta vermelho quando velocidade > 2,5 m/s
+
+Sessao 211 (25/05/2026), 18 releases:
+
+**v1.12.36** — UX da calculadora de tubulação refinada:
+- "Tubo escolhido" vira **dropdown** com diametros disponiveis (`[32, 40, 50, 60, 75]` por default). Operador troca manualmente e recalcula no momento.
+- Quando operador deixa em branco -> badge verde "auto" (sistema escolhe pela vazao). Quando muda manualmente -> badge laranja "manual" + botao "↺ deixar automatico" pra voltar.
+- Quando velocidade > 2,5 m/s (limite Solis): card vira **vermelho** com alerta destacado "⚠ Velocidade X m/s acima do limite — AUMENTE O DIAMETRO DO TUBO". Igual a planilha Solis em vermelho.
+- Fallback de retrocompat: se o `solarPipe` salvo eh antigo (v1.12.34 nao tinha `diametroDnMm` no result), pega do `inputs.diametroMm` ou usa 50 como fallback. Evita "mm DN" vazio na UI.
+
+**v1.12.35** — Auto-pick de diametro PVC [32,40,50,60,75]
 
 Sessao 211 (25/05/2026), 17 releases:
 
