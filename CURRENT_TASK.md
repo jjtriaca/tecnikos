@@ -1,6 +1,12 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.27 — Refatora "Coletor do Simulador Solar" pra padrao de Templates
+## Versao atual em prod: v1.12.28 — Recomputar Simulador agora atualiza linhas do orcamento
+
+Sessao 211 (25/05/2026), 10 releases:
+
+**v1.12.28** — bugfix: trocar coletor ou qty no Simulador Solar NAO refletia no orcamento. Causa: `solarBudget.computeAndSaveReport` atualiza `environmentParams.solarReport` mas NUNCA chamava `recalculateTotals` do orcamento — entao formulas com `solarQty` continuavam com valor antigo, e regras `useSolarCollector` nao re-vinculavam. Fix simples no controller `:id/solar-report/recompute`: apos `computeAndSaveReport`, chama `service.recalculateTotals(id)`. Isso re-avalia formulas, re-vincula via `useSolarCollector`, atualiza totais. Sem dependencia circular (controller orquestra ambos services).
+
+**v1.12.27** — Refatora "Coletor do Simulador Solar" pra padrao de Templates
 
 Sessao 211 (25/05/2026), 9 releases:
 

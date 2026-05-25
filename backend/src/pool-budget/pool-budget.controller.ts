@@ -144,8 +144,13 @@ export class PoolBudgetController {
   @RequireVerification()
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)
   @Post(':id/solar-report/recompute')
-  recomputeSolarReport(@Param('id') id: string, @Body() body: SolarRecomputeDto, @CurrentUser() user: AuthenticatedUser) {
-    return this.solarBudget.computeAndSaveReport(id, user.companyId, body);
+  async recomputeSolarReport(@Param('id') id: string, @Body() body: SolarRecomputeDto, @CurrentUser() user: AuthenticatedUser) {
+    const report = await this.solarBudget.computeAndSaveReport(id, user.companyId, body);
+    // v1.12.28: ao trocar coletor / qtd no Simulador, recalcula totais do orcamento
+    // pra que linhas com formulaExpr=solarQty atualizem a quantidade e linhas com
+    // autoSelectRule.useSolarCollector vinculem ao novo coletor automaticamente.
+    await this.service.recalculateTotals(id);
+    return report;
   }
 
   @ApiOperation({ summary: 'Upload da imagem do header da aba Solar (foto/render da piscina) — JPEG/PNG/WebP, max 5MB' })
