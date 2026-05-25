@@ -1,6 +1,12 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.25 — Nova linha vai pro final (sortOrder = max + 1)
+## Versao atual em prod: v1.12.26 — Auto-select "Usar coletor do Simulador Solar"
+
+Sessao 211 (25/05/2026), 8 releases:
+
+**v1.12.26** — adicionada opcao "☀ Usar coletor selecionado no Simulador Solar" no modal de Auto-selecao do produto. Quando ativa, ignora filtros e criterios e vincula a linha direto ao coletor do Simulador (lido de `environmentParams.solarReport.selectedCollector.productId`). Se voce trocar o coletor no Simulador, a linha acompanha automaticamente no proximo recalc. Campo novo `autoSelectRule.useSolarCollector` (JSON livre, sem migration).
+
+**v1.12.25** — Nova linha vai pro final (sortOrder = max + 1)
 
 Sessao 211 (25/05/2026), 7 releases:
 

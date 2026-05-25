@@ -807,7 +807,33 @@ export class PoolBudgetService {
           opts: { forceReapply?: boolean } = {},
         ) => {
           const rule = it.autoSelectRule as AutoSelectRule | null;
-          if (!rule || (!rule.where && !rule.filterCategoria && !rule.filterDescription && !rule.filterPoolType)) return;
+          if (!rule || (!rule.where && !rule.filterCategoria && !rule.filterDescription && !rule.filterPoolType && !rule.useSolarCollector)) return;
+
+          // v1.12.26: useSolarCollector — vincula direto ao coletor do Simulador Solar.
+          // Ignora filtros/criterios. Quando operador troca o coletor no Simulador,
+          // recalculateTotals atualiza esta linha automaticamente.
+          if (rule.useSolarCollector) {
+            const solarColl = (budget?.environmentParams as any)?.solarReport?.selectedCollector;
+            const targetProductId = solarColl?.productId as string | undefined;
+            if (targetProductId && it.productId !== targetProductId) {
+              const product = allProducts.find((p) => p.id === targetProductId);
+              if (product) {
+                await this.prisma.poolBudgetItem.update({
+                  where: { id: it.id },
+                  data: {
+                    productId: targetProductId,
+                    serviceId: null,
+                    description: product.description,
+                    unit: product.unit,
+                    unitPriceCents: product.salePriceCents ?? 0,
+                    ...(it.formulaExpr ? {} : { qty: (product as any).defaultQty ?? 1 }),
+                  },
+                });
+              }
+            }
+            return; // skipa lógica padrão de filtro/where
+          }
+
           // manualSelection: regra so filtra candidatos no catalog picker, engine NAO escolhe automaticamente.
           // Usado quando o item nao tem criterio objetivo (ex: cascata e estetica) e o operador escolhe na mao.
           if (rule.manualSelection) return;

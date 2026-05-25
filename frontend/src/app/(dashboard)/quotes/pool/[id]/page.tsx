@@ -20,6 +20,10 @@ export type AutoSelectRule = {
   // Kit SPA). Quando preenchido, sibling* vem so dessa linha — elimina
   // ambiguidade. Opcional — sem ele, fallback pra siblings genericos da etapa.
   linkedCellRef?: string | null;
+  // v1.12.26: quando true, ignora filtros e where — vincula direto ao coletor
+  // selecionado no Simulador Solar (environmentParams.solarReport.selectedCollector.productId).
+  // Operador configura uma vez e o orcamento herda a escolha do Simulador.
+  useSolarCollector?: boolean | null;
   indicator?: {
     label: string;
     expr: string;
@@ -3108,6 +3112,8 @@ export function AutoSelectModal({
   const [orderBy, setOrderBy] = useState(initialRule?.orderBy || 'priceCents asc');
   const [manualSelection, setManualSelection] = useState(!!initialRule?.manualSelection);
   const [linkedCellRef, setLinkedCellRef] = useState(initialRule?.linkedCellRef || '');
+  // v1.12.26: quando true, ignora filtros e where — vincula direto ao coletor do Simulador Solar.
+  const [useSolarCollector, setUseSolarCollector] = useState(!!initialRule?.useSolarCollector);
   const [hasIndicator, setHasIndicator] = useState(!!initialRule?.indicator);
   const [indLabel, setIndLabel] = useState(initialRule?.indicator?.label || '');
   const [indExpr, setIndExpr] = useState(initialRule?.indicator?.expr || '');
@@ -3358,6 +3364,7 @@ export function AutoSelectModal({
       orderBy: orderBy.trim() || null,
       manualSelection: manualSelection || null,
       linkedCellRef: linkedCellRef.trim() || null,
+      useSolarCollector: useSolarCollector || null,
       indicator: hasIndicator && indLabel.trim() && indExpr.trim()
         ? { label: indLabel.trim(), expr: indExpr.trim(), unit: indUnit.trim() || null, levels: indLevels }
         : null,
@@ -3384,6 +3391,41 @@ export function AutoSelectModal({
             </div>
 
             <div className="px-6 pt-4 pb-3 border-b border-slate-100 bg-white shrink-0">
+              {/* v1.12.26: opcao especial — vincula direto ao coletor do Simulador Solar.
+                  Quando ativo, ignora todos os filtros/criterios abaixo. */}
+              {(() => {
+                const solarColl = (environmentParams as any)?.solarReport?.selectedCollector;
+                const solarCollName = solarColl?.modelName || null;
+                const solarCollId = solarColl?.productId || null;
+                return (
+                  <div className={`mb-3 rounded-lg border-2 p-3 ${useSolarCollector ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={useSolarCollector}
+                        onChange={(e) => setUseSolarCollector(e.target.checked)}
+                        className="mt-0.5 h-4 w-4"
+                      />
+                      <div className="flex-1">
+                        <div className="text-sm font-semibold text-slate-900">☀ Usar coletor selecionado no Simulador Solar</div>
+                        {solarCollName ? (
+                          <div className="text-xs text-slate-700 mt-0.5">
+                            Coletor atual: <span className="font-medium text-amber-800">{solarCollName}</span>
+                          </div>
+                        ) : (
+                          <div className="text-xs text-amber-700 mt-0.5">⚠ Simulador Solar nao foi executado ainda — abra o Simulador e selecione um coletor.</div>
+                        )}
+                        <div className="text-[11px] text-slate-600 mt-1">
+                          Quando marcado, o sistema ignora os filtros e criterios abaixo e vincula direto ao coletor do Simulador. Se voce trocar o coletor no Simulador, esta linha acompanha automaticamente.
+                        </div>
+                        {useSolarCollector && !solarCollId && (
+                          <div className="text-[11px] font-medium text-red-700 mt-1">Coletor nao encontrado no Simulador. Configure-o primeiro pra esta regra funcionar.</div>
+                        )}
+                      </div>
+                    </label>
+                  </div>
+                );
+              })()}
               <div className="rounded-lg border-2 border-violet-200 bg-violet-50/50 p-3">
                 <div className="text-[11px] font-bold uppercase tracking-wide text-violet-900 mb-1">Resultado da auto-selecao</div>
                 {preview.selected ? (

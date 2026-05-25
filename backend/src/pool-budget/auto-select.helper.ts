@@ -42,6 +42,9 @@ export interface AutoSelectRule {
   // da etapa". Sem ele, fallback pro comportamento generico (primeiro item
   // da etapa com cada chave).
   linkedCellRef?: string | null;
+  // v1.12.26: quando true, ignora filtros e where — vincula direto ao coletor
+  // selecionado no Simulador Solar (environmentParams.solarReport.selectedCollector.productId).
+  useSolarCollector?: boolean | null;
   indicator?: AutoSelectIndicator | null;
 }
 
