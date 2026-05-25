@@ -2853,6 +2853,14 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
     },
   },
   {
+    icon: '☀',
+    label: 'Coletor do Simulador Solar',
+    description: 'Vincula a linha diretamente ao coletor selecionado no Simulador de Aquecimento Solar. Quando voce trocar o coletor no Simulador, esta linha acompanha automaticamente. Ignora filtros e criterio.',
+    rule: {
+      useSolarCollector: true,
+    },
+  },
+  {
     icon: '🚰',
     label: 'Bomba do Coletor Solar (vazao do simulador)',
     description: 'Bomba hidraulica de recirculacao pros coletores solares. Filtra bombas com vazaoM3h >= vazaoSolarM3h (calculada pelo Simulador Solar). Escolhe a menor que atende. Folga ideal 0-50%.',
@@ -3154,6 +3162,7 @@ export function AutoSelectModal({
     setWhere(t.rule.where || '');
     setOrderBy(t.rule.orderBy || 'priceCents asc');
     setManualSelection(!!t.rule.manualSelection);
+    setUseSolarCollector(!!t.rule.useSolarCollector);
     if (t.rule.indicator) {
       setHasIndicator(true);
       setIndLabel(t.rule.indicator.label);
@@ -3391,41 +3400,6 @@ export function AutoSelectModal({
             </div>
 
             <div className="px-6 pt-4 pb-3 border-b border-slate-100 bg-white shrink-0">
-              {/* v1.12.26: opcao especial — vincula direto ao coletor do Simulador Solar.
-                  Quando ativo, ignora todos os filtros/criterios abaixo. */}
-              {(() => {
-                const solarColl = (environmentParams as any)?.solarReport?.selectedCollector;
-                const solarCollName = solarColl?.modelName || null;
-                const solarCollId = solarColl?.productId || null;
-                return (
-                  <div className={`mb-3 rounded-lg border-2 p-3 ${useSolarCollector ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
-                    <label className="flex items-start gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={useSolarCollector}
-                        onChange={(e) => setUseSolarCollector(e.target.checked)}
-                        className="mt-0.5 h-4 w-4"
-                      />
-                      <div className="flex-1">
-                        <div className="text-sm font-semibold text-slate-900">☀ Usar coletor selecionado no Simulador Solar</div>
-                        {solarCollName ? (
-                          <div className="text-xs text-slate-700 mt-0.5">
-                            Coletor atual: <span className="font-medium text-amber-800">{solarCollName}</span>
-                          </div>
-                        ) : (
-                          <div className="text-xs text-amber-700 mt-0.5">⚠ Simulador Solar nao foi executado ainda — abra o Simulador e selecione um coletor.</div>
-                        )}
-                        <div className="text-[11px] text-slate-600 mt-1">
-                          Quando marcado, o sistema ignora os filtros e criterios abaixo e vincula direto ao coletor do Simulador. Se voce trocar o coletor no Simulador, esta linha acompanha automaticamente.
-                        </div>
-                        {useSolarCollector && !solarCollId && (
-                          <div className="text-[11px] font-medium text-red-700 mt-1">Coletor nao encontrado no Simulador. Configure-o primeiro pra esta regra funcionar.</div>
-                        )}
-                      </div>
-                    </label>
-                  </div>
-                );
-              })()}
               <div className="rounded-lg border-2 border-violet-200 bg-violet-50/50 p-3">
                 <div className="text-[11px] font-bold uppercase tracking-wide text-violet-900 mb-1">Resultado da auto-selecao</div>
                 {preview.selected ? (

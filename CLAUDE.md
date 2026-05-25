@@ -14,6 +14,7 @@
 6. Quando o usuario der instrucao global/permanente: PERGUNTAR se quer gravar no CLAUDE.md
 7. Ao fazer mudancas estruturais: ATUALIZAR ARCHITECTURE.md antes de encerrar
 8. A CADA tarefa concluida: ATUALIZAR CURRENT_TASK.md
+9. **SEGUIR PADROES DO SISTEMA — NAO INVENTAR HARDCODE.** Antes de criar UI nova (checkbox, botao, modal, componente): VERIFICAR se ja existe um padrao no codebase pra resolver a mesma intencao (templates prontos, componente compartilhado, slot reutilizavel). Estender o padrao existente, NUNCA criar um caminho paralelo "fora do esquema". Exemplo concreto: AutoSelectModal tem lista `AUTOSELECT_TEMPLATES` — qualquer regra nova entra como template ali, NAO como checkbox especial no topo do modal. Ver `memory/feedback_seguir_padroes_sistema.md` (incidente v1.12.26).
 
 ## REGRA ABSOLUTA: Worktree alinhado com PROD antes de QUALQUER deploy
 **Incidente v1.10.71 (11/05/2026):** sessao abriu worktree fresco a partir de `origin/main` (v1.10.55). Prod estava em v1.10.70 (focused-hugle worktree, 15 versoes locais nao pushadas). Deploy quase reverteu 15 versoes — abortado em 5/9.

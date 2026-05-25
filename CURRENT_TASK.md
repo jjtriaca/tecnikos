@@ -1,6 +1,17 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.26 — Auto-select "Usar coletor do Simulador Solar"
+## Versao atual em prod: v1.12.27 — Refatora "Coletor do Simulador Solar" pra padrao de Templates
+
+Sessao 211 (25/05/2026), 9 releases:
+
+**v1.12.27** — refactor: a opcao "Usar coletor do Simulador Solar" da v1.12.26 estava implementada como checkbox grande no topo do AutoSelectModal — fora do padrao do sistema. O AutoSelectModal ja tem lista `AUTOSELECT_TEMPLATES` com regras pre-configuradas (Filtro de piscina, Bomba do Coletor Solar, Bomba de Calor, Tubo, Kit Cascata, Kit SPA). Fix:
+- Removido o checkbox/card grande do topo do modal.
+- Adicionado template novo "☀ Coletor do Simulador Solar" na lista AUTOSELECT_TEMPLATES (mesmo padrao dos outros — icon + label + description + rule).
+- applyAutoSelectTemplate agora seta `useSolarCollector` no state do form.
+- Backend processing (recalculateTotals) mantido — esse era o padrao certo.
+- **Nova regra absoluta em CLAUDE.md (regra #9): SEGUIR PADROES DO SISTEMA — NAO INVENTAR HARDCODE.** Antes de criar UI nova, verificar se ja existe padrao (templates/slots/componentes) no codebase. Ver memory/feedback_seguir_padroes_sistema.md.
+
+**v1.12.26** — Auto-select "Usar coletor do Simulador Solar"
 
 Sessao 211 (25/05/2026), 8 releases:
 
