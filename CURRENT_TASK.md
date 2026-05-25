@@ -1,6 +1,16 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.36 — Dropdown de tubo + alerta vermelho quando velocidade > 2,5 m/s
+## Versao atual em prod: v1.12.37 — Tipos do tenant + velocidade ≥ 2.5 + curva da bomba obrigatoria
+
+Sessao 211 (25/05/2026), 19 releases:
+
+**v1.12.37** — 4 ajustes na suite Solar/Bomba:
+- **Dropdown de tipo na auto-selecao** agora mostra TODOS os Product.poolType cadastrados no tenant (DISTINCT via `/products/pool-types`), nao so os que ja tem entrada em PoolCatalogConfig. Resolve bug onde tipo recem-cadastrado nao aparecia na regra. Mesclagem feita no `poolTypes` interno do AutoSelectModal.
+- **Velocidade ≥ 2,5 m/s** (era > 2,5) ja dispara alerta vermelho — alinha com o limite Solis. `pickOptimalDiameter` agora aceita apenas v < 2,5 (estritamente menor) pra ser considerado suficiente. Aviso no compute usa `>=`.
+- **Curva da bomba** virou spec selecionavel no gerenciador de tipos obrigatorios (PRODUCT_SPECS_GROUPED bloco "📈 Curva da bomba"). Operador marca como obrigatoria pra tipo "Bomba" e o save de Product valida.
+- **Minimo de pontos da curva** = 6 por default, configuravel via `Company.systemConfig.pool.pumpCurveMinPoints`. Validador rejeita save com mensagem clara: "Curva da bomba (minimo 6 pontos)".
+
+**v1.12.36** — Dropdown de tubo + alerta vermelho quando velocidade > 2,5 m/s
 
 Sessao 211 (25/05/2026), 18 releases:
 

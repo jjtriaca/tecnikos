@@ -309,6 +309,10 @@ export default function PoolBudgetDetailPage() {
   const [budget, setBudget] = useState<Budget | null>(null);
   const [loading, setLoading] = useState(true);
   const [catalog, setCatalog] = useState<CatalogConfig[]>([]);
+  // v1.12.37: tipos do tenant (Product.poolType DISTINCT) — pra AutoSelectModal
+  // mesclar com os tipos do catalog. Resolve caso onde operador cadastrou produto
+  // no Cadastro mas ainda nao incluiu no PoolCatalogConfig.
+  const [tenantPoolTypes, setTenantPoolTypes] = useState<string[]>([]);
   const [paymentTerms, setPaymentTerms] = useState<PoolPaymentTerm[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [addSection, setAddSection] = useState<string | null>(null);
@@ -508,6 +512,12 @@ export default function PoolBudgetDetailPage() {
         setCatalog([]);
       }
     })();
+    // v1.12.37: tenantPoolTypes — DISTINCT Product.poolType do tenant (todos os produtos cadastrados).
+    // Garante que tipos novos cadastrados no Produto aparecam no dropdown da auto-selecao
+    // mesmo que ainda nao tenham entrada em PoolCatalogConfig.
+    api.get<string[]>("/products/pool-types")
+      .then((r) => setTenantPoolTypes(Array.isArray(r) ? r : []))
+      .catch(() => setTenantPoolTypes([]));
     api.get<PoolPaymentTerm[]>("/pool-payment-terms")
       .then((r) => setPaymentTerms(r || []))
       .catch(() => setPaymentTerms([]));
@@ -1037,6 +1047,7 @@ export default function PoolBudgetDetailPage() {
                           dias={budget.estimatedDurationDays ?? 0}
                           allItems={budget.items}
                           catalog={catalog}
+                          tenantPoolTypes={tenantPoolTypes}
                           onUpdate={(patch) => updateItem(it.id, patch)}
                           onRemove={() => removeItem(it.id)}
                           onMove={(dir) => moveItem(it, dir)}
@@ -1259,7 +1270,7 @@ export default function PoolBudgetDetailPage() {
   );
 }
 
-function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentParams, heatingReport, dias, allItems, catalog, onUpdate, onRemove, onMove }: {
+function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentParams, heatingReport, dias, allItems, catalog, tenantPoolTypes, onUpdate, onRemove, onMove }: {
   item: BudgetItem;
   seq?: number;
   locked: boolean;
@@ -1271,6 +1282,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
   dias?: number;
   allItems?: BudgetItem[];
   catalog?: CatalogConfig[];
+  tenantPoolTypes?: string[];
   onUpdate: (patch: Partial<BudgetItem> & { formulaExpr?: string | null }) => void;
   onRemove: () => void;
   onMove?: (dir: -1 | 1) => void;
@@ -1599,6 +1611,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         key={`${item.id}-${JSON.stringify(item.autoSelectRule || {})}`}
         initialRule={item.autoSelectRule || null}
         catalog={catalog}
+        tenantPoolTypes={tenantPoolTypes}
         dimensions={dimensions}
         environmentParams={environmentParams}
         heatingReport={heatingReport}
@@ -3082,6 +3095,7 @@ const INDICATOR_TEMPLATES: Array<{ label: string; preset: { label: string; expr:
 export function AutoSelectModal({
   initialRule,
   catalog,
+  tenantPoolTypes,
   dimensions,
   environmentParams,
   heatingReport,
@@ -3095,6 +3109,9 @@ export function AutoSelectModal({
 }: {
   initialRule: AutoSelectRule | null;
   catalog: CatalogConfig[];
+  // v1.12.37: tipos do tenant (DISTINCT Product.poolType) — mescla com poolTypes
+  // do catalog pra cobrir produtos cadastrados que ainda nao entraram em PoolCatalogConfig.
+  tenantPoolTypes?: string[];
   dimensions: any;
   environmentParams?: any;
   // Cache do simulador de aquecimento — usado pra extrair calorNecessarioKcalH
@@ -3175,16 +3192,20 @@ export function AutoSelectModal({
     }
   };
 
-  // Tipos unicos extraidos do catalogo (Product.poolType — campo top-level).
-  // Preferido sobre categoriaPlanilha (legado em technicalSpecs).
+  // Tipos unicos: mescla DISTINCT do PoolCatalogConfig (catalog) com DISTINCT do
+  // Product.poolType do tenant (tenantPoolTypes). v1.12.37: garante que tipos novos
+  // cadastrados em Produtos aparecam aqui mesmo que ainda nao tenham PoolCatalogConfig.
   const poolTypes = useMemo(() => {
     const set = new Set<string>();
     for (const c of catalog) {
       const t = c.product?.poolType;
       if (t && typeof t === 'string' && t.trim()) set.add(t);
     }
+    for (const t of (tenantPoolTypes || [])) {
+      if (t && typeof t === 'string' && t.trim()) set.add(t);
+    }
     return Array.from(set).sort();
-  }, [catalog]);
+  }, [catalog, tenantPoolTypes]);
 
   // Categorias legadas — so aparece dropdown se houver valor ja cadastrado (compat).
   const categorias = useMemo(() => {

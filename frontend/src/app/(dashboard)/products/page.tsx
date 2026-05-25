@@ -2527,6 +2527,11 @@ export const PRODUCT_SPECS_GROUPED: Array<{ block: string; group: string; specs:
     { key: 'pressaoTrabalhoMca', label: 'Pressao de trabalho (MCA)' },
     { key: 'tuboEntradaMm', label: 'Tubo de entrada (mm)' },
   ]},
+  // v1.12.38: curva da bomba como spec selecionavel pra ser obrigatoria
+  // em poolType "Bomba" (ou similar). Min de pontos definido no validador (default 6).
+  { block: 'bomba', group: '📈 Curva da bomba', specs: [
+    { key: 'pumpCurve', label: 'Curva da bomba (min 6 pontos)' },
+  ]},
   { block: 'cascata', group: '🌊 Cascata', specs: [
     { key: 'cascataComprimentoCm', label: 'Comprimento do bocal (cm)' },
   ]},

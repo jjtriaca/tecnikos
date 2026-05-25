@@ -142,7 +142,8 @@ function fittingLengthFor(dnMm: number): typeof FITTING_LENGTHS[number] {
   FITTING_LENGTHS[0]);
 }
 
-// v1.12.35: limite de velocidade da Solis. Acima disso, ruido + cavitacao + perda excessiva.
+// v1.12.35: limite de velocidade da Solis. >=2.5 m/s ja eh acima do recomendado
+// (ruido + cavitacao + perda excessiva). Estritamente menor que 2.5 passa.
 const VELOCIDADE_MAX_MS = 2.5;
 
 @Injectable()
@@ -166,7 +167,7 @@ export class PipeHeadLossService {
       const diM = diMm / 1000;
       const areaM2 = (Math.PI * Math.pow(diM, 2)) / 4;
       const velocidade = vazaoM3s / areaM2;
-      if (velocidade <= VELOCIDADE_MAX_MS) {
+      if (velocidade < VELOCIDADE_MAX_MS) {
         return { diametroMm: dnMm, velocidade, suficiente: true };
       }
     }
@@ -231,10 +232,10 @@ export class PipeHeadLossService {
     // Altura manometrica total = perda dinamica + desnivel geometrico
     const alturaManometricaTotal = perdaDinamica + inputs.desnivelM;
 
-    // Aviso de velocidade alta (Solis alerta >2.5 m/s)
+    // Aviso de velocidade alta (Solis alerta >=2.5 m/s)
     let aviso: string | null = null;
-    if (velocidade > 2.5) {
-      aviso = `Velocidade ${velocidade.toFixed(2)} m/s acima do limite de 2,5 m/s — aumente o diametro do tubo pra reduzir perda e ruido.`;
+    if (velocidade >= VELOCIDADE_MAX_MS) {
+      aviso = `Velocidade ${velocidade.toFixed(2)} m/s atingiu/passou o limite de 2,5 m/s — aumente o diametro do tubo pra reduzir perda e ruido.`;
     }
 
     return {

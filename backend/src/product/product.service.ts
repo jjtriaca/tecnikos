@@ -199,6 +199,7 @@ export class ProductService {
     companyId: string,
     poolType: string | null | undefined,
     technicalSpecs: Record<string, any> | null | undefined,
+    pumpCurve?: any,
   ): Promise<void> {
     const type = (poolType ?? '').trim();
     if (!type) return;
@@ -207,14 +208,30 @@ export class ProductService {
     if (!required || required.length === 0) return;
     const specs = (technicalSpecs ?? {}) as Record<string, any>;
     const missing: string[] = [];
+    // v1.12.38: minimo de pontos da curva da bomba — configurable por tenant
+    // em Company.systemConfig.pool.pumpCurveMinPoints. Default 6.
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    const minPumpPts = Number((company?.systemConfig as any)?.pool?.pumpCurveMinPoints) || 6;
     for (const f of required) {
+      // v1.12.38: pumpCurve eh coluna separada (Json), nao technicalSpecs. Trata especial.
+      if (f === 'pumpCurve') {
+        const arr = Array.isArray(pumpCurve) ? pumpCurve : null;
+        const valid = arr && arr.filter((p: any) =>
+          Number.isFinite(Number(p?.vazaoM3h)) && Number.isFinite(Number(p?.alturaMca))
+        ).length >= minPumpPts;
+        if (!valid) missing.push(`Curva da bomba (mínimo ${minPumpPts} pontos)`);
+        continue;
+      }
       const v = specs[f];
       const isEmpty = v === undefined || v === null || v === '' || (typeof v === 'number' && Number.isNaN(v));
       if (isEmpty) missing.push(f);
     }
     if (missing.length > 0) {
       throw new BadRequestException(
-        `Produto do tipo "${type}" exige preencher: ${missing.join(', ')}. Edite o produto e preencha esses campos nas Especificacoes tecnicas (aba Piscina).`,
+        `Produto do tipo "${type}" exige preencher: ${missing.join(', ')}. Edite o produto e preencha esses campos.`,
       );
     }
   }
@@ -489,7 +506,7 @@ export class ProductService {
      ═══════════════════════════════════════════════════════════════ */
 
   async create(data: CreateProductDto, companyId: string) {
-    await this.validateTypeRequiredFields(companyId, data.poolType ?? null, data.technicalSpecs ?? null);
+    await this.validateTypeRequiredFields(companyId, data.poolType ?? null, data.technicalSpecs ?? null, (data as any).pumpCurve);
     const code = await this.codeGenerator.generateCode(companyId, 'PRODUCT');
 
     return this.prisma.product.create({
@@ -569,7 +586,10 @@ export class ProductService {
     const effectiveSpecs = data.technicalSpecs !== undefined
       ? data.technicalSpecs
       : ((product as any).technicalSpecs ?? null);
-    await this.validateTypeRequiredFields(companyId, effectivePoolType, effectiveSpecs as any);
+    const effectivePumpCurve = (data as any).pumpCurve !== undefined
+      ? (data as any).pumpCurve
+      : ((product as any).pumpCurve ?? null);
+    await this.validateTypeRequiredFields(companyId, effectivePoolType, effectiveSpecs as any, effectivePumpCurve);
 
     return this.prisma.product.update({
       where: { id },

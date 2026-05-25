@@ -1994,7 +1994,7 @@ function SolarTab({
                         </div>
                       </div>
                       {pipeResult ? (() => {
-                        const velocidadeAlta = (pipeResult.velocidade ?? 0) > 2.5;
+                        const velocidadeAlta = (pipeResult.velocidade ?? 0) >= 2.5;
                         const availableDns: number[] = pipeResult.availableDiametersMm ?? [32, 40, 50, 60, 75];
                         // Fallback: se result salvo nao tem diametroDnMm (dado antigo), pega do input
                         const dnAtual = pipeResult.diametroDnMm
