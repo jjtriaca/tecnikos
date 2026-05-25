@@ -3587,6 +3587,10 @@ model PoolBudgetItem {
   // do enum. O label visivel vem de PoolBudget.environmentParams.customSections.labels
   // (custom) ou da constante SECTION_LABEL do frontend (padrao). v1.12.20.
   poolSection String      @default("CONSTRUCAO")
+  // Tipo da linha: PRODUCT ou SERVICE. Define se o picker (🔍) e a auto-selecao
+  // (✨) filtram por catalogo de Product ou Service. Linha sem vinculo mostra
+  // "Sem produto" ou "Sem servico" baseado nesse campo. v1.12.21.
+  kind        String      @default("PRODUCT")
   sortOrder   Int         @default(0)
 
   // Rotulo do "papel" da linha dentro da etapa (ex: "Capa Termica",

@@ -34,6 +34,10 @@ type BudgetItem = {
   // ..., OUTROS) ou uma chave customizada criada pelo operador (CUSTOM_<slug>_<rand>).
   // Funcionalmente identica — nao ha distincao entre etapa padrao e custom. v1.12.20.
   poolSection: string;
+  // Tipo da linha: PRODUCT ou SERVICE. Define qual catalogo o picker filtra
+  // e o que aparece como placeholder quando linha esta sem vinculo
+  // ("Sem produto" vs "Sem servico"). v1.12.21.
+  kind: 'PRODUCT' | 'SERVICE';
   sortOrder: number;
   cellRef: string | null; // Endereço estavel (L1, L2, ...) usado em formulas de outros items
   slotName: string | null; // Rotulo do papel da linha (ex: "Capa Termica", "Bomba Aquecimento")
@@ -149,13 +153,9 @@ const SECTION_ORDER: string[] = [
   "ACIONAMENTOS", "EXECUCAO", "OUTROS",
 ];
 
-// Heuristica: item com serviceId vinculado OU unidade hora = SERVICO,
-// senao PRODUTO. Usado pra calcular Total Serviços vs Total Produtos por etapa.
+// v1.12.21: kind explicito na linha. Heuristica antiga removida.
 function isServicoItem(item: BudgetItem): boolean {
-  if (item.serviceId || item.service) return true;
-  if (item.productId || item.product) return false;
-  // Item livre sem catalogo: usa unidade como heuristica (h, hr, hora)
-  return /^h(or)?a?s?$/i.test((item.unit || "").trim());
+  return item.kind === 'SERVICE';
 }
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
@@ -1392,9 +1392,9 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
               title="Clique pra escolher/trocar item do catalogo"
               className={
                 "flex-1 px-1 py-0.5 text-sm truncate cursor-pointer hover:bg-cyan-50 rounded " +
-                (item.description ? "text-slate-700 hover:underline" : "text-slate-300 italic")
+                (item.description ? "text-slate-700 hover:underline" : "text-slate-400 italic hover:text-slate-600")
               }>
-              {item.description || "(sem item) — clique pra escolher"}
+              {item.description || (item.kind === 'SERVICE' ? 'Sem serviço — clique pra escolher' : 'Sem produto — clique pra escolher')}
             </span>
           </div>
         )}
@@ -1611,6 +1611,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
       <CatalogPickModal
         catalog={catalog}
         currentSection={item.poolSection}
+        currentKind={item.kind}
         autoSelectRule={item.autoSelectRule}
         dimensions={dimensions}
         environmentParams={environmentParams}
@@ -1679,9 +1680,9 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
   );
 }
 
-// Modal simplificado: pede Nome do item + Etapa (dropdown com todas etapas).
+// Modal simplificado: pede Nome do item + Etapa + Tipo (Produto/Servico).
 // A linha vem sempre livre (sem vinculo, preco 0). Operador edita inline depois
-// ou clica ✨ pra vincular a Product/Service. v1.12.20.
+// ou clica 🔍 pra vincular a Product/Service. v1.12.21.
 function AddItemModal({ availableSections, defaultSection, onClose, onSubmit, onAddCustomSection }: {
   availableSections: { key: string; label: string }[];
   defaultSection?: string | null;
@@ -1694,15 +1695,18 @@ function AddItemModal({ availableSections, defaultSection, onClose, onSubmit, on
     ? defaultSection
     : (availableSections[0]?.key ?? "OUTROS");
   const [section, setSection] = useState<string>(initialSection);
-  const [description, setDescription] = useState("");
+  const [name, setName] = useState("");
+  const [kind, setKind] = useState<'PRODUCT' | 'SERVICE'>('PRODUCT');
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const desc = description.trim();
-    if (!desc) return;
+    const nm = name.trim();
+    if (!nm) return;
     onSubmit({
       poolSection: section,
-      description: desc,
+      kind,
+      slotName: nm,        // nome do operador vai pra coluna ITEM (slotName)
+      description: "",     // descricao fica vazia — sera "Sem produto"/"Sem servico" placeholder
       unit: "UN",
       qty: 1,
       unitPriceCents: 0,
@@ -1718,9 +1722,30 @@ function AddItemModal({ availableSections, defaultSection, onClose, onSubmit, on
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Nome do item *</label>
-            <input value={description} onChange={(e) => setDescription(e.target.value)} required autoFocus
+            <input value={name} onChange={(e) => setName(e.target.value)} required autoFocus
               placeholder="Ex: Capa termica 8x4m"
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-cyan-500 outline-none" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Tipo</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => setKind('PRODUCT')}
+                className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                  kind === 'PRODUCT'
+                    ? 'border-cyan-500 bg-cyan-50 text-cyan-800'
+                    : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
+                }`}>
+                Produto
+              </button>
+              <button type="button" onClick={() => setKind('SERVICE')}
+                className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                  kind === 'SERVICE'
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
+                    : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
+                }`}>
+                Serviço
+              </button>
+            </div>
           </div>
           <div>
             <div className="flex items-center justify-between mb-1">
@@ -3885,9 +3910,12 @@ function SaveAsTemplateModal({ budgetId, itemsCount, currentTemplateId, onClose,
 // ─────────────────────────────────────────────────────────
 // CatalogPickModal — busca produto/serviço pra trocar item de uma linha existente
 // ─────────────────────────────────────────────────────────
-function CatalogPickModal({ catalog, currentSection, autoSelectRule, dimensions, environmentParams, siblingVars, onClose, onPick }: {
+function CatalogPickModal({ catalog, currentSection, currentKind, autoSelectRule, dimensions, environmentParams, siblingVars, onClose, onPick }: {
   catalog: CatalogConfig[];
   currentSection?: string;
+  // Tipo da linha: PRODUCT ou SERVICE. Filtra o catalogo pra mostrar so o
+  // tipo correto. Toggle "Mostrar todos" desativa o filtro. v1.12.21.
+  currentKind?: 'PRODUCT' | 'SERVICE';
   // v1.11.06: quando linha tem regra de auto-selecao, oferece checkbox 'Apenas
   // os que passam na regra' (default ON) — usuario nao precisa filtrar manualmente.
   autoSelectRule?: AutoSelectRule | null;
@@ -3899,6 +3927,9 @@ function CatalogPickModal({ catalog, currentSection, autoSelectRule, dimensions,
 }) {
   const [search, setSearch] = useState("");
   const [showAll, setShowAll] = useState(true);
+  // Por default, filtra o catalogo pelo kind da linha (Produto vs Servico).
+  // Operador pode desativar pra mostrar todos os items do catalogo.
+  const [filterByKind, setFilterByKind] = useState(true);
   const hasRule = !!(autoSelectRule && (autoSelectRule.where || autoSelectRule.filterPoolType || autoSelectRule.filterCategoria || autoSelectRule.filterDescription));
   // Default OFF — mostra todos os candidatos do catalog. Usuario marca o checkbox
   // se quiser filtrar pelos que passam na regra (where + filterDescription).
@@ -3989,6 +4020,11 @@ function CatalogPickModal({ catalog, currentSection, autoSelectRule, dimensions,
     return catalog.filter((c) => {
       // Sempre exclui o Sem Produto da lista filtrada — aparece so como botao virtual no topo
       if (semProdutoCfg && c.id === semProdutoCfg.id) return false;
+      // Filtro por kind (Produto vs Servico) — default ON, baseado no kind da linha
+      if (filterByKind && currentKind) {
+        if (currentKind === 'PRODUCT' && !c.product) return false;
+        if (currentKind === 'SERVICE' && !c.service) return false;
+      }
       if (!showAll && currentSection && c.poolSection !== currentSection) return false;
       // Filtro TIPO da regra (filterPoolType + filterDescription + filterCategoria) — SEMPRE aplicado se houver regra.
       // Agrupamento natural pelo tipo do produto. Operador ve todos os candidatos do tipo (mesmo os que falham no criterio).
@@ -4006,7 +4042,7 @@ function CatalogPickModal({ catalog, currentSection, autoSelectRule, dimensions,
       return tokens.every((t) => haystack.includes(t));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalog, search, currentSection, showAll, filterByRule, hasRule, ruleVars, autoSelectRule, semProdutoCfg]);
+  }, [catalog, search, currentSection, currentKind, filterByKind, showAll, filterByRule, hasRule, ruleVars, autoSelectRule, semProdutoCfg]);
 
   return (
     <tr>
@@ -4025,6 +4061,12 @@ function CatalogPickModal({ catalog, currentSection, autoSelectRule, dimensions,
                     <label className="text-[10px] text-violet-700 flex items-center gap-1 cursor-pointer font-medium" title="Filtra so os candidatos que PASSAM no criterio (where) da regra. Tipo da regra (poolType + descricao) sempre eh aplicado — agrupamento natural por tipo nao bloqueia.">
                       <input type="checkbox" checked={filterByRule} onChange={(e) => setFilterByRule(e.target.checked)} className="h-3 w-3" />
                       ✨ Apenas que passam no criterio (where)
+                    </label>
+                  )}
+                  {currentKind && (
+                    <label className="text-[10px] text-slate-500 flex items-center gap-1 cursor-pointer" title="Quando marcado, mostra so itens do mesmo tipo da linha (Produto ou Servico). Desmarque pra ver tudo.">
+                      <input type="checkbox" checked={filterByKind} onChange={(e) => setFilterByKind(e.target.checked)} className="h-3 w-3" />
+                      So {currentKind === 'SERVICE' ? 'serviços' : 'produtos'}
                     </label>
                   )}
                   {currentSection && (

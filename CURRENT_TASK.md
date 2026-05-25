@@ -1,8 +1,20 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.20 — Etapa virou String puro, sem distincao padrao/custom, sem auto-link
+## Versao atual em prod: v1.12.21 — Linha tem tipo (Produto/Servico) + "Sem produto"/"Sem servico" placeholder
 
-Sessao 211 (25/05/2026), 2 releases:
+Sessao 211 (25/05/2026), 3 releases:
+
+**v1.12.21** — Linha de orçamento ganha campo `kind` explicito (PRODUCT|SERVICE), removendo heuristica antiga que inferia tipo do productId/serviceId vinculado. Mudancas:
+- **Schema**: `PoolBudgetItem.kind String @default("PRODUCT")`. Migration ADD COLUMN com backfill (SERVICE se serviceId not null).
+- **Script SQL tenants**: `scripts/sql/v1.12.21-kind-backfill-tenants.sql` — TenantMigratorService propaga ADD COLUMN automaticamente (default NOT NULL), mas backfill SERVICE precisa script manual.
+- **DTO**: `kind?: 'PRODUCT'|'SERVICE'` com `@IsIn`. Aceito tanto no create quanto update.
+- **Modal**: toggle Produto/Servico (botoes grandes ao lado). Nome digitado agora vai pra `slotName` (coluna ITEM da tabela), nao mais pra `description`. `description` fica vazio — vira o placeholder "Sem produto"/"Sem servico" na tabela.
+- **Tabela**: coluna DESCRICAO quando vazia mostra "Sem produto" ou "Sem servico" baseado em kind. Clicar abre picker.
+- **Picker (🔍)**: filtra catalogo por kind. Toggle "So produtos"/"So servicos" no header (default ON, operador desativa pra ver tudo).
+- **isServicoItem helper**: usa `item.kind === 'SERVICE'` direto. Heuristica unidade hora removida.
+- **applyLinearTemplate**: define kind baseado em se o item do template vinculou a service (SERVICE) ou produto (PRODUCT).
+
+## Sessao 211 anteriores: v1.12.19, v1.12.20
 
 **v1.12.20** — usuario pediu refatoracao do v1.12.19. A abordagem do v1.12.19 (`customSectionKey` como bandagem + `poolSection=OUTROS` fallback) criava distincao tecnica entre etapas padrao e custom: siblings de formula misturavam entre etapas custom diferentes (todas com `poolSection=OUTROS`). Regra do usuario: **uma etapa criada nova nao tem distincao de uma que ja existe**.
 

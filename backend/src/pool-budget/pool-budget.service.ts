@@ -1616,6 +1616,7 @@ export class PoolBudgetService {
         productId: resolvedProductId,
         serviceId: resolvedServiceId,
         poolSection: dto.poolSection,
+        kind: dto.kind ?? 'PRODUCT',
         sortOrder: dto.sortOrder ?? 0,
         slotName: dto.slotName,
         description: dto.description,
@@ -1781,6 +1782,7 @@ export class PoolBudgetService {
         ...(dto.previousQty !== undefined ? { previousQty: dto.previousQty } : {}),
         ...(dto.qtyDecimals !== undefined ? { qtyDecimals: dto.qtyDecimals } : {}),
         ...(dto.poolSection !== undefined ? { poolSection: dto.poolSection } : {}),
+        ...(dto.kind !== undefined ? { kind: dto.kind } : {}),
         ...(autoCalculatedOverride !== undefined
           ? { isAutoCalculated: autoCalculatedOverride }
           : (dto.qty !== undefined || dto.unitPriceCents !== undefined
@@ -1970,6 +1972,9 @@ export class PoolBudgetService {
           catalogConfigId: cat?.id || null,
           productId: cat?.productId || null,
           serviceId: cat?.serviceId || null,
+          // v1.12.21: kind explicito. Se o item do template vinculou a um
+          // service do catalogo, eh SERVICE. Caso contrario, PRODUCT.
+          kind: cat?.serviceId ? 'SERVICE' : 'PRODUCT',
         });
         created++;
       }

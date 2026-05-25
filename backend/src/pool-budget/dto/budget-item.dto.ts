@@ -1,5 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsNumber, IsObject, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
+
+const POOL_ITEM_KINDS = ['PRODUCT', 'SERVICE'] as const;
+type PoolItemKind = (typeof POOL_ITEM_KINDS)[number];
 
 export class CreateBudgetItemDto {
   @ApiPropertyOptional({ description: 'CatalogConfig de origem' })
@@ -27,6 +30,13 @@ export class CreateBudgetItemDto {
   @MaxLength(64)
   @Matches(/^[A-Z0-9_]+$/i, { message: 'poolSection deve conter so letras, numeros e _' })
   poolSection!: string;
+
+  // Tipo da linha: PRODUCT ou SERVICE. Define qual catalogo (Product vs Service)
+  // o picker e a auto-selecao usam. Default PRODUCT. v1.12.21.
+  @ApiPropertyOptional({ enum: POOL_ITEM_KINDS, default: 'PRODUCT' })
+  @IsOptional()
+  @IsIn(POOL_ITEM_KINDS)
+  kind?: PoolItemKind;
 
   @ApiPropertyOptional({ description: 'Rotulo do papel da linha (ex: Capa Termica, Bomba Aquecimento)' })
   @IsOptional()
@@ -92,6 +102,11 @@ export class UpdateBudgetItemDto {
   @MaxLength(64)
   @Matches(/^[A-Z0-9_]+$/i, { message: 'poolSection deve conter so letras, numeros e _' })
   poolSection?: string;
+
+  @ApiPropertyOptional({ enum: POOL_ITEM_KINDS })
+  @IsOptional()
+  @IsIn(POOL_ITEM_KINDS)
+  kind?: PoolItemKind;
 
   @ApiPropertyOptional({ description: 'Rotulo do papel da linha' })
   @IsOptional()
