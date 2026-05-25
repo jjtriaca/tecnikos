@@ -539,16 +539,20 @@ export default function PoolBudgetDetailPage() {
     if (idx < 0) return;
     const newIdx = idx + dir;
     if (newIdx < 0 || newIdx >= sectionItems.length) return;
-    const a = sectionItems[idx];
-    const b = sectionItems[newIdx];
+    // v1.12.24: troca a posicao no array e RENUMERA todos os items da secao
+    // em sequencia consecutiva (0, 1, 2, ...). Antes a logica de "swap sortOrder"
+    // gerava negativos quando varias linhas tinham sortOrder=0 (caso comum apos
+    // addItem que seta sortOrder=0 default), violando @Min(0) do DTO no backend.
+    const reordered = [...sectionItems];
+    [reordered[idx], reordered[newIdx]] = [reordered[newIdx], reordered[idx]];
     try {
-      // Troca direta dos sortOrder. Em caso de empate (sortOrder iguais), aplica delta.
-      const newA = b.sortOrder === a.sortOrder ? a.sortOrder + dir : b.sortOrder;
-      const newB = b.sortOrder === a.sortOrder ? b.sortOrder - dir : a.sortOrder;
-      await Promise.all([
-        api.put(`/pool-budgets/items/${a.id}`, { sortOrder: newA }),
-        api.put(`/pool-budgets/items/${b.id}`, { sortOrder: newB }),
-      ]);
+      await Promise.all(
+        reordered.map((it, i) =>
+          it.sortOrder !== i
+            ? api.put(`/pool-budgets/items/${it.id}`, { sortOrder: i })
+            : Promise.resolve(),
+        ),
+      );
       await load();
     } catch (err: any) {
       toast(err?.payload?.message || "Erro ao mover linha", "error");
@@ -1407,7 +1411,9 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
           </div>
         )}
         {item.isAutoCalculated && <span className="ml-2 text-[10px] text-cyan-600">auto</span>}
-        {item.isExtra && <span className="ml-2 text-[10px] text-orange-600">extra</span>}
+        {/* v1.12.23: badge "extra" removida — todas as linhas sao iguais, nao
+            faz sentido distinguir as adicionadas manualmente das que vieram do
+            template. O campo isExtra continua no banco pra retrocompat. */}
         {/* Faixa de eficiencia da auto-selecao do produto + badge/botao "selecao automatica"
             integrado no canto direito (mesma linha). manualUnlink=true: botao "Voltar pra
             selecao automatica" (laranja, clicavel). manualUnlink=false: badge cinza (info).

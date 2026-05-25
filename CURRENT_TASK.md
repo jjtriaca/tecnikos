@@ -1,6 +1,16 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.22 — Product.linkedServiceId + Service.poolType + icone 🛠 pra servico
+## Versao atual em prod: v1.12.23 — Badge "extra" removida (toda linha igual)
+
+Sessao 211 (25/05/2026), 5 releases:
+
+**v1.12.23** — pequeno ajuste de UX: badge laranja "extra" abaixo da descricao de linhas adicionadas manualmente foi removida. Nao faz sentido distinguir linhas adicionadas manualmente das que vieram de template — todas sao iguais funcionalmente. Campo `isExtra` continua no banco pra retrocompat.
+
+Pendente pra v1.12.24:
+- **Auto-selecao de servico inteligente**: novo modo "Seguir produto da linha L_X" no AutoSelectModal. Quando ativo, le `Product.linkedServiceId` do produto da linha referenciada e vincula o Service. Atualiza automaticamente quando o produto muda.
+- **CatalogPicker pra Service**: filtro por poolType (paridade com produtos).
+
+**v1.12.22** — Product.linkedServiceId + Service.poolType + icone 🛠 pra servico
 
 Sessao 211 (25/05/2026), 4 releases:
 
