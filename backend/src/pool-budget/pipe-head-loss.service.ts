@@ -45,7 +45,9 @@ export interface PipeHeadLossResult {
   reynolds: number;
   atritoF: number;
   comprimentoEquivalente: number; // m
-  diametroInternoMm: number; // mm (calculado pela tabela)
+  diametroDnMm: number; // mm (DN externo informado)
+  diametroInternoMm: number; // mm (DI da tabela do material)
+  material: PipeMaterial;
   aviso: string | null;
 }
 
@@ -140,8 +142,41 @@ function fittingLengthFor(dnMm: number): typeof FITTING_LENGTHS[number] {
   FITTING_LENGTHS[0]);
 }
 
+// v1.12.35: limite de velocidade da Solis. Acima disso, ruido + cavitacao + perda excessiva.
+const VELOCIDADE_MAX_MS = 2.5;
+
 @Injectable()
 export class PipeHeadLossService {
+  /**
+   * v1.12.35: escolhe o MENOR diametro da lista que mantem velocidade <= 2,5 m/s.
+   * Se nenhum atende (vazao muito alta), retorna o maior + aviso de subdimensionamento.
+   */
+  pickOptimalDiameter(material: PipeMaterial, vazaoM3h: number, availableDiametersMm: number[]): {
+    diametroMm: number;
+    velocidade: number;
+    suficiente: boolean;
+  } {
+    const sorted = [...availableDiametersMm].sort((a, b) => a - b);
+    if (sorted.length === 0 || vazaoM3h <= 0) {
+      return { diametroMm: sorted[0] ?? 50, velocidade: 0, suficiente: false };
+    }
+    const vazaoM3s = vazaoM3h / 3600;
+    for (const dnMm of sorted) {
+      const diMm = diametroInternoFor(material, dnMm);
+      const diM = diMm / 1000;
+      const areaM2 = (Math.PI * Math.pow(diM, 2)) / 4;
+      const velocidade = vazaoM3s / areaM2;
+      if (velocidade <= VELOCIDADE_MAX_MS) {
+        return { diametroMm: dnMm, velocidade, suficiente: true };
+      }
+    }
+    // Nenhum atende — usa o maior disponivel e marca como subdimensionado
+    const maiorDn = sorted[sorted.length - 1];
+    const maiorDi = diametroInternoFor(material, maiorDn) / 1000;
+    const maiorArea = (Math.PI * Math.pow(maiorDi, 2)) / 4;
+    return { diametroMm: maiorDn, velocidade: vazaoM3s / maiorArea, suficiente: false };
+  }
+
   /**
    * Calcula a perda de carga total numa tubulacao (Darcy-Weisbach + Haaland).
    * Replica o metodo da planilha Solis. Service puro, sem efeitos colaterais.
@@ -209,7 +244,9 @@ export class PipeHeadLossService {
       reynolds: Math.round(reynolds),
       atritoF: Number(atritoF.toFixed(5)),
       comprimentoEquivalente: Number(comprimentoEquivalente.toFixed(2)),
+      diametroDnMm: dnMm,
       diametroInternoMm: diMm,
+      material: inputs.material,
       aviso,
     };
   }

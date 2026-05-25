@@ -1,6 +1,18 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.34 — Calculadora de perda de carga (Darcy-Weisbach + Haaland)
+## Versao atual em prod: v1.12.35 — Auto-pick de diametro PVC [32,40,50,60,75]
+
+Sessao 211 (25/05/2026), 17 releases:
+
+**v1.12.35** — sistema escolhe automaticamente o diametro de tubulacao conforme a vazao do Simulador. Mudancas:
+- Material default agora eh PVC (era CPVC).
+- Lista de diametros disponiveis embutida (hardcoded por enquanto): `[32, 40, 50, 60, 75]` mm DN externo. Operador configura defaults pelo tenant em fase futura.
+- Novo `PipeHeadLossService.pickOptimalDiameter(material, vazao, available[])`: itera do menor pro maior, escolhe o primeiro DN cuja velocidade <= 2,5 m/s (regra Solis). Se nenhum atende, usa o maior + marca como subdimensionado.
+- `SolarPipeDto.diametroMm` continua opcional. Sem ele -> auto-pick. Com ele -> forca o valor (futuro override).
+- UI no Simulador mostra "📏 Tubo escolhido: PVC 50mm DN (auto) (DI 44mm)" + badge verde "auto" quando foi escolhido pelo sistema. Quando o operador forca diametro manual, badge desaparece.
+- Result do compute agora inclui `diametroDnMm`, `diametroInternoMm`, `material` pra exibicao precisa na UI.
+
+**v1.12.34** — Calculadora de perda de carga (Darcy-Weisbach + Haaland)
 
 Sessao 211 (25/05/2026), 16 releases:
 

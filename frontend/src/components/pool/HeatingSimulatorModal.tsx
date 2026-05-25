@@ -1996,16 +1996,21 @@ function SolarTab({
                           <div className="text-[9px] uppercase tracking-wider text-amber-800 font-bold">Altura manometrica total</div>
                           <div className="text-lg font-bold text-amber-900 tabular-nums">{pipeResult.alturaManometricaTotal?.toFixed(2)} mca</div>
                           <div className="text-[10px] text-amber-800 mt-0.5">
-                            = {pipeResult.perdaDinamica?.toFixed(2)} mca de perda dinamica + {pipeDesnivel} m de desnivel · velocidade {pipeResult.velocidade?.toFixed(2)} m/s
+                            = {pipeResult.perdaDinamica?.toFixed(2)} mca de perda dinâmica + {pipeDesnivel} m de desnível · velocidade {pipeResult.velocidade?.toFixed(2)} m/s
+                          </div>
+                          <div className="text-[10px] text-amber-900 mt-1 font-medium">
+                            📏 Tubo escolhido: {pipeResult.material} <span className="tabular-nums">{pipeResult.diametroDnMm}mm DN</span>
+                            {pipeResult.diametroAutoPicked && <span className="ml-1 text-[9px] uppercase tracking-wider text-emerald-700 bg-emerald-100 px-1 py-0.5 rounded">auto</span>}
+                            <span className="text-amber-700 ml-1">(DI {pipeResult.diametroInternoMm} mm)</span>
                           </div>
                           {pipeResult.aviso && (
                             <div className="mt-1 text-[10px] font-medium text-red-700">⚠ {pipeResult.aviso}</div>
                           )}
-                          <div className="text-[9px] text-amber-700 mt-1 italic">Defaults: CPVC 50mm · fator 20% · 4 joelhos · 1 tê · 1 registro · 1 válvula.</div>
+                          <div className="text-[9px] text-amber-700 mt-1 italic">Defaults: PVC, diâmetros [32, 40, 50, 60, 75], fator 20%, 4 joelhos, 1 tê, 1 registro, 1 válvula.</div>
                         </div>
                       ) : (
                         <div className="text-[10px] text-slate-500 italic">
-                          {pipeRecomputing ? 'Calculando…' : 'Preencha comprimento e desnivel pra calcular a altura manometrica total da bomba.'}
+                          {pipeRecomputing ? 'Calculando…' : 'Preencha comprimento e desnível pra o sistema escolher o melhor tubo + calcular a altura manométrica.'}
                         </div>
                       )}
                     </div>

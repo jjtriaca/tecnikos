@@ -355,9 +355,10 @@ export class SolarBudgetService {
     const tenantDefaults = ((company?.systemConfig as any)?.pool?.pipeDefaults ?? {}) as Record<string, any>;
 
     // Defaults hardcoded de seguranca caso o tenant nao tenha configurado.
+    // v1.12.35: PVC + auto-pick entre [32, 40, 50, 60, 75] (cobre 95% das obras de piscina).
     const HARDCODED_DEFAULTS = {
-      material: 'CPVC' as PipeMaterial,
-      diametroMm: 50,
+      material: 'PVC' as PipeMaterial,
+      availableDiametersMm: [32, 40, 50, 60, 75],
       fatorSegurancaPct: 20,
       joelho90Qty: 4,
       teQty: 1,
@@ -365,13 +366,29 @@ export class SolarBudgetService {
       valvulaQty: 1,
     };
 
+    const material = (dto.material ?? tenantDefaults.material ?? HARDCODED_DEFAULTS.material) as PipeMaterial;
+    const availableDiameters: number[] = Array.isArray(tenantDefaults.availableDiametersMm)
+      ? tenantDefaults.availableDiametersMm
+      : HARDCODED_DEFAULTS.availableDiametersMm;
+
+    // Se operador especificou diametro, usa direto. Senao, auto-pick: menor
+    // diametro com velocidade <= 2,5 m/s.
+    let diametroMm: number;
+    let autoPickInfo: { diametroMm: number; velocidade: number; suficiente: boolean } | null = null;
+    if (dto.diametroMm) {
+      diametroMm = dto.diametroMm;
+    } else {
+      autoPickInfo = this.pipeHeadLoss.pickOptimalDiameter(material, vazaoM3h, availableDiameters);
+      diametroMm = autoPickInfo.diametroMm;
+    }
+
     const inputs = {
       comprimentoM: dto.comprimentoM,
       desnivelM: dto.desnivelM,
       vazaoM3h,
       temperaturaC: 25,
-      material: (dto.material ?? tenantDefaults.material ?? HARDCODED_DEFAULTS.material) as PipeMaterial,
-      diametroMm: dto.diametroMm ?? tenantDefaults.diametroMm ?? HARDCODED_DEFAULTS.diametroMm,
+      material,
+      diametroMm,
       fatorSegurancaPct: dto.fatorSegurancaPct ?? tenantDefaults.fatorSegurancaPct ?? HARDCODED_DEFAULTS.fatorSegurancaPct,
       joelho90Qty: dto.joelho90Qty ?? tenantDefaults.joelho90Qty ?? HARDCODED_DEFAULTS.joelho90Qty,
       teQty: dto.teQty ?? tenantDefaults.teQty ?? HARDCODED_DEFAULTS.teQty,
@@ -380,6 +397,9 @@ export class SolarBudgetService {
     };
 
     const result = this.pipeHeadLoss.compute(inputs);
+    // Marca se o diametro foi auto-escolhido (UI mostra "auto: 50mm"  ou "configurado: 50mm")
+    (result as any).diametroAutoPicked = autoPickInfo !== null;
+    (result as any).availableDiametersMm = availableDiameters;
 
     // Persiste em environmentParams.solarPipe. Tambem atualiza alturaTelhadoM
     // (formulario antigo) pra retrocompat — recebe a altura manometrica TOTAL
