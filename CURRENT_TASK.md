@@ -1,6 +1,16 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.32 — Curva da bomba (cadastro)
+## Versao atual em prod: v1.12.33 — Ajustes UX da curva da bomba + modal arrastavel
+
+Sessao 211 (25/05/2026), 15 releases:
+
+**v1.12.33** — ajustes UX no cadastro do v1.12.32:
+- **Posicao**: secao "📈 Curva da bomba" movida pra DEPOIS do "🚿 Hidraulico" (ordem natural — primeiro specs principais, depois curva detalhada).
+- **Tamanho**: linhas da tabela compactadas (py-0.5, text-xs, padding reduzido). Cabia 4 pontos antes — agora cabe 8+ sem rolar.
+- **Redundancia**: campo "Pressao de trabalho (MCA)" do Hidraulico fica ESCONDIDO quando ha curva cadastrada (curva tem mais precisao — a altura maxima eh o primeiro/ultimo ponto). Sem curva, campo aparece como fallback.
+- **Modal arrastavel**: header do modal "Editar Produto" agora eh `cursor-move` — clique e arraste pra mover o modal de lugar. Permite olhar informacoes atras dele sem fechar. Cone ⋮⋮ no titulo indica que eh arrastavel. Botao X continua funcionando normal (drag ignora click no botao).
+
+**v1.12.32** — Curva da bomba (cadastro)
 
 Sessao 211 (25/05/2026), 14 releases:
 

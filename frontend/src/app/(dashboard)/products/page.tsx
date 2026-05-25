@@ -754,6 +754,10 @@ export default function ProductsPage() {
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
+  // v1.12.32.1: modal arrastavel pelo header. Reseta posicao quando reabre.
+  const [modalDragPos, setModalDragPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const modalDragOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [modalDragging, setModalDragging] = useState(false);
   const [modalTab, setModalTab] = useState<ModalTab>("geral");
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [form, setForm] = useState<ProductForm>({ ...EMPTY_FORM });
@@ -809,6 +813,32 @@ export default function ProductsPage() {
       .then((r) => setFilterOptions(r || { categories: [], brands: [], poolTypes: [] }))
       .catch(() => setFilterOptions({ categories: [], brands: [], poolTypes: [] }));
   }, []);
+
+  // v1.12.32.1: handlers do drag do modal. Listeners globais pra capturar
+  // movimentos mesmo quando o cursor sai do header.
+  useEffect(() => {
+    if (!modalDragging) return;
+    const onMove = (e: MouseEvent) => {
+      setModalDragPos({
+        x: e.clientX - modalDragOffset.current.x,
+        y: e.clientY - modalDragOffset.current.y,
+      });
+    };
+    const onUp = () => setModalDragging(false);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    document.body.style.userSelect = "none";
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.userSelect = "";
+    };
+  }, [modalDragging]);
+
+  // Reseta a posicao toda vez que o modal abre.
+  useEffect(() => {
+    if (modalOpen) setModalDragPos({ x: 0, y: 0 });
+  }, [modalOpen]);
 
   // Carrega servicos do tenant que podem ser vinculados ao produto (filtra
   // pelos que sao usados no modulo Piscina). v1.12.22.
@@ -1185,10 +1215,26 @@ export default function ProductsPage() {
          ══════════════════════════════════════════════════ */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-4xl max-h-[90vh] rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 shrink-0">
-              <h2 className="text-lg font-bold text-slate-900">
+          <div
+            className="w-full max-w-4xl max-h-[90vh] rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col"
+            style={{ transform: `translate(${modalDragPos.x}px, ${modalDragPos.y}px)` }}
+          >
+            {/* Modal Header — arrastavel (v1.12.32.1). Tudo no header (exceto botao X) inicia drag. */}
+            <div
+              className="flex items-center justify-between border-b border-slate-200 px-6 py-4 shrink-0 cursor-move select-none"
+              onMouseDown={(e) => {
+                // Ignora drag se clicou no botao de fechar
+                if ((e.target as HTMLElement).closest('button')) return;
+                modalDragOffset.current = {
+                  x: e.clientX - modalDragPos.x,
+                  y: e.clientY - modalDragPos.y,
+                };
+                setModalDragging(true);
+              }}
+              title="Arraste pra mover o modal"
+            >
+              <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <span className="text-slate-400 text-sm" title="Arrastavel">⋮⋮</span>
                 {editingProduct ? "Editar Produto" : "Novo Produto"}
               </h2>
               <button
@@ -1963,37 +2009,70 @@ export default function ProductsPage() {
                     </div>
                   </div>
 
-                  {/* v1.12.32: curva caracteristica da bomba — tabela inline (vazao, altura).
+                  <CollapsibleCard title="🚿 Hidraulico — Filtros, Bombas, Aquecedores, SPA, Cascata" defaultOpen={blocksWithRequired.has('hidraulico')}>
+                    {/* v1.12.32.1: pressao de trabalho (MCA) eh redundante quando a bomba tem
+                        curva cadastrada (a altura maxima = primeiro/ultimo ponto da curva).
+                        Esconde o campo quando ha curva. */}
+                    {(() => {
+                      const hasCurve = form.pumpCurve.length > 0;
+                      const cols = hasCurve ? 'sm:grid-cols-2' : 'sm:grid-cols-3';
+                      return (
+                        <div className={`grid grid-cols-1 ${cols} gap-4`}>
+                          <div>
+                            <FieldLabel required={currentRequiredSpecs.has('vazaoM3h')} help="Vazao do equipamento (litros por hora dividido por 1000). Usada pra calcular tempo de filtragem da piscina (volume / vazao).">
+                              Vazao (m³/h)
+                            </FieldLabel>
+                            <input type="number" step="0.1" value={form.specVazaoM3h} onChange={(e) => setField("specVazaoM3h", e.target.value)} placeholder="Ex: 9" className={inputClass} />
+                          </div>
+                          {!hasCurve && (
+                            <div>
+                              <FieldLabel required={currentRequiredSpecs.has('pressaoTrabalhoMca')} help="Pressao maxima de trabalho da bomba em MCA (metros de coluna d'agua). Para bombas com curva caracteristica cadastrada abaixo, este campo deixa de ser usado — a curva tem precisao maior.">
+                                Pressao de trabalho (MCA)
+                              </FieldLabel>
+                              <input type="number" step="0.1" value={form.specPressaoTrabalhoMca} onChange={(e) => setField("specPressaoTrabalhoMca", e.target.value)} placeholder="Ex: 12, 18, 25" className={inputClass} />
+                            </div>
+                          )}
+                          <div>
+                            <FieldLabel required={currentRequiredSpecs.has('tuboEntradaMm')} help="Diametro da conexao hidraulica em milimetros. Auto-selecao de tubos usa esse campo pra escolher o tubo correto (mesma medida do equipamento principal da etapa).">
+                              Tubo de entrada (mm)
+                            </FieldLabel>
+                            <input type="number" step="1" value={form.specTuboEntradaMm} onChange={(e) => setField("specTuboEntradaMm", e.target.value)} placeholder="Ex: 50, 60, 75" className={inputClass} />
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </CollapsibleCard>
+
+                  {/* v1.12.32: curva caracteristica da bomba — DEPOIS do Hidraulico.
                       Aparece quando poolType comeca com "Bomba" (ex: "Bomba", "Bomba de Calor",
-                      "Bomba hidraulica"). Auto-selecao da bomba do coletor solar interpola
-                      esta curva pra ver vazao entregue na altura manometrica calculada. */}
+                      "Bomba hidraulica"). Auto-selecao interpola esta curva. */}
                   {/^bomba/i.test(form.poolType) && (
                     <CollapsibleCard title="📈 Curva da bomba" defaultOpen={form.pumpCurve.length > 0}>
-                      <p className="text-[11px] text-slate-600 mb-3">
-                        Pares (vazão, altura manométrica) da curva caracteristica. Voce encontra estes dados no manual ou catalogo da bomba — tabela &ldquo;Caracteristicas hidraulicas&rdquo; ou similar. A auto-selecao da bomba interpola esta curva.
+                      <p className="text-[11px] text-slate-600 mb-2">
+                        Pares (vazão, altura manométrica) da curva caracteristica. Voce encontra no manual da bomba — tabela &ldquo;Caracteristicas hidraulicas&rdquo;. A auto-selecao interpola esta curva.
                       </p>
                       <div className="overflow-x-auto rounded border border-slate-200">
-                        <table className="w-full text-sm">
-                          <thead className="bg-slate-50 text-[10px] uppercase tracking-wide text-slate-600">
+                        <table className="w-full text-xs">
+                          <thead className="bg-slate-50 text-[9px] uppercase tracking-wide text-slate-600">
                             <tr>
-                              <th className="px-3 py-2 text-center w-16">#</th>
-                              <th className="px-3 py-2 text-left">Vazao (m³/h)</th>
-                              <th className="px-3 py-2 text-left">Altura manometrica (mca)</th>
-                              <th className="px-3 py-2 w-10"></th>
+                              <th className="px-2 py-1 text-center w-10">#</th>
+                              <th className="px-2 py-1 text-left">Vazao (m³/h)</th>
+                              <th className="px-2 py-1 text-left">Altura (mca)</th>
+                              <th className="px-2 py-1 w-8"></th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100">
                             {form.pumpCurve.length === 0 ? (
                               <tr>
-                                <td colSpan={4} className="px-3 py-4 text-center text-[11px] text-slate-500 italic">
-                                  Sem curva cadastrada. Clique em &ldquo;+ Adicionar ponto&rdquo; pra comecar.
+                                <td colSpan={4} className="px-2 py-3 text-center text-[10px] text-slate-500 italic">
+                                  Sem curva. Clique &ldquo;+ Ponto&rdquo;.
                                 </td>
                               </tr>
                             ) : (
                               form.pumpCurve.map((point, idx) => (
                                 <tr key={idx}>
-                                  <td className="px-3 py-1.5 text-center text-[11px] text-slate-500 tabular-nums">{idx + 1}</td>
-                                  <td className="px-3 py-1.5">
+                                  <td className="px-2 py-0.5 text-center text-[10px] text-slate-500 tabular-nums">{idx + 1}</td>
+                                  <td className="px-2 py-0.5">
                                     <input
                                       type="number" step="0.1" min="0"
                                       value={point.vazaoM3h}
@@ -2002,11 +2081,11 @@ export default function ProductsPage() {
                                         next[idx] = { ...next[idx], vazaoM3h: e.target.value };
                                         setField("pumpCurve", next);
                                       }}
-                                      placeholder="Ex: 18.2"
-                                      className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+                                      placeholder="18.2"
+                                      className="w-full rounded border border-slate-300 px-1.5 py-0.5 text-xs focus:border-blue-500 focus:outline-none"
                                     />
                                   </td>
-                                  <td className="px-3 py-1.5">
+                                  <td className="px-2 py-0.5">
                                     <input
                                       type="number" step="0.5" min="0"
                                       value={point.alturaMca}
@@ -2015,19 +2094,19 @@ export default function ProductsPage() {
                                         next[idx] = { ...next[idx], alturaMca: e.target.value };
                                         setField("pumpCurve", next);
                                       }}
-                                      placeholder="Ex: 2"
-                                      className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
+                                      placeholder="2"
+                                      className="w-full rounded border border-slate-300 px-1.5 py-0.5 text-xs focus:border-blue-500 focus:outline-none"
                                     />
                                   </td>
-                                  <td className="px-3 py-1.5 text-center">
+                                  <td className="px-2 py-0.5 text-center">
                                     <button
                                       type="button"
                                       onClick={() => {
                                         const next = form.pumpCurve.filter((_, i) => i !== idx);
                                         setField("pumpCurve", next);
                                       }}
-                                      title="Remover ponto"
-                                      className="text-rose-500 hover:text-rose-700 px-1 py-0.5 rounded hover:bg-rose-50 text-sm"
+                                      title="Remover"
+                                      className="text-rose-500 hover:text-rose-700 px-0.5 rounded hover:bg-rose-50 text-xs"
                                     >
                                       ✕
                                     </button>
@@ -2043,35 +2122,12 @@ export default function ProductsPage() {
                         onClick={() => {
                           setField("pumpCurve", [...form.pumpCurve, { vazaoM3h: "", alturaMca: "" }]);
                         }}
-                        className="mt-3 text-xs font-semibold text-blue-700 hover:text-blue-900 border border-blue-300 hover:border-blue-500 rounded px-3 py-1.5 bg-blue-50 hover:bg-blue-100"
+                        className="mt-2 text-[11px] font-semibold text-blue-700 hover:text-blue-900 border border-blue-300 hover:border-blue-500 rounded px-2 py-0.5 bg-blue-50 hover:bg-blue-100"
                       >
-                        + Adicionar ponto
+                        + Ponto
                       </button>
                     </CollapsibleCard>
                   )}
-
-                  <CollapsibleCard title="🚿 Hidraulico — Filtros, Bombas, Aquecedores, SPA, Cascata" defaultOpen={blocksWithRequired.has('hidraulico')}>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div>
-                        <FieldLabel required={currentRequiredSpecs.has('vazaoM3h')} help="Vazao do equipamento (litros por hora dividido por 1000). Usada pra calcular tempo de filtragem da piscina (volume / vazao).">
-                          Vazao (m³/h)
-                        </FieldLabel>
-                        <input type="number" step="0.1" value={form.specVazaoM3h} onChange={(e) => setField("specVazaoM3h", e.target.value)} placeholder="Ex: 9" className={inputClass} />
-                      </div>
-                      <div>
-                        <FieldLabel required={currentRequiredSpecs.has('pressaoTrabalhoMca')} help="Pressao maxima de trabalho da bomba em MCA (metros de coluna d'agua). Auto-selecao da bomba do coletor solar usa esse campo pra escolher uma bomba que atenda a altura do telhado. Ex: bomba 1/2cv ~ 12 MCA.">
-                          Pressao de trabalho (MCA)
-                        </FieldLabel>
-                        <input type="number" step="0.1" value={form.specPressaoTrabalhoMca} onChange={(e) => setField("specPressaoTrabalhoMca", e.target.value)} placeholder="Ex: 12, 18, 25" className={inputClass} />
-                      </div>
-                      <div>
-                        <FieldLabel required={currentRequiredSpecs.has('tuboEntradaMm')} help="Diametro da conexao hidraulica em milimetros. Auto-selecao de tubos usa esse campo pra escolher o tubo correto (mesma medida do equipamento principal da etapa).">
-                          Tubo de entrada (mm)
-                        </FieldLabel>
-                        <input type="number" step="1" value={form.specTuboEntradaMm} onChange={(e) => setField("specTuboEntradaMm", e.target.value)} placeholder="Ex: 50, 60, 75" className={inputClass} />
-                      </div>
-                    </div>
-                  </CollapsibleCard>
 
                   {/* Specs especificas por tipo de equipamento — alimentam o Simulador automatico (F6.2) */}
                   {/^cascata/i.test(form.poolType) && (
