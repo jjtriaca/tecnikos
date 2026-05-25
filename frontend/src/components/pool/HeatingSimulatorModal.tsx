@@ -1480,13 +1480,40 @@ function SolarTab({
   const initOrient = (budget.environmentParams as any)?.orientacaoTelhado ?? "N";
   const initIncl = Number((budget.environmentParams as any)?.inclinacaoTelhadoGraus) || 20;
   const initTempIni = Number((budget.environmentParams as any)?.temperaturaAguaInicial) || 22;
-  // v1.12.31: altura do telhado em metros — usada pela auto-selecao da bomba
-  // (pressaoTrabalhoMca >= alturaTelhadoMca). 1m de altura geometrica ≈ 1 MCA estatica.
-  const initAlturaTelhado = Number((budget.environmentParams as any)?.alturaTelhadoM) || 0;
+  // v1.12.34: bloco Tubulacao. Comprimento + Desnivel sao inputs do operador.
+  // Backend calcula altura manometrica total (perda dinamica + desnivel) via
+  // Darcy-Weisbach + Haaland (igual planilha Solis). Resultado persiste em
+  // environmentParams.solarPipe e tambem em environmentParams.alturaTelhadoM
+  // (que alimenta a var alturaTelhadoMca pra auto-selecao da bomba).
+  const initPipe = (budget.environmentParams as any)?.solarPipe ?? {};
+  const initPipeComprimento = Number(initPipe?.inputs?.comprimentoM) || 0;
+  const initPipeDesnivel = Number(initPipe?.inputs?.desnivelM) || 0;
+  const initPipeResult = initPipe?.result ?? null;
   const [orientacaoTelhado, setOrientacaoTelhado] = useState<string>(initOrient);
   const [inclinacaoTelhado, setInclinacaoTelhado] = useState<number>(initIncl);
   const [temperaturaInicial, setTemperaturaInicial] = useState<number>(initTempIni);
-  const [alturaTelhado, setAlturaTelhado] = useState<number>(initAlturaTelhado);
+  const [pipeComprimento, setPipeComprimento] = useState<number>(initPipeComprimento);
+  const [pipeDesnivel, setPipeDesnivel] = useState<number>(initPipeDesnivel);
+  const [pipeResult, setPipeResult] = useState<any | null>(initPipeResult);
+  const [pipeRecomputing, setPipeRecomputing] = useState(false);
+
+  async function recomputePipe(overrides?: { comprimentoM?: number; desnivelM?: number }) {
+    const comp = overrides?.comprimentoM ?? pipeComprimento;
+    const desn = overrides?.desnivelM ?? pipeDesnivel;
+    if (comp <= 0 || desn < 0) return;
+    setPipeRecomputing(true);
+    try {
+      const r = await api.post<{ inputs: any; result: any }>(`/pool-budgets/${budget.id}/solar-pipe/recompute`, {
+        comprimentoM: comp,
+        desnivelM: desn,
+      });
+      setPipeResult(r.result);
+    } catch {
+      // silencia — se vazaoM3h for 0 (Simulador nao rodou ainda), backend pode dar erro
+    } finally {
+      setPipeRecomputing(false);
+    }
+  }
 
   // v5.5 — Tipo piscina + Tipo construção + Modos de dimensão/configuração (UI only por enquanto).
   // Modo AUTOMATICO: campos vem do orcamento, readonly, cor amber (padrao).
@@ -1910,38 +1937,77 @@ function SolarTab({
 
                   <div>
                     <SectionLabel>Bomba recomendada</SectionLabel>
-                    <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-[1fr_180px] gap-2">
-                      <div className="flex items-center gap-1.5">
-                        {/* v5.7: abre AutoSelectModal pra Bomba. Template "🚰 Bomba do Coletor Solar
-                            (vazao do simulador)" filtra produtos por vazaoM3h >= vazaoSolarM3h. */}
-                        <button type="button"
-                          onClick={() => setShowBombaPicker(true)}
-                          title="Configurar auto-seleção da bomba (filtra por vazão calculada)"
-                          className="text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300 print:hidden flex-shrink-0">
-                          ✨
-                        </button>
-                        <div className="flex-1 bg-slate-50 border border-slate-200 rounded px-3 py-2">
-                          <div className="text-[12px] font-bold text-slate-900 leading-tight">{report.bombaRecomendada}</div>
-                          <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">
-                            Mapeado pela vazão calculada. Operador ajusta o modelo exato no orçamento final.
-                          </div>
+                    <div className="mt-1.5 flex items-center gap-1.5">
+                      {/* v5.7: abre AutoSelectModal pra Bomba. Template "🚰 Bomba do Coletor Solar
+                          (vazao do simulador)" filtra produtos por vazaoM3h >= vazaoSolarM3h. */}
+                      <button type="button"
+                        onClick={() => setShowBombaPicker(true)}
+                        title="Configurar auto-seleção da bomba (filtra por vazão calculada)"
+                        className="text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300 print:hidden flex-shrink-0">
+                        ✨
+                      </button>
+                      <div className="flex-1 bg-slate-50 border border-slate-200 rounded px-3 py-2">
+                        <div className="text-[12px] font-bold text-slate-900 leading-tight">{report.bombaRecomendada}</div>
+                        <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">
+                          Mapeado pela vazão calculada. Operador ajusta o modelo exato no orçamento final.
                         </div>
                       </div>
-                      {/* v1.12.31: altura do telhado (metros) — usada pela auto-selecao da bomba
-                          (pressaoTrabalhoMca >= alturaTelhadoMca). Persistida em environmentParams.alturaTelhadoM. */}
-                      <div className="print:hidden">
-                        <label className="block text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1" title="Altura geometrica do telhado (m). Cada metro ≈ 1 MCA de pressao estatica. A auto-selecao da bomba escolhe modelos com pressao de trabalho >= esta altura.">
-                          Altura do telhado (m)
-                        </label>
-                        <input
-                          type="number" step="0.5" min="0"
-                          value={alturaTelhado || ""}
-                          onChange={(e) => setAlturaTelhado(Number(e.target.value) || 0)}
-                          onBlur={() => onRecompute(undefined, undefined, { alturaTelhadoM: alturaTelhado })}
-                          placeholder="Ex: 4"
-                          className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-amber-500 focus:outline-none"
-                        />
+                    </div>
+                  </div>
+
+                  {/* v1.12.34: bloco Tubulacao — calculadora de perda de carga.
+                      Operador informa comprimento (ida+volta) + desnivel. Backend
+                      calcula altura manometrica total (Darcy-Weisbach + Haaland) e
+                      persiste em environmentParams.solarPipe + alturaTelhadoM.
+                      A auto-selecao da bomba usa esse valor. */}
+                  <div className="print:hidden">
+                    <SectionLabel>🚰 Tubulação — perda de carga</SectionLabel>
+                    <div className="mt-1.5 rounded border border-slate-200 bg-slate-50/50 p-3 space-y-2">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1" title="Comprimento total da tubulacao em metros (ida + volta).">
+                            Comprimento (m)
+                          </label>
+                          <input
+                            type="number" step="0.5" min="0"
+                            value={pipeComprimento || ""}
+                            onChange={(e) => setPipeComprimento(Number(e.target.value) || 0)}
+                            onBlur={() => recomputePipe({ comprimentoM: pipeComprimento })}
+                            placeholder="Ex: 30"
+                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-amber-500 focus:outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1" title="Altura geometrica do telhado em metros (desnivel).">
+                            Desnível (m)
+                          </label>
+                          <input
+                            type="number" step="0.5" min="0"
+                            value={pipeDesnivel || ""}
+                            onChange={(e) => setPipeDesnivel(Number(e.target.value) || 0)}
+                            onBlur={() => recomputePipe({ desnivelM: pipeDesnivel })}
+                            placeholder="Ex: 4"
+                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-amber-500 focus:outline-none"
+                          />
+                        </div>
                       </div>
+                      {pipeResult ? (
+                        <div className="rounded border border-amber-300 bg-amber-50 px-3 py-2">
+                          <div className="text-[9px] uppercase tracking-wider text-amber-800 font-bold">Altura manometrica total</div>
+                          <div className="text-lg font-bold text-amber-900 tabular-nums">{pipeResult.alturaManometricaTotal?.toFixed(2)} mca</div>
+                          <div className="text-[10px] text-amber-800 mt-0.5">
+                            = {pipeResult.perdaDinamica?.toFixed(2)} mca de perda dinamica + {pipeDesnivel} m de desnivel · velocidade {pipeResult.velocidade?.toFixed(2)} m/s
+                          </div>
+                          {pipeResult.aviso && (
+                            <div className="mt-1 text-[10px] font-medium text-red-700">⚠ {pipeResult.aviso}</div>
+                          )}
+                          <div className="text-[9px] text-amber-700 mt-1 italic">Defaults: CPVC 50mm · fator 20% · 4 joelhos · 1 tê · 1 registro · 1 válvula.</div>
+                        </div>
+                      ) : (
+                        <div className="text-[10px] text-slate-500 italic">
+                          {pipeRecomputing ? 'Calculando…' : 'Preencha comprimento e desnivel pra calcular a altura manometrica total da bomba.'}
+                        </div>
+                      )}
                     </div>
                   </div>
 

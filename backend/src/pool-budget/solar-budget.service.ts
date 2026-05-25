@@ -11,6 +11,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SolarService, SolarInputs, SolarReport } from './solar.service';
 import { ClimateDataService } from './climate-data.service';
 import { SolarRecomputeDto } from './dto/solar-simulate.dto';
+import { SolarPipeDto } from './dto/solar-pipe.dto';
+import { PipeHeadLossService, PipeMaterial } from './pipe-head-loss.service';
 import { SOLAR_LATITUDE_ABS_BY_UF } from './solar-constants';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -52,6 +54,7 @@ export class SolarBudgetService {
     private readonly prisma: PrismaService,
     private readonly solar: SolarService,
     private readonly climateData: ClimateDataService,
+    private readonly pipeHeadLoss: PipeHeadLossService,
   ) {}
 
   // ============ Coletores ============
@@ -326,6 +329,72 @@ export class SolarBudgetService {
     }
 
     return warnings;
+  }
+
+  // v1.12.34: calcula perda de carga da tubulacao + persiste em environmentParams.solarPipe.
+  // Usa a vazao calculada no solarReport como vazao de projeto. Material/diametro/conexoes
+  // vem dos defaults (Company.systemConfig.pool.pipeDefaults) sobrescritos pelos inputs.
+  async computeAndSavePipe(budgetId: string, companyId: string, dto: SolarPipeDto): Promise<{
+    inputs: SolarPipeDto & { vazaoM3h: number };
+    result: ReturnType<PipeHeadLossService['compute']>;
+  }> {
+    const budget = await this.prisma.poolBudget.findFirst({
+      where: { id: budgetId, companyId, deletedAt: null },
+    });
+    if (!budget) throw new NotFoundException('Orcamento nao encontrado');
+
+    const env = (budget.environmentParams ?? {}) as Record<string, any>;
+    const solarReport = env.solarReport as Record<string, any> | undefined;
+    const vazaoM3h = Number(solarReport?.vazaoTotalM3h) || 0;
+
+    // Defaults do tenant (Company.systemConfig.pool.pipeDefaults) — opcional.
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    const tenantDefaults = ((company?.systemConfig as any)?.pool?.pipeDefaults ?? {}) as Record<string, any>;
+
+    // Defaults hardcoded de seguranca caso o tenant nao tenha configurado.
+    const HARDCODED_DEFAULTS = {
+      material: 'CPVC' as PipeMaterial,
+      diametroMm: 50,
+      fatorSegurancaPct: 20,
+      joelho90Qty: 4,
+      teQty: 1,
+      registroQty: 1,
+      valvulaQty: 1,
+    };
+
+    const inputs = {
+      comprimentoM: dto.comprimentoM,
+      desnivelM: dto.desnivelM,
+      vazaoM3h,
+      temperaturaC: 25,
+      material: (dto.material ?? tenantDefaults.material ?? HARDCODED_DEFAULTS.material) as PipeMaterial,
+      diametroMm: dto.diametroMm ?? tenantDefaults.diametroMm ?? HARDCODED_DEFAULTS.diametroMm,
+      fatorSegurancaPct: dto.fatorSegurancaPct ?? tenantDefaults.fatorSegurancaPct ?? HARDCODED_DEFAULTS.fatorSegurancaPct,
+      joelho90Qty: dto.joelho90Qty ?? tenantDefaults.joelho90Qty ?? HARDCODED_DEFAULTS.joelho90Qty,
+      teQty: dto.teQty ?? tenantDefaults.teQty ?? HARDCODED_DEFAULTS.teQty,
+      registroQty: dto.registroQty ?? tenantDefaults.registroQty ?? HARDCODED_DEFAULTS.registroQty,
+      valvulaQty: dto.valvulaQty ?? tenantDefaults.valvulaQty ?? HARDCODED_DEFAULTS.valvulaQty,
+    };
+
+    const result = this.pipeHeadLoss.compute(inputs);
+
+    // Persiste em environmentParams.solarPipe. Tambem atualiza alturaTelhadoM
+    // (formulario antigo) pra retrocompat — recebe a altura manometrica TOTAL
+    // calculada, nao mais so a altura geometrica.
+    const newEnv = {
+      ...env,
+      solarPipe: { inputs, result },
+      alturaTelhadoM: result.alturaManometricaTotal,
+    };
+    await this.prisma.poolBudget.update({
+      where: { id: budgetId },
+      data: { environmentParams: newEnv as any },
+    });
+
+    return { inputs, result };
   }
 
   async getReport(budgetId: string, companyId: string): Promise<SolarReport | null> {

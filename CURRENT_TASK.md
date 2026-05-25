@@ -1,6 +1,29 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.33 — Ajustes UX da curva da bomba + modal arrastavel
+## Versao atual em prod: v1.12.34 — Calculadora de perda de carga (Darcy-Weisbach + Haaland)
+
+Sessao 211 (25/05/2026), 16 releases:
+
+**v1.12.34** — replica o metodo da planilha Solis pra calcular perda de carga em tubulacao. Antes: input "Altura do telhado" tinha só a altura geometrica (1m=1MCA grosseiro). Agora: bloco "🚰 Tubulacao" no Simulador com Comprimento + Desnivel, e backend calcula a altura manometrica TOTAL (perda dinamica + desnivel) usando Darcy-Weisbach + aproximacao de Haaland — exatamente como a Solis.
+
+Tabelas embarcadas em `backend/src/pool-budget/pipe-head-loss.service.ts`:
+- Rugosidade por material (PVC, CPVC, PPR, COBRE) em mm
+- Diametro interno (DI) por material × DN externo (9 tamanhos cada)
+- Comprimentos equivalentes (joelho 90, tê, registro gaveta, válvula retenção) por DN
+- Densidade + viscosidade da agua por temperatura (0-50°C, lookup table)
+
+Fluxo:
+- Operador no Simulador informa Comprimento (m) e Desnivel (m). Onblur dispara `POST /pool-budgets/:id/solar-pipe/recompute`.
+- Backend: pega vazaoTotalM3h do solarReport, busca defaults do tenant (`Company.systemConfig.pool.pipeDefaults`) ou usa hardcoded (CPVC 50mm, 20% seguranca, 4 joelhos, 1 tê, 1 registro, 1 valvula), calcula e persiste em `environmentParams.solarPipe = { inputs, result }`. Tambem grava `alturaTelhadoM = alturaManometricaTotal` pra alimentar a var `alturaTelhadoMca` usada na auto-selecao.
+- Resultado exibido no Simulador em card amber: "Altura manometrica total: X mca" + breakdown (perda dinamica + desnivel + velocidade m/s) + alerta se velocidade > 2.5 m/s ("aumente diametro").
+- `recalculateTotals` chamado apos cada recomputacao — linha "Bomba do Coletor Solar" reavalia automaticamente.
+
+Pendente pra v1.12.35:
+- Modal "Configurar tubulacao" pra editar material/diametro/conexoes/fator. Hoje so defaults.
+- Configuracoes > Piscina: pipeDefaults editaveis pelo operador (uma vez por tenant).
+- Auto-selecao da bomba interpola pumpCurve cadastrada (em vez de comparar com pressaoTrabalhoMca).
+
+**v1.12.33** — Ajustes UX da curva da bomba + modal arrastavel
 
 Sessao 211 (25/05/2026), 15 releases:
 

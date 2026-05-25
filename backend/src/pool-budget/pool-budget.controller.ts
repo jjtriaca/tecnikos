@@ -18,6 +18,7 @@ import { PoolBudgetService } from './pool-budget.service';
 import { HeatingBudgetService } from './heating-budget.service';
 import { HeatingService } from './heating.service';
 import { SolarBudgetService } from './solar-budget.service';
+import { SolarPipeDto } from './dto/solar-pipe.dto';
 import { CreatePoolBudgetDto } from './dto/create-pool-budget.dto';
 import { UpdatePoolBudgetDto } from './dto/update-pool-budget.dto';
 import { QueryPoolBudgetDto } from './dto/query-pool-budget.dto';
@@ -151,6 +152,19 @@ export class PoolBudgetController {
     // autoSelectRule.useSolarCollector vinculem ao novo coletor automaticamente.
     await this.service.recalculateTotals(id);
     return report;
+  }
+
+  @ApiOperation({ summary: 'Calcula perda de carga da tubulacao (Darcy-Weisbach + Haaland) e persiste em environmentParams.solarPipe. v1.12.34.' })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/solar-pipe/recompute')
+  async recomputeSolarPipe(@Param('id') id: string, @Body() body: SolarPipeDto, @CurrentUser() user: AuthenticatedUser) {
+    const result = await this.solarBudget.computeAndSavePipe(id, user.companyId, body);
+    // Como a perda de carga alimenta alturaTelhadoMca usada na auto-selecao da
+    // bomba, recalcular totais aqui ja atualiza linhas com regra "Bomba do
+    // Coletor Solar" automaticamente.
+    await this.service.recalculateTotals(id);
+    return result;
   }
 
   @ApiOperation({ summary: 'Upload da imagem do header da aba Solar (foto/render da piscina) — JPEG/PNG/WebP, max 5MB' })
