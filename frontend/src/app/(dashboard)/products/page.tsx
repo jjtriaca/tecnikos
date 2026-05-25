@@ -351,6 +351,7 @@ interface ProductForm {
   specBifTrif: string;        // 'Bif' | 'Trif' | '' (tipo eletrico)
   specBifTrifConta: string;   // numero — quantos espacos ocupa no quadro de distribuicao
   specTempoMontagemH: string; // horas — tempo padrao de montagem/instalacao do equipamento
+  linkedServiceId: string;    // Servico vinculado (instalacao/montagem). Vazio = sem vinculo.
 }
 
 const EMPTY_FORM: ProductForm = {
@@ -410,6 +411,7 @@ const EMPTY_FORM: ProductForm = {
   specBifTrif: "",
   specBifTrifConta: "",
   specTempoMontagemH: "",
+  linkedServiceId: "",
 };
 
 function productToForm(p: Product): ProductForm {
@@ -477,6 +479,7 @@ function productToForm(p: Product): ProductForm {
     specBifTrif: typeof p.technicalSpecs?.bifTrif === 'string' ? p.technicalSpecs.bifTrif : "",
     specBifTrifConta: numericSpecToStr(p.technicalSpecs?.bifTrifConta),
     specTempoMontagemH: numericSpecToStr(p.technicalSpecs?.tempoMontagemH),
+    linkedServiceId: (p as any).linkedServiceId ?? "",
   };
 }
 
@@ -576,6 +579,8 @@ function formToPayload(f: ProductForm, existingSpecs?: Record<string, any>) {
     poolType: f.poolType.trim() || undefined,
     // Quantidade padrao no orcamento de piscina. Vazio = sem padrao (fluxo usa 1).
     defaultQty: f.defaultQty.trim() === "" ? null : parseFloat(f.defaultQty.replace(",", ".")),
+    // Servico vinculado (instalacao/montagem). Vazio = sem vinculo. null limpa vinculo.
+    linkedServiceId: f.linkedServiceId || null,
     // Inclui technicalSpecs no payload. Preserva chaves existentes que nao
     // tem input no form (eficiencia, bifTrifConta, multiplicador, etc seedadas
     // da planilha) — so atualiza as chaves expostas como inputs.
@@ -698,6 +703,10 @@ export default function ProductsPage() {
   // submit (backend tambem valida).
   const [poolTypeRequiredMap, setPoolTypeRequiredMap] = useState<Record<string, string[]>>({});
 
+  // Servicos do tenant que podem ser vinculados ao produto (modulo Piscina).
+  // Carregado 1x no mount. Usado no select "Servico vinculado" do form. v1.12.22.
+  const [linkableServices, setLinkableServices] = useState<Array<{ id: string; name: string; code?: string | null }>>([]);
+
   // Recarrega pool types + mapa de obrigatorios — chamado depois de CRUD no
   // modal de gerenciamento pra refletir mudancas no datalist e no form atual.
   const reloadPoolTypes = useCallback(async () => {
@@ -776,6 +785,14 @@ export default function ProductsPage() {
     api.get<{ categories: string[]; brands: string[]; poolTypes: string[] }>("/products/filter-options")
       .then((r) => setFilterOptions(r || { categories: [], brands: [], poolTypes: [] }))
       .catch(() => setFilterOptions({ categories: [], brands: [], poolTypes: [] }));
+  }, []);
+
+  // Carrega servicos do tenant que podem ser vinculados ao produto (filtra
+  // pelos que sao usados no modulo Piscina). v1.12.22.
+  useEffect(() => {
+    api.get<{ data: Array<{ id: string; name: string; code?: string | null }> }>("/services?usage=pool&limit=500")
+      .then((r) => setLinkableServices((r?.data ?? []).map((s) => ({ id: s.id, name: s.name, code: s.code ?? null }))))
+      .catch(() => setLinkableServices([]));
   }, []);
 
   const productFilters = useMemo(() => buildProductFilters(filterOptions), [filterOptions]);
@@ -1887,17 +1904,39 @@ export default function ProductsPage() {
 
                   <div className="rounded-xl border border-slate-200 bg-white p-5">
                     <h4 className="text-xs font-semibold text-slate-700 uppercase mb-4">⏱ Tempo de instalacao</h4>
-                    <div className="max-w-sm">
-                      <FieldLabel required={currentRequiredSpecs.has('tempoMontagemH')} help="Tempo padrao de montagem/instalacao desse equipamento. Usado pra calcular automaticamente o servico de montagem no orcamento de piscina. Equipamentos pequenos vs grandes podem ter tempos bem diferentes.">
-                        Tempo padrao de montagem (horas)
-                      </FieldLabel>
-                      <input
-                        type="number" step="0.5" min="0"
-                        value={form.specTempoMontagemH}
-                        onChange={(e) => setField("specTempoMontagemH", e.target.value)}
-                        placeholder="Ex: 4 (filtro pequeno), 10 (aquecedor grande)"
-                        className={inputClass}
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <FieldLabel required={currentRequiredSpecs.has('tempoMontagemH')} help="Tempo padrao de montagem/instalacao desse equipamento. Usado pra calcular automaticamente o servico de montagem no orcamento de piscina. Equipamentos pequenos vs grandes podem ter tempos bem diferentes.">
+                          Tempo padrao de montagem (horas)
+                        </FieldLabel>
+                        <input
+                          type="number" step="0.5" min="0"
+                          value={form.specTempoMontagemH}
+                          onChange={(e) => setField("specTempoMontagemH", e.target.value)}
+                          placeholder="Ex: 4 (filtro pequeno), 10 (aquecedor grande)"
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <FieldLabel help="Servico que o orcamento usa pra instalar/montar este produto. Quando uma linha de servico no orcamento tem auto-selecao 'Seguir produto da linha X', le este vinculo pra escolher o Service correto.">
+                          Servico vinculado
+                        </FieldLabel>
+                        <select
+                          value={form.linkedServiceId}
+                          onChange={(e) => setField("linkedServiceId", e.target.value)}
+                          className={inputClass}
+                        >
+                          <option value="">— Sem vinculo —</option>
+                          {linkableServices.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.code ? `${s.code} · ` : ""}{s.name}
+                            </option>
+                          ))}
+                        </select>
+                        {linkableServices.length === 0 && (
+                          <p className="mt-1 text-[10px] text-slate-500 italic">Nenhum servico marcado como &ldquo;usado em Piscina&rdquo;. Cadastre servicos com a flag ativa.</p>
+                        )}
+                      </div>
                     </div>
                   </div>
 

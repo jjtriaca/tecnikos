@@ -1190,6 +1190,13 @@ model Product {
   // do orcamento fica destacada (fundo amarelo) — visual claro de "fora do padrao".
   defaultQty Float? @default(1)
 
+  // Servico de instalacao/montagem vinculado ao produto. Quando uma linha de
+  // orcamento (kind=SERVICE) usa autoSelectRule.followProductLine apontando
+  // pra uma linha de produto, o sistema le esse linkedServiceId pra decidir
+  // qual Service vincular. v1.12.22.
+  linkedServiceId String?
+  linkedService   Service? @relation("ProductLinkedService", fields: [linkedServiceId], references: [id])
+
   // Especificacoes tecnicas extensiveis (modulo Piscina). Json livre:
   // { weightKg, lengthCm, widthCm, thicknessCm, powerHp, voltage, phaseType,
   //   powerWatts, amperage, wattsHourMax, wattsHourAvg, flowRateM3h, sandLoadKg,
@@ -2308,6 +2315,10 @@ model Service {
   // Especificacoes tecnicas extensiveis (modulo Piscina). Json livre — espelho do Product
   technicalSpecs Json?
 
+  // Tipo do servico no modulo Piscina (paridade com Product.poolType). Usado
+  // pra filtrar candidatos na auto-selecao de servico do orcamento. v1.12.22.
+  poolType String?
+
   // Onde o servico e usado.
   // useInServiceOrder: assistencia tecnica / OS
   // useInPool: obra de piscina (PoolBudget)
@@ -2325,6 +2336,10 @@ model Service {
   // Modulo Piscina
   poolCatalogConfig PoolCatalogConfig?
   poolBudgetItems   PoolBudgetItem[]
+
+  // Produtos que tem este servico como instalacao/montagem padrao
+  // (lado inverso de Product.linkedServiceId). v1.12.22.
+  linkedFromProducts Product[] @relation("ProductLinkedService")
 
   @@unique([companyId, code])
   @@index([companyId])

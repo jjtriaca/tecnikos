@@ -1,6 +1,25 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.21 — Linha tem tipo (Produto/Servico) + "Sem produto"/"Sem servico" placeholder
+## Versao atual em prod: v1.12.22 — Product.linkedServiceId + Service.poolType + icone 🛠 pra servico
+
+Sessao 211 (25/05/2026), 4 releases:
+
+**v1.12.22** — fundacao pra auto-selecao de servico inteligente. Adiciona vinculo Produto -> Servico no cadastro, tipo (poolType) no Service pra paridade com Product, e icone visual diferenciado pra linhas de servico no orcamento.
+
+Mudancas:
+- **Schema**: `Product.linkedServiceId String?` (FK opcional pra Service, ON DELETE SET NULL no public, sem FK nos tenants — TenantMigrator nao propaga FK em ADD COLUMN). `Service.poolType String?` (paridade com Product.poolType).
+- **Migration Prisma**: ADD COLUMN + FK no public + indices. Tenants ganham so as colunas via TenantMigratorService (FK opcional, integridade validada pelo backend).
+- **DTOs Product**: aceita `linkedServiceId` (Create + Update).
+- **DTOs Service**: aceita `poolType`, `useInPool`, `useInServiceOrder`, `technicalSpecs`, `imageUrl` (paridade).
+- **Cadastro Produto (UI)**: card "Tempo de instalacao" agora tem 2 colunas — Tempo de montagem + Servico vinculado (select alimentado por `/services?usage=pool&limit=500`).
+- **Cadastro Servico (UI)**: novo card "Modulo Piscina" com checkbox "Usado em obras de piscina" e (quando ativo) campo "Tipo de equipamento". Mesma estrategia do Product.poolType.
+- **Icone na linha de servico**: trocado ✨ (violeta) por 🛠 (emerald) quando `item.kind === 'SERVICE'`. Modal de auto-selecao agora mostra titulo apropriado (servico vs produto).
+
+Pendente pra v1.12.23:
+- **Auto-selecao de servico inteligente**: novo modo "Seguir produto da linha L_X" no AutoSelectModal. Quando ativo, le `Product.linkedServiceId` do produto da linha referenciada e vincula o Service. Atualiza automaticamente quando o produto muda.
+- **CatalogPicker pra Service**: filtro por poolType (paridade com produtos).
+
+**v1.12.21** — Linha tem tipo (Produto/Servico) + "Sem produto"/"Sem servico" placeholder
 
 Sessao 211 (25/05/2026), 3 releases:
 

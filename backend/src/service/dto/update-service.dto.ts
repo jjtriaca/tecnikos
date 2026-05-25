@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsInt, IsBoolean, Min } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsBoolean, IsObject, Min } from 'class-validator';
 
 export class UpdateServiceDto {
   @IsOptional()
@@ -57,4 +57,26 @@ export class UpdateServiceDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  // Paridade com create. Modulo Piscina.
+  @IsOptional()
+  @IsBoolean()
+  useInServiceOrder?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  useInPool?: boolean;
+
+  @IsOptional()
+  @IsObject()
+  technicalSpecs?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  // Tipo do servico no modulo Piscina (paridade com Product.poolType). v1.12.22.
+  @IsOptional()
+  @IsString()
+  poolType?: string;
 }

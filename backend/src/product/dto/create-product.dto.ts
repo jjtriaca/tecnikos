@@ -155,4 +155,11 @@ export class CreateProductDto {
   @IsOptional()
   @IsNumber()
   defaultQty?: number;
+
+  // Servico de instalacao/montagem vinculado a este produto. Quando uma
+  // linha de servico do orcamento usa autoSelectRule.followProductLine, le
+  // este campo pra vincular o Service correto automaticamente. v1.12.22.
+  @IsOptional()
+  @IsString()
+  linkedServiceId?: string | null;
 }

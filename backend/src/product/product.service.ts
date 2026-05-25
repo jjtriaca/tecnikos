@@ -527,6 +527,7 @@ export class ProductService {
         imageUrl: data.imageUrl,
         poolType: data.poolType,
         defaultQty: data.defaultQty,
+        linkedServiceId: data.linkedServiceId,
       },
       include: {
         _count: { select: { equivalents: true } },
@@ -604,6 +605,7 @@ export class ProductService {
         imageUrl: data.imageUrl,
         poolType: data.poolType,
         defaultQty: data.defaultQty,
+        ...(data.linkedServiceId !== undefined ? { linkedServiceId: data.linkedServiceId } : {}),
       },
       include: {
         _count: { select: { equivalents: true } },

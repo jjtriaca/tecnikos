@@ -76,4 +76,10 @@ export class CreateServiceDto {
   @IsOptional()
   @IsString()
   imageUrl?: string;
+
+  // Tipo do servico no modulo Piscina (paridade com Product.poolType). Usado
+  // pra filtrar candidatos na auto-selecao de servico do orcamento. v1.12.22.
+  @IsOptional()
+  @IsString()
+  poolType?: string;
 }

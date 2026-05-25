@@ -91,6 +91,7 @@ export class ServiceService {
         useInPool: dto.useInPool,
         technicalSpecs: dto.technicalSpecs as any,
         imageUrl: dto.imageUrl,
+        poolType: dto.poolType,
       },
     });
   }

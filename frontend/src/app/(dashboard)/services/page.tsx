@@ -222,6 +222,9 @@ const EMPTY_FORM = {
   checklists: { toolsPpe: [] as string[], materials: [] as string[], initialCheck: [] as string[], finalCheck: [] as string[], custom: [] as string[] },
   category: "",
   isActive: true,
+  // Modulo Piscina — v1.12.22
+  useInPool: false,
+  poolType: "",
 };
 
 /* ── ActionsDropdown ──────────────────────────────────────── */
@@ -402,6 +405,8 @@ export default function ServicesPage() {
       },
       category: service.category || "",
       isActive: service.isActive,
+      useInPool: !!(service as any).useInPool,
+      poolType: (service as any).poolType || "",
     });
     setShowForm(true);
     setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 100);
@@ -434,6 +439,9 @@ export default function ServicesPage() {
         },
         category: formData.category || undefined,
         isActive: formData.isActive,
+        // Modulo Piscina — v1.12.22
+        useInPool: formData.useInPool,
+        poolType: formData.poolType.trim() || undefined,
       };
 
       if (editingId) {
@@ -475,6 +483,8 @@ export default function ServicesPage() {
       },
       category: service.category || "",
       isActive: true,
+      useInPool: !!(service as any).useInPool,
+      poolType: (service as any).poolType || "",
     });
     setShowForm(true);
   }
@@ -655,6 +665,40 @@ export default function ServicesPage() {
                   />
                   Ativo
                 </label>
+              </div>
+            )}
+          </div>
+
+          {/* Modulo Piscina — v1.12.22 */}
+          <div className="mt-4 border-t border-slate-200 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-semibold text-slate-700 uppercase">🏊 Modulo Piscina</h4>
+              <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.useInPool}
+                  onChange={(e) => setFormData({ ...formData, useInPool: e.target.checked })}
+                  className="rounded border-slate-300"
+                />
+                Usado em obras de piscina
+              </label>
+            </div>
+            {formData.useInPool && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1" title="Tipo de equipamento que este servico atende (ex: 'Bomba Calor', 'Filtro Areia'). Usado pra filtrar candidatos na auto-selecao de servico do orcamento.">
+                    Tipo de equipamento
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.poolType}
+                    onChange={(e) => setFormData({ ...formData, poolType: e.target.value })}
+                    onBlur={() => setFormData((f) => ({ ...f, poolType: toTitleCase(f.poolType) }))}
+                    placeholder="Ex: Bomba Calor, Filtro Areia, Coletor Solar"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                  />
+                  <p className="mt-1 text-[10px] text-slate-500">Mesmo tipo que voce usa nos produtos vinculados. Permite filtro na auto-selecao do orcamento.</p>
+                </div>
               </div>
             )}
           </div>

@@ -1384,9 +1384,17 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
               🔍
             </button>
             <button type="button" onClick={() => setShowAutoSelect(true)}
-              className={"text-[11px] font-bold px-1.5 py-0.5 rounded border flex-shrink-0 " + (item.autoSelectRule ? "border-violet-500 bg-violet-50 text-violet-700" : "border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300")}
-              title={item.autoSelectRule ? "Editar auto-selecao do produto" : "Configurar auto-selecao do produto"}
-            >✨</button>
+              className={
+                "text-[11px] font-bold px-1.5 py-0.5 rounded border flex-shrink-0 " + (
+                  item.kind === 'SERVICE'
+                    ? (item.autoSelectRule ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-300")
+                    : (item.autoSelectRule ? "border-violet-500 bg-violet-50 text-violet-700" : "border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300")
+                )
+              }
+              title={item.autoSelectRule
+                ? (item.kind === 'SERVICE' ? "Editar auto-selecao do servico" : "Editar auto-selecao do produto")
+                : (item.kind === 'SERVICE' ? "Configurar auto-selecao do servico" : "Configurar auto-selecao do produto")}
+            >{item.kind === 'SERVICE' ? '🛠' : '✨'}</button>
             <span
               onClick={() => setShowCatalogPick(true)}
               title="Clique pra escolher/trocar item do catalogo"

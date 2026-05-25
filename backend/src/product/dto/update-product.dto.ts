@@ -161,6 +161,11 @@ export class UpdateProductDto {
   @IsOptional()
   @IsNumber()
   defaultQty?: number;
+
+  // Servico de instalacao/montagem vinculado a este produto. null = limpa vinculo. v1.12.22.
+  @IsOptional()
+  @IsString()
+  linkedServiceId?: string | null;
 }
 
 /* ── Ajuste de Estoque ──────────────────────────────────── */
