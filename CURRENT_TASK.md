@@ -1,6 +1,12 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.38 — Defaults 10/4, Tubulacao acima da Bomba, contador pontos curva
+## Versao atual em prod: v1.12.39 — Fix dropdown tipos: AutoSelectModal carrega /products/pool-types ao abrir
+
+Sessao 211 (25/05/2026), 21 releases:
+
+**v1.12.39** — bugfix: tipos do tenant ainda nao apareciam no dropdown da auto-selecao mesmo apos F5. Causa: `tenantPoolTypes` era carregado no PoolBudgetDetailPage uma unica vez e dependia da prop chegar no AutoSelectModal. Algumas combinacoes de cache/timing deixavam o modal renderizando antes da prop atualizar. Fix: AutoSelectModal agora tem useEffect proprio que chama `/products/pool-types` ao montar (alem de receber via prop como fallback). Mesclagem feita em `freshTenantPoolTypes` state local. Sempre traz dados frescos do servidor.
+
+**v1.12.38** — Defaults 10/4, Tubulacao acima da Bomba, contador pontos curva
 
 Sessao 211 (25/05/2026), 20 releases:
 

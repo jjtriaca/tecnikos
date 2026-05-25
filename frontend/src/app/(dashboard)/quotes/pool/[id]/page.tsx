@@ -3192,20 +3192,30 @@ export function AutoSelectModal({
     }
   };
 
+  // v1.12.39: carrega tipos do tenant DIRETO ao abrir o modal — garante dados frescos
+  // mesmo se o operador cadastrou tipo novo enquanto o orcamento ja estava aberto.
+  const [freshTenantPoolTypes, setFreshTenantPoolTypes] = useState<string[]>(tenantPoolTypes || []);
+  useEffect(() => {
+    let cancelled = false;
+    api.get<string[]>('/products/pool-types')
+      .then((r) => { if (!cancelled) setFreshTenantPoolTypes(Array.isArray(r) ? r : []); })
+      .catch(() => { /* silencia — usa o que veio via prop */ });
+    return () => { cancelled = true; };
+  }, []);
+
   // Tipos unicos: mescla DISTINCT do PoolCatalogConfig (catalog) com DISTINCT do
-  // Product.poolType do tenant (tenantPoolTypes). v1.12.37: garante que tipos novos
-  // cadastrados em Produtos aparecam aqui mesmo que ainda nao tenham PoolCatalogConfig.
+  // Product.poolType do tenant (freshTenantPoolTypes carregado on open).
   const poolTypes = useMemo(() => {
     const set = new Set<string>();
     for (const c of catalog) {
       const t = c.product?.poolType;
       if (t && typeof t === 'string' && t.trim()) set.add(t);
     }
-    for (const t of (tenantPoolTypes || [])) {
+    for (const t of (freshTenantPoolTypes || [])) {
       if (t && typeof t === 'string' && t.trim()) set.add(t);
     }
     return Array.from(set).sort();
-  }, [catalog, tenantPoolTypes]);
+  }, [catalog, freshTenantPoolTypes]);
 
   // Categorias legadas — so aparece dropdown se houver valor ja cadastrado (compat).
   const categorias = useMemo(() => {
