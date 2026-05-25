@@ -2862,13 +2862,13 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
   },
   {
     icon: '🚰',
-    label: 'Bomba do Coletor Solar (vazao do simulador)',
-    description: 'Bomba hidraulica de recirculacao pros coletores solares. Filtra bombas com vazaoM3h >= vazaoSolarM3h (calculada pelo Simulador Solar). Escolhe a menor que atende. Folga ideal 0-50%.',
+    label: 'Bomba do Coletor Solar (vazao + pressao do simulador)',
+    description: 'Bomba hidraulica de recirculacao pros coletores solares. Filtra bombas com vazaoM3h >= vazaoSolarM3h E pressaoTrabalhoMca >= alturaTelhadoMca (ambos do Simulador). Escolhe a menor vazao que atende. Folga ideal 0-50%.',
     rule: {
       filterPoolType: 'Bomba',
       filterCategoria: null,
       filterDescription: 'Bomba',
-      where: 'vazaoM3h >= vazaoSolarM3h',
+      where: 'vazaoM3h >= vazaoSolarM3h && pressaoTrabalhoMca >= alturaTelhadoMca',
       orderBy: 'vazaoM3h asc',
       indicator: {
         label: 'Folga vazao',

@@ -351,6 +351,7 @@ interface ProductForm {
   specBifTrif: string;        // 'Bif' | 'Trif' | '' (tipo eletrico)
   specBifTrifConta: string;   // numero — quantos espacos ocupa no quadro de distribuicao
   specTempoMontagemH: string; // horas — tempo padrao de montagem/instalacao do equipamento
+  specPressaoTrabalhoMca: string; // MCA (metros de coluna d'agua) — pressao maxima de trabalho da bomba
   linkedServiceId: string;    // Servico vinculado (instalacao/montagem). Vazio = sem vinculo.
 }
 
@@ -411,6 +412,7 @@ const EMPTY_FORM: ProductForm = {
   specBifTrif: "",
   specBifTrifConta: "",
   specTempoMontagemH: "",
+  specPressaoTrabalhoMca: "",
   linkedServiceId: "",
 };
 
@@ -479,6 +481,7 @@ function productToForm(p: Product): ProductForm {
     specBifTrif: typeof p.technicalSpecs?.bifTrif === 'string' ? p.technicalSpecs.bifTrif : "",
     specBifTrifConta: numericSpecToStr(p.technicalSpecs?.bifTrifConta),
     specTempoMontagemH: numericSpecToStr(p.technicalSpecs?.tempoMontagemH),
+    specPressaoTrabalhoMca: numericSpecToStr(p.technicalSpecs?.pressaoTrabalhoMca),
     linkedServiceId: (p as any).linkedServiceId ?? "",
   };
 }
@@ -537,6 +540,7 @@ function buildTechnicalSpecs(f: ProductForm, existing?: Record<string, any>): Re
   setOrUnset("amperagem", f.specAmperagem);
   setOrUnset("bifTrifConta", f.specBifTrifConta);
   setOrUnset("tempoMontagemH", f.specTempoMontagemH);
+  setOrUnset("pressaoTrabalhoMca", f.specPressaoTrabalhoMca);
   // bifTrif eh string (Bif/Trif/'') — nao usa setOrUnset que so trata numeros
   if (f.specBifTrif.trim() === "") {
     delete merged.bifTrif;
@@ -1941,12 +1945,18 @@ export default function ProductsPage() {
                   </div>
 
                   <CollapsibleCard title="🚿 Hidraulico — Filtros, Bombas, Aquecedores, SPA, Cascata" defaultOpen={blocksWithRequired.has('hidraulico')}>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
                         <FieldLabel required={currentRequiredSpecs.has('vazaoM3h')} help="Vazao do equipamento (litros por hora dividido por 1000). Usada pra calcular tempo de filtragem da piscina (volume / vazao).">
                           Vazao (m³/h)
                         </FieldLabel>
                         <input type="number" step="0.1" value={form.specVazaoM3h} onChange={(e) => setField("specVazaoM3h", e.target.value)} placeholder="Ex: 9" className={inputClass} />
+                      </div>
+                      <div>
+                        <FieldLabel required={currentRequiredSpecs.has('pressaoTrabalhoMca')} help="Pressao maxima de trabalho da bomba em MCA (metros de coluna d'agua). Auto-selecao da bomba do coletor solar usa esse campo pra escolher uma bomba que atenda a altura do telhado. Ex: bomba 1/2cv ~ 12 MCA.">
+                          Pressao de trabalho (MCA)
+                        </FieldLabel>
+                        <input type="number" step="0.1" value={form.specPressaoTrabalhoMca} onChange={(e) => setField("specPressaoTrabalhoMca", e.target.value)} placeholder="Ex: 12, 18, 25" className={inputClass} />
                       </div>
                       <div>
                         <FieldLabel required={currentRequiredSpecs.has('tuboEntradaMm')} help="Diametro da conexao hidraulica em milimetros. Auto-selecao de tubos usa esse campo pra escolher o tubo correto (mesma medida do equipamento principal da etapa).">
@@ -2352,6 +2362,7 @@ export const PRODUCT_SPECS_GROUPED: Array<{ block: string; group: string; specs:
   ]},
   { block: 'hidraulico', group: '🚿 Hidraulico', specs: [
     { key: 'vazaoM3h', label: 'Vazao (m³/h)' },
+    { key: 'pressaoTrabalhoMca', label: 'Pressao de trabalho (MCA)' },
     { key: 'tuboEntradaMm', label: 'Tubo de entrada (mm)' },
   ]},
   { block: 'cascata', group: '🌊 Cascata', specs: [
@@ -2408,6 +2419,7 @@ export const SPEC_BLOCK_BY_KEY: Record<string, string> = Object.fromEntries(
 export const SPEC_KEY_TO_FORM_FIELD: Record<string, string> = {
   tempoMontagemH: 'specTempoMontagemH',
   vazaoM3h: 'specVazaoM3h',
+  pressaoTrabalhoMca: 'specPressaoTrabalhoMca',
   tuboEntradaMm: 'specTuboEntradaMm',
   cascataComprimentoCm: 'specCascataComprimentoCm',
   qtdJatos: 'specQtdJatos',

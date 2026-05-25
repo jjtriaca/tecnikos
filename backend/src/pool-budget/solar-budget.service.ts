@@ -246,6 +246,7 @@ export class SolarBudgetService {
       ...(overrides?.orientacaoTelhado !== undefined && { orientacaoTelhado: overrides.orientacaoTelhado }),
       ...(overrides?.inclinacaoTelhadoGraus !== undefined && { inclinacaoTelhadoGraus: overrides.inclinacaoTelhadoGraus }),
       ...(overrides?.temperaturaAguaInicial !== undefined && { temperaturaAguaInicial: overrides.temperaturaAguaInicial }),
+      ...(overrides?.alturaTelhadoM !== undefined && { alturaTelhadoM: overrides.alturaTelhadoM }),
     };
     await this.prisma.poolBudget.update({
       where: { id: budgetId },

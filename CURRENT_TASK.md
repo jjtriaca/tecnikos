@@ -1,6 +1,16 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.30 — Fix universal de upload (FormData via api.post)
+## Versao atual em prod: v1.12.31 — Pressao MCA + Altura do telhado na auto-selecao da bomba
+
+Sessao 211 (25/05/2026), 13 releases:
+
+**v1.12.31** — auto-selecao da bomba do coletor solar agora considera pressao hidraulica alem de vazao. Mudancas:
+- **Cadastro Produto** (aba Piscina, card Hidraulico): novo campo "Pressao de trabalho (MCA)" entre Vazao e Tubo de entrada. Grava em `technicalSpecs.pressaoTrabalhoMca`. Disponivel tambem no gerenciador de tipos obrigatorios.
+- **Simulador Solar** (lado da Bomba recomendada): novo input "Altura do telhado (m)". Persistido em `environmentParams.alturaTelhadoM` ao perder foco. Cada metro de altura geometrica ≈ 1 MCA estatica.
+- **Backend** (DTO + service + formula-eval): aceita `alturaTelhadoM` no recompute do Solar. Expoe `alturaTelhadoMca` como var disponivel em formulas/auto-select via `extractEnvVars`. Whitelist `FORMULA_VARS` atualizada.
+- **Template "Bomba do Coletor Solar"**: where ampliado pra `vazaoM3h >= vazaoSolarM3h && pressaoTrabalhoMca >= alturaTelhadoMca`. Bomba so eh selecionada se atender ambos os criterios.
+
+**v1.12.30** — Fix universal de upload (FormData via api.post)
 
 Sessao 211 (25/05/2026), 12 releases:
 

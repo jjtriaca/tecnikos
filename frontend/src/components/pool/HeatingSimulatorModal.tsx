@@ -462,7 +462,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
   async function recomputeSolar(
     extraPct?: number,
     collectorId?: string | null,
-    extras?: { orientacaoTelhado?: string; inclinacaoTelhadoGraus?: number; temperaturaAguaInicial?: number },
+    extras?: { orientacaoTelhado?: string; inclinacaoTelhadoGraus?: number; temperaturaAguaInicial?: number; alturaTelhadoM?: number },
   ) {
     const savedScrollTop = scrollContainerRef.current?.scrollTop ?? 0;
     setSolarRecomputing(true);
@@ -475,6 +475,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
         orientacaoTelhado?: string;
         inclinacaoTelhadoGraus?: number;
         temperaturaAguaInicial?: number;
+        alturaTelhadoM?: number;
       } = {
         extraColetoresPct: extraPct ?? solarExtraPct,
         tempDesejada: Number(tempAguaDesejada),
@@ -1454,7 +1455,7 @@ function SolarTab({
   setVento: (v: string) => void;
   tempAguaDesejada: number;
   setTempAguaDesejada: (n: number) => void;
-  onRecompute: (extraPct?: number, collectorId?: string | null) => void | Promise<void>;
+  onRecompute: (extraPct?: number, collectorId?: string | null, extras?: { orientacaoTelhado?: string; inclinacaoTelhadoGraus?: number; temperaturaAguaInicial?: number; alturaTelhadoM?: number }) => void | Promise<void>;
   headerImage: string | null;
   headerImageUploading: boolean;
   onUploadHeaderImage: (file: File) => void | Promise<void>;
@@ -1479,9 +1480,13 @@ function SolarTab({
   const initOrient = (budget.environmentParams as any)?.orientacaoTelhado ?? "N";
   const initIncl = Number((budget.environmentParams as any)?.inclinacaoTelhadoGraus) || 20;
   const initTempIni = Number((budget.environmentParams as any)?.temperaturaAguaInicial) || 22;
+  // v1.12.31: altura do telhado em metros — usada pela auto-selecao da bomba
+  // (pressaoTrabalhoMca >= alturaTelhadoMca). 1m de altura geometrica ≈ 1 MCA estatica.
+  const initAlturaTelhado = Number((budget.environmentParams as any)?.alturaTelhadoM) || 0;
   const [orientacaoTelhado, setOrientacaoTelhado] = useState<string>(initOrient);
   const [inclinacaoTelhado, setInclinacaoTelhado] = useState<number>(initIncl);
   const [temperaturaInicial, setTemperaturaInicial] = useState<number>(initTempIni);
+  const [alturaTelhado, setAlturaTelhado] = useState<number>(initAlturaTelhado);
 
   // v5.5 — Tipo piscina + Tipo construção + Modos de dimensão/configuração (UI only por enquanto).
   // Modo AUTOMATICO: campos vem do orcamento, readonly, cor amber (padrao).
@@ -1905,20 +1910,37 @@ function SolarTab({
 
                   <div>
                     <SectionLabel>Bomba recomendada</SectionLabel>
-                    <div className="mt-1.5 flex items-center gap-1.5">
-                      {/* v5.7: abre AutoSelectModal pra Bomba. Template "🚰 Bomba do Coletor Solar
-                          (vazao do simulador)" filtra produtos por vazaoM3h >= vazaoSolarM3h. */}
-                      <button type="button"
-                        onClick={() => setShowBombaPicker(true)}
-                        title="Configurar auto-seleção da bomba (filtra por vazão calculada)"
-                        className="text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300 print:hidden flex-shrink-0">
-                        ✨
-                      </button>
-                      <div className="flex-1 bg-slate-50 border border-slate-200 rounded px-3 py-2">
-                        <div className="text-[12px] font-bold text-slate-900 leading-tight">{report.bombaRecomendada}</div>
-                        <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">
-                          Mapeado pela vazão calculada. Operador ajusta o modelo exato no orçamento final.
+                    <div className="mt-1.5 grid grid-cols-1 sm:grid-cols-[1fr_180px] gap-2">
+                      <div className="flex items-center gap-1.5">
+                        {/* v5.7: abre AutoSelectModal pra Bomba. Template "🚰 Bomba do Coletor Solar
+                            (vazao do simulador)" filtra produtos por vazaoM3h >= vazaoSolarM3h. */}
+                        <button type="button"
+                          onClick={() => setShowBombaPicker(true)}
+                          title="Configurar auto-seleção da bomba (filtra por vazão calculada)"
+                          className="text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300 print:hidden flex-shrink-0">
+                          ✨
+                        </button>
+                        <div className="flex-1 bg-slate-50 border border-slate-200 rounded px-3 py-2">
+                          <div className="text-[12px] font-bold text-slate-900 leading-tight">{report.bombaRecomendada}</div>
+                          <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">
+                            Mapeado pela vazão calculada. Operador ajusta o modelo exato no orçamento final.
+                          </div>
                         </div>
+                      </div>
+                      {/* v1.12.31: altura do telhado (metros) — usada pela auto-selecao da bomba
+                          (pressaoTrabalhoMca >= alturaTelhadoMca). Persistida em environmentParams.alturaTelhadoM. */}
+                      <div className="print:hidden">
+                        <label className="block text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1" title="Altura geometrica do telhado (m). Cada metro ≈ 1 MCA de pressao estatica. A auto-selecao da bomba escolhe modelos com pressao de trabalho >= esta altura.">
+                          Altura do telhado (m)
+                        </label>
+                        <input
+                          type="number" step="0.5" min="0"
+                          value={alturaTelhado || ""}
+                          onChange={(e) => setAlturaTelhado(Number(e.target.value) || 0)}
+                          onBlur={() => onRecompute(undefined, undefined, { alturaTelhadoM: alturaTelhado })}
+                          placeholder="Ex: 4"
+                          className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-amber-500 focus:outline-none"
+                        />
                       </div>
                     </div>
                   </div>

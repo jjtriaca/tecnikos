@@ -54,6 +54,9 @@ export const ALLOWED_VARS = [
   'solarQty',
   // Numero de baterias do dimensionamento solar (numBaterias) — util pra acessorios.
   'solarNumBaterias',
+  // v1.12.31: altura do telhado em MCA (1m geometrico = 1 MCA estatica).
+  // Permite where='pressaoTrabalhoMca >= alturaTelhadoMca' na auto-select de bomba.
+  'alturaTelhadoMca',
 ] as const;
 const ALLOWED_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
 const CELL_REF_FUNCTIONS = ['qty', 'total', 'unitPrice'] as const;
@@ -248,6 +251,9 @@ export function extractEnvVars(environmentParams: any): FormulaVars {
   if (typeof e.hidromassagensQtd === 'number') vars.hidromassagens = e.hidromassagensQtd;
   if (typeof e.cascataLarguraCm === 'number') vars.cascataCm = e.cascataLarguraCm;
   if (typeof e.bordaInfinitaM === 'number') vars.bordaInfinitaM = e.bordaInfinitaM;
+  // v1.12.31: altura do telhado em metros — 1m ≈ 1 MCA estatica. Permite regras
+  // de auto-select de bomba: where='pressaoTrabalhoMca >= alturaTelhadoMca'.
+  if (typeof e.alturaTelhadoM === 'number') vars.alturaTelhadoMca = e.alturaTelhadoM;
   return vars;
 }
 

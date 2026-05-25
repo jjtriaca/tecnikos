@@ -72,4 +72,12 @@ export class SolarRecomputeDto {
   @Min(5)
   @Max(40)
   temperaturaAguaInicial?: number;
+
+  // v1.12.31: altura geometrica do telhado (m). Usada pela auto-selecao da bomba —
+  // 1m ≈ 1 MCA estatica. Bombas com pressaoTrabalhoMca >= alturaTelhadoM atendem.
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(50)
+  alturaTelhadoM?: number;
 }
