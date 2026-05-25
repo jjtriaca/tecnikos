@@ -1,6 +1,12 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.23 — Badge "extra" removida (toda linha igual)
+## Versao atual em prod: v1.12.24 — Fix moveItem sortOrder negativo
+
+Sessao 211 (25/05/2026), 6 releases:
+
+**v1.12.24** — bugfix: tentar mover linha pra cima ou pra baixo dava erro "sortOrder must not be less than 0". Causa: addItem cria items com sortOrder=0 default; quando todas as linhas da etapa tinham sortOrder=0, a logica antiga de "swap" gerava -1 (a.sortOrder=0 + dir=-1) violando @Min(0) do DTO. Fix em moveItem: troca posicao no array e RENUMERA todos os items da secao em sequencia consecutiva (0,1,2,...). So envia PUT pros items cujo sortOrder mudou.
+
+**v1.12.23** — Badge "extra" removida (toda linha igual)
 
 Sessao 211 (25/05/2026), 5 releases:
 
