@@ -2046,11 +2046,34 @@ export default function ProductsPage() {
                   {/* v1.12.32: curva caracteristica da bomba — DEPOIS do Hidraulico.
                       Aparece quando poolType comeca com "Bomba" (ex: "Bomba", "Bomba de Calor",
                       "Bomba hidraulica"). Auto-selecao interpola esta curva. */}
-                  {/^bomba/i.test(form.poolType) && (
-                    <CollapsibleCard title="📈 Curva da bomba" defaultOpen={form.pumpCurve.length > 0}>
+                  {/^bomba/i.test(form.poolType) && (() => {
+                    // v1.12.38: contador de pontos vs minimo obrigatorio (6 default).
+                    // Mostra cor + faltam X pra atingir o minimo.
+                    const validPoints = form.pumpCurve.filter((p) =>
+                      Number.isFinite(parseFloat(String(p.vazaoM3h).replace(",", "."))) &&
+                      Number.isFinite(parseFloat(String(p.alturaMca).replace(",", ".")))
+                    ).length;
+                    const isCurvaRequired = currentRequiredSpecs.has('pumpCurve');
+                    const minPts = 6;
+                    const isComplete = validPoints >= minPts;
+                    const cardTitle = isCurvaRequired
+                      ? `📈 Curva da bomba * (${validPoints}/${minPts} pontos${!isComplete ? ` · faltam ${minPts - validPoints}` : ''})`
+                      : `📈 Curva da bomba (${validPoints} pontos)`;
+                    return (
+                    <CollapsibleCard title={cardTitle} defaultOpen={form.pumpCurve.length > 0 || isCurvaRequired}>
                       <p className="text-[11px] text-slate-600 mb-2">
                         Pares (vazão, altura manométrica) da curva caracteristica. Voce encontra no manual da bomba — tabela &ldquo;Caracteristicas hidraulicas&rdquo;. A auto-selecao interpola esta curva.
                       </p>
+                      {isCurvaRequired && !isComplete && (
+                        <div className="mb-2 rounded border border-red-300 bg-red-50 px-3 py-1.5 text-[11px] text-red-800">
+                          ⚠ Tipo &ldquo;{form.poolType}&rdquo; exige no mínimo {minPts} pontos. Faltam <span className="font-bold">{minPts - validPoints}</span>.
+                        </div>
+                      )}
+                      {isCurvaRequired && isComplete && (
+                        <div className="mb-2 rounded border border-emerald-300 bg-emerald-50 px-3 py-1 text-[11px] text-emerald-800">
+                          ✓ Mínimo de {minPts} pontos atendido.
+                        </div>
+                      )}
                       <div className="overflow-x-auto rounded border border-slate-200">
                         <table className="w-full text-xs">
                           <thead className="bg-slate-50 text-[9px] uppercase tracking-wide text-slate-600">
@@ -2127,7 +2150,8 @@ export default function ProductsPage() {
                         + Ponto
                       </button>
                     </CollapsibleCard>
-                  )}
+                    );
+                  })()}
 
                   {/* Specs especificas por tipo de equipamento — alimentam o Simulador automatico (F6.2) */}
                   {/^cascata/i.test(form.poolType) && (

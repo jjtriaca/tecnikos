@@ -1937,27 +1937,9 @@ function SolarTab({
                     <div className="text-[9px] text-slate-500 mt-0.5 italic">Aumenta a eficiência em meses frios.</div>
                   </div>
 
-                  <div>
-                    <SectionLabel>Bomba recomendada</SectionLabel>
-                    <div className="mt-1.5 flex items-center gap-1.5">
-                      {/* v5.7: abre AutoSelectModal pra Bomba. Template "🚰 Bomba do Coletor Solar
-                          (vazao do simulador)" filtra produtos por vazaoM3h >= vazaoSolarM3h. */}
-                      <button type="button"
-                        onClick={() => setShowBombaPicker(true)}
-                        title="Configurar auto-seleção da bomba (filtra por vazão calculada)"
-                        className="text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300 print:hidden flex-shrink-0">
-                        ✨
-                      </button>
-                      <div className="flex-1 bg-slate-50 border border-slate-200 rounded px-3 py-2">
-                        <div className="text-[12px] font-bold text-slate-900 leading-tight">{report.bombaRecomendada}</div>
-                        <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">
-                          Mapeado pela vazão calculada. Operador ajusta o modelo exato no orçamento final.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
                   {/* v1.12.34: bloco Tubulacao — calculadora de perda de carga.
+                      v1.12.38: movido pra ANTES da Bomba — o calculo da tubulacao
+                      eh pre-requisito (altura manometrica) pra escolher a bomba certa.
                       Operador informa comprimento (ida+volta) + desnivel. Backend
                       calcula altura manometrica total (Darcy-Weisbach + Haaland) e
                       persiste em environmentParams.solarPipe + alturaTelhadoM.
@@ -2053,6 +2035,29 @@ function SolarTab({
                           {pipeRecomputing ? 'Calculando…' : 'Preencha comprimento e desnível pra o sistema escolher o melhor tubo + calcular a altura manométrica.'}
                         </div>
                       )}
+                    </div>
+                  </div>
+
+                  {/* v1.12.38: Bomba recomendada agora vem DEPOIS da Tubulacao — operador ja sabe
+                      a altura manometrica calculada antes de escolher a bomba. */}
+                  <div>
+                    <SectionLabel>Bomba recomendada</SectionLabel>
+                    <div className="mt-1.5 flex items-center gap-1.5">
+                      {/* v5.7: abre AutoSelectModal pra Bomba. Template "🚰 Bomba do Coletor Solar
+                          (vazao + pressao do simulador)" filtra produtos por vazaoM3h >= vazaoSolarM3h
+                          e pressaoTrabalhoMca >= alturaTelhadoMca (interpola pumpCurve em v1.12.34+). */}
+                      <button type="button"
+                        onClick={() => setShowBombaPicker(true)}
+                        title="Configurar auto-seleção da bomba (filtra por vazão calculada e altura manométrica)"
+                        className="text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300 print:hidden flex-shrink-0">
+                        ✨
+                      </button>
+                      <div className="flex-1 bg-slate-50 border border-slate-200 rounded px-3 py-2">
+                        <div className="text-[12px] font-bold text-slate-900 leading-tight">{report.bombaRecomendada}</div>
+                        <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">
+                          Mapeado pela vazão calculada{pipeResult ? ` + altura manométrica de ${pipeResult.alturaManometricaTotal?.toFixed(2)} mca` : ''}. Operador ajusta o modelo exato no orçamento final.
+                        </div>
+                      </div>
                     </div>
                   </div>
 

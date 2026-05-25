@@ -1,6 +1,16 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.37 — Tipos do tenant + velocidade ≥ 2.5 + curva da bomba obrigatoria
+## Versao atual em prod: v1.12.38 — Defaults 10/4, Tubulacao acima da Bomba, contador pontos curva
+
+Sessao 211 (25/05/2026), 20 releases:
+
+**v1.12.38** — 4 ajustes de UX e regra:
+- **Defaults hardcoded** atualizados: joelhos 4 -> **10**, tês 1 -> **4**. Instalacoes reais de coletor solar tem mais conexoes (joelhos de entrada/saida em cada coletor).
+- **Tubulacao acima da Bomba** no Simulador Solar — operador ve a altura manometrica calculada ANTES da Bomba Recomendada (ordem natural: calcula perda -> escolhe bomba). Descricao da Bomba tambem mostra altura manometrica calculada inline.
+- **Contador de pontos da curva** no cadastro do Produto: titulo do card agora mostra "(X/6 pontos · faltam Y)" quando tipo exige. Card de aviso vermelho quando faltam, verde quando atinge minimo. Operador ve em tempo real quanto falta sem precisar tentar salvar.
+- **Tipos do tenant no dropdown** ja foi implementado em v1.12.37 — operador precisa recarregar a pagina pra ver os tipos novos (cache do frontend).
+
+**v1.12.37** — Tipos do tenant + velocidade ≥ 2.5 + curva da bomba obrigatoria
 
 Sessao 211 (25/05/2026), 19 releases:
 

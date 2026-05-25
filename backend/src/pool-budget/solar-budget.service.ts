@@ -356,12 +356,14 @@ export class SolarBudgetService {
 
     // Defaults hardcoded de seguranca caso o tenant nao tenha configurado.
     // v1.12.35: PVC + auto-pick entre [32, 40, 50, 60, 75] (cobre 95% das obras de piscina).
+    // v1.12.38: aumentado joelhos 4->10 e tes 1->4 — instalacoes reais de coletor solar
+    // tem mais conexoes (cada coletor tem joelhos de entrada/saida).
     const HARDCODED_DEFAULTS = {
       material: 'PVC' as PipeMaterial,
       availableDiametersMm: [32, 40, 50, 60, 75],
       fatorSegurancaPct: 20,
-      joelho90Qty: 4,
-      teQty: 1,
+      joelho90Qty: 10,
+      teQty: 4,
       registroQty: 1,
       valvulaQty: 1,
     };
