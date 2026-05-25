@@ -1,6 +1,17 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.28 — Recomputar Simulador agora atualiza linhas do orcamento
+## Versao atual em prod: v1.12.29 — Avisos no Simulador Solar (bombas sem vazao)
+
+Sessao 211 (25/05/2026), 11 releases:
+
+**v1.12.29** — Simulador Solar agora exibe avisos quando o catalogo do tenant nao suporta a auto-selecao da bomba:
+- ⚠ Se a regra `solarBombaRule` nao retorna candidatos: avisa qual filtro foi usado e instrui a cadastrar bombas / ajustar a regra.
+- ⚠ Se ha candidatos mas nenhum atende a vazaoTotal: mostra a maior vazao cadastrada e a necessaria.
+- ℹ Lista N primeiras bombas sem `vazaoM3h` cadastrado (ate 5 nomes) pra operador completar o cadastro.
+
+Backend: `solar-budget.service.ts.computeAndSaveReport` agora chama `computeWarnings()` apos gerar o report e injeta `warnings[]` antes de salvar em `environmentParams.solarReport`. Frontend (`HeatingSimulatorModal`) renderiza os avisos em destaque (amber pra warning, slate pra info) logo abaixo do card "Bomba recomendada".
+
+**v1.12.28** — Recomputar Simulador agora atualiza linhas do orcamento
 
 Sessao 211 (25/05/2026), 10 releases:
 

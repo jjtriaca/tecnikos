@@ -123,6 +123,11 @@ export interface SolarReport {
   // Bomba recomendada (texto curto, mapeado pela vazao) — planilha original "Bomba necessaria (Aprox)"
   bombaRecomendada: string;
 
+  // v1.12.29: avisos do Simulador pra exibir ao operador (ex: nenhuma bomba do
+  // catalogo com vazaoM3h suficiente pra atender vazaoTotalM3h). Lista vazia
+  // = nenhum aviso.
+  warnings?: Array<{ severity: 'warning' | 'info'; message: string }>;
+
   // Inputs ecoados pro frontend
   inputs: SolarInputs;
 }

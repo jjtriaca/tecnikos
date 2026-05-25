@@ -229,6 +229,12 @@ export class SolarBudgetService {
 
     const report = await this.simulate(companyId, params);
 
+    // v1.12.29: gera avisos pra exibir no Simulador. Hoje: verifica se ha
+    // bombas no catalogo com vazaoM3h suficiente pra atender vazaoTotalM3h
+    // calculada. Se faltar, operador precisa cadastrar bombas (ou ajustar a
+    // regra solarBombaRule) antes da auto-selecao da linha funcionar.
+    report.warnings = await this.computeWarnings(companyId, report);
+
     // Salva report + overrides em environmentParams (v5: persiste orientacao/inclinacao/tempInicial)
     const newEnv = {
       ...env,
@@ -247,6 +253,78 @@ export class SolarBudgetService {
     });
 
     return report;
+  }
+
+  // v1.12.29: gera lista de avisos pra exibir no Simulador.
+  // Avalia o catalogo do tenant contra a vazao calculada e a regra solarBombaRule
+  // do tenant — alerta se nao ha bomba que sirva.
+  private async computeWarnings(
+    companyId: string,
+    report: SolarReport,
+  ): Promise<Array<{ severity: 'warning' | 'info'; message: string }>> {
+    const warnings: Array<{ severity: 'warning' | 'info'; message: string }> = [];
+    const vazao = report.vazaoTotalM3h;
+    if (!vazao || vazao <= 0) return warnings;
+
+    const bombaRule = await this.getSolarBombaRule(companyId);
+
+    // Carrega candidatos a bomba (filtra pela regra do tenant se houver)
+    const products = await this.prisma.product.findMany({
+      where: {
+        companyId,
+        deletedAt: null,
+        ...(bombaRule?.filterPoolType?.trim()
+          ? { poolType: { equals: String(bombaRule.filterPoolType).trim(), mode: 'insensitive' } as any }
+          : {}),
+        ...(bombaRule?.filterDescription?.trim()
+          ? { description: { contains: String(bombaRule.filterDescription).trim(), mode: 'insensitive' } }
+          : {}),
+      },
+      select: { id: true, description: true, technicalSpecs: true },
+    });
+
+    if (products.length === 0) {
+      const filtroStr = bombaRule?.filterPoolType || bombaRule?.filterDescription
+        ? `(filtro: ${[bombaRule?.filterPoolType, bombaRule?.filterDescription].filter(Boolean).join(' · ')})`
+        : '(sem regra solarBombaRule definida)';
+      warnings.push({
+        severity: 'warning',
+        message: `Nenhuma bomba encontrada no catalogo ${filtroStr}. Cadastre bombas com poolType correto e a flag "Usado em Piscina", ou configure a regra de busca em Configuracoes > Piscina > Bomba Solar.`,
+      });
+      return warnings;
+    }
+
+    // Verifica quantas tem vazaoM3h suficiente
+    const semVazao: string[] = [];
+    let suficiente = 0;
+    for (const p of products) {
+      const specs = (p.technicalSpecs ?? {}) as Record<string, any>;
+      const v = Number(specs?.vazaoM3h);
+      if (!Number.isFinite(v) || v <= 0) semVazao.push(p.description);
+      else if (v >= vazao) suficiente++;
+    }
+
+    if (suficiente === 0) {
+      const maxVazao = Math.max(
+        0,
+        ...products.map((p) => Number((p.technicalSpecs as any)?.vazaoM3h) || 0),
+      );
+      warnings.push({
+        severity: 'warning',
+        message: `Nenhuma bomba do catalogo atende a vazao necessaria de ${vazao.toFixed(2)} m³/h (maior vazao cadastrada: ${maxVazao.toFixed(2)} m³/h). Cadastre uma bomba com vazaoM3h >= ${vazao.toFixed(2)} ou ajuste o dimensionamento.`,
+      });
+    }
+
+    if (semVazao.length > 0) {
+      const lista = semVazao.slice(0, 5).join(', ');
+      const extra = semVazao.length > 5 ? ` e mais ${semVazao.length - 5}` : '';
+      warnings.push({
+        severity: 'info',
+        message: `${semVazao.length} bomba(s) sem vazaoM3h cadastrado nao foram avaliadas: ${lista}${extra}. Preencha "Vazao (m³/h)" no cadastro do produto pra entrar na auto-selecao.`,
+      });
+    }
+
+    return warnings;
   }
 
   async getReport(budgetId: string, companyId: string): Promise<SolarReport | null> {

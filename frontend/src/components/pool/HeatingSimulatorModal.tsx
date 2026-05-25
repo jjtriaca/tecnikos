@@ -246,6 +246,8 @@ interface SolarReport {
   energiaSolarKcalH: number;
   kcalPara1Grau: number;
   bombaRecomendada: string;
+  // v1.12.29: avisos do Simulador (ex: bomba do catalogo sem vazaoM3h suficiente).
+  warnings?: Array<{ severity: 'warning' | 'info'; message: string }>;
 }
 
 type TabKey = "solar" | "bomba" | "comparativo";
@@ -1920,6 +1922,24 @@ function SolarTab({
                       </div>
                     </div>
                   </div>
+
+                  {/* v1.12.29: avisos do Simulador (catalogo do tenant) — bombas sem vazao,
+                      sem bomba que atenda vazaoTotal, regra solarBombaRule nao configurada. */}
+                  {report.warnings && report.warnings.length > 0 && (
+                    <div className="space-y-1.5 print:hidden">
+                      {report.warnings.map((w, i) => (
+                        <div key={i} className={
+                          "rounded px-3 py-2 text-[11px] leading-snug border " +
+                          (w.severity === 'warning'
+                            ? "bg-amber-50 border-amber-300 text-amber-900"
+                            : "bg-slate-50 border-slate-200 text-slate-700")
+                        }>
+                          <span className="font-bold mr-1">{w.severity === 'warning' ? '⚠' : 'ℹ'}</span>
+                          {w.message}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </section>
 
