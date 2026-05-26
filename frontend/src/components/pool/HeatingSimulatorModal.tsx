@@ -477,11 +477,20 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
         inclinacaoTelhadoGraus?: number;
         temperaturaAguaInicial?: number;
         alturaTelhadoM?: number;
+        areaPiscinaM2?: number;
+        volumeM3?: number;
       } = {
         extraColetoresPct: extraPct ?? solarExtraPct,
         tempDesejada: Number(tempAguaDesejada),
         ...(extras ?? {}),
       };
+      // v1.12.49: envia area/volume ATUAIS do estado do formulario (nao do banco).
+      // Permite operador mudar area no modo manual e recalcular sem precisar salvar
+      // o orcamento. Backend usa esses overrides em vez de budget.poolDimensions.
+      const currentArea = Number(budget.poolDimensions?.area);
+      const currentVolume = Number(budget.poolDimensions?.volume);
+      if (Number.isFinite(currentArea) && currentArea > 0) body.areaPiscinaM2 = currentArea;
+      if (Number.isFinite(currentVolume) && currentVolume > 0) body.volumeM3 = currentVolume;
       const cid = collectorId === undefined ? solarSelectedCollectorId : collectorId;
       if (cid) body.collectorProductId = cid;
       const r = await api.post<SolarReport>(`/pool-budgets/${budget.id}/solar-report/recompute`, body);
@@ -1921,10 +1930,9 @@ function SolarTab({
                   <Kpi label="Área da piscina" value={report.areaPiscinaM2.toFixed(2).replace(".", ",")} unit="m²" />
                   <Kpi label="m² necessário de coletor" value={String(Math.round(report.m2ColetorNecessario))} unit="m²" />
                   <Kpi label="Qtd. de coletores" value={report.qtdColetores.toFixed(1).replace(".", ",")} unit="un" accent />
-                  <Kpi label="Número de baterias" value={String(report.numBaterias)} unit="un" />
-                  {report.numRamosParalelos != null && report.numRamosParalelos > 1 && (
-                    <Kpi label="Séries em paralelo" value={String(report.numRamosParalelos)} unit="un" />
-                  )}
+                  <Kpi label="Baterias (total)" value={String(report.numBaterias)} unit="un" />
+                  <Kpi label="Baterias em série" value={String(report.numRamosParalelos && report.numRamosParalelos > 0 ? Math.ceil(report.numBaterias / report.numRamosParalelos) : report.numBaterias)} unit="un" />
+                  <Kpi label="Séries em paralelo" value={String(report.numRamosParalelos ?? 1)} unit="un" />
                   <Kpi label="Vazão necessária" value={report.vazaoTotalM3h.toFixed(2).replace(".", ",")} unit="m³/h" />
                   <Kpi label="Cobertura piscina × coletores" value={report.percentualCobertura.toFixed(1).replace(".", ",")} unit="%" />
                 </div>

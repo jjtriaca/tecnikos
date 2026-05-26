@@ -1,6 +1,53 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.47 — Preview do AutoSelectModal mescla Products do tenant
+## Versao atual em prod: v1.12.48 — Formula vazao Solar = Solis oficial
+
+**v1.12.48 (26/05/2026)** — refatorada a formula de vazao do Simulador Solar pra refletir fielmente as regras Solis confirmadas pelo suporte tecnico em 26/05/2026. Validada contra 2 exemplos oficiais.
+
+### Regras Solis
+- Vazao: 4,2 L/min/m² (= 0,252 m³/h/m²)
+- Max 7 coletores por bateria
+- Max 30 m² por bateria (limite alternativo)
+- Max 3 baterias em SERIE; mais que isso abre nova serie em paralelo
+- Vazao total = `num_series_paralelas × coletores_por_bateria × area_coletor × 0,252`
+
+### Mudancas em `solar-constants.ts`
+- `SOLAR_VAZAO_FATOR`: 0,254 → **0,252**
+- `SOLAR_BATERIA_MAX_COLETORES`: 8 → **7**
+- Adicionadas: `SOLAR_BATERIA_MAX_M2 = 30`, `SOLAR_BATERIAS_MAX_SERIE = 3`
+- Removida: `SOLAR_VAZAO_DOBRA_BATERIAS = 4` (regra antiga aproximada que multiplicava vazao por 2 se ≥4 baterias — subdimensionava em 50% pra 7+ baterias)
+
+### Mudancas em `solar.service.ts`
+- `numBaterias = ceil(qtdInicial / 7)` (era /8)
+- Novo limite: `tetoColetoresBateria = min(7, floor(30 / area_coletor))` — pra coletores grandes (4-6m²), 30m² impoe menos de 7 coletores/bateria
+- Novo: `numRamosParalelos = ceil(numBaterias / 3)` (regra Solis explicita)
+- `vazaoTotal = numRamosParalelos × coletoresPorBateria × areaColetor × 0,252`
+
+### SolarReport (interface + frontend)
+- Novo campo `numRamosParalelos: number` retornado pelo backend
+- Frontend (`HeatingSimulatorModal`) mostra KPI "Séries em paralelo" quando > 1
+
+### Validacao oficial Solis
+| Exemplo | Configuracao | Solis (oficial) | Codigo v1.12.48 |
+|---|---|---|---|
+| 1 | 15 col, 3 bat de 5, 1 serie | 2,8 m³/h | 2,82 m³/h ✅ |
+| 2 | 20 col, 4 bat de 5, 2 series | 5,64 m³/h | 5,64 m³/h ✅ |
+
+### Backward-compat
+Orcamentos com 1-3 baterias retornam EXATAMENTE a mesma vazao (case-edge: num_ramos=1). Apenas orcamentos com 4+ baterias passam a ter vazao corrigida (antes: subdimensionada).
+
+### Memoria atualizada
+`memory/study_solar_vazao_base_teorica.md` — estudo completo + comparacao + sources industriais (Sodramar, KS, Soletrol, Piscinas Planalto, US DOE, NBR 15569, etc.).
+
+**TESTAR em prod (Ctrl+F5):**
+- [ ] Recomputar Simulador Solar de um orcamento com 4+ baterias — vazao deve aumentar
+- [ ] KPI "Séries em paralelo" aparece quando > 1
+- [ ] Auto-select de bomba (dropdown) recalcula automaticamente com a vazao nova
+- [ ] Orcamento com 1-3 baterias mantem mesma vazao (case ANDERSON: 1 bat, 5,97 m³/h)
+
+---
+
+## Versao anterior: v1.12.47 — Preview do AutoSelectModal mescla Products do tenant
 
 **v1.12.47** = recovery do v1.12.46 que falhou no build TS (`salePriceCents` nullable). Fix em `ProductService.listForPoolSimulator` mapeando `salePriceCents ?? 0`.
 

@@ -216,8 +216,10 @@ export class SolarBudgetService {
     const existingSolar = (env.solarOverride ?? {}) as Record<string, any>;
 
     const params = {
-      areaPiscinaM2: Number(dims.area) || 0,
-      volumeM3: Number(dims.volume) || 0,
+      // v1.12.49: override de area/volume vindo do estado do formulario (sem persistir).
+      // Permite operador testar dimensionamento sem precisar salvar o orcamento antes.
+      areaPiscinaM2: overrides?.areaPiscinaM2 ?? (Number(dims.area) || 0),
+      volumeM3: overrides?.volumeM3 ?? (Number(dims.volume) || 0),
       tempDesejada: overrides?.tempDesejada ?? Number(env.temperaturaAguaDesejada) ?? 30,
       capa: (env.capaTermica === false ? 'NAO' : 'SIM') as 'SIM' | 'NAO',
       vento: ((env.vento ?? 'MODERADO') as string).toUpperCase() as 'FRACO' | 'MODERADO' | 'FORTE',

@@ -80,4 +80,19 @@ export class SolarRecomputeDto {
   @Min(0)
   @Max(50)
   alturaTelhadoM?: number;
+
+  // v1.12.49: override de area/volume da piscina vindos do estado do formulario.
+  // Quando presentes, sobrescrevem os valores de budget.poolDimensions APENAS no
+  // calculo do solar. NAO modificam o cadastro do orcamento (poolDimensions fica
+  // intacto). Permite operador testar dimensionamento com area diferente sem
+  // precisar salvar o orcamento. Ao reabrir, volta ao valor do banco.
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  areaPiscinaM2?: number;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  volumeM3?: number;
 }

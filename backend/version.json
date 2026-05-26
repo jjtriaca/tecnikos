@@ -1,5 +1,5 @@
 {
-  "version": "1.12.48",
-  "codename": "AutoSelectModal preview mescla Products do tenant com PoolCatalogConfig + remove logs debug",
-  "releasedAt": "2026-05-26T20:11:06.520Z"
+  "version": "1.12.49",
+  "codename": "Formula vazao Solar = Solis oficial (4.2 L/min/m², max 7 col/bat, max 3 bat/serie, num_series_paralelas explicito)",
+  "releasedAt": "2026-05-26T20:40:26.421Z"
 }
