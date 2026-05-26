@@ -1,177 +1,85 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.48 — Formula vazao Solar = Solis oficial
+## Versao atual em prod: v1.12.60 — Sessao 212 fechada (22 releases)
 
-**v1.12.48 (26/05/2026)** — refatorada a formula de vazao do Simulador Solar pra refletir fielmente as regras Solis confirmadas pelo suporte tecnico em 26/05/2026. Validada contra 2 exemplos oficiais.
+Sessao 212 (26/05/2026) foi maratona no modulo Piscina, focada em **3 frentes principais**:
 
-### Regras Solis
-- Vazao: 4,2 L/min/m² (= 0,252 m³/h/m²)
-- Max 7 coletores por bateria
-- Max 30 m² por bateria (limite alternativo)
-- Max 3 baterias em SERIE; mais que isso abre nova serie em paralelo
-- Vazao total = `num_series_paralelas × coletores_por_bateria × area_coletor × 0,252`
+1. **Bomba do Coletor Solar (auto-select)** — cadeia completa do bug "Nenhum candidato passa"
+2. **Formula de vazao oficial Solis** — confirmacao tecnica + algoritmo simetrico de baterias
+3. **UI do Simulador Solar** — dropdown de candidatos, diagrama visual de instalacao, compactacao geral
 
-### Mudancas em `solar-constants.ts`
-- `SOLAR_VAZAO_FATOR`: 0,254 → **0,252**
-- `SOLAR_BATERIA_MAX_COLETORES`: 8 → **7**
-- Adicionadas: `SOLAR_BATERIA_MAX_M2 = 30`, `SOLAR_BATERIAS_MAX_SERIE = 3`
-- Removida: `SOLAR_VAZAO_DOBRA_BATERIAS = 4` (regra antiga aproximada que multiplicava vazao por 2 se ≥4 baterias — subdimensionava em 50% pra 7+ baterias)
+22 releases: v1.12.39 → **v1.12.60**.
 
-### Mudancas em `solar.service.ts`
-- `numBaterias = ceil(qtdInicial / 7)` (era /8)
-- Novo limite: `tetoColetoresBateria = min(7, floor(30 / area_coletor))` — pra coletores grandes (4-6m²), 30m² impoe menos de 7 coletores/bateria
-- Novo: `numRamosParalelos = ceil(numBaterias / 3)` (regra Solis explicita)
-- `vazaoTotal = numRamosParalelos × coletoresPorBateria × areaColetor × 0,252`
+## Cronologia das 22 releases
 
-### SolarReport (interface + frontend)
-- Novo campo `numRamosParalelos: number` retornado pelo backend
-- Frontend (`HeatingSimulatorModal`) mostra KPI "Séries em paralelo" quando > 1
+### Caso "Bomba do Coletor Solar — Nenhum candidato passa" (5 releases)
+- **v1.12.40** — Backend: `extractSolarVars` populou `vazaoSolarM3h` (faltava)
+- **v1.12.41** — Backend: `auto-select.helper` passou a interpolar `pumpCurve` quando candidato tem curva cadastrada
+- **v1.12.42** — Frontend: `dimVars` do AutoSelectModal e `ruleVars` do CatalogPickModal populaA m `alturaTelhadoMca` (bug visivel intermediario)
+- **v1.12.43** — Backend `listSolarBombaCandidates` + endpoint `GET /pool-budgets/:id/solar-bomba-candidates` + dropdown na pagina (substitui string fixa `getBombaRecomendadaSolar`)
+- **v1.12.46/47** — `/products/for-pool-simulator` + frontend mescla Products do tenant no `catalog` do AutoSelectModal (resolveu dessincronizacao fonte preview vs backend)
 
-### Validacao oficial Solis
-| Exemplo | Configuracao | Solis (oficial) | Codigo v1.12.48 |
-|---|---|---|---|
-| 1 | 15 col, 3 bat de 5, 1 serie | 2,8 m³/h | 2,82 m³/h ✅ |
-| 2 | 20 col, 4 bat de 5, 2 series | 5,64 m³/h | 5,64 m³/h ✅ |
+Memoria: [feedback_autoselect_vars_frontend_backend.md](memory/feedback_autoselect_vars_frontend_backend.md) — regra de ouro pra adicionar variavel nova no motor (atualizar nos **4 lugares**: backend `extractXVars` + `ALLOWED_VARS`, frontend `dimVars` + `ruleVars`).
 
-### Backward-compat
-Orcamentos com 1-3 baterias retornam EXATAMENTE a mesma vazao (case-edge: num_ramos=1). Apenas orcamentos com 4+ baterias passam a ter vazao corrigida (antes: subdimensionada).
+### Formula de vazao Solis oficial (1 release central + 2 fixes UX)
+- **v1.12.48** — formula validada contra 2 exemplos da Solis (15col/3bat=2,8m³/h, 20col/4bat-2serie=5,64m³/h). Regras: max 7 col/bat, max 30 m²/bat, max 3 bat/serie, vazao=`num_ramos × col_por_bat × area × 0,252`.
+- **v1.12.49** — 3 cards de baterias (total/serie/paralelo) + backend respeita area/volume override no recompute.
+- **v1.12.51** — Botao Recalcular passa `dispArea/dispVolume` no body quando modo MANUAL.
+- **v1.12.52** — **Algoritmo SIMETRICO de baterias**: forca distribuicao igual em todos os ramos (sem 3+3+1). Botoes "Salvar/Limpar override" persistem area/volume manuais em `environmentParams.solarOverride` (NAO altera `poolDimensions`).
 
-### Memoria atualizada
-`memory/study_solar_vazao_base_teorica.md` — estudo completo + comparacao + sources industriais (Sodramar, KS, Soletrol, Piscinas Planalto, US DOE, NBR 15569, etc.).
+Memoria: [study_solar_vazao_base_teorica.md](memory/study_solar_vazao_base_teorica.md) — estudo completo + sources industriais.
 
-**TESTAR em prod (Ctrl+F5):**
-- [ ] Recomputar Simulador Solar de um orcamento com 4+ baterias — vazao deve aumentar
-- [ ] KPI "Séries em paralelo" aparece quando > 1
-- [ ] Auto-select de bomba (dropdown) recalcula automaticamente com a vazao nova
-- [ ] Orcamento com 1-3 baterias mantem mesma vazao (case ANDERSON: 1 bat, 5,97 m³/h)
+### Bugs UX intermediarios (3 releases)
+- **v1.12.39 → v1.12.40 (texto)** — Defaults da tubulacao no aviso (10 joelhos, 4 tes) — fix em `HeatingSimulatorModal:2030`.
+- **v1.12.50** — Card "Baterias em paralelo: 0" quando ha 1 ramo unico (era "1" matematicamente, mas conceitualmente confuso).
 
----
+### Diagrama da instalacao + Imagem da bomba (8 releases)
+- **v1.12.53** — Card "Coletores por bateria" + imagem da bomba selecionada (96x96, mesma estetica do coletor) + **diagrama SVG inicial** (ramos verticais).
+- **v1.12.54** — Compactacao da UI: header, toolbar, tubulacao 50% menos altura.
+- **v1.12.55** — Container do diagrama com tamanho **FIXO** (170px) + Kpis super compactos + stepper −/+ no extra coletores + comprimento/desnivel inline.
+- **v1.12.56** — Diagrama refeito no padrao Solis: baterias HORIZONTAIS em serie + ramos EMPILHADOS verticalmente + troncos azul/vermelho.
+- **v1.12.57** — Labels ALIMENTACAO/RETORNO 75% menores + ancoragem start/end pra nao cortar.
+- **v1.12.58** — Container 140px (era 220) + **placas solares visuais** dentro de cada bateria (N coletores reais).
+- **v1.12.59** — Coletor preto + cabecotes + mangueiras verticais paralelas (estilo Solis Tropicos).
+- **v1.12.60** — Coletor v2: 8 mangueiras (em vez de 5) + cabecotes mais espessos com highlight 3D + corpo preto puro. ✅ Aprovado pelo usuario.
 
-## Versao anterior: v1.12.47 — Preview do AutoSelectModal mescla Products do tenant
+## Estado da regra `solarBombaRule` no tenant SLS
+Atualmente: `filterPoolType="Bomba"`, `filterDescription="Bomba"`, `where="vazaoM3h >= vazaoSolarM3h && pressaoTrabalhoMca >= alturaTelhadoMca"`, `orderBy="vazaoM3h asc"`, indicator de folga.
 
-**v1.12.47** = recovery do v1.12.46 que falhou no build TS (`salePriceCents` nullable). Fix em `ProductService.listForPoolSimulator` mapeando `salePriceCents ?? 0`.
+Catalogo SLS tem 12 bombas usaveis (poolType="Bombas diversas"). Pro filtro funcionar, o usuario PRECISA mudar `filterPoolType="Bombas diversas"` no botao ✨ do Simulador (ou via SQL direto).
 
-**v1.12.46 (26/05/2026)** — quarto e ultimo fix do caso "Bomba do Coletor Solar".
-
-**Causa raiz descoberta nessa rodada:** o preview do AutoSelectModal avaliava contra `catalog` (PoolCatalogConfig), que so tinha 8 bombas de calor no tenant SLS. As 12 bombas Pre-filtro e Impulse Syllent estavam **so na tabela Product**, sem entrada em PoolCatalogConfig. O backend (`listSolarBombaCandidates` v1.12.43) usava `prisma.product.findMany` direto e por isso o dropdown da pagina mostrava 5 candidatos, mas o preview do modal mostrava "Nenhum candidato passa" pra a mesma regra.
+## Mudancas estruturais importantes
 
 ### Backend
-- Novo `ProductService.listForPoolSimulator(companyId)` — retorna Products do tenant com `poolType` definido (max 500), com `technicalSpecs` e `pumpCurve`.
-- Novo endpoint `GET /products/for-pool-simulator` (sem restricao de role).
-- Removidos os `logger.warn('[DEBUG]')` temporarios de v1.12.44/45.
+- `solar.service.ts:140-195` — algoritmo de baterias SIMETRICO (busca combinacao `(ramos × bat × col)` com menor excesso)
+- `solar.service.ts` SolarReport adicionou `numRamosParalelos` + `batPorRamo`
+- `solar-budget.service.ts:listSolarBombaCandidates` + `setSelectedBomba` + `setSolarOverride` (3 metodos novos)
+- `solar-constants.ts` — constantes Solis oficiais (0.252, max 7 col, max 30m², max 3 serie)
+- `dto/solar-simulate.dto.ts` — DTO aceita `areaPiscinaM2`, `volumeM3` override
+- `pool-budget.controller.ts` — 3 endpoints novos: `solar-bomba-candidates` (GET), `solar-bomba-selection` (POST), `solar-override` (POST)
+- `product.service.ts:listForPoolSimulator` + `product.controller.ts` GET `/products/for-pool-simulator`
+- `auto-select.helper.ts:interpolatePumpCurve` + `extractCandidateSpecs` (refator de `filterByWhere`/`orderCandidates`)
+- `formula-eval.ts:extractSolarVars` populou `vazaoSolarM3h`
 
 ### Frontend
-- `useEffect` que carrega o `catalog` em `quotes/pool/[id]/page.tsx` agora tambem chama `/products/for-pool-simulator` e mescla os Products que NAO estao no PoolCatalogConfig como entradas "virtuais" no catalog (`id: 'virtual-<productId>'`, `poolSection: 'OUTROS'`). Falha silenciosa se o endpoint der erro (fallback so com PoolCatalogConfig).
+- `HeatingSimulatorModal.tsx` — dropdown bomba + imagem + diagrama SVG + override area/volume + stepper +/-
+- `quotes/pool/[id]/page.tsx` — dimVars e ruleVars com `alturaTelhadoMca` + `vazaoSolarM3h`. Catalog mescla Products do tenant.
+- `products/page.tsx:2022` — "Vazao maxima (m³/h)" + tooltip novo (so dimensiona ralo de fundo)
 
-### Resultado
-A preview do AutoSelectModal agora ve **todos os Products do tenant com poolType definido**, identico ao que o backend ve. As bombas Pre-filtro e Impulse Syllent (que so existiam em Product) aparecem nas candidatas do preview, batendo com o dropdown principal.
+## Pendentes pra proxima sessao
 
-**TESTAR em prod (Ctrl+Shift+R):**
-- [ ] Modal ✨ Bomba do Simulador Solar → template "Bomba do Coletor Solar" → preview mostra "X candidatos passam" (nao mais "Nenhum candidato passa")
-- [ ] Dropdown principal e modal preview agora batem (mesmas bombas)
+### Aguardando Solis
+- Confirmar comportamento com 7+ baterias (3 ramos paralelos) — testar caso real
+- Validar se `volume` deveria entrar no dimensionamento de coletores (hoje so afeta simulacao termica mensal)
 
-### Cadeia completa do caso (v1.12.40 → v1.12.46)
+### Roadmap
+- **Configuracoes > Piscina > Defaults de tubulacao** — hoje hardcoded em `solar-constants.ts` (PVC, [32,40,50,60,75], 10 joelhos, 4 tes, 1 reg, 1 valv, fator 20%). Tela em Configuracoes pra editar e salvar em `Company.systemConfig.pool.pipeDefaults`.
+- **Auto-selecao de servico: "Seguir produto da linha X"** — schema ja tem `Product.linkedServiceId`. Falta `autoSelectRule.followProductLine: cellRef` + UI + backend.
+- **Pendentes legado (sessao 209):** SQL `update-solis-procel-sls.sql` (manual), configurar regra do Coletor Solar no SLS, persistir overrides modo MANUAL em environmentParams, motor aplicar inclinacao otima ≈ latitude
 
-| Release | Camada | O que arrumou |
-|---|---|---|
-| **v1.12.40** | Backend formula-eval | `extractSolarVars` populou `vazaoSolarM3h` |
-| **v1.12.41** | Backend auto-select | Interpolacao da `pumpCurve` |
-| **v1.12.42** | Frontend AutoSelectModal | `dimVars` populou `alturaTelhadoMca` |
-| **v1.12.43** | Backend + Frontend | Endpoint `solar-bomba-candidates` + dropdown na pagina (substitui string fixa) |
-| **v1.12.46** | Backend + Frontend | Catalog do preview mescla Products do tenant (resolve "0 candidatos" no preview) |
-
-Memoria atualizada: `feedback_autoselect_vars_frontend_backend.md` agora inclui o caso v1.12.46 (catalog vs Product como fonte do preview).
-
----
-
-## Versao anterior: v1.12.43 — Dropdown de Bombas Candidatas no Simulador Solar
-
-**v1.12.43 (26/05/2026)** — substitui o card "Bomba recomendada" (string fixa hardcoded por vazao em `solar-constants.ts`) por DROPDOWN com candidatos reais do catalogo do tenant, ordenados pela regra de auto-selecao.
-
-### Backend
-- `SolarBudgetService.listSolarBombaCandidates(budgetId, companyId)` — retorna ate 20 candidatos que passam na `solarBombaRule` (filterPoolType + filterDescription + where), ordenados pelo `orderBy`. Interpola `pumpCurve` em vazaoM3h/pressaoTrabalhoMca quando o candidato tem curva cadastrada. Inclui `indicator` avaliado (ex: "Folga vazao: +25%").
-- `SolarBudgetService.setSelectedBomba(budgetId, companyId, productId)` — persiste a escolha do operador em `environmentParams.solarReport.selectedBombaId`.
-- Endpoints: `GET /pool-budgets/:id/solar-bomba-candidates` e `POST /pool-budgets/:id/solar-bomba-selection`.
-- Mensagem do aviso reescrita (`computeWarnings`): explica os filtros aplicados e aponta pro **botao ✨ ao lado de "Bomba recomendada"** (nao mais "Configuracoes > Piscina > Bomba Solar", que era hardcode equivocado).
-
-### Frontend (HeatingSimulatorModal)
-- Card "Bomba recomendada" virou `<select>` com 1 opcao por candidato.
-- Formato da opcao: `Descricao · X cv · Y m³/h · Z mca · 📈 curva · folga N%`.
-- Default = primeiro pelo `orderBy` (ja ordenado pelo backend).
-- Mudanca persistida automaticamente via POST.
-- Hint embaixo: "X bomba(s) atendem · ordem definida pela regra ✨ · vazao Y m³/h + altura Z mca".
-- Fallback quando vazio: mensagem explica vazao/altura exigidas + aponta pro ✨.
-
-### Presets de orderBy (ORDER_BY_PRESETS em quotes/pool/[id]/page.tsx)
-Adicionados: `potenciaCv asc/desc` (menor/maior cv primeiro) e `pressaoTrabalhoMca asc/desc` (menor/maior pressao primeiro).
-
-### IMPORTANTE — configuracao do tenant SLS
-A `solarBombaRule` cadastrada no tenant esta com `filterPoolType="Bomba"` mas as bombas do catalogo tem `poolType="Bombas diversas"`. **Acao necessaria:** abrir o ✨, mudar o filtro para "Bombas diversas" e salvar — depois disso o dropdown vai aparecer com as bombas que atendem.
-
-**TESTAR em prod (Ctrl+Shift+R):**
-- [ ] Aba Solar mostra dropdown em vez do card unico
-- [ ] Apos ajustar a regra (filterPoolType="Bombas diversas"), aparecem multiplas bombas no dropdown
-- [ ] Trocar bomba no dropdown salva automaticamente em `solarReport.selectedBombaId`
-- [ ] Modal ✨ tem presets novos de orderBy (potenciaCv, pressaoTrabalhoMca)
-- [ ] Aviso amarelo (quando 0 bombas) agora aponta pro botao ✨ e explica os filtros
-
----
-
-## Versao anterior: v1.12.42 — Fix preview do AutoSelectModal
-
-**v1.12.42 (26/05/2026)** — terceiro fix do caso "Bomba do Coletor Solar". v1.12.40 corrigiu backend (`extractSolarVars` populando `vazaoSolarM3h`); v1.12.41 implementou interpolacao da `pumpCurve` no backend; v1.12.42 corrige o **FRONTEND** que avaliava o criterio em PREVIEW antes da chamada ao backend.
-
-**Causa raiz:** `evalCondition` em `frontend/src/app/(dashboard)/quotes/pool/[id]/page.tsx:3289` substitui apenas variaveis presentes no objeto `vars`. Se uma variavel referenciada no criterio ficar de fora, o evaluator detecta (`if (/[a-zA-Z_]/.test(stripped)) return false`) e rejeita o candidato.
-
-- **AutoSelectModal** (`dimVars`, linha 3271): populava `vazaoSolarM3h` mas **NAO** `alturaTelhadoMca`. Criterio `pressaoTrabalhoMca >= alturaTelhadoMca` virava `pressaoTrabalhoMca >= alturaTelhadoMca` (variavel literal) → false pra todo candidato → "Nenhum candidato passa nos filtros + criterio".
-- **CatalogPickModal** (`ruleVars`, linha 4020): nao populava nem `vazaoSolarM3h` nem `alturaTelhadoMca`. Mesmo bug latente no checkbox "Apenas que passam no criterio".
-
-Fix: adicionar `alturaTelhadoMca: Number(environmentParams.alturaTelhadoM) || 0` (e `vazaoSolarM3h` no CatalogPickModal). Ambos lem de `environmentParams.alturaTelhadoM` (= alturaManometricaTotal apos calculo da tubulacao) e `environmentParams.solarReport.vazaoTotalM3h`.
-
-**Licao:** sempre que uma nova variavel for adicionada ao motor de auto-select (backend `extractSolarVars` em v1.12.40), o frontend de preview tambem precisa atualizar `dimVars`/`ruleVars`. Sem essa atualizacao, o backend pode aceitar mas o modal sempre mostra "Nenhum candidato passa".
-
-**TESTAR em prod (Ctrl+F5):**
-- [ ] Modal ✨ Bomba do Simulador Solar → template "Bomba do Coletor Solar" → deve mostrar bombas que atendem (1/2cv pra cima com altura 6.28 mca: vazao 8.4 e pressao 8 mca → passa)
-- [ ] CatalogPickModal → checkbox "Apenas que passam no criterio" tambem deve funcionar
-
----
-
-## Versao anterior: v1.12.41 — Auto-select da bomba via pumpCurve interpolada
-
-**v1.12.41 (26/05/2026)** — fecha o ciclo Solis: auto-select da bomba passa a usar a curva caracteristica real em vez de specs estaticos.
-
-1. **Cadastro de Produto (aba Piscina)** — campo "Vazao (m³/h)" renomeado pra **"Vazao maxima (m³/h)"** + tooltip novo explicando que esse campo so dimensiona ralo de fundo e tempo de filtragem. Para perdas/altura manometrica, o sistema usa a `pumpCurve` cadastrada no card abaixo. Arquivo: `products/page.tsx:2022`.
-
-2. **Engine de auto-select** — quando candidato tem `pumpCurve` (>= 2 pontos validos) E baseVars tem `alturaTelhadoMca > 0`, agora interpola linearmente:
-   - `specVars.vazaoM3h` ← vazao entregue na altura alvo (interpolacao linear entre pontos vizinhos; 0 se altura > shut-off head; vazao maxima se altura < minima cadastrada)
-   - `specVars.pressaoTrabalhoMca` ← shut-off head (altura maxima da curva = ponto onde vazao -> 0)
-
-   Bombas SEM curva mantem o comportamento legado (`technicalSpecs` estaticos). Template "Bomba do Coletor Solar (vazao + pressao do simulador)" NAO precisou ser alterado — a logica eh transparente.
-
-   Arquivos: `backend/src/pool-budget/auto-select.helper.ts` (`interpolatePumpCurve`, `extractCandidateSpecs`, refactor de `filterByWhere`/`orderCandidates`), `pool-budget.service.ts:758` (adiciona `pumpCurve: true` no select de `allProducts`).
-
-**TESTAR em prod (Ctrl+F5):**
-- [ ] Cadastro de Produto → aba Piscina → campo agora diz "Vazao maxima (m³/h)" com tooltip novo
-- [ ] Modal ✨ Bomba do Simulador Solar → template "Bomba do Coletor Solar" → bomba que tem pumpCurve cobrindo 13.70 mca deve aparecer como candidata
-- [ ] Bomba SEM curva: continua sendo filtrada pelos specs estaticos (pressaoTrabalhoMca fixo)
-
-**NOTA do diagnostico:** as bombas atuais do tenant SLS (Pre-filtro 1/3cv ate 3cv) tem `pressaoTrabalhoMca` entre 6 e 12 mca — nenhuma vence os 13.70 mca calculados. Pra a auto-select funcionar nesse caso, precisa:
-1. Cadastrar bomba maior com pumpCurve cobrindo >= 14 mca, OU
-2. Trocar tubulacao pra 50mm (reduz perda dinamica de 8.70 pra ~3-4 mca → altura total ~8-9 mca, ai as bombas 1cv-3cv passam).
-
----
-
-## Versao anterior: v1.12.40 — Fix auto-select Bomba Solar
-
-**v1.12.40 (26/05/2026)** — 3 bugs reportados na tela do Simulador Solar:
-1. Texto "Defaults: PVC, fator 20%, 4 joelhos, 1 tê..." estava desatualizado (backend usa 10 joelhos e 4 tês desde v1.12.38). Fix em `HeatingSimulatorModal.tsx:2030`.
-2. Auto-select da bomba retornava "Nenhum candidato passa" mesmo com bombas no catalogo. Causa: `extractSolarVars()` em `backend/src/pool-budget/formula-eval.ts:289` populava `solarQty` e `solarNumBaterias` mas NAO `vazaoSolarM3h` — o criterio `vazaoM3h >= vazaoSolarM3h` sempre falhava (variavel undefined ≈ 0). Fix: ler `solarReport.vazaoTotalM3h` e expor como `vars.vazaoSolarM3h`.
-3. Bug #3 ("calculo nao leva em conta vazao dos coletores") era consequencia do #2 — resolvido pelo mesmo fix.
-
-**TESTAR em prod (apos Ctrl+F5):**
-- [ ] Texto da tubulacao agora diz "10 joelhos, 4 tês"
-- [ ] Modal ✨ Bomba → template "Bomba do Coletor Solar" encontra candidatos (precisa ter bomba cadastrada com `vazaoM3h >= 5.97` no technicalSpecs E `usedInPool=true`)
-- [ ] Se ainda nao achar: verificar `poolType` das bombas vs filtro do template ("Bombas diversas") e regra `Company.systemConfig.pool.solarBombaRule`
+## Memorias atualizadas/criadas
+- [memory/feedback_autoselect_vars_frontend_backend.md](memory/feedback_autoselect_vars_frontend_backend.md) — incidente v1.12.40 → v1.12.47 (vars duplicadas + fonte de candidatos duplicada)
+- [memory/study_solar_vazao_base_teorica.md](memory/study_solar_vazao_base_teorica.md) — base teorica + validacao oficial Solis + implementacao v1.12.48
 
 ---
 
@@ -183,110 +91,3 @@ Sessao 211 (25/05/2026) — maratona de modulo Piscina cobriu 3 frentes principa
 3. Bugs universais (FormData upload, sortOrder negativo, dropdown tipos)
 
 Detalhes de cada release em `git log` (tags v1.12.19 → v1.12.39).
-
-## ✅ Pendentes pra TESTAR (em prod)
-
-Apos o usuario recarregar a pagina (Ctrl+F5), validar:
-
-### Orcamento de Piscina (/quotes/pool/[id])
-- [ ] Card vazio mostra 3 botoes (+ Adicionar linha, + Nova etapa, Carregar template Linear)
-- [ ] Modal "+ Linha" pede so Nome + Tipo (Produto/Servico) + Etapa
-- [ ] Dropdown de etapa lista TODAS (padrao + custom criadas)
-- [ ] "+ Nova etapa" dentro do modal reabre o modal ja na etapa criada
-- [ ] Linha em etapa CUSTOM_* salva certo (poolSection=String puro, sem bandagem)
-- [ ] Mover linha ▲▼ funciona sem erro "sortOrder less than 0"
-- [ ] Nova linha entra no FINAL da etapa (max+1)
-- [ ] Coluna ITEM mostra slotName, DESCRICAO mostra "Sem produto"/"Sem servico" quando livre
-- [ ] Icone ✨ violeta (produto) / 🛠 verde (servico)
-- [ ] Auto-link silencioso REMOVIDO: nova linha sempre livre (testar — nao deve auto-vincular por descricao)
-
-### Cadastro de Produto (/products)
-- [ ] Modal arrastavel pelo header (cursor-move + ⋮⋮)
-- [ ] Aba Piscina → "Servico vinculado" no card Tempo de instalacao
-- [ ] Aba Piscina → "Pressao de trabalho (MCA)" entre Vazao e Tubo (ESCONDIDO se ha curva)
-- [ ] Aba Piscina → Card "📈 Curva da bomba" aparece se poolType comeca com "Bomba"
-- [ ] Contador "X/6 pontos · faltam Y" no titulo do card quando curva obrigatoria
-- [ ] Aviso vermelho no card se obrigatorio e faltam pontos; verde quando OK
-- [ ] Salvar produto sem curva (quando obrigatoria) erra com mensagem clara
-- [ ] Upload de imagem funciona (fix universal FormData v1.12.30)
-
-### Cadastro de Servico (/services)
-- [ ] Novo card "🏊 Modulo Piscina" com checkbox "Usado em obras de piscina"
-- [ ] Campo "Tipo de equipamento" (poolType) quando checkbox marcado
-
-### Simulador Solar
-- [ ] Bloco "🚰 Tubulacao" aparece ANTES da Bomba recomendada
-- [ ] Preencher Comprimento + Desnivel → calcula Altura Manometrica Total
-- [ ] Card amber: perda dinamica + desnivel + velocidade + tubo escolhido (PVC DN)
-- [ ] Card VERMELHO quando velocidade ≥ 2,5 m/s + alerta "AUMENTE O DIAMETRO"
-- [ ] Auto-pick funciona: vazao baixa → 32mm, vazao alta → 50/60/75mm
-- [ ] Dropdown de DN: trocar manual → badge "manual" + botao "↺ deixar automatico"
-- [ ] Defaults: 10 joelhos, 4 tes (refletido em comprimento equivalente)
-- [ ] Descricao da Bomba mostra inline "+ altura manometrica de X mca"
-
-### Auto-selecao do produto (modal ✨)
-- [ ] Dropdown "Tipo (Piscina)" mostra TODOS os tipos do tenant incluindo "Bombas diversas"
-- [ ] Recarrega a lista ao abrir o modal (sem precisar F5)
-- [ ] Template novo "☀ Coletor do Simulador Solar" na lista de templates prontos
-- [ ] Ao clicar no template, regra fica com useSolarCollector=true (sem filtros)
-- [ ] Trocar coletor no Simulador → linha do orcamento com regra "Coletor do Simulador" atualiza automaticamente
-
-### Upload em outras telas (FormData fix universal v1.12.30)
-- [ ] Upload de imagem em produtos
-- [ ] Upload de imagem em servicos
-- [ ] Upload do header do Simulador Solar
-- [ ] Foto OS, NFe import, signup foto empresa (deve estar funcionando, foram 12 telas afetadas)
-
-## 🚧 PENDENTES (codigo nao implementado)
-
-### Auto-selecao com curva da bomba interpolada (planejado pra v1.12.40+)
-Hoje a auto-selecao da bomba ainda compara `pressaoTrabalhoMca >= alturaTelhadoMca` (1 numero vs 1 numero). Pra ficar 100% fiel ao metodo Solis, falta:
-1. Backend: ao aplicar regra "Bomba do Coletor Solar", interpolar a curva da bomba (`Product.pumpCurve`) na altura manometrica calculada pra obter vazao entregue.
-2. Aceitar bomba se `vazao_interpolada >= vazaoSolarM3h`.
-3. Mostrar indicador na linha do orcamento: "Vazao entregue: X m³/h (folga Y%)".
-4. Fallback: bombas sem curva cadastrada usam `pressaoTrabalhoMca` (comportamento atual).
-
-### Configuracoes > Piscina > Defaults de tubulacao
-Hoje defaults sao hardcoded (PVC, [32,40,50,60,75], 10 joelhos, 4 tes, 1 reg, 1 valv, fator 20%).
-Tela em Configuracoes pra editar e salvar em `Company.systemConfig.pool.pipeDefaults`.
-
-### Auto-selecao de servico: "Seguir produto da linha X"
-Schema ja tem `Product.linkedServiceId` (v1.12.22). Falta:
-1. `autoSelectRule.followProductLine: cellRef` no schema da rule
-2. Frontend AutoSelectModal: novo modo "Seguir servico do produto da linha L_X"
-3. Backend: quando linha de SERVICE tem `followProductLine`, le produto da linha referenciada, pega `Product.linkedServiceId`, vincula
-4. Reavaliacao automatica quando produto muda
-
-### Pendentes legado (sessao 209)
-- ⏳ Rodar SQL `update-solis-procel-sls.sql` (manual)
-- ⏳ Configurar regra do Coletor Solar no SLS (UI: ✨ Coletor → filterDescription)
-- ⏳ Persistir overrides modo MANUAL em environmentParams
-- ⏳ Motor usar overrides em modo MANUAL no calculo
-- ⏳ Motor aplicar inclinacao otima ≈ latitude
-
-## 🧪 PROXIMA SESSAO — Onde retomar
-
-Se quiser continuar de onde paramos, ordem recomendada:
-1. **Validar tudo da sessao 211** (checklist acima) — confirmar que nao ha regressao
-2. **Auto-selecao via curva da bomba interpolada** — fecha o ciclo Solis completo (alta prioridade)
-3. **Configuracoes > Piscina > Defaults de tubulacao** — permite tenant ajustar sem deploy
-4. **Auto-selecao de servico** — fecha o vinculo Product.linkedServiceId que ja foi cadastrado
-
-## 📚 Memorias criadas / atualizadas
-
-- [memory/bug-etapa-custom-linha-orfao.md](memory/bug-etapa-custom-linha-orfao.md) — caso completo (v1.12.19/20)
-- [memory/feedback_etapa_nao_tem_distincao.md](.claude/projects/.../memory/feedback_etapa_nao_tem_distincao.md) — categoria custom = categoria padrao
-- [memory/feedback_seguir_padroes_sistema.md](.claude/projects/.../memory/feedback_seguir_padroes_sistema.md) — nunca inventar UI hardcode fora dos padroes
-- CLAUDE.md regra #9 atualizada — seguir padroes do sistema antes de criar UI
-
-## Sessao 210 (anterior): v1.12.16 → v1.12.18 — Financeiro
-
-**v1.12.16** — bug do encargo de fatura de cartao quebrando conferencia retroativa (R$ 32,12 em marco e abril/2026 no SLS). Fix em `matchAsCardInvoice`: encargo sem cartao agora recebe `cashAccountId=bankAccountId` pra entrar no balance-compare. `unmatchLine` reverte corretamente. Correcao retroativa do FIN-00577 aplicada via SQL. Criado `ClosedMonthGuardService` que bloqueia qualquer mutacao financeira (match/unmatch/create/update/delete entry, transfer) em mes com conferencia ja batendo. Aplicado em ReconciliationService, FinanceService e TransferService. Ver `memory/bug-encargo-fatura-orfao.md`.
-
-**v1.12.17** — filtro do modal de Conciliacao escondia 16 lancamentos no SLS (FIN-00373 com NFS-e nao aparecia). Causa: `{ notes: { not: { contains: '[REBALANCE_AJUSTE]' } } }` em Prisma+Postgres compila pra `NOT (notes LIKE ...)` que retorna NULL pra rows com `notes=NULL`, e WHERE NULL = FALSE → row excluida silenciosamente. Fix em `finance.service.ts:447` com OR explicito. FIN-00592 (duplicata criada pelo user durante o bug) soft-deletada + saldo TRANSITO ajustado. Ver `memory/bug-filtro-notes-null.md`.
-
-**v1.12.18** — anti-regressao: criado `backend/src/common/util/prisma-null-safe.ts` com helpers `notContainsNullSafe / notEqualsNullSafe / notInNullSafe / notLikeNullSafe`. Aplicado no fix do v1.12.17 como exemplo vivo. Regra obrigatoria adicionada em CLAUDE.md (secao "Filtros Prisma `not:` em Campos Nullable") com tabela perigosos vs seguros. Auditoria do codebase confirmou: nenhum outro bug latente da mesma classe.
-
-## Sessao 209 (anteriores): v1.12.11 → v1.12.15 — Simulador Solar maduro + cadastro de produto alinhado com Procel
-
-Sessao 209 (21/05/2026) entregou 5 releases (v1.12.11 → v1.12.15). Simulador Solar: zoom proporcional auto + manual, catalog real do tenant no AutoSelectModal, cadastro estrito do coletor (description + missingSpecs + erro claro), ✨ Coletor + ✨ Bomba com AutoSelectModal real + persistencia da regra no tenant, vazaoSolarM3h em FORMULA_VARS + template "Bomba do Coletor Solar", aviso amarelo quando sem regra, etapas customizaveis no orcamento (renomear/adicionar/excluir), bug do scroll corrigido, eficiencia em %, alinhamento 100% Procel/Inmetro PBE (Area externa, Producao especifica, Eficiencia, Classificacao A-E, Pressao), imagem do produto (upload no cadastro + uso no header do Simulador), filtro hardcoded de tipoEquipamento substituido por regra do tenant (Company.systemConfig.pool.solarCollectorRule), gerenciador de tipos (poolType) com CRUD + campos obrigatorios por tipo + validacao em camadas, Tab pula '?' do FieldLabel system-wide.
