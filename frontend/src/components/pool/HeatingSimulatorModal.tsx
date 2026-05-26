@@ -3065,9 +3065,10 @@ function BatteryDiagram({
           );
         })}
 
-        {/* Labels ALIMENTACAO e RETORNO */}
-        <text x={trunkXIn} y={svgH - 4} fontSize={10} fontWeight={800} fill="#0369a1" textAnchor="middle" className="uppercase tracking-wider">Alimentação</text>
-        <text x={trunkXOut} y={svgH - 4} fontSize={10} fontWeight={800} fill="#b91c1c" textAnchor="middle" className="uppercase tracking-wider">Retorno</text>
+        {/* Labels ALIMENTACAO e RETORNO. v1.12.57: reduzido 75% + ancoragem ajustada
+            pra nao cortar na borda esquerda quando SVG escala. */}
+        <text x={trunkXIn - 4} y={svgH - 4} fontSize={6.5} fontWeight={800} fill="#0369a1" textAnchor="start" className="uppercase tracking-wider">Alimentação</text>
+        <text x={trunkXOut + 4} y={svgH - 4} fontSize={6.5} fontWeight={800} fill="#b91c1c" textAnchor="end" className="uppercase tracking-wider">Retorno</text>
       </svg>
     </div>
   );
