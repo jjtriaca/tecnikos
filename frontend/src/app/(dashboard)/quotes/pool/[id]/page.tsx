@@ -3269,6 +3269,12 @@ export function AutoSelectModal({
       // Solar (vazao do simulador)". Le de heatingReport (que quando aberto pelo
       // SolarTab eh o SolarReport com vazaoTotalM3h).
       vazaoSolarM3h: Number((heatingReport as any)?.vazaoTotalM3h) || 0,
+      // v1.12.42: altura manometrica total do Simulador (perda dinamica + desnivel),
+      // populada apos o operador rodar o calculo da tubulacao. Usada pelo template
+      // "Bomba do Coletor Solar": pressaoTrabalhoMca >= alturaTelhadoMca.
+      // Sem essa linha, a variavel ficava undefined e o evaluator do frontend
+      // retornava false pra TODO candidato (incidente v1.12.41).
+      alturaTelhadoMca: Number((environmentParams as any)?.alturaTelhadoM) || 0,
       // Sibling vars resolvidas: linkedCellRef se definido, senao siblingVars genericos.
       ...effectiveSiblingVars,
     };
@@ -4017,6 +4023,10 @@ function CatalogPickModal({ catalog, currentSection, currentKind, autoSelectRule
       escavacao: Number(dimensions?.escavacaoM3) || 0,
       tempLocal: Number(environmentParams?.temperaturaMediaLocal ?? environmentParams?.temperatura) || 0,
       tempAgua: Number(environmentParams?.temperaturaAguaDesejada) || 0,
+      // v1.12.42: solar/pipe vars — mesma logica do AutoSelectModal pra filtro
+      // "Apenas que passam no criterio" reconhecer regras tipo "vazaoM3h >= vazaoSolarM3h".
+      vazaoSolarM3h: Number((environmentParams as any)?.solarReport?.vazaoTotalM3h) || 0,
+      alturaTelhadoMca: Number((environmentParams as any)?.alturaTelhadoM) || 0,
       ...(siblingVars || {}),
     };
     return v;
