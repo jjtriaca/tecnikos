@@ -2991,11 +2991,10 @@ function BigHighlightInput({ label, value, onChange, unit, min, max, manual }: {
   );
 }
 
-// v1.12.53: diagrama SVG da configuracao de baterias.
-// v1.12.55: container de TAMANHO FIXO (200x180). O SVG interno calcula o viewBox
-// conforme a topologia (ramos × baterias) e usa preserveAspectRatio pra ESCALAR
-// dentro do espaco fixo. Configuracoes maiores ficam menores; menores ocupam o
-// mesmo espaco. Garante consistencia visual independente da qtd de baterias.
+// v1.12.56: diagrama no padrao Solis — baterias HORIZONTAIS (em serie lado a lado),
+// ramos EMPILHADOS verticalmente. Alimentacao entra pela esquerda + tronco vertical
+// azul alimenta cada ramo. Retorno sai pela direita + tronco vermelho coleta.
+// Container de tamanho FIXO (220px alt × 100% larg) — SVG escala internamente.
 function BatteryDiagram({
   numRamos, batPorRamo, coletoresPorBateria,
 }: {
@@ -3004,49 +3003,71 @@ function BatteryDiagram({
   coletoresPorBateria: number;
 }) {
   if (numRamos <= 0 || batPorRamo <= 0) return null;
-  const ramoW = 60;
-  const ramoGap = 24;
-  const batH = 38;
-  const batGap = 10;
-  const padding = 16;
-  const svgW = numRamos * ramoW + Math.max(0, numRamos - 1) * ramoGap + padding * 2;
-  const svgH = 16 + batPorRamo * batH + Math.max(0, batPorRamo - 1) * batGap + 36; // trunks + ramo labels
-  const trunkY1 = 14;
-  const trunkY2 = svgH - 22;
+  const batW = 70;
+  const batH = 42;
+  const gapH = 22; // entre baterias em serie (horizontal)
+  const gapV = 18; // entre ramos (vertical)
+  const padLeft = 56;
+  const padRight = 56;
+  const padTop = 12;
+  const padBottom = 26; // pros labels ALIM/RET
+  const svgW = padLeft + batPorRamo * batW + Math.max(0, batPorRamo - 1) * gapH + padRight;
+  const svgH = padTop + numRamos * batH + Math.max(0, numRamos - 1) * gapV + padBottom;
+  const trunkXIn = padLeft - 22;
+  const trunkXOut = svgW - padRight + 22;
+  const trunkYTop = padTop + batH / 2;
+  const trunkYBot = svgH - padBottom - batH / 2 - (numRamos > 1 ? 0 : 0);
+  // Tronco vertical so faz sentido se houver multiplos ramos. Se 1 ramo, conexao
+  // direta da entrada -> primeira bateria, ultima bateria -> retorno.
+  const showTroncos = numRamos > 1;
   return (
-    <div className="w-full" style={{ height: 170 }}>
+    <div className="w-full" style={{ height: 220 }}>
       <svg viewBox={`0 0 ${svgW} ${svgH}`} preserveAspectRatio="xMidYMid meet" width="100%" height="100%">
-        {/* Tronco de entrada (alimentacao) */}
-        <line x1={padding} y1={trunkY1} x2={svgW - padding} y2={trunkY1} stroke="#0284c7" strokeWidth={3} strokeLinecap="round" />
-        <text x={padding} y={trunkY1 - 4} fontSize={9} fontWeight={700} fill="#0369a1" className="uppercase">Alimentação</text>
-        {/* Tronco de retorno */}
-        <line x1={padding} y1={trunkY2} x2={svgW - padding} y2={trunkY2} stroke="#dc2626" strokeWidth={3} strokeLinecap="round" />
-        <text x={padding} y={trunkY2 + 12} fontSize={9} fontWeight={700} fill="#b91c1c" className="uppercase">Retorno</text>
-        {/* Ramos */}
+        {/* Tronco vertical de alimentacao (azul, esquerda) */}
+        {showTroncos && (
+          <line x1={trunkXIn} y1={trunkYTop} x2={trunkXIn} y2={trunkYBot} stroke="#0284c7" strokeWidth={3} strokeLinecap="round" />
+        )}
+        {/* Tronco vertical de retorno (vermelho, direita) */}
+        {showTroncos && (
+          <line x1={trunkXOut} y1={trunkYTop} x2={trunkXOut} y2={trunkYBot} stroke="#dc2626" strokeWidth={3} strokeLinecap="round" />
+        )}
+        {/* "Pé" da alimentacao descendo pra label ALIMENTACAO */}
+        <line x1={trunkXIn} y1={trunkYBot} x2={trunkXIn} y2={svgH - 16} stroke="#0284c7" strokeWidth={3} strokeLinecap="round" />
+        <line x1={trunkXOut} y1={trunkYBot} x2={trunkXOut} y2={svgH - 16} stroke="#dc2626" strokeWidth={3} strokeLinecap="round" />
+
+        {/* Ramos (linhas horizontais) */}
         {Array.from({ length: numRamos }).map((_, r) => {
-          const x = padding + r * (ramoW + ramoGap);
-          const xMid = x + ramoW / 2;
+          const yMid = padTop + r * (batH + gapV) + batH / 2;
+          const xFirst = padLeft;
+          const xLast = padLeft + batPorRamo * batW + Math.max(0, batPorRamo - 1) * gapH;
           return (
             <g key={r}>
-              <line x1={xMid} y1={trunkY1} x2={xMid} y2={trunkY1 + 8} stroke="#0284c7" strokeWidth={2} />
-              <line x1={xMid} y1={trunkY2 - 8} x2={xMid} y2={trunkY2} stroke="#dc2626" strokeWidth={2} />
+              {/* Linha azul: tronco -> primeira bateria do ramo */}
+              <line x1={trunkXIn} y1={yMid} x2={xFirst} y2={yMid} stroke="#0284c7" strokeWidth={2.5} strokeLinecap="round" />
+              {/* Linha vermelha: ultima bateria -> tronco retorno */}
+              <line x1={xLast} y1={yMid} x2={trunkXOut} y2={yMid} stroke="#dc2626" strokeWidth={2.5} strokeLinecap="round" />
+              {/* Baterias em serie */}
               {Array.from({ length: batPorRamo }).map((__, b) => {
-                const y = trunkY1 + 8 + b * (batH + batGap);
+                const x = padLeft + b * (batW + gapH);
                 return (
                   <g key={b}>
-                    <rect x={x} y={y} width={ramoW} height={batH} rx={4} ry={4} fill="#fef3c7" stroke="#d97706" strokeWidth={1.5} />
-                    <text x={xMid} y={y + 16} fontSize={9} fontWeight={700} fill="#92400e" textAnchor="middle">Bateria</text>
-                    <text x={xMid} y={y + 30} fontSize={11} fontWeight={800} fill="#78350f" textAnchor="middle" className="tabular-nums">{coletoresPorBateria} col.</text>
+                    <rect x={x} y={yMid - batH / 2} width={batW} height={batH} rx={5} ry={5} fill="#fef3c7" stroke="#d97706" strokeWidth={1.5} />
+                    <text x={x + batW / 2} y={yMid - 3} fontSize={9} fontWeight={700} fill="#92400e" textAnchor="middle">Bateria</text>
+                    <text x={x + batW / 2} y={yMid + 11} fontSize={11.5} fontWeight={800} fill="#78350f" textAnchor="middle" className="tabular-nums">{coletoresPorBateria} col.</text>
+                    {/* Conexao serial entre baterias do mesmo ramo — cinza neutro (agua transitando) */}
                     {b < batPorRamo - 1 && (
-                      <line x1={xMid} y1={y + batH} x2={xMid} y2={y + batH + batGap} stroke="#64748b" strokeWidth={2} strokeDasharray="2 2" />
+                      <line x1={x + batW} y1={yMid} x2={x + batW + gapH} y2={yMid} stroke="#64748b" strokeWidth={2.5} strokeDasharray="3 2" />
                     )}
                   </g>
                 );
               })}
-              <text x={xMid} y={trunkY2 + 22} fontSize={8.5} fontWeight={600} fill="#475569" textAnchor="middle" className="uppercase tracking-wider">Ramo {r + 1}</text>
             </g>
           );
         })}
+
+        {/* Labels ALIMENTACAO e RETORNO */}
+        <text x={trunkXIn} y={svgH - 4} fontSize={10} fontWeight={800} fill="#0369a1" textAnchor="middle" className="uppercase tracking-wider">Alimentação</text>
+        <text x={trunkXOut} y={svgH - 4} fontSize={10} fontWeight={800} fill="#b91c1c" textAnchor="middle" className="uppercase tracking-wider">Retorno</text>
       </svg>
     </div>
   );
