@@ -128,6 +128,24 @@ export class PoolBudgetController {
     return this.solarBudget.setSolarBombaRule(user.companyId, body?.rule ?? null);
   }
 
+  @ApiOperation({ summary: 'Lista candidatos a bomba do Coletor Solar que passam na regra (ordenados pelo orderBy). v1.12.43.' })
+  @Get(':id/solar-bomba-candidates')
+  listSolarBombaCandidates(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.solarBudget.listSolarBombaCandidates(id, user.companyId).then((candidates) => ({ candidates }));
+  }
+
+  @ApiOperation({ summary: 'Persiste a bomba escolhida pelo operador no dropdown do Simulador Solar. body.productId=null limpa. v1.12.43.' })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/solar-bomba-selection')
+  setSelectedBomba(
+    @Param('id') id: string,
+    @Body() body: { productId: string | null },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.solarBudget.setSelectedBomba(id, user.companyId, body?.productId ?? null);
+  }
+
   @ApiOperation({ summary: 'Simulacao solar — calculo rapido sem salvar' })
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)
   @Post('solar/simulate')

@@ -1497,6 +1497,66 @@ function SolarTab({
   const [pipeResult, setPipeResult] = useState<any | null>(initPipeResult);
   const [pipeRecomputing, setPipeRecomputing] = useState(false);
 
+  // v1.12.43: dropdown de candidatos a bomba. Substitui a string fixa "Bomba recomendada"
+  // por lista real do catalogo filtrada pela bombaRule (vazaoSolarM3h + alturaTelhadoMca).
+  // Backend interpola pumpCurve em vazaoM3h/pressaoTrabalhoMca quando candidato tem curva.
+  interface BombaCandidate {
+    productId: string;
+    description: string;
+    salePriceCents: number;
+    poolType: string | null;
+    vazaoM3h: number;
+    pressaoTrabalhoMca: number;
+    potenciaCv: number | null;
+    hasPumpCurve: boolean;
+    indicator: { value: number; label: string; color: string; unit: string } | null;
+  }
+  const initSelectedBombaId = (budget.environmentParams as any)?.solarReport?.selectedBombaId ?? null;
+  const [bombaCandidates, setBombaCandidates] = useState<BombaCandidate[]>([]);
+  const [selectedBombaId, setSelectedBombaId] = useState<string | null>(initSelectedBombaId);
+  const [bombaCandidatesLoading, setBombaCandidatesLoading] = useState(false);
+
+  // Carrega candidatos sempre que ha solarReport + alturaTelhadoMca disponiveis.
+  // Re-roda quando pipeResult muda (altura nova) ou report.vazaoTotalM3h muda.
+  useEffect(() => {
+    if (!report || !report.vazaoTotalM3h || report.vazaoTotalM3h <= 0) {
+      setBombaCandidates([]);
+      return;
+    }
+    let cancelled = false;
+    setBombaCandidatesLoading(true);
+    api.get<{ candidates: BombaCandidate[] }>(`/pool-budgets/${budget.id}/solar-bomba-candidates`)
+      .then((res) => {
+        if (cancelled) return;
+        setBombaCandidates(res?.candidates ?? []);
+        // Se nao tem selecao salva, ou a selecao salva nao passa mais na regra,
+        // adota o primeiro candidato (default da regra).
+        if (res?.candidates && res.candidates.length > 0) {
+          const stillValid = selectedBombaId && res.candidates.some((c) => c.productId === selectedBombaId);
+          if (!stillValid) setSelectedBombaId(res.candidates[0].productId);
+        } else {
+          setSelectedBombaId(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setBombaCandidates([]);
+      })
+      .finally(() => {
+        if (!cancelled) setBombaCandidatesLoading(false);
+      });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [budget.id, report?.vazaoTotalM3h, pipeResult?.alturaManometricaTotal, bombaRule?.where, bombaRule?.orderBy, bombaRule?.filterPoolType, bombaRule?.filterDescription]);
+
+  async function handleSelectBomba(productId: string | null) {
+    setSelectedBombaId(productId);
+    try {
+      await api.post(`/pool-budgets/${budget.id}/solar-bomba-selection`, { productId });
+    } catch (err) {
+      console.warn('Falha ao salvar selectedBombaId:', err);
+    }
+  }
+
   async function recomputePipe(overrides?: { comprimentoM?: number; desnivelM?: number; diametroMm?: number | null }) {
     const comp = overrides?.comprimentoM ?? pipeComprimento;
     const desn = overrides?.desnivelM ?? pipeDesnivel;
@@ -2038,25 +2098,53 @@ function SolarTab({
                     </div>
                   </div>
 
-                  {/* v1.12.38: Bomba recomendada agora vem DEPOIS da Tubulacao — operador ja sabe
-                      a altura manometrica calculada antes de escolher a bomba. */}
+                  {/* v1.12.43: Bomba recomendada agora eh um DROPDOWN com TODAS as bombas
+                      do catalogo que passam na regra (filterPoolType + filterDescription + where).
+                      Ordenadas pelo orderBy da regra. Operador pode escolher outra entre as
+                      candidatas. Backend interpola pumpCurve quando candidato tem curva. */}
                   <div>
                     <SectionLabel>Bomba recomendada</SectionLabel>
                     <div className="mt-1.5 flex items-center gap-1.5">
-                      {/* v5.7: abre AutoSelectModal pra Bomba. Template "🚰 Bomba do Coletor Solar
-                          (vazao + pressao do simulador)" filtra produtos por vazaoM3h >= vazaoSolarM3h
-                          e pressaoTrabalhoMca >= alturaTelhadoMca (interpola pumpCurve em v1.12.34+). */}
                       <button type="button"
                         onClick={() => setShowBombaPicker(true)}
                         title="Configurar auto-seleção da bomba (filtra por vazão calculada e altura manométrica)"
                         className="text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300 print:hidden flex-shrink-0">
                         ✨
                       </button>
-                      <div className="flex-1 bg-slate-50 border border-slate-200 rounded px-3 py-2">
-                        <div className="text-[12px] font-bold text-slate-900 leading-tight">{report.bombaRecomendada}</div>
-                        <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">
-                          Mapeado pela vazão calculada{pipeResult ? ` + altura manométrica de ${pipeResult.alturaManometricaTotal?.toFixed(2)} mca` : ''}. Operador ajusta o modelo exato no orçamento final.
-                        </div>
+                      <div className="flex-1">
+                        {bombaCandidates.length === 0 ? (
+                          <div className="bg-slate-50 border border-slate-200 rounded px-3 py-2">
+                            <div className="text-[12px] font-bold text-slate-900 leading-tight">
+                              {bombaCandidatesLoading ? 'Carregando candidatos...' : (report.bombaRecomendada || 'Nenhum candidato no catálogo')}
+                            </div>
+                            <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">
+                              {bombaCandidatesLoading
+                                ? 'Avaliando catálogo contra a regra...'
+                                : `Nenhuma bomba do catálogo atende a regra atual (vazão ≥ ${report.vazaoTotalM3h?.toFixed(2)} m³/h${pipeResult ? ` e pressão ≥ ${pipeResult.alturaManometricaTotal?.toFixed(2)} mca` : ''}). Edite no ✨ ou cadastre bombas compatíveis.`}
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <select
+                              value={selectedBombaId ?? ''}
+                              onChange={(e) => handleSelectBomba(e.target.value || null)}
+                              className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-[12px] font-bold text-slate-900"
+                            >
+                              {bombaCandidates.map((c) => {
+                                const parts: string[] = [c.description];
+                                if (c.potenciaCv != null) parts.push(`${c.potenciaCv} cv`);
+                                parts.push(`${c.vazaoM3h.toFixed(1)} m³/h`);
+                                parts.push(`${c.pressaoTrabalhoMca.toFixed(1)} mca`);
+                                if (c.hasPumpCurve) parts.push('📈 curva');
+                                if (c.indicator) parts.push(`${c.indicator.label}: ${c.indicator.value.toFixed(0)}${c.indicator.unit}`);
+                                return <option key={c.productId} value={c.productId}>{parts.join(' · ')}</option>;
+                              })}
+                            </select>
+                            <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">
+                              {bombaCandidates.length} bomba(s) atendem · ordem definida pela regra ✨ · vazão {report.vazaoTotalM3h?.toFixed(2)} m³/h{pipeResult ? ` + altura ${pipeResult.alturaManometricaTotal?.toFixed(2)} mca` : ''}
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>

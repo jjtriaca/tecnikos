@@ -14,6 +14,7 @@ import { SolarRecomputeDto } from './dto/solar-simulate.dto';
 import { SolarPipeDto } from './dto/solar-pipe.dto';
 import { PipeHeadLossService, PipeMaterial } from './pipe-head-loss.service';
 import { SOLAR_LATITUDE_ABS_BY_UF } from './solar-constants';
+import { filterByWhere, orderCandidates, evaluateIndicator, interpolatePumpCurve } from './auto-select.helper';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
@@ -289,11 +290,14 @@ export class SolarBudgetService {
 
     if (products.length === 0) {
       const filtroStr = bombaRule?.filterPoolType || bombaRule?.filterDescription
-        ? `(filtro: ${[bombaRule?.filterPoolType, bombaRule?.filterDescription].filter(Boolean).join(' · ')})`
-        : '(sem regra solarBombaRule definida)';
+        ? `(filtros: ${[
+            bombaRule?.filterPoolType ? `tipo='${bombaRule.filterPoolType}'` : null,
+            bombaRule?.filterDescription ? `descricao contendo '${bombaRule.filterDescription}'` : null,
+          ].filter(Boolean).join(', ')})`
+        : '(sem regra cadastrada)';
       warnings.push({
         severity: 'warning',
-        message: `Nenhuma bomba encontrada no catalogo ${filtroStr}. Cadastre bombas com poolType correto e a flag "Usado em Piscina", ou configure a regra de busca em Configuracoes > Piscina > Bomba Solar.`,
+        message: `Nenhuma bomba encontrada no catalogo ${filtroStr}. Cadastre bombas com poolType correspondente, ou edite a regra clicando no icone ✨ ao lado de "Bomba recomendada" (acima).`,
       });
       return warnings;
     }
@@ -457,6 +461,136 @@ export class SolarBudgetService {
 
   async setSolarBombaRule(companyId: string, rule: any | null): Promise<{ rule: any | null }> {
     return this.setTenantPoolKey(companyId, 'solarBombaRule', rule);
+  }
+
+  // ============ Candidatos da Bomba Solar (v1.12.43) ============
+
+  /**
+   * v1.12.43: lista TODOS os candidatos a bomba que passam na regra (filtros + where)
+   * ordenados pelo orderBy da regra. Substitui a Bomba recomendada (string fixa) por
+   * dropdown com candidatos reais do catalogo do tenant.
+   *
+   * Inclui interpolacao da pumpCurve quando o candidato tem curva caracteristica
+   * cadastrada (vazaoM3h e pressaoTrabalhoMca sao recalculados na altura alvo).
+   *
+   * Retorna ate 20 candidatos com info pra renderizar o dropdown:
+   *  - productId, description, salePriceCents, poolType
+   *  - vazaoM3h, pressaoTrabalhoMca, potenciaCv (do technicalSpecs, interpolados quando ha curva)
+   *  - hasPumpCurve (boolean)
+   *  - indicator (resultado avaliado, ex: "Folga vazao: +25%")
+   */
+  async listSolarBombaCandidates(
+    budgetId: string,
+    companyId: string,
+  ): Promise<Array<{
+    productId: string;
+    description: string;
+    salePriceCents: number;
+    poolType: string | null;
+    vazaoM3h: number;
+    pressaoTrabalhoMca: number;
+    potenciaCv: number | null;
+    hasPumpCurve: boolean;
+    indicator: { value: number; label: string; color: string; unit: string } | null;
+  }>> {
+    const budget = await this.prisma.poolBudget.findFirst({
+      where: { id: budgetId, companyId, deletedAt: null },
+      select: { environmentParams: true },
+    });
+    if (!budget) throw new NotFoundException('Orcamento nao encontrado');
+
+    const env = (budget.environmentParams ?? {}) as Record<string, any>;
+    const solarReport = env.solarReport as Record<string, any> | undefined;
+    const vazaoSolarM3h = Number(solarReport?.vazaoTotalM3h) || 0;
+    const alturaTelhadoMca = Number(env.alturaTelhadoM) || 0;
+    if (vazaoSolarM3h <= 0) return []; // sem solarReport, nada a sugerir
+
+    const bombaRule = await this.getSolarBombaRule(companyId);
+    if (!bombaRule) return [];
+
+    const products = await this.prisma.product.findMany({
+      where: {
+        companyId,
+        deletedAt: null,
+        ...(bombaRule?.filterPoolType?.trim()
+          ? { poolType: { equals: String(bombaRule.filterPoolType).trim(), mode: 'insensitive' } as any }
+          : {}),
+        ...(bombaRule?.filterDescription?.trim()
+          ? { description: { contains: String(bombaRule.filterDescription).trim(), mode: 'insensitive' } }
+          : {}),
+      },
+      select: {
+        id: true, description: true, salePriceCents: true,
+        poolType: true, technicalSpecs: true, pumpCurve: true,
+      },
+    });
+    if (products.length === 0) return [];
+
+    const baseVars = { vazaoSolarM3h, alturaTelhadoMca };
+
+    // Aplica where (filtro de criterio) e orderBy da regra. filterByWhere/orderCandidates
+    // ja interpolam pumpCurve quando candidato tem curva cadastrada (v1.12.41).
+    const passed = filterByWhere(products as any, bombaRule, baseVars);
+    const ordered = orderCandidates(passed as any, bombaRule, baseVars).slice(0, 20);
+
+    return ordered.map((p: any) => {
+      const specs = (p.technicalSpecs ?? {}) as Record<string, any>;
+      const hasPumpCurve = Array.isArray(p.pumpCurve) && (p.pumpCurve as any[]).length >= 2;
+      const interp = hasPumpCurve && alturaTelhadoMca > 0
+        ? interpolatePumpCurve(p.pumpCurve, alturaTelhadoMca)
+        : null;
+      const vazaoEfetiva = interp ? interp.vazaoInterpolada : Number(specs.vazaoM3h) || 0;
+      const pressaoEfetiva = interp ? interp.shutOffHead : Number(specs.pressaoTrabalhoMca) || 0;
+      const potenciaCv = specs.potenciaCv != null ? Number(specs.potenciaCv) : null;
+
+      // Avalia indicator (folga vazao) com os specs interpolados
+      const indicatorVars = {
+        ...baseVars,
+        vazaoM3h: vazaoEfetiva,
+        pressaoTrabalhoMca: pressaoEfetiva,
+        ...(potenciaCv != null ? { potenciaCv } : {}),
+      };
+      const indicatorResult = evaluateIndicator(bombaRule, indicatorVars);
+
+      return {
+        productId: p.id,
+        description: p.description ?? '',
+        salePriceCents: p.salePriceCents ?? 0,
+        poolType: p.poolType ?? null,
+        vazaoM3h: vazaoEfetiva,
+        pressaoTrabalhoMca: pressaoEfetiva,
+        potenciaCv: Number.isFinite(potenciaCv as number) ? (potenciaCv as number) : null,
+        hasPumpCurve,
+        indicator: indicatorResult,
+      };
+    });
+  }
+
+  /**
+   * v1.12.43: persiste a bomba escolhida pelo operador no dropdown em
+   * environmentParams.solarReport.selectedBombaId. Operador pode trocar a
+   * sugestao default da regra por outra que tambem passa.
+   */
+  async setSelectedBomba(
+    budgetId: string,
+    companyId: string,
+    productId: string | null,
+  ): Promise<{ selectedBombaId: string | null }> {
+    const budget = await this.prisma.poolBudget.findFirst({
+      where: { id: budgetId, companyId, deletedAt: null },
+      select: { environmentParams: true },
+    });
+    if (!budget) throw new NotFoundException('Orcamento nao encontrado');
+    const env = (budget.environmentParams ?? {}) as Record<string, any>;
+    const solarReport = (env.solarReport ?? {}) as Record<string, any>;
+    if (productId === null) delete solarReport.selectedBombaId;
+    else solarReport.selectedBombaId = productId;
+    env.solarReport = solarReport;
+    await this.prisma.poolBudget.update({
+      where: { id: budgetId },
+      data: { environmentParams: env as any },
+    });
+    return { selectedBombaId: productId };
   }
 
   private ruleHasAnyFilter(rule: any): boolean {

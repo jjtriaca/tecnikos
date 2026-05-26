@@ -2838,6 +2838,11 @@ const ORDER_BY_PRESETS: Array<{ value: string; label: string }> = [
   { value: 'vazaoM3h desc', label: 'Maior vazao primeiro' },
   { value: 'vazaoM3h asc', label: 'Menor vazao primeiro' },
   { value: 'kcalHNominal desc', label: 'Maior aquecimento primeiro' },
+  // v1.12.43: criterios uteis pra Bomba do Coletor Solar
+  { value: 'potenciaCv asc', label: 'Menor potencia (cv) primeiro' },
+  { value: 'potenciaCv desc', label: 'Maior potencia (cv) primeiro' },
+  { value: 'pressaoTrabalhoMca asc', label: 'Menor pressao primeiro' },
+  { value: 'pressaoTrabalhoMca desc', label: 'Maior pressao primeiro' },
 ];
 
 // Templates completos de auto-selecao — clique em 1 e popula filterCategoria+where+orderBy+indicator
