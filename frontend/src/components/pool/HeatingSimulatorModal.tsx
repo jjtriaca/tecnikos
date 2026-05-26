@@ -3004,8 +3004,8 @@ function BatteryDiagram({
 }) {
   if (numRamos <= 0 || batPorRamo <= 0) return null;
   // Dimensoes das placas solares dentro da bateria
-  const colW = 6;
-  const colH = 22;
+  const colW = 8;
+  const colH = 24;
   const colGap = 2;
   const batPadX = 6;
   const batPadY = 6;
@@ -3055,30 +3055,38 @@ function BatteryDiagram({
                   <g key={b}>
                     {/* Caixa da bateria (amarela) */}
                     <rect x={x} y={yTop} width={batW} height={batH} rx={3} ry={3} fill="#fef3c7" stroke="#d97706" strokeWidth={1.2} />
-                    {/* v1.12.59: coletor solar de piscina (preto, com cabeçotes horizontais
-                        no topo e base + mangueiras verticais paralelas entre eles). */}
+                    {/* v1.12.60: coletor solar de piscina realista (estilo Solis Trópicos):
+                        - Corpo preto polipropileno
+                        - Cabeçotes superior/inferior espessos (tubos coletores)
+                        - 8 mangueiras verticais paralelas finas (estrias)
+                        - Highlight sutil pra efeito 3D */}
                     {Array.from({ length: coletoresPorBateria }).map((___, c) => {
                       const colX = x + batPadX + c * (colW + colGap);
                       const colY = yTop + batPadY;
-                      const cabHeadH = 1.8; // espessura dos cabeçotes
+                      const cabHeadH = 2.4; // espessura dos cabeçotes (tubos coletores)
+                      const numMangueiras = 8;
                       return (
                         <g key={c}>
-                          {/* Corpo preto do coletor */}
-                          <rect x={colX} y={colY} width={colW} height={colH} rx={0.6} ry={0.6} fill="#0f172a" stroke="#000" strokeWidth={0.4} />
-                          {/* Cabeçote topo (mais escuro) */}
-                          <rect x={colX} y={colY} width={colW} height={cabHeadH} fill="#1e293b" />
-                          {/* Cabeçote base (mais escuro) */}
-                          <rect x={colX} y={colY + colH - cabHeadH} width={colW} height={cabHeadH} fill="#1e293b" />
-                          {/* Mangueiras verticais paralelas (cinza claro) */}
-                          {Array.from({ length: 5 }).map((____, m) => {
-                            const mx = colX + 0.6 + (m + 0.5) * ((colW - 1.2) / 5);
+                          {/* Corpo preto do coletor (entre os cabeçotes) */}
+                          <rect x={colX} y={colY + cabHeadH - 0.3} width={colW} height={colH - 2 * cabHeadH + 0.6} fill="#0a0a0a" />
+                          {/* Estrias verticais (mangueiras paralelas) — linhas claras sobre fundo preto */}
+                          {Array.from({ length: numMangueiras }).map((____, m) => {
+                            const mx = colX + 0.5 + (m + 0.5) * ((colW - 1) / numMangueiras);
                             return (
                               <line key={m}
-                                x1={mx} y1={colY + cabHeadH + 0.4}
-                                x2={mx} y2={colY + colH - cabHeadH - 0.4}
-                                stroke="#475569" strokeWidth={0.35} strokeLinecap="round" />
+                                x1={mx} y1={colY + cabHeadH}
+                                x2={mx} y2={colY + colH - cabHeadH}
+                                stroke="#1f2937" strokeWidth={0.25} strokeLinecap="round" />
                             );
                           })}
+                          {/* Cabeçote superior (tubo coletor preto com leve highlight) */}
+                          <rect x={colX - 0.3} y={colY} width={colW + 0.6} height={cabHeadH} rx={0.6} ry={0.6} fill="#171717" stroke="#000" strokeWidth={0.35} />
+                          <line x1={colX} y1={colY + 0.4} x2={colX + colW} y2={colY + 0.4} stroke="#3f3f46" strokeWidth={0.3} strokeLinecap="round" />
+                          {/* Cabeçote inferior (idem) */}
+                          <rect x={colX - 0.3} y={colY + colH - cabHeadH} width={colW + 0.6} height={cabHeadH} rx={0.6} ry={0.6} fill="#171717" stroke="#000" strokeWidth={0.35} />
+                          <line x1={colX} y1={colY + colH - cabHeadH + 0.4} x2={colX + colW} y2={colY + colH - cabHeadH + 0.4} stroke="#3f3f46" strokeWidth={0.3} strokeLinecap="round" />
+                          {/* Borda externa do coletor */}
+                          <rect x={colX - 0.3} y={colY} width={colW + 0.6} height={colH} rx={0.6} ry={0.6} fill="none" stroke="#000" strokeWidth={0.5} />
                         </g>
                       );
                     })}

@@ -1,5 +1,5 @@
 {
-  "version": "1.12.59",
-  "codename": "Diagrama compacto (140px) + placas solares visuais dentro de cada bateria (N coletores reais)",
-  "releasedAt": "2026-05-26T22:40:04.237Z"
+  "version": "1.12.60",
+  "codename": "Coletor solar realista no diagrama: preto + cabeçotes + mangueiras verticais paralelas (estilo Solis Tropicos)",
+  "releasedAt": "2026-05-26T22:45:41.233Z"
 }
