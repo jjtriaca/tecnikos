@@ -1,6 +1,20 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.39 — Sessao 211 fechada (21 releases)
+## Versao atual em prod: v1.12.40 — Fix auto-select Bomba Solar
+
+**v1.12.40 (26/05/2026)** — 3 bugs reportados na tela do Simulador Solar:
+1. Texto "Defaults: PVC, fator 20%, 4 joelhos, 1 tê..." estava desatualizado (backend usa 10 joelhos e 4 tês desde v1.12.38). Fix em `HeatingSimulatorModal.tsx:2030`.
+2. Auto-select da bomba retornava "Nenhum candidato passa" mesmo com bombas no catalogo. Causa: `extractSolarVars()` em `backend/src/pool-budget/formula-eval.ts:289` populava `solarQty` e `solarNumBaterias` mas NAO `vazaoSolarM3h` — o criterio `vazaoM3h >= vazaoSolarM3h` sempre falhava (variavel undefined ≈ 0). Fix: ler `solarReport.vazaoTotalM3h` e expor como `vars.vazaoSolarM3h`.
+3. Bug #3 ("calculo nao leva em conta vazao dos coletores") era consequencia do #2 — resolvido pelo mesmo fix.
+
+**TESTAR em prod (apos Ctrl+F5):**
+- [ ] Texto da tubulacao agora diz "10 joelhos, 4 tês"
+- [ ] Modal ✨ Bomba → template "Bomba do Coletor Solar" encontra candidatos (precisa ter bomba cadastrada com `vazaoM3h >= 5.97` no technicalSpecs E `usedInPool=true`)
+- [ ] Se ainda nao achar: verificar `poolType` das bombas vs filtro do template ("Bombas diversas") e regra `Company.systemConfig.pool.solarBombaRule`
+
+---
+
+## Versao anterior: v1.12.39 — Sessao 211 fechada (21 releases)
 
 Sessao 211 (25/05/2026) — maratona de modulo Piscina cobriu 3 frentes principais:
 1. Tela de orcamento (etapas custom, modal +Linha, tipos PRODUCT/SERVICE, ordem das linhas)
