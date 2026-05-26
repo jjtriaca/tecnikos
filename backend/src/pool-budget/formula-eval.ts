@@ -300,6 +300,13 @@ export function extractSolarVars(solarReport: any): FormulaVars {
   if (Number.isFinite(nbat) && nbat >= 0) {
     vars.solarNumBaterias = nbat;
   }
+  // v1.12.40: vazao calculada pelo Simulador Solar (soma dos coletores).
+  // Habilita regra de auto-select "Bomba do Coletor Solar":
+  //   where='vazaoM3h >= vazaoSolarM3h && pressaoTrabalhoMca >= alturaTelhadoMca'
+  const vazaoTotal = Number(r.vazaoTotalM3h);
+  if (Number.isFinite(vazaoTotal) && vazaoTotal > 0) {
+    vars.vazaoSolarM3h = vazaoTotal;
+  }
   return vars;
 }
 
