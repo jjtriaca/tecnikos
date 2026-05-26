@@ -1,6 +1,39 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.42 — Fix preview do AutoSelectModal
+## Versao atual em prod: v1.12.43 — Dropdown de Bombas Candidatas no Simulador Solar
+
+**v1.12.43 (26/05/2026)** — substitui o card "Bomba recomendada" (string fixa hardcoded por vazao em `solar-constants.ts`) por DROPDOWN com candidatos reais do catalogo do tenant, ordenados pela regra de auto-selecao.
+
+### Backend
+- `SolarBudgetService.listSolarBombaCandidates(budgetId, companyId)` — retorna ate 20 candidatos que passam na `solarBombaRule` (filterPoolType + filterDescription + where), ordenados pelo `orderBy`. Interpola `pumpCurve` em vazaoM3h/pressaoTrabalhoMca quando o candidato tem curva cadastrada. Inclui `indicator` avaliado (ex: "Folga vazao: +25%").
+- `SolarBudgetService.setSelectedBomba(budgetId, companyId, productId)` — persiste a escolha do operador em `environmentParams.solarReport.selectedBombaId`.
+- Endpoints: `GET /pool-budgets/:id/solar-bomba-candidates` e `POST /pool-budgets/:id/solar-bomba-selection`.
+- Mensagem do aviso reescrita (`computeWarnings`): explica os filtros aplicados e aponta pro **botao ✨ ao lado de "Bomba recomendada"** (nao mais "Configuracoes > Piscina > Bomba Solar", que era hardcode equivocado).
+
+### Frontend (HeatingSimulatorModal)
+- Card "Bomba recomendada" virou `<select>` com 1 opcao por candidato.
+- Formato da opcao: `Descricao · X cv · Y m³/h · Z mca · 📈 curva · folga N%`.
+- Default = primeiro pelo `orderBy` (ja ordenado pelo backend).
+- Mudanca persistida automaticamente via POST.
+- Hint embaixo: "X bomba(s) atendem · ordem definida pela regra ✨ · vazao Y m³/h + altura Z mca".
+- Fallback quando vazio: mensagem explica vazao/altura exigidas + aponta pro ✨.
+
+### Presets de orderBy (ORDER_BY_PRESETS em quotes/pool/[id]/page.tsx)
+Adicionados: `potenciaCv asc/desc` (menor/maior cv primeiro) e `pressaoTrabalhoMca asc/desc` (menor/maior pressao primeiro).
+
+### IMPORTANTE — configuracao do tenant SLS
+A `solarBombaRule` cadastrada no tenant esta com `filterPoolType="Bomba"` mas as bombas do catalogo tem `poolType="Bombas diversas"`. **Acao necessaria:** abrir o ✨, mudar o filtro para "Bombas diversas" e salvar — depois disso o dropdown vai aparecer com as bombas que atendem.
+
+**TESTAR em prod (Ctrl+Shift+R):**
+- [ ] Aba Solar mostra dropdown em vez do card unico
+- [ ] Apos ajustar a regra (filterPoolType="Bombas diversas"), aparecem multiplas bombas no dropdown
+- [ ] Trocar bomba no dropdown salva automaticamente em `solarReport.selectedBombaId`
+- [ ] Modal ✨ tem presets novos de orderBy (potenciaCv, pressaoTrabalhoMca)
+- [ ] Aviso amarelo (quando 0 bombas) agora aponta pro botao ✨ e explica os filtros
+
+---
+
+## Versao anterior: v1.12.42 — Fix preview do AutoSelectModal
 
 **v1.12.42 (26/05/2026)** — terceiro fix do caso "Bomba do Coletor Solar". v1.12.40 corrigiu backend (`extractSolarVars` populando `vazaoSolarM3h`); v1.12.41 implementou interpolacao da `pumpCurve` no backend; v1.12.42 corrige o **FRONTEND** que avaliava o criterio em PREVIEW antes da chamada ao backend.
 
