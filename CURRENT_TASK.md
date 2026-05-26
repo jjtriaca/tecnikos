@@ -1,6 +1,25 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.41 — Auto-select da bomba via pumpCurve interpolada
+## Versao atual em prod: v1.12.42 — Fix preview do AutoSelectModal
+
+**v1.12.42 (26/05/2026)** — terceiro fix do caso "Bomba do Coletor Solar". v1.12.40 corrigiu backend (`extractSolarVars` populando `vazaoSolarM3h`); v1.12.41 implementou interpolacao da `pumpCurve` no backend; v1.12.42 corrige o **FRONTEND** que avaliava o criterio em PREVIEW antes da chamada ao backend.
+
+**Causa raiz:** `evalCondition` em `frontend/src/app/(dashboard)/quotes/pool/[id]/page.tsx:3289` substitui apenas variaveis presentes no objeto `vars`. Se uma variavel referenciada no criterio ficar de fora, o evaluator detecta (`if (/[a-zA-Z_]/.test(stripped)) return false`) e rejeita o candidato.
+
+- **AutoSelectModal** (`dimVars`, linha 3271): populava `vazaoSolarM3h` mas **NAO** `alturaTelhadoMca`. Criterio `pressaoTrabalhoMca >= alturaTelhadoMca` virava `pressaoTrabalhoMca >= alturaTelhadoMca` (variavel literal) → false pra todo candidato → "Nenhum candidato passa nos filtros + criterio".
+- **CatalogPickModal** (`ruleVars`, linha 4020): nao populava nem `vazaoSolarM3h` nem `alturaTelhadoMca`. Mesmo bug latente no checkbox "Apenas que passam no criterio".
+
+Fix: adicionar `alturaTelhadoMca: Number(environmentParams.alturaTelhadoM) || 0` (e `vazaoSolarM3h` no CatalogPickModal). Ambos lem de `environmentParams.alturaTelhadoM` (= alturaManometricaTotal apos calculo da tubulacao) e `environmentParams.solarReport.vazaoTotalM3h`.
+
+**Licao:** sempre que uma nova variavel for adicionada ao motor de auto-select (backend `extractSolarVars` em v1.12.40), o frontend de preview tambem precisa atualizar `dimVars`/`ruleVars`. Sem essa atualizacao, o backend pode aceitar mas o modal sempre mostra "Nenhum candidato passa".
+
+**TESTAR em prod (Ctrl+F5):**
+- [ ] Modal ✨ Bomba do Simulador Solar → template "Bomba do Coletor Solar" → deve mostrar bombas que atendem (1/2cv pra cima com altura 6.28 mca: vazao 8.4 e pressao 8 mca → passa)
+- [ ] CatalogPickModal → checkbox "Apenas que passam no criterio" tambem deve funcionar
+
+---
+
+## Versao anterior: v1.12.41 — Auto-select da bomba via pumpCurve interpolada
 
 **v1.12.41 (26/05/2026)** — fecha o ciclo Solis: auto-select da bomba passa a usar a curva caracteristica real em vez de specs estaticos.
 

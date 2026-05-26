@@ -1,5 +1,5 @@
 {
   "version": "1.12.42",
-  "codename": "Auto-select da bomba interpola pumpCurve (vazaoM3h + pressaoTrabalhoMca da curva real) + Vazao maxima ralo de fundo",
+  "codename": "Fix preview AutoSelectModal — injeta alturaTelhadoMca/vazaoSolarM3h nas ruleVars do frontend",
   "releasedAt": "2026-05-26T12:58:14.500Z"
 }
