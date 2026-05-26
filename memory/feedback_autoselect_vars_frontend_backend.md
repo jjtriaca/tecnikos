@@ -1,0 +1,44 @@
+# Feedback — Auto-select tem motor DUPLICADO frontend + backend
+
+**Incidente v1.12.40 → v1.12.42 (26/05/2026):** levou 3 releases pra arrumar "Nenhum candidato passa nos filtros + criterio" no AutoSelectModal da Bomba do Coletor Solar. Cada release arrumou um lado diferente, mas ate o ultimo o usuario ainda via o bug.
+
+## A arquitetura tem AVALIACAO DUPLICADA
+
+1. **Backend** (`backend/src/pool-budget/auto-select.helper.ts`) — motor de verdade, decide qual produto vincular quando o operador clica "Aplicar regra". Le do banco, interpola `pumpCurve`, etc.
+
+2. **Frontend** (`frontend/src/app/(dashboard)/quotes/pool/[id]/page.tsx`) — preview interativo:
+   - **AutoSelectModal** (`dimVars`, ~linha 3247): mostra o RESULTADO DA AUTO-SELECAO em tempo real ("Nenhum candidato passa nos filtros + criterio" / "X candidatos passam")
+   - **CatalogPickModal** (`ruleVars`, ~linha 4002): aplica filtro "Apenas que passam no criterio" na lista do catalogo
+
+Os DOIS lados precisam ter as MESMAS variaveis populadas. Senao o backend aceita mas o preview sempre rejeita → usuario nao sabe que pode aplicar.
+
+## Sintoma: TODOS os candidatos sao rejeitados
+
+`evalCondition` no frontend substitui apenas variaveis presentes em `vars`. Se a regra usa uma variavel ausente:
+- A variavel fica como texto literal apos a substituicao
+- O guard `if (/[a-zA-Z_]/.test(stripped)) return false` detecta letra residual
+- Funcao retorna `false` pra TODO candidato
+- Resultado: "Nenhum candidato passa"
+
+## Checklist ao adicionar variavel nova ao motor de auto-select
+
+Quando criar variavel nova em `formula-eval.ts` (backend) — ex: `vazaoSolarM3h`, `alturaTelhadoMca`, `calorNecessarioKcalH`:
+
+1. **Backend**: adicionar em `extractEnvVars` / `extractSolarVars` / `extractHeatingVars` / etc. **E** em `ALLOWED_VARS` (lista no topo do `formula-eval.ts`).
+2. **Frontend AutoSelectModal** (`dimVars` em quotes/pool/[id]/page.tsx ~3247): adicionar leitura da mesma fonte (`environmentParams.X`, `solarReport.X`, etc).
+3. **Frontend CatalogPickModal** (`ruleVars` em quotes/pool/[id]/page.tsx ~4002): adicionar idem.
+4. **Frontend FORMULA_VARS** (~linha 2070-2090 do mesmo arquivo): garantir que a chave esta na lista de tokens reconhecidos.
+
+Se esquecer qualquer um dos 4, vai aparecer um bug. Os mais comuns:
+- Esquecer frontend → preview sempre mostra "Nenhum candidato passa" mesmo com regra OK
+- Esquecer `ALLOWED_VARS` ou `FORMULA_VARS` → variavel e tratada como nome desconhecido, vira 0
+
+## Releases
+
+- **v1.12.40**: backend `extractSolarVars` populou `vazaoSolarM3h` (faltava)
+- **v1.12.41**: backend `auto-select.helper` passou a interpolar `pumpCurve` (faltava)
+- **v1.12.42**: frontend `dimVars` populou `alturaTelhadoMca` (faltava — esse era o verdadeiro bug visivel)
+
+## Regra de ouro
+
+Apos adicionar variavel nova ao motor: **abrir o AutoSelectModal e olhar a contagem de candidatos**. Se mudou de "Nenhum candidato" pra "X candidatos" (ou vice-versa, esperado), o frontend esta sincronizado. Se nao mudou nada, falta sincronizar `dimVars`/`ruleVars`.
