@@ -273,9 +273,94 @@ export function filterCandidates<T extends { description?: string | null; name?:
 }
 
 /**
+ * v1.12.41: interpola a curva caracteristica da bomba (Product.pumpCurve) pra obter
+ * a vazao entregue numa altura manometrica alvo. Pra altura > altura maxima da curva,
+ * a bomba nao vence — retorna vazao 0. Pra altura < minima cadastrada, retorna vazao
+ * maxima (extrapolacao pra direita).
+ *
+ * pumpCurve: Array<{vazaoM3h, alturaMca}> ordenado por altura crescente.
+ * Retorna { vazaoInterpolada, shutOffHead } ou null se a curva eh invalida.
+ *
+ * Uso: auto-select de bomba — substitui specVars.vazaoM3h e specVars.pressaoTrabalhoMca
+ * pelos valores reais da curva, deixando a regra "vazaoM3h >= X && pressaoTrabalhoMca >= Y"
+ * funcionar com precisao de curva caracteristica.
+ */
+export function interpolatePumpCurve(
+  pumpCurve: unknown,
+  targetAltura: number,
+): { vazaoInterpolada: number; shutOffHead: number } | null {
+  if (!Array.isArray(pumpCurve) || pumpCurve.length < 2) return null;
+  const points: Array<{ v: number; a: number }> = [];
+  for (const p of pumpCurve) {
+    if (!p || typeof p !== 'object') continue;
+    const v = Number((p as any).vazaoM3h);
+    const a = Number((p as any).alturaMca);
+    if (Number.isFinite(v) && Number.isFinite(a) && v >= 0 && a >= 0) {
+      points.push({ v, a });
+    }
+  }
+  if (points.length < 2) return null;
+  points.sort((p1, p2) => p1.a - p2.a);
+  const minA = points[0].a;
+  const maxA = points[points.length - 1].a;
+  const maxV = Math.max(...points.map((p) => p.v));
+  if (!Number.isFinite(targetAltura) || targetAltura < 0) {
+    return { vazaoInterpolada: maxV, shutOffHead: maxA };
+  }
+  if (targetAltura > maxA) {
+    return { vazaoInterpolada: 0, shutOffHead: maxA };
+  }
+  if (targetAltura <= minA) {
+    return { vazaoInterpolada: maxV, shutOffHead: maxA };
+  }
+  for (let i = 0; i < points.length - 1; i++) {
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    if (targetAltura >= p1.a && targetAltura <= p2.a) {
+      const ratio = (targetAltura - p1.a) / (p2.a - p1.a);
+      const vazao = p1.v + ratio * (p2.v - p1.v);
+      return { vazaoInterpolada: Math.max(0, vazao), shutOffHead: maxA };
+    }
+  }
+  return { vazaoInterpolada: 0, shutOffHead: maxA };
+}
+
+/**
+ * Extrai specs numericos do candidato + sobrescreve com valores interpolados da
+ * pumpCurve quando aplicavel (v1.12.41). Quando candidato tem pumpCurve cadastrada
+ * e baseVars.alturaTelhadoMca > 0, substitui:
+ *  - specVars.vazaoM3h = vazao interpolada na altura alvo (precisao curva real)
+ *  - specVars.pressaoTrabalhoMca = shut-off head (altura maxima da curva)
+ *
+ * Bombas sem curva mantem o comportamento legado (technicalSpecs estaticos).
+ */
+function extractCandidateSpecs(
+  candidate: { technicalSpecs?: any; pumpCurve?: any },
+  baseVars: FormulaVars,
+): FormulaVars {
+  const specs = candidate.technicalSpecs && typeof candidate.technicalSpecs === 'object'
+    ? candidate.technicalSpecs : {};
+  const specVars: FormulaVars = {};
+  for (const [k, v] of Object.entries(specs as Record<string, unknown>)) {
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k)) continue;
+    const n = Number(v);
+    if (Number.isFinite(n)) specVars[k] = n;
+  }
+  const alturaAlvo = Number(baseVars.alturaTelhadoMca);
+  if (Number.isFinite(alturaAlvo) && alturaAlvo > 0) {
+    const interp = interpolatePumpCurve(candidate.pumpCurve, alturaAlvo);
+    if (interp) {
+      specVars.vazaoM3h = interp.vazaoInterpolada;
+      specVars.pressaoTrabalhoMca = interp.shutOffHead;
+    }
+  }
+  return specVars;
+}
+
+/**
  * Avalia condicao `where` em cada candidato. Vars combinam orcamento + technicalSpecs do candidato.
  */
-export function filterByWhere<T extends { technicalSpecs?: any }>(
+export function filterByWhere<T extends { technicalSpecs?: any; pumpCurve?: any }>(
   candidates: T[],
   rule: AutoSelectRule,
   baseVars: FormulaVars,
@@ -283,13 +368,7 @@ export function filterByWhere<T extends { technicalSpecs?: any }>(
 ): T[] {
   if (!rule.where || !rule.where.trim()) return candidates;
   return candidates.filter((c) => {
-    const specs = c.technicalSpecs && typeof c.technicalSpecs === 'object' ? c.technicalSpecs : {};
-    const specVars: FormulaVars = {};
-    for (const [k, v] of Object.entries(specs as Record<string, unknown>)) {
-      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k)) continue;
-      const n = Number(v);
-      if (Number.isFinite(n)) specVars[k] = n;
-    }
+    const specVars = extractCandidateSpecs(c, baseVars);
     const merged = { ...baseVars, ...specVars };
     return evaluateCondition(rule.where!, merged, cellRefSpecs);
   });
@@ -298,7 +377,7 @@ export function filterByWhere<T extends { technicalSpecs?: any }>(
 /**
  * Ordena candidatos por orderBy (com avaliacao de expressao por candidato).
  */
-export function orderCandidates<T extends { technicalSpecs?: any; priceCents?: number; salePriceCents?: number; unitPriceCents?: number }>(
+export function orderCandidates<T extends { technicalSpecs?: any; pumpCurve?: any; priceCents?: number; salePriceCents?: number; unitPriceCents?: number }>(
   candidates: T[],
   rule: AutoSelectRule,
   baseVars: FormulaVars,
@@ -308,14 +387,7 @@ export function orderCandidates<T extends { technicalSpecs?: any; priceCents?: n
   if (!parsed) return candidates;
   const { expr, dir } = parsed;
   const valueOf = (c: T): number => {
-    const specs = c.technicalSpecs && typeof c.technicalSpecs === 'object' ? c.technicalSpecs : {};
-    const specVars: FormulaVars = {};
-    for (const [k, v] of Object.entries(specs as Record<string, unknown>)) {
-      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k)) continue;
-      const n = Number(v);
-      if (Number.isFinite(n)) specVars[k] = n;
-    }
-    // Atalhos de campos comuns nao em specs
+    const specVars = extractCandidateSpecs(c, baseVars);
     const merged: FormulaVars = {
       ...baseVars,
       ...specVars,

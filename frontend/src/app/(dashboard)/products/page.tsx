@@ -2019,8 +2019,8 @@ export default function ProductsPage() {
                       return (
                         <div className={`grid grid-cols-1 ${cols} gap-4`}>
                           <div>
-                            <FieldLabel required={currentRequiredSpecs.has('vazaoM3h')} help="Vazao do equipamento (litros por hora dividido por 1000). Usada pra calcular tempo de filtragem da piscina (volume / vazao).">
-                              Vazao (m³/h)
+                            <FieldLabel required={currentRequiredSpecs.has('vazaoM3h')} help="Vazao maxima do equipamento (litros por hora dividido por 1000). Em obras de piscina, usada APENAS pra dimensionar vazao de ralo de fundo e tempo de filtragem (volume / vazao). NAO eh usada pra calculo de perdas de carga nem altura manometrica — pra isso a auto-selecao da bomba interpola a curva caracteristica cadastrada no card abaixo.">
+                              Vazao maxima (m³/h)
                             </FieldLabel>
                             <input type="number" step="0.1" value={form.specVazaoM3h} onChange={(e) => setField("specVazaoM3h", e.target.value)} placeholder="Ex: 9" className={inputClass} />
                           </div>

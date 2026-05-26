@@ -755,7 +755,7 @@ export class PoolBudgetService {
         // Carrega catalogo (Products + Services) com technicalSpecs uma vez
         const allProducts = await this.prisma.product.findMany({
           where: { companyId },
-          select: { id: true, description: true, salePriceCents: true, unit: true, technicalSpecs: true, poolType: true, defaultQty: true },
+          select: { id: true, description: true, salePriceCents: true, unit: true, technicalSpecs: true, poolType: true, defaultQty: true, pumpCurve: true },
         });
         const allServices = await this.prisma.service.findMany({
           where: { companyId },
