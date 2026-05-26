@@ -1932,7 +1932,7 @@ function SolarTab({
                   <Kpi label="Qtd. de coletores" value={report.qtdColetores.toFixed(1).replace(".", ",")} unit="un" accent />
                   <Kpi label="Baterias (total)" value={String(report.numBaterias)} unit="un" />
                   <Kpi label="Baterias em série" value={String(report.numRamosParalelos && report.numRamosParalelos > 0 ? Math.ceil(report.numBaterias / report.numRamosParalelos) : report.numBaterias)} unit="un" />
-                  <Kpi label="Séries em paralelo" value={String(report.numRamosParalelos ?? 1)} unit="un" />
+                  <Kpi label="Baterias em paralelo" value={String((report.numRamosParalelos ?? 1) > 1 ? report.numRamosParalelos : 0)} unit="un" />
                   <Kpi label="Vazão necessária" value={report.vazaoTotalM3h.toFixed(2).replace(".", ",")} unit="m³/h" />
                   <Kpi label="Cobertura piscina × coletores" value={report.percentualCobertura.toFixed(1).replace(".", ",")} unit="%" />
                 </div>
