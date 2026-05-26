@@ -463,7 +463,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
   async function recomputeSolar(
     extraPct?: number,
     collectorId?: string | null,
-    extras?: { orientacaoTelhado?: string; inclinacaoTelhadoGraus?: number; temperaturaAguaInicial?: number; alturaTelhadoM?: number },
+    extras?: { orientacaoTelhado?: string; inclinacaoTelhadoGraus?: number; temperaturaAguaInicial?: number; alturaTelhadoM?: number; areaPiscinaM2?: number; volumeM3?: number },
   ) {
     const savedScrollTop = scrollContainerRef.current?.scrollTop ?? 0;
     setSolarRecomputing(true);
@@ -484,13 +484,19 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
         tempDesejada: Number(tempAguaDesejada),
         ...(extras ?? {}),
       };
-      // v1.12.49: envia area/volume ATUAIS do estado do formulario (nao do banco).
-      // Permite operador mudar area no modo manual e recalcular sem precisar salvar
-      // o orcamento. Backend usa esses overrides em vez de budget.poolDimensions.
-      const currentArea = Number(budget.poolDimensions?.area);
-      const currentVolume = Number(budget.poolDimensions?.volume);
-      if (Number.isFinite(currentArea) && currentArea > 0) body.areaPiscinaM2 = currentArea;
-      if (Number.isFinite(currentVolume) && currentVolume > 0) body.volumeM3 = currentVolume;
+      // v1.12.50: envia area/volume vindos do estado MANUAL do Simulador (dispArea/dispVolume
+      // do SolarTab) — passados via extras. Backend usa esses overrides em vez de
+      // budget.poolDimensions. Se nao vier, usa o budget (modo AUTO). NAO altera o
+      // cadastro do orcamento (poolDimensions fica intacto).
+      // Fallback: se extras nao traz, usa budget.poolDimensions (modo AUTO).
+      if (!Number.isFinite(body.areaPiscinaM2)) {
+        const fallbackArea = Number(budget.poolDimensions?.area);
+        if (Number.isFinite(fallbackArea) && fallbackArea > 0) body.areaPiscinaM2 = fallbackArea;
+      }
+      if (!Number.isFinite(body.volumeM3)) {
+        const fallbackVolume = Number(budget.poolDimensions?.volume);
+        if (Number.isFinite(fallbackVolume) && fallbackVolume > 0) body.volumeM3 = fallbackVolume;
+      }
       const cid = collectorId === undefined ? solarSelectedCollectorId : collectorId;
       if (cid) body.collectorProductId = cid;
       const r = await api.post<SolarReport>(`/pool-budgets/${budget.id}/solar-report/recompute`, body);
@@ -1465,7 +1471,7 @@ function SolarTab({
   setVento: (v: string) => void;
   tempAguaDesejada: number;
   setTempAguaDesejada: (n: number) => void;
-  onRecompute: (extraPct?: number, collectorId?: string | null, extras?: { orientacaoTelhado?: string; inclinacaoTelhadoGraus?: number; temperaturaAguaInicial?: number; alturaTelhadoM?: number }) => void | Promise<void>;
+  onRecompute: (extraPct?: number, collectorId?: string | null, extras?: { orientacaoTelhado?: string; inclinacaoTelhadoGraus?: number; temperaturaAguaInicial?: number; alturaTelhadoM?: number; areaPiscinaM2?: number; volumeM3?: number }) => void | Promise<void>;
   headerImage: string | null;
   headerImageUploading: boolean;
   onUploadHeaderImage: (file: File) => void | Promise<void>;
@@ -1693,7 +1699,16 @@ function SolarTab({
               title="Aumentar zoom"
             >+</button>
           </div>
-          <button onClick={() => onRecompute()} disabled={recomputing || !uf}
+          <button onClick={() => {
+              // v1.12.50: passa overrides locais quando modo MANUAL — backend usa dispArea/dispVolume
+              // sem precisar salvar o orcamento (poolDimensions fica intacto).
+              const extras: { areaPiscinaM2?: number; volumeM3?: number } = {};
+              if (dimManual) {
+                if (Number.isFinite(dispArea) && dispArea > 0) extras.areaPiscinaM2 = dispArea;
+                if (Number.isFinite(dispVolume) && dispVolume > 0) extras.volumeM3 = dispVolume;
+              }
+              onRecompute(undefined, undefined, extras);
+            }} disabled={recomputing || !uf}
             className="rounded-md bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:bg-slate-300 transition shadow-sm">
             {recomputing ? "Recalculando..." : "Recalcular dimensionamento"}
           </button>
