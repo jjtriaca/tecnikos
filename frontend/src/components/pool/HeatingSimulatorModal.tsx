@@ -2991,10 +2991,10 @@ function BigHighlightInput({ label, value, onChange, unit, min, max, manual }: {
   );
 }
 
-// v1.12.56: diagrama no padrao Solis — baterias HORIZONTAIS (em serie lado a lado),
-// ramos EMPILHADOS verticalmente. Alimentacao entra pela esquerda + tronco vertical
-// azul alimenta cada ramo. Retorno sai pela direita + tronco vermelho coleta.
-// Container de tamanho FIXO (220px alt × 100% larg) — SVG escala internamente.
+// v1.12.58: diagrama compacto + coletores VISUAIS dentro de cada bateria.
+//  - Cada bateria renderiza N retangulos verdes (placas solares) lado a lado
+//  - Container 140px (era 220px): 95% dos casos tem ≤3 baterias, espaco sobrando
+//  - SVG escala uniformemente: 1-2 baterias ocupam o espaco todo, 10+ ficam pequenas
 function BatteryDiagram({
   numRamos, batPorRamo, coletoresPorBateria,
 }: {
@@ -3003,37 +3003,41 @@ function BatteryDiagram({
   coletoresPorBateria: number;
 }) {
   if (numRamos <= 0 || batPorRamo <= 0) return null;
-  const batW = 70;
-  const batH = 42;
-  const gapH = 22; // entre baterias em serie (horizontal)
-  const gapV = 18; // entre ramos (vertical)
-  const padLeft = 56;
-  const padRight = 56;
-  const padTop = 12;
-  const padBottom = 26; // pros labels ALIM/RET
+  // Dimensoes das placas solares dentro da bateria
+  const colW = 6;
+  const colH = 22;
+  const colGap = 2;
+  const batPadX = 6;
+  const batPadY = 6;
+  const batW = batPadX * 2 + coletoresPorBateria * colW + Math.max(0, coletoresPorBateria - 1) * colGap;
+  const batH = batPadY * 2 + colH + 10; // +10 pro label "5 col." embaixo
+  const gapH = 18; // entre baterias em serie (horizontal)
+  const gapV = 14; // entre ramos (vertical)
+  const padLeft = 44;
+  const padRight = 44;
+  const padTop = 8;
+  const padBottom = 18; // pros labels ALIM/RET
   const svgW = padLeft + batPorRamo * batW + Math.max(0, batPorRamo - 1) * gapH + padRight;
   const svgH = padTop + numRamos * batH + Math.max(0, numRamos - 1) * gapV + padBottom;
-  const trunkXIn = padLeft - 22;
-  const trunkXOut = svgW - padRight + 22;
+  const trunkXIn = padLeft - 18;
+  const trunkXOut = svgW - padRight + 18;
   const trunkYTop = padTop + batH / 2;
-  const trunkYBot = svgH - padBottom - batH / 2 - (numRamos > 1 ? 0 : 0);
-  // Tronco vertical so faz sentido se houver multiplos ramos. Se 1 ramo, conexao
-  // direta da entrada -> primeira bateria, ultima bateria -> retorno.
+  const trunkYBot = svgH - padBottom - batH / 2;
   const showTroncos = numRamos > 1;
   return (
-    <div className="w-full" style={{ height: 220 }}>
+    <div className="w-full" style={{ height: 140 }}>
       <svg viewBox={`0 0 ${svgW} ${svgH}`} preserveAspectRatio="xMidYMid meet" width="100%" height="100%">
         {/* Tronco vertical de alimentacao (azul, esquerda) */}
         {showTroncos && (
-          <line x1={trunkXIn} y1={trunkYTop} x2={trunkXIn} y2={trunkYBot} stroke="#0284c7" strokeWidth={3} strokeLinecap="round" />
+          <line x1={trunkXIn} y1={trunkYTop} x2={trunkXIn} y2={trunkYBot} stroke="#0284c7" strokeWidth={2.5} strokeLinecap="round" />
         )}
         {/* Tronco vertical de retorno (vermelho, direita) */}
         {showTroncos && (
-          <line x1={trunkXOut} y1={trunkYTop} x2={trunkXOut} y2={trunkYBot} stroke="#dc2626" strokeWidth={3} strokeLinecap="round" />
+          <line x1={trunkXOut} y1={trunkYTop} x2={trunkXOut} y2={trunkYBot} stroke="#dc2626" strokeWidth={2.5} strokeLinecap="round" />
         )}
         {/* "Pé" da alimentacao descendo pra label ALIMENTACAO */}
-        <line x1={trunkXIn} y1={trunkYBot} x2={trunkXIn} y2={svgH - 16} stroke="#0284c7" strokeWidth={3} strokeLinecap="round" />
-        <line x1={trunkXOut} y1={trunkYBot} x2={trunkXOut} y2={svgH - 16} stroke="#dc2626" strokeWidth={3} strokeLinecap="round" />
+        <line x1={trunkXIn} y1={trunkYBot} x2={trunkXIn} y2={svgH - 10} stroke="#0284c7" strokeWidth={2.5} strokeLinecap="round" />
+        <line x1={trunkXOut} y1={trunkYBot} x2={trunkXOut} y2={svgH - 10} stroke="#dc2626" strokeWidth={2.5} strokeLinecap="round" />
 
         {/* Ramos (linhas horizontais) */}
         {Array.from({ length: numRamos }).map((_, r) => {
@@ -3042,21 +3046,33 @@ function BatteryDiagram({
           const xLast = padLeft + batPorRamo * batW + Math.max(0, batPorRamo - 1) * gapH;
           return (
             <g key={r}>
-              {/* Linha azul: tronco -> primeira bateria do ramo */}
-              <line x1={trunkXIn} y1={yMid} x2={xFirst} y2={yMid} stroke="#0284c7" strokeWidth={2.5} strokeLinecap="round" />
-              {/* Linha vermelha: ultima bateria -> tronco retorno */}
-              <line x1={xLast} y1={yMid} x2={trunkXOut} y2={yMid} stroke="#dc2626" strokeWidth={2.5} strokeLinecap="round" />
-              {/* Baterias em serie */}
+              <line x1={trunkXIn} y1={yMid} x2={xFirst} y2={yMid} stroke="#0284c7" strokeWidth={2} strokeLinecap="round" />
+              <line x1={xLast} y1={yMid} x2={trunkXOut} y2={yMid} stroke="#dc2626" strokeWidth={2} strokeLinecap="round" />
               {Array.from({ length: batPorRamo }).map((__, b) => {
                 const x = padLeft + b * (batW + gapH);
+                const yTop = yMid - batH / 2;
                 return (
                   <g key={b}>
-                    <rect x={x} y={yMid - batH / 2} width={batW} height={batH} rx={5} ry={5} fill="#fef3c7" stroke="#d97706" strokeWidth={1.5} />
-                    <text x={x + batW / 2} y={yMid - 3} fontSize={9} fontWeight={700} fill="#92400e" textAnchor="middle">Bateria</text>
-                    <text x={x + batW / 2} y={yMid + 11} fontSize={11.5} fontWeight={800} fill="#78350f" textAnchor="middle" className="tabular-nums">{coletoresPorBateria} col.</text>
-                    {/* Conexao serial entre baterias do mesmo ramo — cinza neutro (agua transitando) */}
+                    {/* Caixa da bateria (amarela) */}
+                    <rect x={x} y={yTop} width={batW} height={batH} rx={3} ry={3} fill="#fef3c7" stroke="#d97706" strokeWidth={1.2} />
+                    {/* Placas solares visuais (verdes) — uma por coletor */}
+                    {Array.from({ length: coletoresPorBateria }).map((___, c) => {
+                      const colX = x + batPadX + c * (colW + colGap);
+                      const colY = yTop + batPadY;
+                      return (
+                        <g key={c}>
+                          <rect x={colX} y={colY} width={colW} height={colH} rx={1} ry={1} fill="#1e3a8a" stroke="#1e293b" strokeWidth={0.5} />
+                          {/* Linhas internas das placas (efeito de celulas) */}
+                          <line x1={colX} y1={colY + colH / 3} x2={colX + colW} y2={colY + colH / 3} stroke="#3b82f6" strokeWidth={0.3} />
+                          <line x1={colX} y1={colY + (2 * colH) / 3} x2={colX + colW} y2={colY + (2 * colH) / 3} stroke="#3b82f6" strokeWidth={0.3} />
+                        </g>
+                      );
+                    })}
+                    {/* Label "5 col." abaixo das placas, dentro da caixa */}
+                    <text x={x + batW / 2} y={yTop + batH - 3} fontSize={7.5} fontWeight={800} fill="#78350f" textAnchor="middle" className="tabular-nums">{coletoresPorBateria} col.</text>
+                    {/* Conexao serial cinza tracejada entre baterias do ramo */}
                     {b < batPorRamo - 1 && (
-                      <line x1={x + batW} y1={yMid} x2={x + batW + gapH} y2={yMid} stroke="#64748b" strokeWidth={2.5} strokeDasharray="3 2" />
+                      <line x1={x + batW} y1={yMid} x2={x + batW + gapH} y2={yMid} stroke="#64748b" strokeWidth={2} strokeDasharray="3 2" />
                     )}
                   </g>
                 );
@@ -3065,10 +3081,9 @@ function BatteryDiagram({
           );
         })}
 
-        {/* Labels ALIMENTACAO e RETORNO. v1.12.57: reduzido 75% + ancoragem ajustada
-            pra nao cortar na borda esquerda quando SVG escala. */}
-        <text x={trunkXIn - 4} y={svgH - 4} fontSize={6.5} fontWeight={800} fill="#0369a1" textAnchor="start" className="uppercase tracking-wider">Alimentação</text>
-        <text x={trunkXOut + 4} y={svgH - 4} fontSize={6.5} fontWeight={800} fill="#b91c1c" textAnchor="end" className="uppercase tracking-wider">Retorno</text>
+        {/* Labels ALIMENTACAO e RETORNO */}
+        <text x={trunkXIn - 3} y={svgH - 2} fontSize={5.5} fontWeight={800} fill="#0369a1" textAnchor="start" className="uppercase tracking-wider">Alimentação</text>
+        <text x={trunkXOut + 3} y={svgH - 2} fontSize={5.5} fontWeight={800} fill="#b91c1c" textAnchor="end" className="uppercase tracking-wider">Retorno</text>
       </svg>
     </div>
   );
