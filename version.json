@@ -1,5 +1,5 @@
 {
-  "version": "1.12.53",
-  "codename": "Algoritmo SIMETRICO de baterias (n_ramos × bat × col, sem assimetrias) + botoes Salvar/Limpar override de area/volume manual",
-  "releasedAt": "2026-05-26T21:32:45.575Z"
+  "version": "1.12.54",
+  "codename": "Simulador Solar: card Coletores/bateria + diagrama SVG da instalacao (ramos x baterias) + imagem+specs da bomba selecionada",
+  "releasedAt": "2026-05-26T21:44:18.557Z"
 }

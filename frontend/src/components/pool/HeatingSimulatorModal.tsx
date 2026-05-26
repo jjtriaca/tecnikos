@@ -732,23 +732,22 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-stretch p-4">
       <div className="flex-1 bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-gradient-to-r from-orange-50 via-amber-50 to-yellow-50">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-bold text-slate-900">🔥 Simulador de Aquecimento</h2>
-            <p className="text-xs text-slate-600 truncate">
+        {/* Header — v1.12.54: compactado pra liberar viewport */}
+        <div className="flex items-center justify-between px-4 py-1.5 border-b border-slate-200 bg-gradient-to-r from-orange-50 via-amber-50 to-yellow-50">
+          <div className="flex-1 min-w-0 flex items-baseline gap-2">
+            <h2 className="text-sm font-bold text-slate-900 flex-shrink-0">🔥 Simulador de Aquecimento</h2>
+            <p className="text-[11px] text-slate-600 truncate">
               <span className="font-mono">{budget.code || "—"}</span> · {budget.clientPartner?.name || "—"} · {budget.title}
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            {/* Toggle Calculo Rapido */}
-            <label className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-amber-300 bg-white hover:bg-amber-50 cursor-pointer transition">
+          <div className="flex items-center gap-2">
+            <label className="flex items-center gap-1.5 px-2 py-0.5 rounded border border-amber-300 bg-white hover:bg-amber-50 cursor-pointer transition">
               <input type="checkbox" checked={quickMode} onChange={(e) => setQuickMode(e.target.checked)}
-                className="rounded border-amber-400 text-amber-600 focus:ring-amber-500" />
-              <span className="text-xs font-semibold text-amber-900">⚡ Calculo rapido</span>
+                className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 h-3 w-3" />
+              <span className="text-[10.5px] font-semibold text-amber-900">⚡ Cálculo rápido</span>
             </label>
             <button onClick={onClose}
-              className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition">
+              className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition leading-none">
               ✕
             </button>
           </div>
@@ -1710,37 +1709,26 @@ function SolarTab({
 
   return (
     <>
-      {/* === Toolbar — fora da area PDF, escondida no print === */}
-      <div className="mb-3 flex items-center justify-between gap-2 print:hidden">
-        <div className="text-[11px] text-slate-500">
+      {/* === Toolbar — v1.12.54: compactado === */}
+      <div className="mb-2 flex items-center justify-between gap-2 print:hidden">
+        <div className="text-[10.5px] text-slate-500">
           Edite UF, capa, vento, temperatura e clique <span className="font-semibold text-slate-700">Recalcular</span>.
-          <a href="/settings/climate-data" className="ml-2 text-cyan-700 hover:underline">Editar dados climaticos</a>
+          <a href="/settings/climate-data" className="ml-1.5 text-cyan-700 hover:underline">Editar climáticos</a>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Controle de zoom manual (v5.9). Sobrescreve o automatico baseado em viewport. */}
-          <div className="flex items-center gap-0.5 rounded-md border border-slate-300 bg-white px-1 py-0.5" title="Zoom da pre-visualizacao">
-            <button
-              type="button"
+        <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-0.5 rounded border border-slate-300 bg-white px-0.5 py-0" title="Zoom">
+            <button type="button"
               onClick={() => setManualZoom((z) => Math.max(0.6, Math.round(((z ?? 1) - 0.1) * 10) / 10))}
-              className="w-6 h-6 rounded text-xs font-bold text-slate-700 hover:bg-slate-100"
-              title="Diminuir zoom"
-            >−</button>
-            <button
-              type="button"
+              className="w-5 h-5 rounded text-[11px] font-bold text-slate-700 hover:bg-slate-100">−</button>
+            <button type="button"
               onClick={() => setManualZoom(null)}
-              className="px-1.5 h-6 rounded text-[10px] font-semibold text-slate-600 hover:bg-slate-100 tabular-nums min-w-[42px]"
-              title="Resetar zoom (volta ao automatico por viewport)"
-            >{manualZoom != null ? `${Math.round(manualZoom * 100)}%` : "Auto"}</button>
-            <button
-              type="button"
+              className="px-1 h-5 rounded text-[9px] font-semibold text-slate-600 hover:bg-slate-100 tabular-nums min-w-[36px]"
+              title="Resetar zoom">{manualZoom != null ? `${Math.round(manualZoom * 100)}%` : "Auto"}</button>
+            <button type="button"
               onClick={() => setManualZoom((z) => Math.min(2.5, Math.round(((z ?? 1) + 0.1) * 10) / 10))}
-              className="w-6 h-6 rounded text-xs font-bold text-slate-700 hover:bg-slate-100"
-              title="Aumentar zoom"
-            >+</button>
+              className="w-5 h-5 rounded text-[11px] font-bold text-slate-700 hover:bg-slate-100">+</button>
           </div>
           <button onClick={() => {
-              // v1.12.50: passa overrides locais quando modo MANUAL — backend usa dispArea/dispVolume
-              // sem precisar salvar o orcamento (poolDimensions fica intacto).
               const extras: { areaPiscinaM2?: number; volumeM3?: number } = {};
               if (dimManual) {
                 if (Number.isFinite(dispArea) && dispArea > 0) extras.areaPiscinaM2 = dispArea;
@@ -1748,32 +1736,30 @@ function SolarTab({
               }
               onRecompute(undefined, undefined, extras);
             }} disabled={recomputing || !uf}
-            className="rounded-md bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:bg-slate-300 transition shadow-sm">
-            {recomputing ? "Recalculando..." : "Recalcular dimensionamento"}
+            className="rounded bg-amber-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-amber-700 disabled:bg-slate-300 transition shadow-sm whitespace-nowrap">
+            {recomputing ? "Recalculando..." : "Recalcular"}
           </button>
-          {/* v1.12.52: botoes pra salvar/limpar override de area/volume manual. Aparece SO no
-              modo MANUAL. NAO altera poolDimensions (cadastro do orcamento). */}
           {dimManual && (
             <button onClick={handleSaveOverride} disabled={savingOverride}
-              title="Salvar área/volume manuais pra usar ao reabrir o Simulador (não altera o cadastro do orçamento)"
-              className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:bg-slate-300 transition shadow-sm print:hidden">
-              {savingOverride ? "Salvando..." : (hasSavedOverride ? "💾 Atualizar override" : "💾 Salvar override")}
+              title="Salvar área/volume manuais (não altera o cadastro do orçamento)"
+              className="rounded bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:bg-slate-300 transition shadow-sm print:hidden whitespace-nowrap">
+              {savingOverride ? "..." : (hasSavedOverride ? "💾 Atualizar" : "💾 Salvar")}
             </button>
           )}
           {dimManual && hasSavedOverride && (
             <button onClick={handleClearOverride} disabled={savingOverride}
-              title="Remove o override salvo. Próxima abertura usa as dimensões do cadastro."
-              className="rounded-md bg-white border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:bg-slate-200 transition shadow-sm print:hidden">
-              ✕ Limpar override
+              title="Remove o override salvo"
+              className="rounded bg-white border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:bg-slate-200 transition shadow-sm print:hidden whitespace-nowrap">
+              ✕ Limpar
             </button>
           )}
           <button onClick={() => setPdfPreviewMode(true)}
-            className="rounded-md border border-blue-300 bg-blue-50 text-blue-800 px-3.5 py-1.5 text-xs font-semibold hover:bg-blue-100 transition shadow-sm">
-            👁️ Pré-visualizar PDF
+            className="rounded border border-blue-300 bg-blue-50 text-blue-800 px-2 py-1 text-[11px] font-semibold hover:bg-blue-100 transition shadow-sm whitespace-nowrap">
+            👁️ PDF
           </button>
           <button onClick={() => window.print()}
-            className="rounded-md border border-slate-300 bg-white text-slate-700 px-3.5 py-1.5 text-xs font-semibold hover:bg-slate-50 transition shadow-sm">
-            Imprimir / PDF
+            className="rounded border border-slate-300 bg-white text-slate-700 px-2 py-1 text-[11px] font-semibold hover:bg-slate-50 transition shadow-sm whitespace-nowrap">
+            Imprimir
           </button>
         </div>
       </div>
@@ -2102,10 +2088,10 @@ function SolarTab({
                       A auto-selecao da bomba usa esse valor. */}
                   <div className="print:hidden">
                     <SectionLabel>🚰 Tubulação — perda de carga</SectionLabel>
-                    <div className="mt-1.5 rounded border border-slate-200 bg-slate-50/50 p-3 space-y-2">
-                      <div className="grid grid-cols-2 gap-2">
+                    <div className="mt-1 rounded border border-slate-200 bg-slate-50/50 p-2 space-y-1.5">
+                      <div className="grid grid-cols-2 gap-1.5">
                         <div>
-                          <label className="block text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1" title="Comprimento total da tubulacao em metros (ida + volta).">
+                          <label className="block text-[8.5px] uppercase tracking-wider text-slate-500 font-bold mb-0.5" title="Comprimento total da tubulacao em metros (ida + volta).">
                             Comprimento (m)
                           </label>
                           <input
@@ -2114,11 +2100,11 @@ function SolarTab({
                             onChange={(e) => setPipeComprimento(Number(e.target.value) || 0)}
                             onBlur={() => recomputePipe({ comprimentoM: pipeComprimento })}
                             placeholder="Ex: 30"
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-amber-500 focus:outline-none"
+                            className="w-full rounded border border-slate-300 px-1.5 py-1 text-xs font-semibold focus:border-amber-500 focus:outline-none"
                           />
                         </div>
                         <div>
-                          <label className="block text-[9px] uppercase tracking-wider text-slate-500 font-bold mb-1" title="Altura geometrica do telhado em metros (desnivel).">
+                          <label className="block text-[8.5px] uppercase tracking-wider text-slate-500 font-bold mb-0.5" title="Altura geometrica do telhado em metros (desnivel).">
                             Desnível (m)
                           </label>
                           <input
@@ -2127,7 +2113,7 @@ function SolarTab({
                             onChange={(e) => setPipeDesnivel(Number(e.target.value) || 0)}
                             onBlur={() => recomputePipe({ desnivelM: pipeDesnivel })}
                             placeholder="Ex: 4"
-                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-amber-500 focus:outline-none"
+                            className="w-full rounded border border-slate-300 px-1.5 py-1 text-xs font-semibold focus:border-amber-500 focus:outline-none"
                           />
                         </div>
                       </div>
@@ -2140,18 +2126,20 @@ function SolarTab({
                           ?? availableDns.find((d) => d >= 50) ?? availableDns[0];
                         // cardCls: vermelho se velocidade alta; senao amber
                         const cardCls = velocidadeAlta
-                          ? "rounded border-2 border-red-400 bg-red-50 px-3 py-2"
-                          : "rounded border border-amber-300 bg-amber-50 px-3 py-2";
+                          ? "rounded border border-red-400 bg-red-50 px-2 py-1.5"
+                          : "rounded border border-amber-300 bg-amber-50 px-2 py-1.5";
                         const labelCls = velocidadeAlta ? "text-red-800" : "text-amber-800";
                         const valueCls = velocidadeAlta ? "text-red-900" : "text-amber-900";
                         const subCls = velocidadeAlta ? "text-red-800" : "text-amber-800";
                         const veloCls = velocidadeAlta ? "font-bold text-red-700" : "";
                         return (
                           <div className={cardCls}>
-                            <div className={`text-[9px] uppercase tracking-wider font-bold ${labelCls}`}>Altura manometrica total</div>
-                            <div className={`text-lg font-bold tabular-nums ${valueCls}`}>{pipeResult.alturaManometricaTotal?.toFixed(2)} mca</div>
-                            <div className={`text-[10px] mt-0.5 ${subCls}`}>
-                              = {pipeResult.perdaDinamica?.toFixed(2)} mca de perda dinâmica + {pipeDesnivel} m de desnível · velocidade <span className={veloCls}>{pipeResult.velocidade?.toFixed(2)} m/s</span>
+                            <div className="flex items-baseline justify-between gap-2">
+                              <div className={`text-[8.5px] uppercase tracking-wider font-bold ${labelCls}`}>Altura manométrica total</div>
+                              <div className={`text-base font-bold tabular-nums leading-none ${valueCls}`}>{pipeResult.alturaManometricaTotal?.toFixed(2)} <span className="text-[10px] font-semibold">mca</span></div>
+                            </div>
+                            <div className={`text-[9.5px] mt-0.5 ${subCls}`}>
+                              = {pipeResult.perdaDinamica?.toFixed(2)} mca perda dinâmica + {pipeDesnivel} m desnível · velocidade <span className={veloCls}>{pipeResult.velocidade?.toFixed(2)} m/s</span>
                             </div>
                             <div className="mt-2 flex items-center gap-2 flex-wrap">
                               <label className={`text-[10px] uppercase tracking-wider font-bold ${labelCls}`}>📏 Tubo:</label>
