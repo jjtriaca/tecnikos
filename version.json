@@ -1,5 +1,5 @@
 {
-  "version": "1.12.54",
-  "codename": "Simulador Solar: card Coletores/bateria + diagrama SVG da instalacao (ramos x baterias) + imagem+specs da bomba selecionada",
-  "releasedAt": "2026-05-26T21:44:18.557Z"
+  "version": "1.12.55",
+  "codename": "Simulador Solar compactado: header, toolbar e tubulacao com 50% menos altura pra liberar viewport",
+  "releasedAt": "2026-05-26T21:56:00.013Z"
 }

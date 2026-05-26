@@ -1992,10 +1992,10 @@ function SolarTab({
                   <Kpi label="Baterias em paralelo" value={String((report.numRamosParalelos ?? 1) > 1 ? report.numRamosParalelos : 0)} unit="un" />
                   <Kpi label="Vazão necessária" value={report.vazaoTotalM3h.toFixed(2).replace(".", ",")} unit="m³/h" />
                   <Kpi label="Cobertura piscina × coletores" value={report.percentualCobertura.toFixed(1).replace(".", ",")} unit="%" />
-                  {/* v1.12.53: diagrama visual da configuracao de baterias — ramos paralelos × baterias em serie */}
+                  {/* v1.12.55: diagrama em card de tamanho FIXO (170px de altura) — escala interna */}
                   {report.numBaterias > 0 && (
-                    <div className="mt-2 rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50/30 p-2.5">
-                      <div className="text-[9px] uppercase tracking-wider font-bold text-slate-600 mb-1.5">
+                    <div className="mt-1.5 rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50/30 p-2">
+                      <div className="text-[8.5px] uppercase tracking-wider font-bold text-slate-600 mb-1">
                         Diagrama da instalação
                       </div>
                       <BatteryDiagram
@@ -2066,17 +2066,37 @@ function SolarTab({
                     )}
                   </div>
 
+                  {/* v1.12.55: slider substituido por stepper −/+. Clique discreto, sem drag. */}
                   <div>
                     <SectionLabel>Aumento da eficiência (coletores extras)</SectionLabel>
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <input type="range" min={0} max={10} step={1} value={extraPct}
-                        onChange={(e) => setExtraPct(Number(e.target.value))}
-                        onPointerUp={(e) => onRecompute(Number((e.target as HTMLInputElement).value), undefined)}
-                        onKeyUp={(e) => onRecompute(Number((e.target as HTMLInputElement).value), undefined)}
-                        className="flex-1 print:hidden accent-amber-500" />
-                      <div className="bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5 text-xs font-bold text-emerald-700 tabular-nums w-10 text-center">+{extraPct}</div>
+                    <div className="mt-1 flex items-center gap-1.5 print:hidden">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = Math.max(0, extraPct - 1);
+                          setExtraPct(next);
+                          onRecompute(next, undefined);
+                        }}
+                        disabled={extraPct <= 0}
+                        className="w-7 h-6 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 text-sm font-bold leading-none flex items-center justify-center transition shadow-sm"
+                        title="Diminuir"
+                      >−</button>
+                      <div className="bg-emerald-50 border border-emerald-300 rounded px-3 py-0.5 text-[12px] font-bold text-emerald-800 tabular-nums min-w-[56px] text-center">
+                        +{extraPct} <span className="text-[9px] text-emerald-600">({extraPct * 10}%)</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = Math.min(10, extraPct + 1);
+                          setExtraPct(next);
+                          onRecompute(next, undefined);
+                        }}
+                        disabled={extraPct >= 10}
+                        className="w-7 h-6 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 text-sm font-bold leading-none flex items-center justify-center transition shadow-sm"
+                        title="Aumentar"
+                      >+</button>
+                      <span className="text-[9px] text-slate-500 italic ml-2">Aumenta a eficiência em meses frios (0–10).</span>
                     </div>
-                    <div className="text-[9px] text-slate-500 mt-0.5 italic">Aumenta a eficiência em meses frios.</div>
                   </div>
 
                   {/* v1.12.34: bloco Tubulacao — calculadora de perda de carga.
@@ -2088,32 +2108,32 @@ function SolarTab({
                       A auto-selecao da bomba usa esse valor. */}
                   <div className="print:hidden">
                     <SectionLabel>🚰 Tubulação — perda de carga</SectionLabel>
-                    <div className="mt-1 rounded border border-slate-200 bg-slate-50/50 p-2 space-y-1.5">
-                      <div className="grid grid-cols-2 gap-1.5">
-                        <div>
-                          <label className="block text-[8.5px] uppercase tracking-wider text-slate-500 font-bold mb-0.5" title="Comprimento total da tubulacao em metros (ida + volta).">
-                            Comprimento (m)
+                    <div className="mt-1 rounded border border-slate-200 bg-slate-50/50 p-1.5 space-y-1">
+                      <div className="grid grid-cols-2 gap-1.5 items-center">
+                        <div className="flex items-center gap-1.5">
+                          <label className="text-[9px] uppercase tracking-wider text-slate-500 font-bold whitespace-nowrap" title="Comprimento total da tubulacao em metros (ida + volta).">
+                            Comp. (m)
                           </label>
                           <input
                             type="number" step="0.5" min="0"
                             value={pipeComprimento || ""}
                             onChange={(e) => setPipeComprimento(Number(e.target.value) || 0)}
                             onBlur={() => recomputePipe({ comprimentoM: pipeComprimento })}
-                            placeholder="Ex: 30"
-                            className="w-full rounded border border-slate-300 px-1.5 py-1 text-xs font-semibold focus:border-amber-500 focus:outline-none"
+                            placeholder="30"
+                            className="flex-1 min-w-0 rounded border border-slate-300 px-1.5 py-0.5 text-[12px] font-semibold focus:border-amber-500 focus:outline-none h-6"
                           />
                         </div>
-                        <div>
-                          <label className="block text-[8.5px] uppercase tracking-wider text-slate-500 font-bold mb-0.5" title="Altura geometrica do telhado em metros (desnivel).">
-                            Desnível (m)
+                        <div className="flex items-center gap-1.5">
+                          <label className="text-[9px] uppercase tracking-wider text-slate-500 font-bold whitespace-nowrap" title="Altura geometrica do telhado em metros (desnivel).">
+                            Desnív. (m)
                           </label>
                           <input
                             type="number" step="0.5" min="0"
                             value={pipeDesnivel || ""}
                             onChange={(e) => setPipeDesnivel(Number(e.target.value) || 0)}
                             onBlur={() => recomputePipe({ desnivelM: pipeDesnivel })}
-                            placeholder="Ex: 4"
-                            className="w-full rounded border border-slate-300 px-1.5 py-1 text-xs font-semibold focus:border-amber-500 focus:outline-none"
+                            placeholder="4"
+                            className="flex-1 min-w-0 rounded border border-slate-300 px-1.5 py-0.5 text-[12px] font-semibold focus:border-amber-500 focus:outline-none h-6"
                           />
                         </div>
                       </div>
@@ -2971,9 +2991,11 @@ function BigHighlightInput({ label, value, onChange, unit, min, max, manual }: {
   );
 }
 
-// v1.12.53: diagrama SVG da configuracao de baterias. Mostra entrada (top), N ramos
-// verticais (cada um com M baterias em serie), retorno (bottom). Cada bateria leva
-// o numero de coletores. Ajuda o operador a entender a topologia da instalacao.
+// v1.12.53: diagrama SVG da configuracao de baterias.
+// v1.12.55: container de TAMANHO FIXO (200x180). O SVG interno calcula o viewBox
+// conforme a topologia (ramos × baterias) e usa preserveAspectRatio pra ESCALAR
+// dentro do espaco fixo. Configuracoes maiores ficam menores; menores ocupam o
+// mesmo espaco. Garante consistencia visual independente da qtd de baterias.
 function BatteryDiagram({
   numRamos, batPorRamo, coletoresPorBateria,
 }: {
@@ -2986,61 +3008,58 @@ function BatteryDiagram({
   const ramoGap = 24;
   const batH = 38;
   const batGap = 10;
-  const trunkH = 22;
   const padding = 16;
-  const svgW = numRamos * ramoW + (numRamos - 1) * ramoGap + padding * 2;
-  const svgH = trunkH * 2 + batPorRamo * batH + (batPorRamo - 1) * batGap + 16;
-  const trunkY1 = trunkH / 2 + 8;
-  const trunkY2 = svgH - trunkH / 2 - 8;
+  const svgW = numRamos * ramoW + Math.max(0, numRamos - 1) * ramoGap + padding * 2;
+  const svgH = 16 + batPorRamo * batH + Math.max(0, batPorRamo - 1) * batGap + 36; // trunks + ramo labels
+  const trunkY1 = 14;
+  const trunkY2 = svgH - 22;
   return (
-    <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full h-auto" style={{ maxHeight: 220 }}>
-      {/* Tronco de entrada (alimentacao) */}
-      <line x1={padding} y1={trunkY1} x2={svgW - padding} y2={trunkY1} stroke="#0284c7" strokeWidth={3} strokeLinecap="round" />
-      <text x={padding} y={trunkY1 - 6} fontSize={9} fontWeight={700} fill="#0369a1" className="uppercase">Alimentação</text>
-      {/* Tronco de retorno */}
-      <line x1={padding} y1={trunkY2} x2={svgW - padding} y2={trunkY2} stroke="#dc2626" strokeWidth={3} strokeLinecap="round" />
-      <text x={padding} y={trunkY2 + 14} fontSize={9} fontWeight={700} fill="#b91c1c" className="uppercase">Retorno</text>
-      {/* Ramos */}
-      {Array.from({ length: numRamos }).map((_, r) => {
-        const x = padding + r * (ramoW + ramoGap);
-        const xMid = x + ramoW / 2;
-        return (
-          <g key={r}>
-            {/* Linha vertical conectando entrada → primeira bat e ultima bat → retorno */}
-            <line x1={xMid} y1={trunkY1} x2={xMid} y2={trunkY1 + 10} stroke="#0284c7" strokeWidth={2} />
-            <line x1={xMid} y1={trunkY2 - 10} x2={xMid} y2={trunkY2} stroke="#dc2626" strokeWidth={2} />
-            {Array.from({ length: batPorRamo }).map((__, b) => {
-              const y = trunkY1 + 10 + b * (batH + batGap);
-              return (
-                <g key={b}>
-                  {/* Caixa da bateria */}
-                  <rect x={x} y={y} width={ramoW} height={batH} rx={4} ry={4} fill="#fef3c7" stroke="#d97706" strokeWidth={1.5} />
-                  <text x={xMid} y={y + 16} fontSize={9} fontWeight={700} fill="#92400e" textAnchor="middle">Bateria</text>
-                  <text x={xMid} y={y + 30} fontSize={11} fontWeight={800} fill="#78350f" textAnchor="middle" className="tabular-nums">{coletoresPorBateria} col.</text>
-                  {/* Conexao serial entre baterias do mesmo ramo */}
-                  {b < batPorRamo - 1 && (
-                    <line x1={xMid} y1={y + batH} x2={xMid} y2={y + batH + batGap} stroke="#64748b" strokeWidth={2} strokeDasharray="2 2" />
-                  )}
-                </g>
-              );
-            })}
-            {/* Label do ramo */}
-            <text x={xMid} y={trunkY2 + 26} fontSize={8.5} fontWeight={600} fill="#475569" textAnchor="middle" className="uppercase tracking-wider">Ramo {r + 1}</text>
-          </g>
-        );
-      })}
-    </svg>
+    <div className="w-full" style={{ height: 170 }}>
+      <svg viewBox={`0 0 ${svgW} ${svgH}`} preserveAspectRatio="xMidYMid meet" width="100%" height="100%">
+        {/* Tronco de entrada (alimentacao) */}
+        <line x1={padding} y1={trunkY1} x2={svgW - padding} y2={trunkY1} stroke="#0284c7" strokeWidth={3} strokeLinecap="round" />
+        <text x={padding} y={trunkY1 - 4} fontSize={9} fontWeight={700} fill="#0369a1" className="uppercase">Alimentação</text>
+        {/* Tronco de retorno */}
+        <line x1={padding} y1={trunkY2} x2={svgW - padding} y2={trunkY2} stroke="#dc2626" strokeWidth={3} strokeLinecap="round" />
+        <text x={padding} y={trunkY2 + 12} fontSize={9} fontWeight={700} fill="#b91c1c" className="uppercase">Retorno</text>
+        {/* Ramos */}
+        {Array.from({ length: numRamos }).map((_, r) => {
+          const x = padding + r * (ramoW + ramoGap);
+          const xMid = x + ramoW / 2;
+          return (
+            <g key={r}>
+              <line x1={xMid} y1={trunkY1} x2={xMid} y2={trunkY1 + 8} stroke="#0284c7" strokeWidth={2} />
+              <line x1={xMid} y1={trunkY2 - 8} x2={xMid} y2={trunkY2} stroke="#dc2626" strokeWidth={2} />
+              {Array.from({ length: batPorRamo }).map((__, b) => {
+                const y = trunkY1 + 8 + b * (batH + batGap);
+                return (
+                  <g key={b}>
+                    <rect x={x} y={y} width={ramoW} height={batH} rx={4} ry={4} fill="#fef3c7" stroke="#d97706" strokeWidth={1.5} />
+                    <text x={xMid} y={y + 16} fontSize={9} fontWeight={700} fill="#92400e" textAnchor="middle">Bateria</text>
+                    <text x={xMid} y={y + 30} fontSize={11} fontWeight={800} fill="#78350f" textAnchor="middle" className="tabular-nums">{coletoresPorBateria} col.</text>
+                    {b < batPorRamo - 1 && (
+                      <line x1={xMid} y1={y + batH} x2={xMid} y2={y + batH + batGap} stroke="#64748b" strokeWidth={2} strokeDasharray="2 2" />
+                    )}
+                  </g>
+                );
+              })}
+              <text x={xMid} y={trunkY2 + 22} fontSize={8.5} fontWeight={600} fill="#475569" textAnchor="middle" className="uppercase tracking-wider">Ramo {r + 1}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
   );
 }
 
-// Kpi padronizado com o estilo de StatCompact: label uppercase pequena + valor bold inline + unit discreta
+// Kpi padronizado com o estilo de StatCompact. v1.12.55: super compacto.
 function Kpi({ label, value, unit, accent }: { label: string; value: string; unit: string; accent?: boolean }) {
   return (
-    <div className={`rounded px-2 py-1 border flex items-baseline justify-between gap-1 ${accent ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white"}`}>
-      <span className="text-[8.5px] uppercase tracking-wide text-slate-500 font-semibold leading-tight">{label}</span>
+    <div className={`rounded px-1.5 py-0.5 border flex items-baseline justify-between gap-1 ${accent ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white"}`}>
+      <span className="text-[8px] uppercase tracking-wide text-slate-500 font-semibold leading-tight">{label}</span>
       <span className={`tabular-nums font-bold leading-tight ${accent ? "text-amber-800" : "text-slate-900"}`}>
-        <span className="text-[12px]">{value}</span>
-        <span className={`text-[9px] font-medium ml-0.5 ${accent ? "text-amber-700" : "text-slate-500"}`}>{unit}</span>
+        <span className="text-[11px]">{value}</span>
+        <span className={`text-[8.5px] font-medium ml-0.5 ${accent ? "text-amber-700" : "text-slate-500"}`}>{unit}</span>
       </span>
     </div>
   );
