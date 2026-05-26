@@ -1,5 +1,5 @@
 {
-  "version": "1.12.52",
-  "codename": "Recalcular dimensionamento Solar usa override MANUAL local (dispArea/dispVolume) + card 'Baterias em paralelo' = 0 quando 1 ramo unico",
-  "releasedAt": "2026-05-26T21:11:14.090Z"
+  "version": "1.12.53",
+  "codename": "Algoritmo SIMETRICO de baterias (n_ramos × bat × col, sem assimetrias) + botoes Salvar/Limpar override de area/volume manual",
+  "releasedAt": "2026-05-26T21:32:45.575Z"
 }

@@ -1522,6 +1522,7 @@ function SolarTab({
     description: string;
     salePriceCents: number;
     poolType: string | null;
+    imageUrl: string | null;
     vazaoM3h: number;
     pressaoTrabalhoMca: number;
     potenciaCv: number | null;
@@ -1999,11 +2000,25 @@ function SolarTab({
                   <Kpi label="Área da piscina" value={report.areaPiscinaM2.toFixed(2).replace(".", ",")} unit="m²" />
                   <Kpi label="m² necessário de coletor" value={String(Math.round(report.m2ColetorNecessario))} unit="m²" />
                   <Kpi label="Qtd. de coletores" value={report.qtdColetores.toFixed(1).replace(".", ",")} unit="un" accent />
+                  <Kpi label="Coletores por bateria" value={String(report.coletoresPorBateria)} unit="un" />
                   <Kpi label="Baterias (total)" value={String(report.numBaterias)} unit="un" />
                   <Kpi label="Baterias em série" value={String(report.batPorRamo ?? report.numBaterias)} unit="un" />
                   <Kpi label="Baterias em paralelo" value={String((report.numRamosParalelos ?? 1) > 1 ? report.numRamosParalelos : 0)} unit="un" />
                   <Kpi label="Vazão necessária" value={report.vazaoTotalM3h.toFixed(2).replace(".", ",")} unit="m³/h" />
                   <Kpi label="Cobertura piscina × coletores" value={report.percentualCobertura.toFixed(1).replace(".", ",")} unit="%" />
+                  {/* v1.12.53: diagrama visual da configuracao de baterias — ramos paralelos × baterias em serie */}
+                  {report.numBaterias > 0 && (
+                    <div className="mt-2 rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50/30 p-2.5">
+                      <div className="text-[9px] uppercase tracking-wider font-bold text-slate-600 mb-1.5">
+                        Diagrama da instalação
+                      </div>
+                      <BatteryDiagram
+                        numRamos={report.numRamosParalelos ?? 1}
+                        batPorRamo={report.batPorRamo ?? report.numBaterias}
+                        coletoresPorBateria={report.coletoresPorBateria}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Direita — Coletor + slider + bomba */}
@@ -2179,38 +2194,35 @@ function SolarTab({
                     </div>
                   </div>
 
-                  {/* v1.12.43: Bomba recomendada agora eh um DROPDOWN com TODAS as bombas
-                      do catalogo que passam na regra (filterPoolType + filterDescription + where).
-                      Ordenadas pelo orderBy da regra. Operador pode escolher outra entre as
-                      candidatas. Backend interpola pumpCurve quando candidato tem curva. */}
+                  {/* v1.12.43: dropdown com candidatos reais.
+                      v1.12.53: layout reorganizado com imagem da bomba (mesmo padrao do coletor). */}
                   <div>
                     <SectionLabel>Bomba recomendada</SectionLabel>
-                    <div className="mt-1.5 flex items-center gap-1.5">
-                      <button type="button"
-                        onClick={() => setShowBombaPicker(true)}
-                        title="Configurar auto-seleção da bomba (filtra por vazão calculada e altura manométrica)"
-                        className="text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300 print:hidden flex-shrink-0">
-                        ✨
-                      </button>
-                      <div className="flex-1">
-                        {bombaCandidates.length === 0 ? (
-                          <div className="bg-slate-50 border border-slate-200 rounded px-3 py-2">
-                            <div className="text-[12px] font-bold text-slate-900 leading-tight">
-                              {bombaCandidatesLoading ? 'Carregando candidatos...' : (report.bombaRecomendada || 'Nenhum candidato no catálogo')}
+                    <div className="mt-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <button type="button"
+                          onClick={() => setShowBombaPicker(true)}
+                          title="Configurar auto-seleção da bomba (filtra por vazão calculada e altura manométrica)"
+                          className="text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300 print:hidden flex-shrink-0">
+                          ✨
+                        </button>
+                        <div className="flex-1">
+                          {bombaCandidates.length === 0 ? (
+                            <div className="bg-slate-50 border border-slate-200 rounded px-3 py-2">
+                              <div className="text-[12px] font-bold text-slate-900 leading-tight">
+                                {bombaCandidatesLoading ? 'Carregando candidatos...' : (report.bombaRecomendada || 'Nenhum candidato no catálogo')}
+                              </div>
+                              <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">
+                                {bombaCandidatesLoading
+                                  ? 'Avaliando catálogo contra a regra...'
+                                  : `Nenhuma bomba do catálogo atende a regra atual (vazão ≥ ${report.vazaoTotalM3h?.toFixed(2)} m³/h${pipeResult ? ` e pressão ≥ ${pipeResult.alturaManometricaTotal?.toFixed(2)} mca` : ''}). Edite no ✨ ou cadastre bombas compatíveis.`}
+                              </div>
                             </div>
-                            <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">
-                              {bombaCandidatesLoading
-                                ? 'Avaliando catálogo contra a regra...'
-                                : `Nenhuma bomba do catálogo atende a regra atual (vazão ≥ ${report.vazaoTotalM3h?.toFixed(2)} m³/h${pipeResult ? ` e pressão ≥ ${pipeResult.alturaManometricaTotal?.toFixed(2)} mca` : ''}). Edite no ✨ ou cadastre bombas compatíveis.`}
-                            </div>
-                          </div>
-                        ) : (
-                          <>
+                          ) : (
                             <select
                               value={selectedBombaId ?? ''}
                               onChange={(e) => handleSelectBomba(e.target.value || null)}
-                              className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-[12px] font-bold text-slate-900"
-                            >
+                              className="w-full rounded border border-slate-300 bg-amber-50 px-2 py-1 text-[12px] font-semibold print:hidden">
                               {bombaCandidates.map((c) => {
                                 const parts: string[] = [c.description];
                                 if (c.potenciaCv != null) parts.push(`${c.potenciaCv} cv`);
@@ -2221,11 +2233,58 @@ function SolarTab({
                                 return <option key={c.productId} value={c.productId}>{parts.join(' · ')}</option>;
                               })}
                             </select>
-                            <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">
-                              {bombaCandidates.length} bomba(s) atendem · ordem definida pela regra ✨ · vazão {report.vazaoTotalM3h?.toFixed(2)} m³/h{pipeResult ? ` + altura ${pipeResult.alturaManometricaTotal?.toFixed(2)} mca` : ''}
+                          )}
+                        </div>
+                      </div>
+                      {/* v1.12.53: card com imagem + specs da bomba selecionada (mesmo padrao do coletor) */}
+                      {bombaCandidates.length > 0 && (() => {
+                        const selBomba = bombaCandidates.find((b) => b.productId === selectedBombaId) ?? bombaCandidates[0];
+                        if (!selBomba) return null;
+                        return (
+                          <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2.5 flex gap-3 items-start shadow-sm">
+                            {/* Imagem da bomba (mesma estetica do coletor — quadrada, contain) */}
+                            <div className="w-24 h-24 flex-shrink-0 rounded border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center">
+                              {selBomba.imageUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={selBomba.imageUrl} alt={selBomba.description} className="w-full h-full object-contain" />
+                              ) : (
+                                <div className="text-[9px] text-slate-400 text-center px-1">Sem imagem</div>
+                              )}
                             </div>
-                          </>
-                        )}
+                            {/* Specs */}
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[12px] font-bold text-slate-900 leading-tight truncate">{selBomba.description}</div>
+                              <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] text-slate-700">
+                                {selBomba.potenciaCv != null && (
+                                  <div><span className="text-slate-500">Potência:</span> <span className="font-semibold tabular-nums">{selBomba.potenciaCv} cv</span></div>
+                                )}
+                                <div><span className="text-slate-500">Vazão:</span> <span className="font-semibold tabular-nums">{selBomba.vazaoM3h.toFixed(2)} m³/h</span></div>
+                                <div><span className="text-slate-500">Pressão:</span> <span className="font-semibold tabular-nums">{selBomba.pressaoTrabalhoMca.toFixed(2)} mca</span></div>
+                                {selBomba.salePriceCents > 0 && (
+                                  <div><span className="text-slate-500">Preço:</span> <span className="font-semibold tabular-nums">R$ {(selBomba.salePriceCents / 100).toFixed(2)}</span></div>
+                                )}
+                                {selBomba.hasPumpCurve && <div className="text-[9px] text-emerald-700 font-semibold">📈 com curva característica</div>}
+                                {selBomba.indicator && (
+                                  <div className={`text-[10px] font-semibold ${
+                                    selBomba.indicator.color === 'emerald' ? 'text-emerald-700' :
+                                    selBomba.indicator.color === 'green' ? 'text-green-700' :
+                                    selBomba.indicator.color === 'yellow' ? 'text-yellow-700' :
+                                    selBomba.indicator.color === 'orange' ? 'text-orange-700' :
+                                    selBomba.indicator.color === 'red' ? 'text-red-700' :
+                                    'text-slate-700'
+                                  }`}>
+                                    {selBomba.indicator.label}: {selBomba.indicator.value.toFixed(0)}{selBomba.indicator.unit} ({selBomba.indicator.label})
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                      <div className="text-[9px] text-slate-500 mt-1 leading-tight">
+                        {bombaCandidates.length > 0 ? (
+                          <>{bombaCandidates.length} bomba(s) atendem · ordem definida pela regra ✨ · vazão {report.vazaoTotalM3h?.toFixed(2)} m³/h{pipeResult ? ` + altura ${pipeResult.alturaManometricaTotal?.toFixed(2)} mca` : ''}</>
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -2921,6 +2980,68 @@ function BigHighlightInput({ label, value, onChange, unit, min, max, manual }: {
         <span className={`text-[9.5px] font-semibold ${colors.unitText}`}>{unit}</span>
       </div>
     </div>
+  );
+}
+
+// v1.12.53: diagrama SVG da configuracao de baterias. Mostra entrada (top), N ramos
+// verticais (cada um com M baterias em serie), retorno (bottom). Cada bateria leva
+// o numero de coletores. Ajuda o operador a entender a topologia da instalacao.
+function BatteryDiagram({
+  numRamos, batPorRamo, coletoresPorBateria,
+}: {
+  numRamos: number;
+  batPorRamo: number;
+  coletoresPorBateria: number;
+}) {
+  if (numRamos <= 0 || batPorRamo <= 0) return null;
+  const ramoW = 60;
+  const ramoGap = 24;
+  const batH = 38;
+  const batGap = 10;
+  const trunkH = 22;
+  const padding = 16;
+  const svgW = numRamos * ramoW + (numRamos - 1) * ramoGap + padding * 2;
+  const svgH = trunkH * 2 + batPorRamo * batH + (batPorRamo - 1) * batGap + 16;
+  const trunkY1 = trunkH / 2 + 8;
+  const trunkY2 = svgH - trunkH / 2 - 8;
+  return (
+    <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full h-auto" style={{ maxHeight: 220 }}>
+      {/* Tronco de entrada (alimentacao) */}
+      <line x1={padding} y1={trunkY1} x2={svgW - padding} y2={trunkY1} stroke="#0284c7" strokeWidth={3} strokeLinecap="round" />
+      <text x={padding} y={trunkY1 - 6} fontSize={9} fontWeight={700} fill="#0369a1" className="uppercase">Alimentação</text>
+      {/* Tronco de retorno */}
+      <line x1={padding} y1={trunkY2} x2={svgW - padding} y2={trunkY2} stroke="#dc2626" strokeWidth={3} strokeLinecap="round" />
+      <text x={padding} y={trunkY2 + 14} fontSize={9} fontWeight={700} fill="#b91c1c" className="uppercase">Retorno</text>
+      {/* Ramos */}
+      {Array.from({ length: numRamos }).map((_, r) => {
+        const x = padding + r * (ramoW + ramoGap);
+        const xMid = x + ramoW / 2;
+        return (
+          <g key={r}>
+            {/* Linha vertical conectando entrada → primeira bat e ultima bat → retorno */}
+            <line x1={xMid} y1={trunkY1} x2={xMid} y2={trunkY1 + 10} stroke="#0284c7" strokeWidth={2} />
+            <line x1={xMid} y1={trunkY2 - 10} x2={xMid} y2={trunkY2} stroke="#dc2626" strokeWidth={2} />
+            {Array.from({ length: batPorRamo }).map((__, b) => {
+              const y = trunkY1 + 10 + b * (batH + batGap);
+              return (
+                <g key={b}>
+                  {/* Caixa da bateria */}
+                  <rect x={x} y={y} width={ramoW} height={batH} rx={4} ry={4} fill="#fef3c7" stroke="#d97706" strokeWidth={1.5} />
+                  <text x={xMid} y={y + 16} fontSize={9} fontWeight={700} fill="#92400e" textAnchor="middle">Bateria</text>
+                  <text x={xMid} y={y + 30} fontSize={11} fontWeight={800} fill="#78350f" textAnchor="middle" className="tabular-nums">{coletoresPorBateria} col.</text>
+                  {/* Conexao serial entre baterias do mesmo ramo */}
+                  {b < batPorRamo - 1 && (
+                    <line x1={xMid} y1={y + batH} x2={xMid} y2={y + batH + batGap} stroke="#64748b" strokeWidth={2} strokeDasharray="2 2" />
+                  )}
+                </g>
+              );
+            })}
+            {/* Label do ramo */}
+            <text x={xMid} y={trunkY2 + 26} fontSize={8.5} fontWeight={600} fill="#475569" textAnchor="middle" className="uppercase tracking-wider">Ramo {r + 1}</text>
+          </g>
+        );
+      })}
+    </svg>
   );
 }
 

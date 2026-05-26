@@ -527,6 +527,7 @@ export class SolarBudgetService {
     description: string;
     salePriceCents: number;
     poolType: string | null;
+    imageUrl: string | null;
     vazaoM3h: number;
     pressaoTrabalhoMca: number;
     potenciaCv: number | null;
@@ -561,7 +562,7 @@ export class SolarBudgetService {
       },
       select: {
         id: true, description: true, salePriceCents: true,
-        poolType: true, technicalSpecs: true, pumpCurve: true,
+        poolType: true, technicalSpecs: true, pumpCurve: true, imageUrl: true,
       },
     });
     if (products.length === 0) return [];
@@ -597,6 +598,7 @@ export class SolarBudgetService {
         description: p.description ?? '',
         salePriceCents: p.salePriceCents ?? 0,
         poolType: p.poolType ?? null,
+        imageUrl: p.imageUrl ?? null,
         vazaoM3h: vazaoEfetiva,
         pressaoTrabalhoMca: pressaoEfetiva,
         potenciaCv: Number.isFinite(potenciaCv as number) ? (potenciaCv as number) : null,
