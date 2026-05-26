@@ -229,6 +229,7 @@ interface SolarReport {
   numBaterias: number;
   coletoresPorBateria: number;
   numRamosParalelos?: number;
+  batPorRamo?: number;
   vazaoTotalM3h: number;
   areaTotalColetoresM2: number;
   percentualCobertura: number;
@@ -1598,7 +1599,9 @@ function SolarTab({
   // Modo MANUAL: libera edicao + cor verde nos cards highlight (Area/Volume e Temp Inicial/Final).
   const initTipoPisc = (budget.environmentParams as any)?.tipoPiscina ?? "PRIVATIVA";
   const initTipoConstr = (budget.environmentParams as any)?.tipoConstrucao ?? "ABERTA";
-  const initModoDim = (budget.environmentParams as any)?.modoDimensao ?? "AUTOMATICO";
+  // v1.12.52: se ha solarOverride salvo, o modo MANUAL e inferido automaticamente.
+  const initModoDim = (budget.environmentParams as any)?.modoDimensao
+    ?? ((budget.environmentParams as any)?.solarOverride ? "MANUAL" : "AUTOMATICO");
   const initModoCfg = (budget.environmentParams as any)?.modoConfigAquec ?? "AUTOMATICO";
   const [tipoPiscinaSel, setTipoPiscinaSel] = useState<string>(initTipoPisc);
   const [tipoConstrucao, setTipoConstrucao] = useState<string>(initTipoConstr);
@@ -1608,12 +1611,47 @@ function SolarTab({
   const cfgManual = modoConfigAquec === "MANUAL";
 
   // v5.5 — Overrides das dimensões quando modo = MANUAL (UI only). Inicializados das props.
+  // v1.12.52 — se existir solarOverride salvo no environmentParams, usa esses valores
+  //            como inicial (e marca modo MANUAL automaticamente — feito no initModoDim acima).
+  const savedOverride = (budget.environmentParams as any)?.solarOverride;
+  const initAreaOverride = Number(savedOverride?.areaPiscinaM2) > 0 ? Number(savedOverride.areaPiscinaM2) : area;
+  const initVolumeOverride = Number(savedOverride?.volumeM3) > 0 ? Number(savedOverride.volumeM3) : volume;
   const [lenOverride, setLenOverride] = useState<number>(len);
   const [widOverride, setWidOverride] = useState<number>(wid);
   const [profMinOverride, setProfMinOverride] = useState<number>(profMin);
   const [profMaxOverride, setProfMaxOverride] = useState<number>(profMax);
-  const [areaOverride, setAreaOverride] = useState<number>(area);
-  const [volumeOverride, setVolumeOverride] = useState<number>(volume);
+  const [areaOverride, setAreaOverride] = useState<number>(initAreaOverride);
+  const [volumeOverride, setVolumeOverride] = useState<number>(initVolumeOverride);
+  const [savingOverride, setSavingOverride] = useState(false);
+  // Indica se ha um override salvo no banco (controla visibilidade do botao "Limpar override")
+  const [hasSavedOverride, setHasSavedOverride] = useState<boolean>(!!savedOverride);
+
+  async function handleSaveOverride() {
+    setSavingOverride(true);
+    try {
+      const body: { areaPiscinaM2?: number; volumeM3?: number } = {};
+      if (Number.isFinite(areaOverride) && areaOverride > 0) body.areaPiscinaM2 = areaOverride;
+      if (Number.isFinite(volumeOverride) && volumeOverride > 0) body.volumeM3 = volumeOverride;
+      await api.post(`/pool-budgets/${budget.id}/solar-override`, body);
+      setHasSavedOverride(Object.keys(body).length > 0);
+    } catch (err) {
+      console.warn('Falha ao salvar solarOverride:', err);
+    } finally {
+      setSavingOverride(false);
+    }
+  }
+
+  async function handleClearOverride() {
+    setSavingOverride(true);
+    try {
+      await api.post(`/pool-budgets/${budget.id}/solar-override`, {});
+      setHasSavedOverride(false);
+    } catch (err) {
+      console.warn('Falha ao limpar solarOverride:', err);
+    } finally {
+      setSavingOverride(false);
+    }
+  }
   const dispLen = dimManual ? lenOverride : len;
   const dispWid = dimManual ? widOverride : wid;
   const dispProfMin = dimManual ? profMinOverride : profMin;
@@ -1712,6 +1750,22 @@ function SolarTab({
             className="rounded-md bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:bg-slate-300 transition shadow-sm">
             {recomputing ? "Recalculando..." : "Recalcular dimensionamento"}
           </button>
+          {/* v1.12.52: botoes pra salvar/limpar override de area/volume manual. Aparece SO no
+              modo MANUAL. NAO altera poolDimensions (cadastro do orcamento). */}
+          {dimManual && (
+            <button onClick={handleSaveOverride} disabled={savingOverride}
+              title="Salvar área/volume manuais pra usar ao reabrir o Simulador (não altera o cadastro do orçamento)"
+              className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:bg-slate-300 transition shadow-sm print:hidden">
+              {savingOverride ? "Salvando..." : (hasSavedOverride ? "💾 Atualizar override" : "💾 Salvar override")}
+            </button>
+          )}
+          {dimManual && hasSavedOverride && (
+            <button onClick={handleClearOverride} disabled={savingOverride}
+              title="Remove o override salvo. Próxima abertura usa as dimensões do cadastro."
+              className="rounded-md bg-white border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:bg-slate-200 transition shadow-sm print:hidden">
+              ✕ Limpar override
+            </button>
+          )}
           <button onClick={() => setPdfPreviewMode(true)}
             className="rounded-md border border-blue-300 bg-blue-50 text-blue-800 px-3.5 py-1.5 text-xs font-semibold hover:bg-blue-100 transition shadow-sm">
             👁️ Pré-visualizar PDF
@@ -1946,7 +2000,7 @@ function SolarTab({
                   <Kpi label="m² necessário de coletor" value={String(Math.round(report.m2ColetorNecessario))} unit="m²" />
                   <Kpi label="Qtd. de coletores" value={report.qtdColetores.toFixed(1).replace(".", ",")} unit="un" accent />
                   <Kpi label="Baterias (total)" value={String(report.numBaterias)} unit="un" />
-                  <Kpi label="Baterias em série" value={String(report.numRamosParalelos && report.numRamosParalelos > 0 ? Math.ceil(report.numBaterias / report.numRamosParalelos) : report.numBaterias)} unit="un" />
+                  <Kpi label="Baterias em série" value={String(report.batPorRamo ?? report.numBaterias)} unit="un" />
                   <Kpi label="Baterias em paralelo" value={String((report.numRamosParalelos ?? 1) > 1 ? report.numRamosParalelos : 0)} unit="un" />
                   <Kpi label="Vazão necessária" value={report.vazaoTotalM3h.toFixed(2).replace(".", ",")} unit="m³/h" />
                   <Kpi label="Cobertura piscina × coletores" value={report.percentualCobertura.toFixed(1).replace(".", ",")} unit="%" />

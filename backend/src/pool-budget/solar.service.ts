@@ -95,11 +95,13 @@ export interface SolarReport {
   m2ColetorNecessario: number;      // H35
   qtdColetores: number;              // H36 = coletoresPorBateria * numBaterias
   qtdInicial: number;                // antes de redistribuir em baterias
-  numBaterias: number;               // H37
+  numBaterias: number;               // H37 — total (=numRamosParalelos × batPorRamo, simetrico)
   coletoresPorBateria: number;
-  // v1.12.48: numero de series em paralelo. Baterias em serie compartilham fluxo;
-  // mais de 3 baterias obriga abrir nova serie em paralelo. Multiplicador da vazao total.
+  // v1.12.48: numero de ramos em paralelo. Baterias em serie compartilham fluxo.
+  // v1.12.52: configuracao SIMETRICA — todos os ramos tem batPorRamo baterias iguais.
   numRamosParalelos: number;
+  // v1.12.52: baterias em serie dentro de cada ramo (todos os ramos iguais).
+  batPorRamo: number;
   vazaoTotalM3h: number;             // H38
   areaTotalColetoresM2: number;      // H39
   percentualCobertura: number;       // H40 (%)
@@ -152,35 +154,75 @@ export class SolarService {
     // = mult_capa × (1 + extra × 0.1) × area_piscina
     const m2Necessario = multCapa * (1 + (inputs.extraColetoresPct ?? 0) * 0.1) * area;
 
-    // === H36: qtd coletores (organiza em baterias) ===
-    // v1.12.48: regras Solis oficiais.
+    // === H36: qtd coletores + organizacao em baterias SIMETRICAS (v1.12.52) ===
+    // Regras Solis (ver memory/study_solar_vazao_base_teorica.md):
     //  - MAX 7 coletores por bateria, OU 30 m² por bateria (o que for menor)
-    //  - MIN 5 coletores por bateria (apos redistribuir)
+    //  - MIN 5 coletores por bateria (recomendacao Solis)
+    //  - MAX 3 baterias em SERIE
+    //  - **SIMETRIA OBRIGATORIA**: todos os ramos paralelos devem ter o MESMO
+    //    numero de baterias (e mesma quantidade de coletores por bateria). Ramos
+    //    assimetricos (ex: 3+3+1) desbalanceam a vazao — a bateria solitaria nao
+    //    entra no calculo correto. Excesso de coletores e aceitavel pra manter
+    //    simetria.
     const areaColetor = inputs.coletor.areaM2 || SOLAR_DEFAULT_COLETOR_AREA_M2;
-    const qtdInicial = Math.round(m2Necessario / areaColetor);
-    // Quantos coletores cabem numa bateria respeitando o limite de 30m²:
-    const maxColetoresPorM2 = areaColetor > 0
-      ? Math.floor(SOLAR_BATERIA_MAX_M2 / areaColetor)
+    const qtdInicial = Math.max(0, Math.round(m2Necessario / areaColetor));
+    const colMaxByArea = areaColetor > 0
+      ? Math.max(1, Math.floor(SOLAR_BATERIA_MAX_M2 / areaColetor))
       : SOLAR_BATERIA_MAX_COLETORES;
-    const tetoColetoresBateria = Math.max(1, Math.min(SOLAR_BATERIA_MAX_COLETORES, maxColetoresPorM2));
-    const numBaterias = qtdInicial === 0 ? 0 : Math.ceil(qtdInicial / tetoColetoresBateria);
-    const coletoresPorBateria = numBaterias === 0
-      ? 0
-      : Math.max(
-          Math.min(SOLAR_BATERIA_MIN_COLETORES, tetoColetoresBateria),
-          Math.min(tetoColetoresBateria, Math.round(qtdInicial / numBaterias)),
-        );
-    const qtdTotal = coletoresPorBateria * numBaterias;
+    const colMaxEfetivo = Math.min(SOLAR_BATERIA_MAX_COLETORES, colMaxByArea);
+    const colMinEfetivo = Math.min(SOLAR_BATERIA_MIN_COLETORES, colMaxEfetivo);
 
-    // === H38: vazao (m³/h) — formula Solis (v1.12.48) ===
+    // Busca a melhor combinacao SIMETRICA:
+    //  - Cobre qtdInicial (total >= qtdInicial)
+    //  - Respeita maxBatPorSerie e colMin/colMax
+    //  - Minimiza excesso (total - qtdInicial)
+    //  - Em empate: menos ramos paralelos primeiro (menos infraestrutura)
+    //  - Em empate: mais baterias por ramo (compacta o sistema)
+    type BatConfig = {
+      numRamosParalelos: number;
+      batPorRamo: number;
+      coletoresPorBateria: number;
+      qtdTotal: number;
+      excesso: number;
+    };
+    let best: BatConfig | null = null;
+    if (qtdInicial > 0) {
+      // Limites do loop:
+      //  - numRamos: 1..max (ate cobrir o pior caso)
+      //  - batPorRamo: 1..SOLAR_BATERIAS_MAX_SERIE (regra Solis)
+      //  - colPorBat: colMinEfetivo..colMaxEfetivo
+      const maxNumRamos = Math.max(1, Math.ceil(qtdInicial / colMinEfetivo)); // pior caso 1 bateria por ramo com colMin coletores
+      for (let r = 1; r <= maxNumRamos; r++) {
+        for (let b = 1; b <= SOLAR_BATERIAS_MAX_SERIE; b++) {
+          for (let c = colMinEfetivo; c <= colMaxEfetivo; c++) {
+            const total = r * b * c;
+            if (total < qtdInicial) continue;
+            const excesso = total - qtdInicial;
+            if (
+              !best ||
+              excesso < best.excesso ||
+              (excesso === best.excesso && r < best.numRamosParalelos) ||
+              (excesso === best.excesso && r === best.numRamosParalelos && b > best.batPorRamo)
+            ) {
+              best = { numRamosParalelos: r, batPorRamo: b, coletoresPorBateria: c, qtdTotal: total, excesso };
+            }
+          }
+        }
+      }
+    }
+
+    const numRamosParalelos = best?.numRamosParalelos ?? 0;
+    const batPorRamo = best?.batPorRamo ?? 0;
+    const coletoresPorBateria = best?.coletoresPorBateria ?? 0;
+    const numBaterias = numRamosParalelos * batPorRamo;
+    const qtdTotal = best?.qtdTotal ?? 0;
+
+    // === H38: vazao (m³/h) — formula Solis SIMETRICA (v1.12.52) ===
     //  - Coletores DENTRO de cada bateria operam em paralelo
-    //  - Baterias em SERIE compartilham o mesmo fluxo (max 3 por serie)
-    //  - Mais que 3 baterias = abrir nova SERIE em paralelo
-    //  - Vazao total = num_series_paralelas × area_primeira_bateria × FATOR
-    // Validado contra 2 exemplos Solis (15col/3bat-serie=2,8m³/h, 20col/4bat-2serie=5,64m³/h).
-    const numRamosParalelos = numBaterias === 0
-      ? 0
-      : Math.ceil(numBaterias / SOLAR_BATERIAS_MAX_SERIE);
+    //  - Baterias em SERIE compartilham o mesmo fluxo
+    //  - Vazao total = num_ramos × coletores_por_bateria × area × FATOR
+    // Ramos sao IGUAIS (simetria garantida no algoritmo acima). Validado contra
+    // 2 exemplos Solis (15col/3bat=2.8m³/h, 20col/4bat-2ramos=5.64m³/h).
     const vazaoTotal = numRamosParalelos * coletoresPorBateria * areaColetor * SOLAR_VAZAO_FATOR;
 
     // === H39: m² total dos coletores ===
@@ -275,6 +317,7 @@ export class SolarService {
       numBaterias,
       coletoresPorBateria,
       numRamosParalelos,
+      batPorRamo,
       vazaoTotalM3h: round2(vazaoTotal),
       areaTotalColetoresM2: round2(areaTotal),
       percentualCobertura: round1(percentualCobertura),

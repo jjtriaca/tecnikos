@@ -146,6 +146,18 @@ export class PoolBudgetController {
     return this.solarBudget.setSelectedBomba(id, user.companyId, body?.productId ?? null);
   }
 
+  @ApiOperation({ summary: 'Salva override de area/volume manuais em environmentParams.solarOverride. body null/{} limpa. v1.12.52.' })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/solar-override')
+  setSolarOverride(
+    @Param('id') id: string,
+    @Body() body: { areaPiscinaM2?: number | null; volumeM3?: number | null } | null,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.solarBudget.setSolarOverride(id, user.companyId, body ?? null);
+  }
+
   @ApiOperation({ summary: 'Simulacao solar — calculo rapido sem salvar' })
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)
   @Post('solar/simulate')

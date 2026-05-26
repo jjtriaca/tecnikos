@@ -465,6 +465,44 @@ export class SolarBudgetService {
     return this.setTenantPoolKey(companyId, 'solarBombaRule', rule);
   }
 
+  // ============ Solar Override (v1.12.52) ============
+  // Persiste area/volume manuais em environmentParams.solarOverride. Permite operador
+  // testar dimensionamento com area diferente sem alterar poolDimensions (cadastro).
+  // Ao reabrir o Simulador, o frontend le esse override e marca modo MANUAL.
+  async setSolarOverride(
+    budgetId: string,
+    companyId: string,
+    override: { areaPiscinaM2?: number | null; volumeM3?: number | null } | null,
+  ): Promise<{ solarOverride: any | null }> {
+    const budget = await this.prisma.poolBudget.findFirst({
+      where: { id: budgetId, companyId, deletedAt: null },
+      select: { environmentParams: true },
+    });
+    if (!budget) throw new NotFoundException('Orcamento nao encontrado');
+    const env = (budget.environmentParams ?? {}) as Record<string, any>;
+    if (override === null) {
+      delete env.solarOverride;
+    } else {
+      const cleaned: Record<string, number> = {};
+      if (Number.isFinite(override.areaPiscinaM2) && (override.areaPiscinaM2 as number) > 0) {
+        cleaned.areaPiscinaM2 = override.areaPiscinaM2 as number;
+      }
+      if (Number.isFinite(override.volumeM3) && (override.volumeM3 as number) > 0) {
+        cleaned.volumeM3 = override.volumeM3 as number;
+      }
+      if (Object.keys(cleaned).length === 0) {
+        delete env.solarOverride;
+      } else {
+        env.solarOverride = cleaned;
+      }
+    }
+    await this.prisma.poolBudget.update({
+      where: { id: budgetId },
+      data: { environmentParams: env as any },
+    });
+    return { solarOverride: env.solarOverride ?? null };
+  }
+
   // ============ Candidatos da Bomba Solar (v1.12.43) ============
 
   /**

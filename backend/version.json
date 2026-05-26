@@ -1,5 +1,5 @@
 {
-  "version": "1.12.51",
-  "codename": "Simulador Solar: 3 cards baterias (total/serie/paralelo) + recompute respeita area/volume em memoria sem alterar poolDimensions",
-  "releasedAt": "2026-05-26T20:52:15.239Z"
+  "version": "1.12.52",
+  "codename": "Recalcular dimensionamento Solar usa override MANUAL local (dispArea/dispVolume) + card 'Baterias em paralelo' = 0 quando 1 ramo unico",
+  "releasedAt": "2026-05-26T21:11:14.090Z"
 }
