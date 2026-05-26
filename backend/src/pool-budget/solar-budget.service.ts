@@ -531,11 +531,10 @@ export class SolarBudgetService {
     // Aplica where (filtro de criterio) e orderBy da regra. filterByWhere/orderCandidates
     // ja interpolam pumpCurve quando candidato tem curva cadastrada (v1.12.41).
     const passed = filterByWhere(products as any, bombaRule, baseVars);
-    this.logger.debug(`listSolarBombaCandidates: products=${products.length} passed=${passed.length} where=${bombaRule.where} baseVars=${JSON.stringify(baseVars)}`);
+    this.logger.warn(`[DEBUG] listSolarBombaCandidates: products=${products.length} passed=${passed.length} where=${bombaRule.where} baseVars=${JSON.stringify(baseVars)}`);
     if (passed.length === 0 && products.length > 0) {
-      // Debug: mostra specs do primeiro produto que NAO passou pra entender o motivo
       const sample = products[0] as any;
-      this.logger.debug(`listSolarBombaCandidates: SAMPLE produto[0] description=${sample.description} specs=${JSON.stringify(sample.technicalSpecs)} hasPumpCurve=${Array.isArray(sample.pumpCurve) && sample.pumpCurve.length >= 2}`);
+      this.logger.warn(`[DEBUG] SAMPLE produto[0] description=${sample.description} specs=${JSON.stringify(sample.technicalSpecs)} hasPumpCurve=${Array.isArray(sample.pumpCurve) && sample.pumpCurve.length >= 2}`);
     }
     const ordered = orderCandidates(passed as any, bombaRule, baseVars).slice(0, 20);
 
