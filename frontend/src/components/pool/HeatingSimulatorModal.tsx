@@ -3055,16 +3055,30 @@ function BatteryDiagram({
                   <g key={b}>
                     {/* Caixa da bateria (amarela) */}
                     <rect x={x} y={yTop} width={batW} height={batH} rx={3} ry={3} fill="#fef3c7" stroke="#d97706" strokeWidth={1.2} />
-                    {/* Placas solares visuais (verdes) — uma por coletor */}
+                    {/* v1.12.59: coletor solar de piscina (preto, com cabeçotes horizontais
+                        no topo e base + mangueiras verticais paralelas entre eles). */}
                     {Array.from({ length: coletoresPorBateria }).map((___, c) => {
                       const colX = x + batPadX + c * (colW + colGap);
                       const colY = yTop + batPadY;
+                      const cabHeadH = 1.8; // espessura dos cabeçotes
                       return (
                         <g key={c}>
-                          <rect x={colX} y={colY} width={colW} height={colH} rx={1} ry={1} fill="#1e3a8a" stroke="#1e293b" strokeWidth={0.5} />
-                          {/* Linhas internas das placas (efeito de celulas) */}
-                          <line x1={colX} y1={colY + colH / 3} x2={colX + colW} y2={colY + colH / 3} stroke="#3b82f6" strokeWidth={0.3} />
-                          <line x1={colX} y1={colY + (2 * colH) / 3} x2={colX + colW} y2={colY + (2 * colH) / 3} stroke="#3b82f6" strokeWidth={0.3} />
+                          {/* Corpo preto do coletor */}
+                          <rect x={colX} y={colY} width={colW} height={colH} rx={0.6} ry={0.6} fill="#0f172a" stroke="#000" strokeWidth={0.4} />
+                          {/* Cabeçote topo (mais escuro) */}
+                          <rect x={colX} y={colY} width={colW} height={cabHeadH} fill="#1e293b" />
+                          {/* Cabeçote base (mais escuro) */}
+                          <rect x={colX} y={colY + colH - cabHeadH} width={colW} height={cabHeadH} fill="#1e293b" />
+                          {/* Mangueiras verticais paralelas (cinza claro) */}
+                          {Array.from({ length: 5 }).map((____, m) => {
+                            const mx = colX + 0.6 + (m + 0.5) * ((colW - 1.2) / 5);
+                            return (
+                              <line key={m}
+                                x1={mx} y1={colY + cabHeadH + 0.4}
+                                x2={mx} y2={colY + colH - cabHeadH - 0.4}
+                                stroke="#475569" strokeWidth={0.35} strokeLinecap="round" />
+                            );
+                          })}
                         </g>
                       );
                     })}
