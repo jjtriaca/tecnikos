@@ -228,6 +228,7 @@ interface SolarReport {
   qtdInicial: number;
   numBaterias: number;
   coletoresPorBateria: number;
+  numRamosParalelos?: number;
   vazaoTotalM3h: number;
   areaTotalColetoresM2: number;
   percentualCobertura: number;
@@ -1921,6 +1922,9 @@ function SolarTab({
                   <Kpi label="m² necessário de coletor" value={String(Math.round(report.m2ColetorNecessario))} unit="m²" />
                   <Kpi label="Qtd. de coletores" value={report.qtdColetores.toFixed(1).replace(".", ",")} unit="un" accent />
                   <Kpi label="Número de baterias" value={String(report.numBaterias)} unit="un" />
+                  {report.numRamosParalelos != null && report.numRamosParalelos > 1 && (
+                    <Kpi label="Séries em paralelo" value={String(report.numRamosParalelos)} unit="un" />
+                  )}
                   <Kpi label="Vazão necessária" value={report.vazaoTotalM3h.toFixed(2).replace(".", ",")} unit="m³/h" />
                   <Kpi label="Cobertura piscina × coletores" value={report.percentualCobertura.toFixed(1).replace(".", ",")} unit="%" />
                 </div>

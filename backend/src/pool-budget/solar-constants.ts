@@ -32,11 +32,23 @@ export const SOLAR_INSOLACAO_HORAS_PADRAO = 5;      // Fatores B18 (horas uteis/
 export const SOLAR_FATOR_ENERGIA_KCAL = 1400;       // Multiplicador na formula EnergiaSolar_kcal_hora
 export const SOLAR_DELTA_REF_PADRAO = 13;           // Tabela78 col AC — referencia pra perda noturna
 
-// ============ Dimensionamento — formula da vazao (H38) ============
-export const SOLAR_VAZAO_FATOR = 0.254;             // m³/h por m² de coletor
-export const SOLAR_BATERIA_MIN_COLETORES = 5;       // MIN coletores por bateria
-export const SOLAR_BATERIA_MAX_COLETORES = 8;       // MAX coletores por bateria (= divisor inicial)
-export const SOLAR_VAZAO_DOBRA_BATERIAS = 4;        // num_baterias >= 4 dobra a vazao
+// ============ Dimensionamento — formula da vazao (v1.12.48 — Solis oficial) ============
+// Fonte: Solis Piscinas (suporte tecnico, 26/05/2026). 2 exemplos validados.
+//
+// Regras:
+//  - Vazao por m² de coletor: 4,2 L/min/m² = 0,252 m³/h/m²
+//  - Maximo 7 coletores por bateria OU 30 m² por bateria (o que for menor)
+//  - Maximo 3 baterias em SERIE. Mais que isso obriga abrir nova serie em paralelo.
+//  - A vazao TOTAL do sistema = num_series_paralelas × area_primeira_bateria × 0,252
+//    (porque baterias em serie compartilham o mesmo fluxo; apenas series paralelas somam)
+//
+// Vazao da PRIMEIRA bateria de cada serie = num_coletores_por_bateria × area_coletor × 0,252.
+// num_series_paralelas = ceil(num_baterias / SOLAR_BATERIAS_MAX_SERIE).
+export const SOLAR_VAZAO_FATOR = 0.252;             // m³/h por m² (= 4,2 L/min/m² × 60/1000)
+export const SOLAR_BATERIA_MIN_COLETORES = 5;       // MIN coletores por bateria (redistribuicao)
+export const SOLAR_BATERIA_MAX_COLETORES = 7;       // MAX coletores por bateria (Solis)
+export const SOLAR_BATERIA_MAX_M2 = 30;             // MAX m² por bateria (Solis — limite alternativo)
+export const SOLAR_BATERIAS_MAX_SERIE = 3;          // MAX baterias em serie antes de abrir paralelo
 
 // ============ Defaults pro coletor (quando produto sem specs) ============
 // Modelos Solis Tropicos da planilha original:

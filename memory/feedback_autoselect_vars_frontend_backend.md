@@ -4,13 +4,23 @@
 
 ## A arquitetura tem AVALIACAO DUPLICADA
 
-1. **Backend** (`backend/src/pool-budget/auto-select.helper.ts`) — motor de verdade, decide qual produto vincular quando o operador clica "Aplicar regra". Le do banco, interpola `pumpCurve`, etc.
+1. **Backend** (`backend/src/pool-budget/auto-select.helper.ts`) — motor de verdade, decide qual produto vincular quando o operador clica "Aplicar regra". Le do banco via `prisma.product.findMany` direto (TODOS os Products do tenant), interpola `pumpCurve`, etc.
 
 2. **Frontend** (`frontend/src/app/(dashboard)/quotes/pool/[id]/page.tsx`) — preview interativo:
-   - **AutoSelectModal** (`dimVars`, ~linha 3247): mostra o RESULTADO DA AUTO-SELECAO em tempo real ("Nenhum candidato passa nos filtros + criterio" / "X candidatos passam")
+   - **AutoSelectModal** (`dimVars`, ~linha 3247): mostra o RESULTADO DA AUTO-SELECAO em tempo real ("Nenhum candidato passa nos filtros + criterio" / "X candidatos passam"). Avalia contra a prop `catalog` (PoolCatalogConfig + extras de v1.12.46).
    - **CatalogPickModal** (`ruleVars`, ~linha 4002): aplica filtro "Apenas que passam no criterio" na lista do catalogo
 
-Os DOIS lados precisam ter as MESMAS variaveis populadas. Senao o backend aceita mas o preview sempre rejeita → usuario nao sabe que pode aplicar.
+Os DOIS lados precisam ter as MESMAS variaveis populadas E a MESMA fonte de candidatos. Senao o backend aceita mas o preview sempre rejeita → usuario nao sabe que pode aplicar.
+
+## Fonte de candidatos: catalog do preview ≠ Products do backend
+
+Outro vetor de dessincronizacao independente das variaveis:
+- **Backend** usa `prisma.product.findMany({ companyId, deletedAt: null, ...filtros })` → TODOS os Products do tenant.
+- **Frontend preview** usa o array `catalog: CatalogConfig[]` que carrega de `/pool-catalog-config` → SO os Products que o tenant cadastrou no Catalogo do Simulador de Piscina (subset).
+
+Resultado: bombas/produtos cadastrados em `Product` mas nao incluidos em `PoolCatalogConfig` aparecem na auto-selecao real mas NAO no preview. Sintoma: "Nenhum candidato passa" no modal, mas apos clicar "Aplicar regra" o dropdown da pagina mostra candidatos.
+
+**Fix v1.12.46:** novo endpoint `GET /products/for-pool-simulator` (em `ProductController`) retorna Products com `poolType` definido. O frontend mescla esses Products no `catalog` como entradas "virtuais" (`id: 'virtual-<productId>'`, `poolSection: 'OUTROS'`) antes de passar pro AutoSelectModal. Resultado: preview e backend olham pra a mesma fonte.
 
 ## Sintoma: TODOS os candidatos sao rejeitados
 
@@ -37,7 +47,9 @@ Se esquecer qualquer um dos 4, vai aparecer um bug. Os mais comuns:
 
 - **v1.12.40**: backend `extractSolarVars` populou `vazaoSolarM3h` (faltava)
 - **v1.12.41**: backend `auto-select.helper` passou a interpolar `pumpCurve` (faltava)
-- **v1.12.42**: frontend `dimVars` populou `alturaTelhadoMca` (faltava — esse era o verdadeiro bug visivel)
+- **v1.12.42**: frontend `dimVars` populou `alturaTelhadoMca` (faltava — bug visivel intermediario)
+- **v1.12.43**: backend novo endpoint `solar-bomba-candidates` + dropdown na pagina substituindo a string fixa de `getBombaRecomendadaSolar`
+- **v1.12.46/47**: backend novo endpoint `/products/for-pool-simulator` + frontend mescla Products do tenant no `catalog` do AutoSelectModal — resolve dessincronizacao da FONTE de candidatos preview vs backend (alem das vars)
 
 ## Regra de ouro
 

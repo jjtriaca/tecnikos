@@ -1,6 +1,8 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.46 — Preview do AutoSelectModal mescla Products do tenant
+## Versao atual em prod: v1.12.47 — Preview do AutoSelectModal mescla Products do tenant
+
+**v1.12.47** = recovery do v1.12.46 que falhou no build TS (`salePriceCents` nullable). Fix em `ProductService.listForPoolSimulator` mapeando `salePriceCents ?? 0`.
 
 **v1.12.46 (26/05/2026)** — quarto e ultimo fix do caso "Bomba do Coletor Solar".
 
