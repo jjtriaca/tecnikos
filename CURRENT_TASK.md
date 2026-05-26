@@ -1,6 +1,31 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.40 — Fix auto-select Bomba Solar
+## Versao atual em prod: v1.12.41 — Auto-select da bomba via pumpCurve interpolada
+
+**v1.12.41 (26/05/2026)** — fecha o ciclo Solis: auto-select da bomba passa a usar a curva caracteristica real em vez de specs estaticos.
+
+1. **Cadastro de Produto (aba Piscina)** — campo "Vazao (m³/h)" renomeado pra **"Vazao maxima (m³/h)"** + tooltip novo explicando que esse campo so dimensiona ralo de fundo e tempo de filtragem. Para perdas/altura manometrica, o sistema usa a `pumpCurve` cadastrada no card abaixo. Arquivo: `products/page.tsx:2022`.
+
+2. **Engine de auto-select** — quando candidato tem `pumpCurve` (>= 2 pontos validos) E baseVars tem `alturaTelhadoMca > 0`, agora interpola linearmente:
+   - `specVars.vazaoM3h` ← vazao entregue na altura alvo (interpolacao linear entre pontos vizinhos; 0 se altura > shut-off head; vazao maxima se altura < minima cadastrada)
+   - `specVars.pressaoTrabalhoMca` ← shut-off head (altura maxima da curva = ponto onde vazao -> 0)
+
+   Bombas SEM curva mantem o comportamento legado (`technicalSpecs` estaticos). Template "Bomba do Coletor Solar (vazao + pressao do simulador)" NAO precisou ser alterado — a logica eh transparente.
+
+   Arquivos: `backend/src/pool-budget/auto-select.helper.ts` (`interpolatePumpCurve`, `extractCandidateSpecs`, refactor de `filterByWhere`/`orderCandidates`), `pool-budget.service.ts:758` (adiciona `pumpCurve: true` no select de `allProducts`).
+
+**TESTAR em prod (Ctrl+F5):**
+- [ ] Cadastro de Produto → aba Piscina → campo agora diz "Vazao maxima (m³/h)" com tooltip novo
+- [ ] Modal ✨ Bomba do Simulador Solar → template "Bomba do Coletor Solar" → bomba que tem pumpCurve cobrindo 13.70 mca deve aparecer como candidata
+- [ ] Bomba SEM curva: continua sendo filtrada pelos specs estaticos (pressaoTrabalhoMca fixo)
+
+**NOTA do diagnostico:** as bombas atuais do tenant SLS (Pre-filtro 1/3cv ate 3cv) tem `pressaoTrabalhoMca` entre 6 e 12 mca — nenhuma vence os 13.70 mca calculados. Pra a auto-select funcionar nesse caso, precisa:
+1. Cadastrar bomba maior com pumpCurve cobrindo >= 14 mca, OU
+2. Trocar tubulacao pra 50mm (reduz perda dinamica de 8.70 pra ~3-4 mca → altura total ~8-9 mca, ai as bombas 1cv-3cv passam).
+
+---
+
+## Versao anterior: v1.12.40 — Fix auto-select Bomba Solar
 
 **v1.12.40 (26/05/2026)** — 3 bugs reportados na tela do Simulador Solar:
 1. Texto "Defaults: PVC, fator 20%, 4 joelhos, 1 tê..." estava desatualizado (backend usa 10 joelhos e 4 tês desde v1.12.38). Fix em `HeatingSimulatorModal.tsx:2030`.

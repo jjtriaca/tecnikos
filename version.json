@@ -1,5 +1,5 @@
 {
   "version": "1.12.41",
-  "codename": "vazaoSolarM3h em FORMULA_VARS + texto defaults tubulacao corrigido",
+  "codename": "Auto-select da bomba interpola pumpCurve (vazaoM3h + pressaoTrabalhoMca da curva real) + Vazao maxima ralo de fundo",
   "releasedAt": "2026-05-26T12:22:40.232Z"
 }
