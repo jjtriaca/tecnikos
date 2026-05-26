@@ -1,6 +1,41 @@
 # TAREFA ATUAL
 
-## Versao atual em prod: v1.12.43 — Dropdown de Bombas Candidatas no Simulador Solar
+## Versao atual em prod: v1.12.46 — Preview do AutoSelectModal mescla Products do tenant
+
+**v1.12.46 (26/05/2026)** — quarto e ultimo fix do caso "Bomba do Coletor Solar".
+
+**Causa raiz descoberta nessa rodada:** o preview do AutoSelectModal avaliava contra `catalog` (PoolCatalogConfig), que so tinha 8 bombas de calor no tenant SLS. As 12 bombas Pre-filtro e Impulse Syllent estavam **so na tabela Product**, sem entrada em PoolCatalogConfig. O backend (`listSolarBombaCandidates` v1.12.43) usava `prisma.product.findMany` direto e por isso o dropdown da pagina mostrava 5 candidatos, mas o preview do modal mostrava "Nenhum candidato passa" pra a mesma regra.
+
+### Backend
+- Novo `ProductService.listForPoolSimulator(companyId)` — retorna Products do tenant com `poolType` definido (max 500), com `technicalSpecs` e `pumpCurve`.
+- Novo endpoint `GET /products/for-pool-simulator` (sem restricao de role).
+- Removidos os `logger.warn('[DEBUG]')` temporarios de v1.12.44/45.
+
+### Frontend
+- `useEffect` que carrega o `catalog` em `quotes/pool/[id]/page.tsx` agora tambem chama `/products/for-pool-simulator` e mescla os Products que NAO estao no PoolCatalogConfig como entradas "virtuais" no catalog (`id: 'virtual-<productId>'`, `poolSection: 'OUTROS'`). Falha silenciosa se o endpoint der erro (fallback so com PoolCatalogConfig).
+
+### Resultado
+A preview do AutoSelectModal agora ve **todos os Products do tenant com poolType definido**, identico ao que o backend ve. As bombas Pre-filtro e Impulse Syllent (que so existiam em Product) aparecem nas candidatas do preview, batendo com o dropdown principal.
+
+**TESTAR em prod (Ctrl+Shift+R):**
+- [ ] Modal ✨ Bomba do Simulador Solar → template "Bomba do Coletor Solar" → preview mostra "X candidatos passam" (nao mais "Nenhum candidato passa")
+- [ ] Dropdown principal e modal preview agora batem (mesmas bombas)
+
+### Cadeia completa do caso (v1.12.40 → v1.12.46)
+
+| Release | Camada | O que arrumou |
+|---|---|---|
+| **v1.12.40** | Backend formula-eval | `extractSolarVars` populou `vazaoSolarM3h` |
+| **v1.12.41** | Backend auto-select | Interpolacao da `pumpCurve` |
+| **v1.12.42** | Frontend AutoSelectModal | `dimVars` populou `alturaTelhadoMca` |
+| **v1.12.43** | Backend + Frontend | Endpoint `solar-bomba-candidates` + dropdown na pagina (substitui string fixa) |
+| **v1.12.46** | Backend + Frontend | Catalog do preview mescla Products do tenant (resolve "0 candidatos" no preview) |
+
+Memoria atualizada: `feedback_autoselect_vars_frontend_backend.md` agora inclui o caso v1.12.46 (catalog vs Product como fonte do preview).
+
+---
+
+## Versao anterior: v1.12.43 — Dropdown de Bombas Candidatas no Simulador Solar
 
 **v1.12.43 (26/05/2026)** — substitui o card "Bomba recomendada" (string fixa hardcoded por vazao em `solar-constants.ts`) por DROPDOWN com candidatos reais do catalogo do tenant, ordenados pela regra de auto-selecao.
 

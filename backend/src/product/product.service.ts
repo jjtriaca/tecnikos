@@ -116,6 +116,46 @@ export class ProductService {
   }
 
   /* ═══════════════════════════════════════════════════════════════
+     listForPoolSimulator (v1.12.46) — Products com poolType definido
+     em formato pra alimentar AutoSelectModal do Simulador. Resolve
+     o sintoma "Nenhum candidato passa" no preview do modal: o
+     PoolCatalogConfig nao inclui todos os products do tenant — esse
+     endpoint inclui TODOS com poolType (max 500) pra mesclar no catalog.
+     ═══════════════════════════════════════════════════════════════ */
+
+  async listForPoolSimulator(companyId: string): Promise<
+    Array<{
+      id: string;
+      description: string;
+      poolType: string | null;
+      salePriceCents: number;
+      unit: string;
+      technicalSpecs: any;
+      pumpCurve: any;
+    }>
+  > {
+    const products = await this.prisma.product.findMany({
+      where: { companyId, deletedAt: null, poolType: { not: null } },
+      select: {
+        id: true, description: true, poolType: true,
+        salePriceCents: true, unit: true,
+        technicalSpecs: true, pumpCurve: true,
+      },
+      orderBy: { description: 'asc' },
+      take: 500,
+    });
+    return products.map((p) => ({
+      id: p.id,
+      description: p.description,
+      poolType: p.poolType,
+      salePriceCents: p.salePriceCents ?? 0,
+      unit: p.unit,
+      technicalSpecs: p.technicalSpecs,
+      pumpCurve: p.pumpCurve,
+    }));
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
      CRUD de Pool Types — UI de gerenciamento
      Lista combina DISTINCT(Product.poolType) com tipos extras manuais
      guardados em Company.systemConfig.pool.extraTypes (string[]).

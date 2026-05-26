@@ -507,6 +507,34 @@ export default function PoolBudgetDetailPage() {
           if (batch.length < 100) break;
           page++;
         }
+        // v1.12.46: mescla Products do tenant que tem poolType mas NAO estao
+        // no PoolCatalogConfig — resolve "Nenhum candidato passa" no preview do
+        // AutoSelectModal. Backend (auto-select real) usa Product direto, mas o
+        // preview do modal le do catalog. Mesclar aqui mantem comportamento.
+        try {
+          const extra = await api.get<Array<{
+            id: string; description: string; poolType: string | null;
+            salePriceCents: number; unit: string;
+            technicalSpecs: any; pumpCurve: any;
+          }>>(`/products/for-pool-simulator`);
+          const existingProductIds = new Set(all.map((c) => c.product?.id).filter(Boolean) as string[]);
+          for (const p of extra ?? []) {
+            if (existingProductIds.has(p.id)) continue;
+            all.push({
+              id: `virtual-${p.id}`,
+              poolSection: 'OUTROS',
+              product: {
+                id: p.id,
+                description: p.description,
+                salePriceCents: p.salePriceCents,
+                unit: p.unit,
+                technicalSpecs: p.technicalSpecs,
+                poolType: p.poolType,
+              },
+              service: null,
+            });
+          }
+        } catch { /* fallback silencioso — catalog so com PoolCatalogConfig */ }
         setCatalog(all);
       } catch {
         setCatalog([]);

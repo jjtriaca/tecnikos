@@ -58,6 +58,14 @@ export class ProductController {
     return this.service.listPoolTypes(user.companyId);
   }
 
+  /* ── v1.12.46: Products do tenant com poolType definido, formato
+       enxuto pra alimentar AutoSelectModal do Simulador (mesclado
+       com PoolCatalogConfig no frontend). ── */
+  @Get('for-pool-simulator')
+  listForPoolSimulator(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.listForPoolSimulator(user.companyId);
+  }
+
   /* ── CRUD de pool types pra UI de gerenciamento ── */
 
   @Roles(UserRole.ADMIN)
