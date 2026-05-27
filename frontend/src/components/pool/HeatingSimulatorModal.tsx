@@ -1717,22 +1717,18 @@ function SolarTab({
     if (manualZoom == null) window.localStorage.removeItem("solar:manualZoom");
     else window.localStorage.setItem("solar:manualZoom", String(manualZoom));
   }, [manualZoom]);
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    const cleanup = () => {
-      document.documentElement.classList.remove("simulating-print");
-      document.querySelectorAll(".solar-pdf-clone-container").forEach((el) => el.remove());
-    };
-    if (!pdfPreviewMode) { cleanup(); return; }
+  // v1.12.72: helper compartilhado — clona #solar-pdf-area pra dentro do body.
+  // Resolve IDs duplicados (gradients SVG) prefixando todos os IDs internos.
+  // Usado tanto pelo Preview (visualizar) quanto pelo Print (clone fica no DOM
+  // durante window.print, evita que o Chrome tente printar o original enterrado
+  // dentro do modal `fixed inset-0 overflow-hidden`, que duplica em 2 paginas).
+  const createPdfClone = (cloneClassName: string): HTMLElement | null => {
     const original = document.getElementById("solar-pdf-area");
-    if (!original) return;
+    if (!original) return null;
     const container = document.createElement("div");
-    container.className = "solar-pdf-clone-container";
+    container.className = `solar-pdf-clone-container ${cloneClassName}`;
     const clone = original.cloneNode(true) as HTMLElement;
     clone.id = "solar-pdf-clone";
-    // v1.12.69: muda IDs duplicados no clone pra nao colidir com SVG do original.
-    // Navegador ignora gradients/elementos com ID duplicado → 'stroke=url(#id)' quebra.
-    // Substitui IDs e referencias internas (url(#id)) por versao prefixada.
     const prefix = "clone-";
     clone.querySelectorAll('[id]').forEach((el) => {
       const oldId = el.getAttribute('id')!;
@@ -1742,13 +1738,59 @@ function SolarTab({
       ['fill', 'stroke'].forEach((attr) => {
         const v = el.getAttribute(attr);
         if (v?.startsWith('url(#')) {
-          const ref = v.slice(5, -1); // ex: "tempLine" de "url(#tempLine)"
+          const ref = v.slice(5, -1);
           el.setAttribute(attr, `url(#${prefix}${ref})`);
         }
       });
     });
     container.appendChild(clone);
     document.body.appendChild(container);
+    return container;
+  };
+
+  // v1.12.72: impressao SEMPRE via clone no body — soluciona o problema das 2
+  // paginas porque o original esta dentro de um modal fixed+overflow-hidden que
+  // confunde o motor de print do Chrome. CSS @media print + html.printing-mode
+  // mostra so o clone, escondendo todo o resto (inclusive o original).
+  const printViaClone = () => {
+    // Cleanup defensivo: garante zero clones residuais antes de criar o novo
+    document.querySelectorAll(".solar-pdf-clone-container").forEach((el) => el.remove());
+    document.documentElement.classList.remove("simulating-print");
+
+    const container = createPdfClone("printing-clone");
+    if (!container) return;
+
+    document.documentElement.classList.add("printing-mode");
+
+    const cleanupAfterPrint = () => {
+      document.documentElement.classList.remove("printing-mode");
+      document.querySelectorAll(".solar-pdf-clone-container").forEach((el) => el.remove());
+      window.removeEventListener("afterprint", cleanupAfterPrint);
+    };
+    window.addEventListener("afterprint", cleanupAfterPrint);
+
+    // Pequeno delay pro browser pintar o clone + computar layout
+    setTimeout(() => {
+      window.print();
+      // Fallback: se afterprint nao disparar (alguns browsers), limpa em 1s
+      setTimeout(() => {
+        if (document.documentElement.classList.contains("printing-mode")) {
+          cleanupAfterPrint();
+        }
+      }, 1000);
+    }, 50);
+  };
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const cleanup = () => {
+      document.documentElement.classList.remove("simulating-print");
+      // Remove SOMENTE o clone do preview, nao do print
+      document.querySelectorAll(".solar-pdf-clone-container.preview-clone").forEach((el) => el.remove());
+    };
+    if (!pdfPreviewMode) { cleanup(); return; }
+    const container = createPdfClone("preview-clone");
+    if (!container) return;
     document.documentElement.classList.add("simulating-print");
     return cleanup;
   }, [pdfPreviewMode]);
@@ -1829,7 +1871,7 @@ function SolarTab({
             className="rounded border border-blue-300 bg-blue-50 text-blue-800 px-2 py-1 text-[11px] font-semibold hover:bg-blue-100 transition shadow-sm whitespace-nowrap">
             👁️ PDF
           </button>
-          <button onClick={() => window.print()}
+          <button onClick={printViaClone}
             className="rounded border border-slate-300 bg-white text-slate-700 px-2 py-1 text-[11px] font-semibold hover:bg-slate-50 transition shadow-sm whitespace-nowrap">
             Imprimir
           </button>
@@ -2660,21 +2702,13 @@ function SolarTab({
             ✕ Fechar
           </button>
           <button onClick={() => {
-              // v1.12.71: cleanup TOTAL sincrono antes do print. Remove clone, toolbar
-              // e classe simulating-print do DOM DIRETO (sem esperar React reconciliation).
-              // Sem isso, o Chrome capturava DUAS paginas (clone + original conviviam no
-              // DOM por uma frame, suficiente pra duplicar).
-              document.documentElement.classList.remove("simulating-print");
-              document.querySelectorAll(".solar-pdf-clone-container").forEach((el) => el.remove());
-              document.querySelectorAll(".pdf-preview-toolbar").forEach((el) => el.remove());
-              // Print imediato — sem setTimeout (que abria janela pra React re-renderizar).
-              window.print();
-              // Restaura state depois do print (afterprint event)
-              const onAfter = () => {
-                setPdfPreviewMode(false);
-                window.removeEventListener("afterprint", onAfter);
-              };
-              window.addEventListener("afterprint", onAfter);
+              // v1.12.72: fecha o preview e dispara o printViaClone, que cria
+              // um clone limpo no body e printa SO o clone (via @media print +
+              // html.printing-mode). Resolve o "2 paginas" porque o original
+              // dentro do modal `fixed inset-0` nunca eh visto pelo motor de print.
+              setPdfPreviewMode(false);
+              // Aguarda React desmontar preview antes de criar o clone novo
+              setTimeout(() => printViaClone(), 50);
             }}
             className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded text-[11px] hover:bg-amber-600">
             🖨️ Imprimir agora
@@ -2753,84 +2787,116 @@ function SolarTab({
           - blocos com avoid-break nao podem quebrar entre paginas */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
-          /* Esconde tudo exceto a area do PDF */
-          body * { visibility: hidden; }
-          #solar-pdf-area, #solar-pdf-area * { visibility: visible !important; }
+          @page { size: A4 portrait; margin: 0; }
+          html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
 
-          /* Preserva cores e backgrounds (header dark, banners) */
-          #solar-pdf-area, #solar-pdf-area * {
+          /* v1.12.72: PRINT SEMPRE via clone no body (#solar-pdf-clone).
+             O original (#solar-pdf-area) esta enterrado dentro do modal
+             "fixed inset-0 overflow-hidden", que confunde o motor de print do
+             Chrome e gera 2 paginas. Solucao: printViaClone() cria um clone
+             em document.body com classe .printing-clone, adiciona
+             html.printing-mode e printa SO o clone. */
+          html.printing-mode body * { visibility: hidden !important; }
+          html.printing-mode .solar-pdf-clone-container.printing-clone,
+          html.printing-mode .solar-pdf-clone-container.printing-clone * {
+            visibility: visible !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             color-adjust: exact !important;
           }
-
-          /* Usa fluxo normal (sem position absolute) — top:0 + margin @page cortava o header */
-          html, body { background: #fff !important; }
-          #solar-pdf-area {
-            width: 100%;
-            padding: 0; margin: 0;
-            font-size: 10px;
-            line-height: 1.2;
-            min-height: 0 !important;          /* libera o min-h-[1120px] da tela */
+          /* Container do clone — fluxo normal direto no topo da pagina */
+          html.printing-mode .solar-pdf-clone-container.printing-clone {
+            position: absolute !important;
+            left: 0 !important; top: 0 !important;
+            width: 100% !important;
+            padding: 0 !important; margin: 0 !important;
+            background: #fff !important;
+          }
+          html.printing-mode #solar-pdf-clone {
+            width: 100% !important;
+            padding: 3mm !important; margin: 0 !important;
+            font-size: 10px !important;
+            line-height: 1.2 !important;
+            min-height: 0 !important;
             height: auto !important;
             box-shadow: none !important;
             border: 0 !important;
+            display: block !important;
           }
-          @page { size: A4 portrait; margin: 0; }
-          html, body { margin: 0 !important; padding: 0 !important; }
-          /* v1.12.71: padding interno em vez de @page margin — controle mais preciso */
-          #solar-pdf-area { padding: 3mm !important; }
 
           /* Avoid page breaks dentro dos blocos principais */
           .avoid-break { page-break-inside: avoid !important; break-inside: avoid !important; }
           table { page-break-inside: auto; }
           tr { page-break-inside: avoid; }
 
-          /* CRITICO: usa atributo+id pra max specificity. Zera min-h e flex-1 espacejador */
-          div#solar-pdf-area[id="solar-pdf-area"] {
-            min-height: 0 !important;
-            height: auto !important;
-            display: block !important;
-            box-shadow: none !important;
-            border: 0 !important;
-          }
-          #solar-pdf-area > div.flex-1 {
+          /* Espacador flex-1 some no print */
+          html.printing-mode #solar-pdf-clone > div.flex-1 {
             display: none !important;
             flex: none !important;
             height: 0 !important;
             min-height: 0 !important;
           }
-          /* v1.12.67: header mantem cor original (gradiente azul-preto + texto branco).
-             Antes forcava branco pra "economizar tinta" — agora PDF eh peca de venda
-             e precisa ser identico a tela. Chrome respeita color-adjust: exact ao salvar
-             como PDF quando "Graficos de segundo plano" esta ativado (padrao). */
-          #solar-pdf-area header {
+
+          /* Header mantem cor (gradiente azul-preto + branco) */
+          html.printing-mode #solar-pdf-clone header {
             display: flex !important;
             visibility: visible !important;
-            padding: 8px 16px !important;
+            padding: 4px 16px !important;
+            background: linear-gradient(to right, #0f172a, #1e3a8a) !important;
+            color: #ffffff !important;
           }
+          html.printing-mode #solar-pdf-clone header h2,
+          html.printing-mode #solar-pdf-clone header div { color: #ffffff !important; }
+          html.printing-mode #solar-pdf-clone header .text-amber-300 { color: #fcd34d !important; }
+          html.printing-mode #solar-pdf-clone header .text-slate-300 { color: #cbd5e1 !important; }
 
-          /* v1.12.71: compactacao agressiva pra caber em 1 pagina A4 (~1093px util) */
-          #solar-pdf-area section { padding-top: 2px !important; padding-bottom: 2px !important; }
-          #solar-pdf-area footer { padding-top: 2px !important; padding-bottom: 2px !important; }
-          #solar-pdf-area header { padding-top: 4px !important; padding-bottom: 4px !important; }
-          #solar-pdf-area .px-5 { padding-left: 10px !important; padding-right: 10px !important; }
+          /* Banners coloridos */
+          html.printing-mode #solar-pdf-clone .bg-blue-900 {
+            background-color: #1e3a8a !important;
+            color: #ffffff !important;
+          }
+          html.printing-mode #solar-pdf-clone .bg-blue-900 * { color: #ffffff !important; }
 
-          /* Esconde controles interativos (select/input) e mostra o equivalente print:block (texto puro) */
-          #solar-pdf-area .print-hide-interactive { display: none !important; }
-          #solar-pdf-area .print-show-value { display: inline-block !important; }
+          /* Compactacao agressiva pra caber em 1 pagina A4 (~1093px util) */
+          html.printing-mode #solar-pdf-clone section { padding-top: 2px !important; padding-bottom: 2px !important; }
+          html.printing-mode #solar-pdf-clone footer { padding-top: 2px !important; padding-bottom: 2px !important; }
+          html.printing-mode #solar-pdf-clone .px-5 { padding-left: 10px !important; padding-right: 10px !important; }
 
-          /* SVG do grafico — limita altura mas acomoda altura aumentada do v5 (~85mm) */
-          #solar-pdf-area svg { max-height: 80mm; width: 100%; height: auto; }
+          /* Esconde controles interativos */
+          html.printing-mode #solar-pdf-clone .print-hide-interactive { display: none !important; }
+          html.printing-mode #solar-pdf-clone .print-show-value { display: inline-block !important; }
+          html.printing-mode #solar-pdf-clone select { display: none !important; }
+          html.printing-mode #solar-pdf-clone input[type=range] { display: none !important; }
 
-          /* v1.12.71: imagem do header preenche altura toda do card (sem aspect-square). */
-          #solar-pdf-area img { max-height: none; }
+          /* Tailwind print:* classes (aplicadas no clone) */
+          html.printing-mode #solar-pdf-clone .print\\:inline-block { display: inline-block !important; }
+          html.printing-mode #solar-pdf-clone .print\\:hidden { display: none !important; }
+          html.printing-mode #solar-pdf-clone .print\\:bg-white { background: #fff !important; background-image: none !important; }
+          html.printing-mode #solar-pdf-clone .print\\:text-blue-900 { color: #1e3a8a !important; }
+          html.printing-mode #solar-pdf-clone .print\\:text-amber-700 { color: #b45309 !important; }
+          html.printing-mode #solar-pdf-clone .print\\:text-slate-600 { color: #475569 !important; }
+          html.printing-mode #solar-pdf-clone .print\\:border-b-4 { border-bottom-width: 4px !important; }
+          html.printing-mode #solar-pdf-clone .print\\:border-y { border-top-width: 1px !important; border-bottom-width: 1px !important; border-top-style: solid !important; border-bottom-style: solid !important; }
+          html.printing-mode #solar-pdf-clone .print\\:border-blue-900 { border-color: #1e3a8a !important; }
 
-          /* v1.12.67: banners (DIMENSIONAMENTO, SIMULACAO TERMICA) mantem cor original.
-             Antes forcava branco — agora PDF replica a tela colorida. */
+          /* SVG do grafico */
+          html.printing-mode #solar-pdf-clone svg { max-height: 80mm !important; width: 100% !important; height: auto !important; }
+          html.printing-mode #solar-pdf-clone img { max-height: none !important; }
 
-          /* Esconde elementos da UI interativa */
+          /* Classe .print\\:hidden geral aplicada via Tailwind no JSX */
           .print\\:hidden { display: none !important; }
+
+          /* === FALLBACK: se printing-mode nao foi adicionado (chamada direta a window.print)
+             usa o original. Mantido pra compat — botoes novos sempre usam printViaClone(). === */
+          html:not(.printing-mode) body * { visibility: hidden; }
+          html:not(.printing-mode) #solar-pdf-area,
+          html:not(.printing-mode) #solar-pdf-area * { visibility: visible !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          html:not(.printing-mode) #solar-pdf-area {
+            width: 100%; padding: 3mm !important; margin: 0;
+            font-size: 10px; line-height: 1.2;
+            min-height: 0 !important; height: auto !important;
+            box-shadow: none !important; border: 0 !important;
+          }
         }
 
         /* === Simulacao do @media print — usado pelo botao "Pre-visualizar PDF" ===
