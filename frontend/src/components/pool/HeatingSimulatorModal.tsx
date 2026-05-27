@@ -1918,8 +1918,8 @@ function SolarTab({
                     <BigHighlightInput label="Área" value={dispArea} onChange={setAreaOverride} unit="m²" min={0} max={9999} manual={dimManual} />
                     <BigHighlightInput label="Volume" value={dispVolume} onChange={setVolumeOverride} unit="m³" min={0} max={99999} manual={dimManual} />
                   </div>
-                  {/* Linha 5: dropdown Modo de dimensão da piscina */}
-                  <div className="mt-1">
+                  {/* Linha 5: dropdown Modo de dimensão da piscina — escondido no print (v1.12.71) */}
+                  <div className="mt-1 print:hidden">
                     <SelectCard label="Modo de dimensão da piscina" value={modoDimensao}
                       options={[{ v: "AUTOMATICO", l: "Automático" }, { v: "MANUAL", l: "Manual" }]}
                       onChange={(v) => setModoDimensao(v)} fullWidth />
@@ -2016,10 +2016,12 @@ function SolarTab({
                       <BigHighlightInput label="Temp. inicial" value={temperaturaInicial} onChange={setTemperaturaInicial} unit="°C" min={5} max={40} manual={cfgManual} />
                       <BigHighlightInput label="Temp. final" value={tempAguaDesejada} onChange={setTempAguaDesejada} unit="°C" min={20} max={40} manual={cfgManual} />
                     </div>
-                    {/* L5: dropdown Modo da configuração do aquecimento (mesmo padrao do Modo de dimensão) */}
-                    <SelectCard label="Modo da configuração do aquecimento" value={modoConfigAquec}
-                      options={[{ v: "AUTOMATICO", l: "Automático" }, { v: "MANUAL", l: "Manual" }]}
-                      onChange={(v) => setModoConfigAquec(v)} fullWidth />
+                    {/* L5: dropdown Modo da configuração do aquecimento — escondido no print (v1.12.71) */}
+                    <div className="print:hidden">
+                      <SelectCard label="Modo da configuração do aquecimento" value={modoConfigAquec}
+                        options={[{ v: "AUTOMATICO", l: "Automático" }, { v: "MANUAL", l: "Manual" }]}
+                        onChange={(v) => setModoConfigAquec(v)} fullWidth />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2658,14 +2660,21 @@ function SolarTab({
             ✕ Fechar
           </button>
           <button onClick={() => {
-              // v1.12.70: limpa o clone SINCRONAMENTE antes do print pra evitar
-              // duplicacao (original + clone no PDF). setTimeout do React nao
-              // garantia ordem antes do window.print(). Aqui force cleanup DOM direto.
+              // v1.12.71: cleanup TOTAL sincrono antes do print. Remove clone, toolbar
+              // e classe simulating-print do DOM DIRETO (sem esperar React reconciliation).
+              // Sem isso, o Chrome capturava DUAS paginas (clone + original conviviam no
+              // DOM por uma frame, suficiente pra duplicar).
               document.documentElement.classList.remove("simulating-print");
               document.querySelectorAll(".solar-pdf-clone-container").forEach((el) => el.remove());
-              setPdfPreviewMode(false);
-              // Pequeno delay pra Chrome reagir ao reflow do DOM antes de capturar pra print
-              setTimeout(() => window.print(), 200);
+              document.querySelectorAll(".pdf-preview-toolbar").forEach((el) => el.remove());
+              // Print imediato — sem setTimeout (que abria janela pra React re-renderizar).
+              window.print();
+              // Restaura state depois do print (afterprint event)
+              const onAfter = () => {
+                setPdfPreviewMode(false);
+                window.removeEventListener("afterprint", onAfter);
+              };
+              window.addEventListener("afterprint", onAfter);
             }}
             className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded text-[11px] hover:bg-amber-600">
             🖨️ Imprimir agora
@@ -2767,8 +2776,10 @@ function SolarTab({
             box-shadow: none !important;
             border: 0 !important;
           }
-          @page { size: A4 portrait; margin: 4mm; }
+          @page { size: A4 portrait; margin: 0; }
           html, body { margin: 0 !important; padding: 0 !important; }
+          /* v1.12.71: padding interno em vez de @page margin — controle mais preciso */
+          #solar-pdf-area { padding: 3mm !important; }
 
           /* Avoid page breaks dentro dos blocos principais */
           .avoid-break { page-break-inside: avoid !important; break-inside: avoid !important; }
@@ -2799,10 +2810,10 @@ function SolarTab({
             padding: 8px 16px !important;
           }
 
-          /* Compacta secoes pra caber em 1 pagina A4 (1123px @ 96dpi - 16mm margem = ~1063px util) */
-          #solar-pdf-area section { padding-top: 4px !important; padding-bottom: 4px !important; }
-          #solar-pdf-area footer { padding-top: 3px !important; padding-bottom: 3px !important; }
-          #solar-pdf-area header { padding-top: 6px !important; padding-bottom: 6px !important; }
+          /* v1.12.71: compactacao agressiva pra caber em 1 pagina A4 (~1093px util) */
+          #solar-pdf-area section { padding-top: 2px !important; padding-bottom: 2px !important; }
+          #solar-pdf-area footer { padding-top: 2px !important; padding-bottom: 2px !important; }
+          #solar-pdf-area header { padding-top: 4px !important; padding-bottom: 4px !important; }
           #solar-pdf-area .px-5 { padding-left: 10px !important; padding-right: 10px !important; }
 
           /* Esconde controles interativos (select/input) e mostra o equivalente print:block (texto puro) */
@@ -2812,8 +2823,8 @@ function SolarTab({
           /* SVG do grafico — limita altura mas acomoda altura aumentada do v5 (~85mm) */
           #solar-pdf-area svg { max-height: 80mm; width: 100%; height: auto; }
 
-          /* Imagem do header — quadrada compact */
-          #solar-pdf-area img { max-height: 38mm; }
+          /* v1.12.71: imagem do header preenche altura toda do card (sem aspect-square). */
+          #solar-pdf-area img { max-height: none; }
 
           /* v1.12.67: banners (DIMENSIONAMENTO, SIMULACAO TERMICA) mantem cor original.
              Antes forcava branco — agora PDF replica a tela colorida. */
@@ -3375,7 +3386,7 @@ function HeaderImageBlock({
   };
 
   return (
-    <div className="relative border border-slate-200 rounded overflow-hidden bg-slate-50 aspect-square w-full flex items-center justify-center print:bg-white">
+    <div className="relative border border-slate-200 rounded overflow-hidden bg-slate-50 aspect-square w-full flex items-center justify-center print:bg-white print:aspect-auto print:h-full">
       <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleChange} />
       {imageUrl ? (
         <>
