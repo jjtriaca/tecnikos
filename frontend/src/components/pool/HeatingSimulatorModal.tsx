@@ -1599,7 +1599,7 @@ function SolarTab({
       });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [budget.id, report?.vazaoTotalM3h, pipeResult?.alturaManometricaTotal, bombaRule?.where, bombaRule?.orderBy, bombaRule?.filterPoolType, bombaRule?.filterDescription]);
+  }, [budget.id, report?.vazaoTotalM3h, pipeResult?.alturaManometricaTotal, bombaRule?.where, bombaRule?.orderBy, bombaRule?.filterPoolType, bombaRule?.filterDescription, JSON.stringify(bombaRule?.indicator)]);
 
   async function handleSelectBomba(productId: string | null) {
     setSelectedBombaId(productId);
@@ -1827,15 +1827,15 @@ function SolarTab({
               Tela: gradient slate-900 → blue-900 com texto branco
               Print: fundo BRANCO com texto azul escuro + borda inferior (funciona mesmo sem
               "Gráficos de segundo plano" marcado no painel do Chrome) */}
-          <header className="bg-gradient-to-r from-slate-900 to-blue-900 text-white px-5 py-3 flex items-center justify-between print:bg-white print:text-blue-900 print:border-b-4 print:border-blue-900">
+          <header className="bg-gradient-to-r from-slate-900 to-blue-900 text-white px-5 py-3 flex items-center justify-between">
             <div>
-              <div className="text-[9px] uppercase tracking-[0.18em] text-amber-300 font-medium print:text-amber-700">Aquecimento solar para piscinas</div>
-              <h2 className="text-base font-bold mt-0.5 leading-tight print:text-blue-900">Dimensionamento para Coletor Solar</h2>
+              <div className="text-[9px] uppercase tracking-[0.18em] text-amber-300 font-medium">Aquecimento solar para piscinas</div>
+              <h2 className="text-base font-bold mt-0.5 leading-tight">Dimensionamento para Coletor Solar</h2>
             </div>
             <div className="text-right">
-              <div className="text-[9px] uppercase tracking-[0.18em] text-slate-300 print:text-slate-600">Orçamento</div>
-              <div className="text-xl font-bold tabular-nums leading-tight print:text-blue-900">{budget.code ?? "—"}</div>
-              <div className="text-[10px] text-slate-300 mt-0.5 print:text-slate-600">{today}</div>
+              <div className="text-[9px] uppercase tracking-[0.18em] text-slate-300">Orçamento</div>
+              <div className="text-xl font-bold tabular-nums leading-tight">{budget.code ?? "—"}</div>
+              <div className="text-[10px] text-slate-300 mt-0.5">{today}</div>
             </div>
           </header>
 
@@ -2023,7 +2023,7 @@ function SolarTab({
 
           {/* ============ TITULO BANNER DIMENSIONAMENTO ============
               Print: fundo branco + texto azul + borda (sem depender de "Gráficos de segundo plano") */}
-          <div className="bg-blue-900 text-white px-5 py-1.5 print:bg-white print:text-blue-900 print:border-y print:border-blue-900">
+          <div className="bg-blue-900 text-white px-5 py-1.5">
             <span className="text-[10px] uppercase tracking-[0.18em] font-bold">Dimensionamento</span>
           </div>
 
@@ -2422,11 +2422,16 @@ function SolarTab({
                                 {selBomba.hasPumpCurve && <div className="text-[9px] text-emerald-700 font-semibold">📈 com curva característica</div>}
                                 {selBomba.indicator && (
                                   <div className={`text-[10px] font-semibold ${
-                                    selBomba.indicator.color === 'emerald' ? 'text-emerald-700' :
-                                    selBomba.indicator.color === 'green' ? 'text-green-700' :
-                                    selBomba.indicator.color === 'yellow' ? 'text-yellow-700' :
-                                    selBomba.indicator.color === 'orange' ? 'text-orange-700' :
-                                    selBomba.indicator.color === 'red' ? 'text-red-700' :
+                                    // v1.12.67: tons -500/-600 deixam laranja e amarelo VISUALMENTE
+                                    // distintos de vermelho. Antes orange-700 (#c2410c) parecia
+                                    // vermelho-marrom, confundindo operador (Justo aparentava ruim).
+                                    selBomba.indicator.color === 'emerald' ? 'text-emerald-600' :
+                                    selBomba.indicator.color === 'green' ? 'text-green-600' :
+                                    selBomba.indicator.color === 'lime' ? 'text-lime-600' :
+                                    selBomba.indicator.color === 'yellow' ? 'text-yellow-600' :
+                                    selBomba.indicator.color === 'orange' ? 'text-orange-500' :
+                                    selBomba.indicator.color === 'amber' ? 'text-amber-600' :
+                                    selBomba.indicator.color === 'red' ? 'text-red-600' :
                                     'text-slate-700'
                                   }`}>
                                     {(() => {
@@ -2473,8 +2478,8 @@ function SolarTab({
               </section>
 
               {/* ============ TITULO BANNER SIMULACAO ============
-                  Print: fundo branco + texto azul + borda (independente de config Chrome) */}
-              <div className="bg-blue-900 text-white px-5 py-1.5 flex items-center gap-3 print:bg-white print:text-blue-900 print:border-y print:border-blue-900">
+                  v1.12.67: mantem cor original no PDF (era forcado branco antes) */}
+              <div className="bg-blue-900 text-white px-5 py-1.5 flex items-center gap-3">
                 <span className="text-[10px] uppercase tracking-[0.18em] font-bold">Simulação térmica mensal</span>
                 <div className="flex items-center gap-1.5 print:hidden">
                   <span className="text-[9px] text-blue-200 uppercase tracking-wide">Gráfico:</span>
@@ -2724,24 +2729,15 @@ function SolarTab({
             height: 0 !important;
             min-height: 0 !important;
           }
-          /* Header banner no print — fundo BRANCO com texto AZUL e borda azul.
-             Funciona independente de "Gráficos de segundo plano" do Chrome estar marcado ou não. */
+          /* v1.12.67: header mantem cor original (gradiente azul-preto + texto branco).
+             Antes forcava branco pra "economizar tinta" — agora PDF eh peca de venda
+             e precisa ser identico a tela. Chrome respeita color-adjust: exact ao salvar
+             como PDF quando "Graficos de segundo plano" esta ativado (padrao). */
           #solar-pdf-area header {
-            background-color: #fff !important;
-            background-image: none !important;
-            color: #1e3a8a !important;
-            border-bottom: 4px solid #1e3a8a !important;
             display: flex !important;
             visibility: visible !important;
             padding: 8px 16px !important;
           }
-          #solar-pdf-area header h2,
-          #solar-pdf-area header div {
-            visibility: visible !important;
-            color: #1e3a8a !important;
-          }
-          #solar-pdf-area header .text-amber-300 { color: #b45309 !important; }
-          #solar-pdf-area header .text-slate-300 { color: #475569 !important; }
 
           /* Compacta secoes pra caber em 1 pagina A4 (1123px @ 96dpi - 16mm margem = ~1063px util) */
           #solar-pdf-area section { padding-top: 4px !important; padding-bottom: 4px !important; }
@@ -2759,18 +2755,8 @@ function SolarTab({
           /* Imagem do header — quadrada compact */
           #solar-pdf-area img { max-height: 38mm; }
 
-          /* Banners DIMENSIONAMENTO / SIMULACAO TERMICA MENSAL no print: fundo branco + texto azul + borda */
-          #solar-pdf-area .bg-blue-900,
-          #solar-pdf-area .bg-slate-900 {
-            background-color: #fff !important;
-            background-image: none !important;
-            color: #1e3a8a !important;
-            border-top: 1px solid #1e3a8a !important;
-            border-bottom: 1px solid #1e3a8a !important;
-          }
-          #solar-pdf-area .bg-blue-900 *,
-          #solar-pdf-area .bg-slate-900 * { color: #1e3a8a !important; }
-          #solar-pdf-area .bg-blue-200 { color: #475569 !important; }
+          /* v1.12.67: banners (DIMENSIONAMENTO, SIMULACAO TERMICA) mantem cor original.
+             Antes forcava branco — agora PDF replica a tela colorida. */
 
           /* Esconde elementos da UI interativa */
           .print\\:hidden { display: none !important; }

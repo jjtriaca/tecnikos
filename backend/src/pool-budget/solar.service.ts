@@ -198,6 +198,10 @@ export class SolarService {
       const colMaxEfetivo = Math.min(rules.maxColetoresPorBateria, colMaxByArea);
       const colMinEfetivo = Math.min(rules.minColetoresPorBateria, colMaxEfetivo);
       const maxNumRamos = Math.max(1, Math.ceil(qtdInicial / colMinEfetivo));
+      // v1.12.67: criterio de desempate prioriza MAIS COLETORES POR BATERIA
+      // (baterias cheias). Decisao: cabecotes melhor utilizados, menos perda
+      // hidraulica relativa, instalacao mais limpa por bateria. Em empate em c,
+      // prefere menos ramos paralelos (simplifica infraestrutura).
       for (let r = 1; r <= maxNumRamos; r++) {
         for (let b = 1; b <= rules.maxBateriasEmSerie; b++) {
           for (let c = colMinEfetivo; c <= colMaxEfetivo; c++) {
@@ -207,8 +211,8 @@ export class SolarService {
             if (
               !best ||
               excesso < best.excesso ||
-              (excesso === best.excesso && r < best.numRamosParalelos) ||
-              (excesso === best.excesso && r === best.numRamosParalelos && b > best.batPorRamo)
+              (excesso === best.excesso && c > best.coletoresPorBateria) ||
+              (excesso === best.excesso && c === best.coletoresPorBateria && r < best.numRamosParalelos)
             ) {
               best = { numRamosParalelos: r, batPorRamo: b, coletoresPorBateria: c, qtdTotal: total, excesso };
             }

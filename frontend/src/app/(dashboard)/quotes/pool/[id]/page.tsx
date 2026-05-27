@@ -3786,8 +3786,10 @@ export function AutoSelectModal({
                             }} className="rounded border border-slate-300 px-2 py-1 text-sm text-slate-900">
                               <option value="emerald">💚 Verde escuro</option>
                               <option value="green">🟢 Verde</option>
+                              <option value="lime">🍋 Verde-limão</option>
                               <option value="blue">🔵 Azul</option>
                               <option value="yellow">🟡 Amarelo</option>
+                              <option value="amber">🟧 Âmbar</option>
                               <option value="orange">🟠 Laranja</option>
                               <option value="red">🔴 Vermelho</option>
                             </select>
