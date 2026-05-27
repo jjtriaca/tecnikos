@@ -1730,6 +1730,23 @@ function SolarTab({
     container.className = "solar-pdf-clone-container";
     const clone = original.cloneNode(true) as HTMLElement;
     clone.id = "solar-pdf-clone";
+    // v1.12.69: muda IDs duplicados no clone pra nao colidir com SVG do original.
+    // Navegador ignora gradients/elementos com ID duplicado → 'stroke=url(#id)' quebra.
+    // Substitui IDs e referencias internas (url(#id)) por versao prefixada.
+    const prefix = "clone-";
+    clone.querySelectorAll('[id]').forEach((el) => {
+      const oldId = el.getAttribute('id')!;
+      el.setAttribute('id', `${prefix}${oldId}`);
+    });
+    clone.querySelectorAll('[fill], [stroke]').forEach((el) => {
+      ['fill', 'stroke'].forEach((attr) => {
+        const v = el.getAttribute(attr);
+        if (v?.startsWith('url(#')) {
+          const ref = v.slice(5, -1); // ex: "tempLine" de "url(#tempLine)"
+          el.setAttribute(attr, `url(#${prefix}${ref})`);
+        }
+      });
+    });
     container.appendChild(clone);
     document.body.appendChild(container);
     document.documentElement.classList.add("simulating-print");
@@ -2260,6 +2277,13 @@ function SolarTab({
                       >+</button>
                       <span className="text-[9px] text-slate-500 italic ml-2">Aumenta a eficiência em meses frios (0–10).</span>
                     </div>
+                    {/* v1.12.69: versao print do extra. Sem o stepper interativo, mostra so o valor + percentual. */}
+                    <div className="hidden print:block mt-1">
+                      <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-300 rounded px-3 py-1 text-[11px] font-bold text-emerald-800">
+                        +{extraPct} coletor{extraPct === 1 ? "" : "es"} extras <span className="text-[10px] text-emerald-600">({extraPct * 10}%)</span>
+                      </div>
+                      <span className="text-[9px] text-slate-600 italic ml-2">Aumenta a eficiência em meses frios.</span>
+                    </div>
                   </div>
 
                   {/* v1.12.34: bloco Tubulacao — calculadora de perda de carga.
@@ -2269,10 +2293,10 @@ function SolarTab({
                       calcula altura manometrica total (Darcy-Weisbach + Haaland) e
                       persiste em environmentParams.solarPipe + alturaTelhadoM.
                       A auto-selecao da bomba usa esse valor. */}
-                  <div className="print:hidden">
+                  <div>
                     <SectionLabel>🚰 Tubulação — perda de carga</SectionLabel>
                     <div className="mt-1 rounded border border-slate-200 bg-slate-50/50 p-1.5 space-y-1">
-                      <div className="grid grid-cols-2 gap-1.5 items-center">
+                      <div className="grid grid-cols-2 gap-1.5 items-center print:hidden">
                         <div className="flex items-center gap-1.5">
                           <label className="text-[9px] uppercase tracking-wider text-slate-500 font-bold whitespace-nowrap" title="Comprimento total da tubulacao em metros (ida + volta).">
                             Comp. (m)
@@ -2299,6 +2323,11 @@ function SolarTab({
                             className="flex-1 min-w-0 rounded border border-slate-300 px-1.5 py-0.5 text-[12px] font-semibold focus:border-amber-500 focus:outline-none h-6"
                           />
                         </div>
+                      </div>
+                      {/* v1.12.69: no print, mostra Comp+Desniv como texto simples (sem input) */}
+                      <div className="hidden print:flex gap-3 text-[9px] uppercase tracking-wider text-slate-600 font-semibold">
+                        <span>Comp.: <span className="text-slate-900 normal-case font-bold text-[10px]">{pipeComprimento || 0} m</span></span>
+                        <span>Desnív.: <span className="text-slate-900 normal-case font-bold text-[10px]">{pipeDesnivel || 0} m</span></span>
                       </div>
                       {pipeResult ? (() => {
                         const velocidadeAlta = (pipeResult.velocidade ?? 0) >= 2.5;
@@ -2327,15 +2356,18 @@ function SolarTab({
                             <div className="mt-2 flex items-center gap-2 flex-wrap">
                               <label className={`text-[10px] uppercase tracking-wider font-bold ${labelCls}`}>📏 Tubo:</label>
                               <span className={`text-[11px] font-semibold ${valueCls}`}>{pipeResult.material ?? 'PVC'}</span>
+                              {/* Select interativo na tela */}
                               <select
                                 value={dnAtual}
                                 onChange={(e) => recomputePipe({ diametroMm: Number(e.target.value) })}
-                                className={`text-xs font-bold rounded border px-2 py-0.5 ${velocidadeAlta ? 'border-red-400 bg-white text-red-900' : 'border-amber-400 bg-white text-amber-900'} focus:outline-none focus:ring-1 focus:ring-amber-500`}
+                                className={`text-xs font-bold rounded border px-2 py-0.5 print:hidden ${velocidadeAlta ? 'border-red-400 bg-white text-red-900' : 'border-amber-400 bg-white text-amber-900'} focus:outline-none focus:ring-1 focus:ring-amber-500`}
                               >
                                 {availableDns.map((d) => (
                                   <option key={d} value={d}>{d} mm DN</option>
                                 ))}
                               </select>
+                              {/* Valor texto no print */}
+                              <span className={`hidden print:inline-block text-xs font-bold ${valueCls}`}>{dnAtual} mm DN</span>
                               {pipeResult.diametroAutoPicked
                                 ? <span className="text-[9px] uppercase tracking-wider text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">auto</span>
                                 : <span className="text-[9px] uppercase tracking-wider text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded">manual</span>}
@@ -2343,7 +2375,7 @@ function SolarTab({
                               <button
                                 type="button"
                                 onClick={() => recomputePipe({ diametroMm: null })}
-                                className="text-[10px] underline text-slate-500 hover:text-slate-700"
+                                className="text-[10px] underline text-slate-500 hover:text-slate-700 print:hidden"
                                 title="Volta a deixar o sistema escolher o tubo ideal pela vazao"
                               >
                                 ↺ deixar automatico
@@ -2625,7 +2657,14 @@ function SolarTab({
             className="bg-white text-blue-900 font-bold px-2 py-0.5 rounded text-[11px] hover:bg-amber-50">
             ✕ Fechar
           </button>
-          <button onClick={() => window.print()}
+          <button onClick={() => {
+              // v1.12.69: desliga a simulacao ANTES de imprimir.
+              // O CSS de simulacao deixa #solar-pdf-area com display:none, o que faz
+              // o @media print imprimir cinza/branco. Saindo do modo simulacao, o
+              // #solar-pdf-area volta ao fluxo normal e o @media print funciona.
+              setPdfPreviewMode(false);
+              setTimeout(() => window.print(), 100);
+            }}
             className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded text-[11px] hover:bg-amber-600">
             🖨️ Imprimir agora
           </button>
@@ -2921,7 +2960,7 @@ function StatEditable({ label, value, onChange, unit, manual }: {
     ? { border: "border-emerald-300", bg: "bg-emerald-50", labelText: "text-emerald-700", valueText: "text-emerald-900", unitText: "text-emerald-600" }
     : { border: "border-slate-200", bg: "bg-white", labelText: "text-slate-500", valueText: "text-slate-900", unitText: "text-slate-500" };
   return (
-    <div className={`rounded px-1.5 py-px border leading-tight ${colors.border} ${colors.bg}`}>
+    <div className={`rounded px-1.5 py-0.5 border leading-tight flex flex-col justify-center ${colors.border} ${colors.bg}`} style={{ height: '28px' }}>
       <div className={`text-[7.5px] uppercase tracking-wide ${colors.labelText} font-semibold leading-[1.1]`}>{label}</div>
       <div className="flex items-baseline gap-0.5">
         <input type="number" step="0.01" value={value}
@@ -3103,7 +3142,7 @@ function ConfigFieldBig({ label, children, manual }: { label: string; children: 
     ? { border: "border-emerald-300", bg: "bg-emerald-50", label: "text-emerald-700" }
     : { border: "border-slate-200", bg: "bg-white", label: "text-slate-500" };
   return (
-    <div className={`rounded border px-1.5 py-px leading-tight overflow-hidden ${colors.border} ${colors.bg}`}>
+    <div className={`rounded border px-1.5 py-0.5 leading-tight overflow-hidden flex flex-col justify-center ${colors.border} ${colors.bg}`} style={{ height: '28px' }}>
       <div className={`text-[7px] uppercase tracking-tight font-semibold leading-[1.1] whitespace-nowrap truncate ${colors.label}`}>{label}</div>
       <div className="flex items-center">{children}</div>
     </div>
@@ -3122,7 +3161,7 @@ function SelectCard({ label, value, options, onChange, readOnly, fullWidth }: {
 }) {
   const currentLabel = options.find((o) => o.v === value)?.l ?? value;
   return (
-    <div className={`rounded border border-slate-200 bg-white px-1.5 py-px leading-tight overflow-hidden ${fullWidth ? "w-full" : ""}`}>
+    <div className={`rounded border border-slate-200 bg-white px-1.5 py-0.5 leading-tight overflow-hidden flex flex-col justify-center ${fullWidth ? "w-full" : ""}`} style={{ height: '28px' }}>
       <div className="text-[7px] uppercase tracking-tight text-slate-500 font-semibold leading-[1.1] whitespace-nowrap truncate">{label}</div>
       {readOnly ? (
         <div className="flex items-center h-[14px]">
@@ -3147,7 +3186,7 @@ function BigHighlight({ label, value, unit, manual }: { label: string; value: st
     ? { border: "border-emerald-300", bg: "bg-emerald-50", labelText: "text-emerald-700", valueText: "text-emerald-900", unitText: "text-emerald-700" }
     : { border: "border-amber-300", bg: "bg-amber-50", labelText: "text-amber-700", valueText: "text-amber-900", unitText: "text-amber-700" };
   return (
-    <div className={`rounded border ${colors.border} ${colors.bg} px-1.5 py-0.5 flex flex-col justify-center overflow-hidden`} style={{ height: '29px' }}>
+    <div className={`rounded border ${colors.border} ${colors.bg} px-1.5 py-0.5 flex flex-col justify-center overflow-hidden`} style={{ height: '28px' }}>
       <div className={`text-[8px] uppercase tracking-wide ${colors.labelText} font-semibold leading-tight`}>{label}</div>
       <div className="flex items-baseline gap-1 leading-tight">
         <span className={`text-[13px] font-bold ${colors.valueText} tabular-nums leading-none`}>{value}</span>
@@ -3165,7 +3204,7 @@ function BigHighlightInput({ label, value, onChange, unit, min, max, manual }: {
     ? { border: "border-emerald-300", bg: "bg-emerald-50", labelText: "text-emerald-700", valueText: "text-emerald-900", unitText: "text-emerald-700" }
     : { border: "border-amber-300", bg: "bg-amber-50", labelText: "text-amber-700", valueText: "text-amber-900", unitText: "text-amber-700" };
   return (
-    <div className={`rounded border ${colors.border} ${colors.bg} px-1.5 py-0.5 flex flex-col justify-center overflow-hidden`} style={{ height: '29px' }}>
+    <div className={`rounded border ${colors.border} ${colors.bg} px-1.5 py-0.5 flex flex-col justify-center overflow-hidden`} style={{ height: '28px' }}>
       <div className={`text-[8px] uppercase tracking-wide ${colors.labelText} font-semibold leading-tight`}>{label}</div>
       <div className="flex items-baseline gap-1 leading-tight">
         <input type="number" min={min} max={max} value={value}
