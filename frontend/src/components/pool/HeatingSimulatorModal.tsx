@@ -1742,6 +1742,11 @@ function SolarTab({
 
   const selectedMonth = report?.monthly?.[selectedMonthIdx];
   const today = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  // v1.12.68: slug do tenant extraido do hostname (ex: "sls.tecnikos.com.br" -> "sls").
+  // Usado pra carregar a logo da empresa via endpoint publico /api/public/tenant/:slug/logo/:variant.
+  const tenantSlug = typeof window !== "undefined"
+    ? (window.location.hostname.split('.')[0] || null)
+    : null;
 
   const localName = cidade || (availableUfs.find((u) => u.uf === uf)?.ufName) || "—";
 
@@ -1827,12 +1832,24 @@ function SolarTab({
               Tela: gradient slate-900 → blue-900 com texto branco
               Print: fundo BRANCO com texto azul escuro + borda inferior (funciona mesmo sem
               "Gráficos de segundo plano" marcado no painel do Chrome) */}
-          <header className="bg-gradient-to-r from-slate-900 to-blue-900 text-white px-5 py-3 flex items-center justify-between">
-            <div>
-              <div className="text-[9px] uppercase tracking-[0.18em] text-amber-300 font-medium">Aquecimento solar para piscinas</div>
-              <h2 className="text-base font-bold mt-0.5 leading-tight">Dimensionamento para Coletor Solar</h2>
+          <header className="bg-gradient-to-r from-slate-900 to-blue-900 text-white px-5 py-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              {/* v1.12.68: logo do tenant a esquerda. Usa endpoint publico que serve a logo
+                  pela variant 'icon-192' (quadrada, mas funciona como mark identitario). */}
+              {tenantSlug && (
+                <img
+                  src={`/api/public/tenant/${tenantSlug}/logo/icon-192`}
+                  alt="Logo"
+                  className="h-10 w-10 rounded bg-white/10 object-contain flex-shrink-0"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                />
+              )}
+              <div className="min-w-0">
+                <div className="text-[9px] uppercase tracking-[0.18em] text-amber-300 font-medium">Aquecimento solar para piscinas</div>
+                <h2 className="text-base font-bold mt-0.5 leading-tight">Dimensionamento para Coletor Solar</h2>
+              </div>
             </div>
-            <div className="text-right">
+            <div className="text-right flex-shrink-0">
               <div className="text-[9px] uppercase tracking-[0.18em] text-slate-300">Orçamento</div>
               <div className="text-xl font-bold tabular-nums leading-tight">{budget.code ?? "—"}</div>
               <div className="text-[10px] text-slate-300 mt-0.5">{today}</div>
@@ -1956,25 +1973,27 @@ function SolarTab({
                         </div>
                       </ConfigFieldBig>
                     </div>
-                    {/* L3: Cidade / Estado */}
-                    <ConfigFieldBig label="Cidade / Estado" manual={cfgManual}>
-                      <div className="flex gap-1 w-full items-center">
+                    {/* L3: Cidade | Estado (2 cards pra alinhar com a coluna Dimensoes — Tipo Piscina | Tipo Construcao) */}
+                    <div className="grid grid-cols-2 gap-1">
+                      <ConfigFieldBig label="Cidade" manual={cfgManual}>
                         <select value={cidade} onChange={(e) => setCidade(e.target.value)}
                           disabled={!uf || !cfgManual}
-                          className={`flex-1 min-w-0 bg-transparent text-[11.5px] font-bold leading-[1.15] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed print:hidden h-[16px] -mt-0.5 ${cfgManual ? "text-emerald-900" : "text-slate-900"}`}>
+                          className={`w-full bg-transparent text-[10.5px] font-bold leading-[1.1] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed print:hidden h-[14px] -mt-0.5 ${cfgManual ? "text-emerald-900" : "text-slate-900"}`}>
                           <option value="">{uf ? "Capital" : "Selecione UF"}</option>
                           {availableCities.map((c) => <option key={c} value={c}>{c}</option>)}
                         </select>
+                        <span className="hidden print:inline-block text-[10.5px] font-bold text-slate-900 leading-[1.1]">{cidade || "—"}</span>
+                      </ConfigFieldBig>
+                      <ConfigFieldBig label="Estado" manual={cfgManual}>
                         <select value={uf} onChange={(e) => { setUf(e.target.value); setCidade(""); }}
                           disabled={!cfgManual}
-                          className={`w-12 bg-transparent text-[11.5px] font-bold leading-[1.15] focus:outline-none disabled:cursor-not-allowed print:hidden h-[16px] -mt-0.5 ${cfgManual ? "text-emerald-900" : "text-slate-900"}`}>
+                          className={`w-full bg-transparent text-[10.5px] font-bold leading-[1.1] focus:outline-none disabled:cursor-not-allowed print:hidden h-[14px] -mt-0.5 ${cfgManual ? "text-emerald-900" : "text-slate-900"}`}>
                           <option value="">--</option>
                           {availableUfs.map((u) => <option key={u.uf} value={u.uf}>{u.uf}</option>)}
                         </select>
-                        <span className="hidden print:inline-block text-[11.5px] font-bold text-slate-900 leading-[1.15] flex-1">{cidade || "—"}</span>
-                        <span className="hidden print:inline-block text-[11.5px] font-bold text-slate-900 leading-[1.15] w-10">{uf || "—"}</span>
-                      </div>
-                    </ConfigFieldBig>
+                        <span className="hidden print:inline-block text-[10.5px] font-bold text-slate-900 leading-[1.1]">{uf || "—"}</span>
+                      </ConfigFieldBig>
+                    </div>
                     {/* L4: Temp. inicial | Temp. final — cor amber (auto) ou verde (manual) */}
                     <div className="grid grid-cols-2 gap-1">
                       <BigHighlightInput label="Temp. inicial" value={temperaturaInicial} onChange={setTemperaturaInicial} unit="°C" min={5} max={40} manual={cfgManual} />
@@ -2793,6 +2812,22 @@ function SolarTab({
         html.simulating-print #solar-pdf-clone img { max-height: 38mm !important; }
         html.simulating-print #solar-pdf-clone select { display: none !important; }
         html.simulating-print #solar-pdf-clone input[type=range] { display: none !important; }
+        /* v1.12.68: forca gradiente do header + cores no preview (Tailwind JIT pode nao
+           incluir as classes do gradient quando o clone eh inserido via JS). */
+        html.simulating-print #solar-pdf-clone header {
+          background: linear-gradient(to right, #0f172a, #1e3a8a) !important;
+          color: #ffffff !important;
+        }
+        html.simulating-print #solar-pdf-clone header h2,
+        html.simulating-print #solar-pdf-clone header div { color: #ffffff !important; }
+        html.simulating-print #solar-pdf-clone header .text-amber-300 { color: #fcd34d !important; }
+        html.simulating-print #solar-pdf-clone header .text-slate-300 { color: #cbd5e1 !important; }
+        /* Banners DIMENSIONAMENTO / SIMULACAO TERMICA — bg-blue-900 */
+        html.simulating-print #solar-pdf-clone .bg-blue-900 {
+          background-color: #1e3a8a !important;
+          color: #ffffff !important;
+        }
+        html.simulating-print #solar-pdf-clone .bg-blue-900 * { color: #ffffff !important; }
         /* Ativa as classes print:* do Tailwind no modo simulacao */
         html.simulating-print #solar-pdf-clone .print\\:inline-block { display: inline-block !important; }
         html.simulating-print #solar-pdf-clone .print\\:hidden { display: none !important; }
