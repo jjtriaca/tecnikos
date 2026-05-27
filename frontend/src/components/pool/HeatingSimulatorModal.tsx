@@ -1745,6 +1745,11 @@ function SolarTab({
     });
     container.appendChild(clone);
     document.body.appendChild(container);
+    // v1.12.74: forca remocao do min-h-[1120px] da tela (cloneNode preserva
+    // classes do Tailwind, e a regra `min-height: 0` no CSS pode nao vencer
+    // por especificidade). Aqui zeramos no DOM direto.
+    clone.style.minHeight = "0";
+    clone.style.height = "auto";
     return container;
   };
 
@@ -2077,10 +2082,10 @@ function SolarTab({
                 const productImg = selectedColetor?.imageUrl ?? null;
                 if (productImg) {
                   return (
-                    // v1.12.73: no print, altura limitada pra alinhar com a parte de baixo
-                    // dos cards (col-span-8). aspect-square no print fica quadrado ENORME (~68mm
-                    // de lado em A4), gerando overflow pra segunda pagina.
-                    <div className="w-full aspect-square print:aspect-auto print:h-full print:max-h-[58mm] rounded border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center">
+                    // v1.12.74: imagem ainda saia maior que os cards no print —
+                    // reduzido de 58mm pra 52mm pra alinhar com a base dos cards
+                    // e liberar espaco que causava 2a pagina em branco.
+                    <div className="w-full aspect-square print:aspect-auto print:h-full print:max-h-[52mm] rounded border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={productImg} alt={selectedColetor?.modelName ?? "Coletor"} className="w-full h-full object-contain" />
                     </div>
@@ -2105,8 +2110,9 @@ function SolarTab({
               Antes ficava aqui (acima de DIMENSIONAMENTO), agora sai do fluxo pra empurrar o gráfico pra baixo. */}
 
           {/* ============ TITULO BANNER DIMENSIONAMENTO ============
-              Print: fundo branco + texto azul + borda (sem depender de "Gráficos de segundo plano") */}
-          <div className="bg-blue-900 text-white px-5 py-1.5">
+              Print: fundo branco + texto azul + borda (sem depender de "Gráficos de segundo plano")
+              v1.12.74: print:mb-1 pra criar respiro entre banner e cards (estavam encostados) */}
+          <div className="bg-blue-900 text-white px-5 py-1.5 print:mb-1">
             <span className="text-[10px] uppercase tracking-[0.18em] font-bold">Dimensionamento</span>
           </div>
 
@@ -2576,8 +2582,9 @@ function SolarTab({
               </section>
 
               {/* ============ TITULO BANNER SIMULACAO ============
-                  v1.12.67: mantem cor original no PDF (era forcado branco antes) */}
-              <div className="bg-blue-900 text-white px-5 py-1.5 flex items-center gap-3">
+                  v1.12.67: mantem cor original no PDF (era forcado branco antes)
+                  v1.12.74: print:mb-1 pra respiro entre banner e gráfico/tabela */}
+              <div className="bg-blue-900 text-white px-5 py-1.5 flex items-center gap-3 print:mb-1">
                 <span className="text-[10px] uppercase tracking-[0.18em] font-bold">Simulação térmica mensal</span>
                 <div className="flex items-center gap-1.5 print:hidden">
                   <span className="text-[9px] text-blue-200 uppercase tracking-wide">Gráfico:</span>
@@ -2834,11 +2841,18 @@ function SolarTab({
           table { page-break-inside: auto; }
           tr { page-break-inside: avoid; }
 
-          /* Espacador flex-1 some no print */
-          html.printing-mode #solar-pdf-clone > div.flex-1 {
+          /* Espacador flex-1 some no print — tanto o filho direto quanto qualquer
+             nested (v1.12.74: havia <div className="flex-1"/> dentro do banner
+             SIMULACAO empurrando conteudo pra 2a pagina) */
+          html.printing-mode #solar-pdf-clone > div.flex-1,
+          html.printing-mode #solar-pdf-clone .flex-1:not(section):not([class*="col-span"]):empty {
             display: none !important;
             flex: none !important;
             height: 0 !important;
+            min-height: 0 !important;
+          }
+          /* v1.12.74: garante que o clone nao tem min-height residual da classe min-h-[1120px] */
+          html.printing-mode #solar-pdf-clone[class*="min-h-"] {
             min-height: 0 !important;
           }
 
@@ -2893,11 +2907,13 @@ function SolarTab({
           html.printing-mode #solar-pdf-clone .print\\:aspect-auto { aspect-ratio: auto !important; }
           html.printing-mode #solar-pdf-clone .print\\:h-full { height: 100% !important; }
           html.printing-mode #solar-pdf-clone .print\\:h-auto { height: auto !important; }
+          html.printing-mode #solar-pdf-clone .print\\:max-h-\\[52mm\\] { max-height: 52mm !important; }
           html.printing-mode #solar-pdf-clone .print\\:max-h-\\[58mm\\] { max-height: 58mm !important; }
           html.printing-mode #solar-pdf-clone .print\\:max-h-\\[62mm\\] { max-height: 62mm !important; }
           html.printing-mode #solar-pdf-clone .print\\:items-start { align-items: flex-start !important; }
           html.printing-mode #solar-pdf-clone .print\\:py-1 { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
           html.printing-mode #solar-pdf-clone .print\\:p-1 { padding: 0.25rem !important; }
+          html.printing-mode #solar-pdf-clone .print\\:mb-1 { margin-bottom: 0.25rem !important; }
 
           /* Classe .print\\:hidden geral aplicada via Tailwind no JSX */
           .print\\:hidden { display: none !important; }
@@ -2937,7 +2953,9 @@ function SolarTab({
           display: block !important;
           border: 0 !important;
         }
-        html.simulating-print #solar-pdf-clone > div.flex-1 { display: none !important; }
+        html.simulating-print #solar-pdf-clone > div.flex-1,
+        html.simulating-print #solar-pdf-clone .flex-1:empty { display: none !important; }
+        html.simulating-print #solar-pdf-clone[class*="min-h-"] { min-height: 0 !important; }
         html.simulating-print #solar-pdf-clone section { padding-top: 4px !important; padding-bottom: 4px !important; }
         html.simulating-print #solar-pdf-clone footer { padding-top: 3px !important; padding-bottom: 3px !important; }
         html.simulating-print #solar-pdf-clone header { padding-top: 6px !important; padding-bottom: 6px !important; }
@@ -2950,11 +2968,13 @@ function SolarTab({
         html.simulating-print #solar-pdf-clone .print\\:aspect-auto { aspect-ratio: auto !important; }
         html.simulating-print #solar-pdf-clone .print\\:h-full { height: 100% !important; }
         html.simulating-print #solar-pdf-clone .print\\:h-auto { height: auto !important; }
+        html.simulating-print #solar-pdf-clone .print\\:max-h-\\[52mm\\] { max-height: 52mm !important; }
         html.simulating-print #solar-pdf-clone .print\\:max-h-\\[58mm\\] { max-height: 58mm !important; }
         html.simulating-print #solar-pdf-clone .print\\:max-h-\\[62mm\\] { max-height: 62mm !important; }
         html.simulating-print #solar-pdf-clone .print\\:items-start { align-items: flex-start !important; }
         html.simulating-print #solar-pdf-clone .print\\:py-1 { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
         html.simulating-print #solar-pdf-clone .print\\:p-1 { padding: 0.25rem !important; }
+        html.simulating-print #solar-pdf-clone .print\\:mb-1 { margin-bottom: 0.25rem !important; }
         /* v1.12.68: forca gradiente do header + cores no preview (Tailwind JIT pode nao
            incluir as classes do gradient quando o clone eh inserido via JS). */
         html.simulating-print #solar-pdf-clone header {
