@@ -1351,7 +1351,12 @@ export default function ProductsPage() {
                     />
                   </div>
                   <div>
-                    <label className={labelClass}>Modelo</label>
+                    <FieldLabel
+                      tone="cyan"
+                      help="Modelo do produto (ex: 'Tropicos', 'Linha Premium', 'Acqualight'). Use o MESMO nome em produtos da mesma linha tecnica — isso permite agrupar regras por modelo. ATENCAO em COLETORES SOLARES: sem este campo preenchido, o produto NAO aparece nas Regras Solares do Simulador (modulo Piscina) e usa apenas os padroes do sistema."
+                    >
+                      Modelo
+                    </FieldLabel>
                     <input
                       type="text"
                       value={form.model}
@@ -1923,7 +1928,13 @@ export default function ProductsPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
                       <div>
                         <div className="flex items-center justify-between mb-1">
-                          <label className={`${labelClass} mb-0`}>Tipo</label>
+                          <FieldLabel
+                            tone="cyan"
+                            className="mb-0"
+                            help="Tipo do produto no contexto Piscina (ex: 'Coletor Solar Piscina', 'Bombas diversas', 'Cascata', 'Aquecedor'). Define filtros e regras automaticas do modulo Piscina. ATENCAO em COLETORES SOLARES: este campo precisa ser preenchido pra o produto entrar no dropdown do Simulador Solar e pra criar Regras Solares por modelo. Use o botao Gerenciar tipos pra padronizar nomes entre produtos."
+                          >
+                            Tipo
+                          </FieldLabel>
                           <button
                             type="button"
                             onClick={() => setShowPoolTypesManager(true)}

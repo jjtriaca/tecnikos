@@ -263,6 +263,29 @@ export class SolarBudgetService {
     // regra solarBombaRule) antes da auto-selecao da linha funcionar.
     report.warnings = await this.computeWarnings(companyId, report);
 
+    // v1.12.64: avisos especificos sobre regra solar aplicada (tipo/modelo
+    // do coletor, regra cadastrada ou nao).
+    if (params.collectorProductId) {
+      const coletor = await this.prisma.product.findFirst({
+        where: { id: params.collectorProductId, companyId, deletedAt: null },
+        select: { description: true, poolType: true, model: true },
+      });
+      if (coletor) {
+        const configs = await this.listSolarRuleConfigs(companyId);
+        const ruleHit = findRuleForCollector(
+          { poolType: coletor.poolType, model: coletor.model },
+          configs,
+        );
+        const ruleWarnings = this.computeRuleStatusWarnings(
+          coletor.description ?? 'Coletor',
+          coletor.poolType,
+          coletor.model,
+          ruleHit,
+        );
+        report.warnings = [...(report.warnings ?? []), ...ruleWarnings];
+      }
+    }
+
     // Salva report + overrides em environmentParams (v5: persiste orientacao/inclinacao/tempInicial)
     const newEnv = {
       ...env,
@@ -356,6 +379,42 @@ export class SolarBudgetService {
       });
     }
 
+    return warnings;
+  }
+
+  /**
+   * v1.12.64: avisos relativos a regra solar do coletor selecionado.
+   * Cobre 3 casos: sem Tipo, sem Modelo, ou sem regra cadastrada pra (tipo, modelo).
+   * O motor ainda funciona em todos esses casos (usa defaults), mas alerta o operador
+   * pra corrigir e ter dimensionamento exato.
+   */
+  private computeRuleStatusWarnings(
+    coletorName: string,
+    poolType: string | null,
+    model: string | null,
+    rule: SolarRuleConfig | null,
+  ): Array<{ severity: 'warning' | 'info'; message: string }> {
+    const warnings: Array<{ severity: 'warning' | 'info'; message: string }> = [];
+    if (!poolType?.trim()) {
+      warnings.push({
+        severity: 'warning',
+        message: `O coletor "${coletorName}" nao tem o campo Tipo preenchido no cadastro. Sem ele, nenhuma regra solar pode ser aplicada — o motor usa padroes do sistema. Edite o produto em Cadastros > Produtos.`,
+      });
+      return warnings;
+    }
+    if (!model?.trim()) {
+      warnings.push({
+        severity: 'warning',
+        message: `O coletor "${coletorName}" nao tem o campo Modelo preenchido. Para aplicar uma regra solar especifica, preencha o Modelo (ex: "Tropicos") no cadastro do produto. Hoje usando padroes do sistema.`,
+      });
+      return warnings;
+    }
+    if (!rule) {
+      warnings.push({
+        severity: 'info',
+        message: `Sem regra solar cadastrada para "${poolType}" / "${model}". Hoje usando padroes do sistema. Clique em "⚙ Regras" no Diagrama de Instalacao para cadastrar uma regra especifica deste modelo.`,
+      });
+    }
     return warnings;
   }
 
@@ -587,13 +646,19 @@ export class SolarBudgetService {
         poolType: true, technicalSpecs: true, pumpCurve: true, imageUrl: true,
       },
     });
-    if (products.length === 0) return [];
+    // v1.12.64: bomba sem curva caracteristica nao eh candidato. Cadastro do
+    // produto ja exige pumpCurve via typeRequiredFields, mas produtos legados
+    // (cadastrados antes da regra) ainda podem aparecer aqui — filtra fora.
+    const withCurve = products.filter(
+      (p) => Array.isArray(p.pumpCurve) && (p.pumpCurve as unknown[]).length >= 2,
+    );
+    if (withCurve.length === 0) return [];
 
     const baseVars = { vazaoSolarM3h, alturaTelhadoMca };
 
     // Aplica where (filtro de criterio) e orderBy da regra. filterByWhere/orderCandidates
     // ja interpolam pumpCurve quando candidato tem curva cadastrada (v1.12.41).
-    const passed = filterByWhere(products as any, bombaRule, baseVars);
+    const passed = filterByWhere(withCurve as any, bombaRule, baseVars);
     const ordered = orderCandidates(passed as any, bombaRule, baseVars).slice(0, 20);
 
     return ordered.map((p: any) => {
@@ -782,15 +847,47 @@ export class SolarBudgetService {
   /**
    * Resumo pro frontend exibir na lista: regras + quantos produtos cada uma cobre
    * + produtos sem regra (agrupados por poolType).
+   *
+   * v1.12.64: filtra produtos pela `solarCollectorRule` do tenant. So aparecem
+   * modelos relevantes pra COLETORES SOLARES (nao bombas, nao filtros). O
+   * dropdown de "Tipo de produto" no form usa `relevantPoolTypes`.
    */
   async listSolarRulesWithCoverage(companyId: string): Promise<{
     rules: Array<SolarRuleConfig & { productCount: number }>;
     uncovered: Array<{ poolType: string; model: string; productCount: number }>;
     defaults: typeof SYSTEM_DEFAULT_SOLAR_RULES;
+    relevantPoolTypes: string[];
+    collectorRuleConfigured: boolean;
   }> {
     const rules = await this.listSolarRuleConfigs(companyId);
+    const collectorRule = await this.getSolarCollectorRule(companyId);
+    const filterPoolType = String(collectorRule?.filterPoolType ?? '').trim();
+    const filterDescription = String(collectorRule?.filterDescription ?? '').trim();
+    const collectorRuleConfigured = filterPoolType.length > 0 || filterDescription.length > 0;
+
+    // Tipos relevantes = uniao de:
+    //  - filterPoolType da solarCollectorRule (se houver)
+    //  - poolTypes das regras ja cadastradas (fallback quando solarCollectorRule nao foi configurada)
+    const allowedPoolTypes = new Set<string>();
+    if (filterPoolType) allowedPoolTypes.add(filterPoolType.toLowerCase());
+    for (const r of rules) {
+      if (r.poolType?.trim()) allowedPoolTypes.add(r.poolType.trim().toLowerCase());
+    }
+
     const products = await this.prisma.product.findMany({
-      where: { companyId, deletedAt: null, status: 'ATIVO' },
+      where: {
+        companyId,
+        deletedAt: null,
+        status: 'ATIVO',
+        // Filtra pra trazer SO produtos relevantes pra coletor solar.
+        // Sem regra E sem solarCollectorRule, retorna [] — frontend orienta a configurar.
+        ...(allowedPoolTypes.size > 0
+          ? { poolType: { in: Array.from(allowedPoolTypes), mode: 'insensitive' } as any }
+          : { poolType: '__NEVER_MATCH__' }),
+        ...(filterDescription
+          ? { description: { contains: filterDescription, mode: 'insensitive' } }
+          : {}),
+      },
       select: { poolType: true, model: true },
     });
 
@@ -802,11 +899,15 @@ export class SolarBudgetService {
       ).length,
     }));
 
-    // Agrupa produtos SEM regra por (poolType, model)
+    // Agrupa produtos SEM regra por (poolType, model). Apenas produtos com
+    // poolType E model preenchidos entram (model vazio = nao da pra vincular).
     const coveredKeys = new Set(rules.map((r) => `${r.poolType}::${r.model}`));
     const uncoveredMap = new Map<string, { poolType: string; model: string; count: number }>();
+    const poolTypesSet = new Set<string>();
     for (const p of products) {
-      if (!p.poolType?.trim() || !p.model?.trim()) continue;
+      if (!p.poolType?.trim()) continue;
+      poolTypesSet.add(p.poolType.trim());
+      if (!p.model?.trim()) continue;
       const key = `${p.poolType}::${p.model}`;
       if (coveredKeys.has(key)) continue;
       const existing = uncoveredMap.get(key);
@@ -816,8 +917,15 @@ export class SolarBudgetService {
     const uncovered = Array.from(uncoveredMap.values())
       .map((u) => ({ poolType: u.poolType, model: u.model, productCount: u.count }))
       .sort((a, b) => a.poolType.localeCompare(b.poolType) || a.model.localeCompare(b.model));
+    const relevantPoolTypes = Array.from(poolTypesSet).sort();
 
-    return { rules: rulesWithCount, uncovered, defaults: SYSTEM_DEFAULT_SOLAR_RULES };
+    return {
+      rules: rulesWithCount,
+      uncovered,
+      defaults: SYSTEM_DEFAULT_SOLAR_RULES,
+      relevantPoolTypes,
+      collectorRuleConfigured,
+    };
   }
 
   /**

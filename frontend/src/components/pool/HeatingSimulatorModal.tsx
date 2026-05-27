@@ -2031,40 +2031,75 @@ function SolarTab({
                   <Kpi label="Vazão necessária" value={report.vazaoTotalM3h.toFixed(2).replace(".", ",")} unit="m³/h" />
                   <Kpi label="Cobertura piscina × coletores" value={report.percentualCobertura.toFixed(1).replace(".", ",")} unit="%" />
                   {/* v1.12.55: diagrama em card de tamanho FIXO (170px de altura) — escala interna */}
+                  {/* v1.12.64: badge da regra no TOPO (header) + warnings de erro/info abaixo do header */}
                   {report.numBaterias > 0 && (
                     <div className="mt-1.5 rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50/30 p-2">
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="text-[8.5px] uppercase tracking-wider font-bold text-slate-600">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <div className="text-[8.5px] uppercase tracking-wider font-bold text-slate-600 flex-shrink-0">
                           Diagrama da instalação
                         </div>
-                        {/* v1.12.63: botao "Cadastrar regras" — abre modal de regras solares (MIN/MAX coletores, vazao, etc) */}
-                        <button
-                          type="button"
-                          onClick={() => setShowSolarRulesModal(true)}
-                          title="Cadastrar / editar regras de dimensionamento por modelo de coletor"
-                          className="text-[9px] font-semibold px-1.5 py-0.5 rounded border border-slate-200 text-slate-600 hover:text-cyan-700 hover:border-cyan-300 hover:bg-cyan-50 print:hidden"
-                        >
-                          ⚙ Regras
-                        </button>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {activeRule ? (
+                            <button
+                              type="button"
+                              onClick={() => setShowSolarRulesModal(true)}
+                              title={`Regra aplicada: ${activeRule.name}. Clique para gerenciar.`}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-cyan-300 bg-cyan-50 text-[9px] font-semibold text-cyan-800 hover:bg-cyan-100 print:hidden truncate max-w-[120px]"
+                            >
+                              <span className="text-cyan-600">●</span>
+                              <span className="truncate">{activeRule.name}</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setShowSolarRulesModal(true)}
+                              title="Nenhuma regra solar específica para este coletor. Usando padrões do sistema."
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-[9px] font-semibold text-amber-800 hover:bg-amber-100 print:hidden"
+                            >
+                              <span>⚠</span>
+                              <span>sem regra</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setShowSolarRulesModal(true)}
+                            title="Cadastrar / editar regras de dimensionamento por modelo de coletor"
+                            className="text-[9px] font-semibold px-1.5 py-0.5 rounded border border-slate-200 text-slate-600 hover:text-cyan-700 hover:border-cyan-300 hover:bg-cyan-50 print:hidden flex-shrink-0"
+                          >
+                            ⚙ Regras
+                          </button>
+                        </div>
                       </div>
+
+                      {/* v1.12.64: bandagem de erros/info relativa a regra solar (filtra warnings que falam sobre regra/tipo/modelo) */}
+                      {Array.isArray(report.warnings) && report.warnings.length > 0 && (
+                        <div className="mb-1.5 space-y-0.5">
+                          {report.warnings
+                            .filter((w) => /regra|tipo|modelo|usando padroes|coletor "/i.test(w.message))
+                            .slice(0, 3)
+                            .map((w, idx) => (
+                              <div
+                                key={idx}
+                                className={`text-[9px] leading-snug rounded px-1.5 py-1 border ${
+                                  w.severity === "warning"
+                                    ? "bg-amber-50 border-amber-200 text-amber-900"
+                                    : "bg-sky-50 border-sky-200 text-sky-900"
+                                }`}
+                              >
+                                <span className="font-bold mr-1">
+                                  {w.severity === "warning" ? "⚠" : "ℹ"}
+                                </span>
+                                {w.message}
+                              </div>
+                            ))}
+                        </div>
+                      )}
+
                       <BatteryDiagram
                         numRamos={report.numRamosParalelos ?? 1}
                         batPorRamo={report.batPorRamo ?? report.numBaterias}
                         coletoresPorBateria={report.coletoresPorBateria}
                       />
-                      {activeRule && (
-                        <div className="mt-1 text-[9px] text-slate-600 text-center">
-                          Regra:{" "}
-                          <span className="font-semibold text-cyan-700">
-                            {activeRule.name}
-                          </span>
-                        </div>
-                      )}
-                      {!activeRule && (
-                        <div className="mt-1 text-[9px] text-slate-500 text-center">
-                          Sem regra cadastrada — usando padrões do sistema
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>

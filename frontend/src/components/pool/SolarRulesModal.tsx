@@ -12,6 +12,7 @@ import { useEffect, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
+import { HelpHint } from "@/components/ui/HelpHint";
 
 interface SolarRulesValues {
   minColetoresPorBateria: number;
@@ -40,6 +41,8 @@ interface ListResponse {
   rules: SolarRule[];
   uncovered: UncoveredEntry[];
   defaults: SolarRulesValues;
+  relevantPoolTypes: string[];
+  collectorRuleConfigured: boolean;
 }
 
 interface ModelOption {
@@ -98,19 +101,18 @@ export default function SolarRulesModal({ open, onClose, onChanged }: Props) {
     }
   }, [toast]);
 
-  // Carrega tipos de produto (DISTINCT)
-  useEffect(() => {
-    if (!open) return;
-    api.get<string[]>("/products/pool-types").then(setPoolTypes).catch(() => setPoolTypes([]));
-  }, [open]);
-
-  // Carrega lista inicial
+  // Carrega lista inicial (relevantPoolTypes vem junto com a resposta)
   useEffect(() => {
     if (open) {
       setPhase("LIST");
       reload();
     }
   }, [open, reload]);
+
+  // Sincroniza dropdown de tipos com a resposta filtrada pelo backend
+  useEffect(() => {
+    if (data?.relevantPoolTypes) setPoolTypes(data.relevantPoolTypes);
+  }, [data?.relevantPoolTypes]);
 
   // Quando poolType muda no form, recarrega modelos disponiveis
   useEffect(() => {
@@ -504,9 +506,37 @@ function FormView({
 }) {
   return (
     <div className="space-y-4">
+      {/* Aviso explicativo — pre-requisitos do cadastro */}
+      <div className="rounded-xl border border-cyan-200 bg-cyan-50 p-3 text-[11px] text-slate-700 leading-relaxed">
+        <div className="font-semibold text-cyan-900 mb-1 flex items-center gap-1.5">
+          <span>Como esta regra vai funcionar</span>
+        </div>
+        <p>
+          A regra so e aplicada quando um coletor selecionado no Simulador tem <strong>Tipo</strong> e{" "}
+          <strong>Modelo</strong> exatamente iguais aos cadastrados abaixo.
+        </p>
+        <ul className="mt-1.5 space-y-0.5 list-disc list-inside text-slate-600">
+          <li>
+            <strong>Tipo</strong> e <strong>Modelo</strong> sao campos do cadastro do produto (Cadastros &gt;
+            Produtos &gt; aba Piscina).
+          </li>
+          <li>
+            O <strong>Modelo</strong> agrupa varios tamanhos de uma mesma linha tecnica — ex: "Tropicos"
+            cobre Tropicos 2,24m², 3,36m², 4,48m², etc.
+          </li>
+          <li>
+            Se o modelo desejado nao aparece no dropdown abaixo, e porque <strong>nenhum produto</strong>{" "}
+            deste tipo esta cadastrado com esse modelo. Volte no cadastro do produto e preencha.
+          </li>
+        </ul>
+      </div>
+
       {/* Identificacao */}
       <div className="space-y-3">
-        <Field label="Nome da regra">
+        <Field
+          label="Nome da regra"
+          hint="Nome livre pra voce identificar a regra. Sugestao: use o nome do modelo (ex: 'Tropicos')."
+        >
           <input
             type="text"
             value={formName}
@@ -517,7 +547,10 @@ function FormView({
           />
         </Field>
 
-        <Field label="Tipo de produto" hint="Tipos cadastrados nos produtos do tenant.">
+        <Field
+          label="Tipo de produto"
+          hint="Filtrado para mostrar apenas tipos relevantes a coletores solares (segue a regra de auto-selecao do coletor configurada em Configuracoes Avancadas). Se vazio, nenhum produto do tenant casa com o filtro — cadastre coletores ou ajuste a regra de auto-selecao."
+        >
           <select
             value={formPoolType}
             onChange={(e) => setFormPoolType(e.target.value)}
@@ -530,19 +563,17 @@ function FormView({
               </option>
             ))}
           </select>
+          {poolTypes.length === 0 && (
+            <p className="text-[10px] text-amber-700 mt-1">
+              Nenhum tipo encontrado. Cadastre um coletor solar no catalogo (Cadastros &gt; Produtos)
+              preenchendo <strong>Tipo (poolType)</strong> e <strong>Modelo</strong>.
+            </p>
+          )}
         </Field>
 
         <Field
           label="Modelo"
-          hint={
-            !formPoolType
-              ? "Selecione o tipo primeiro."
-              : loadingModels
-                ? "Buscando modelos..."
-                : modelOptions.length === 0
-                  ? "Nenhum produto deste tipo cadastrado com modelo preenchido."
-                  : "Modelos distintos cadastrados nos produtos deste tipo."
-          }
+          hint="Modelos distintos cadastrados nos produtos deste tipo. Cada produto contribui com seu valor do campo Modelo. Se o que voce procura nao aparece: ou nao existe produto desse modelo, ou o campo Modelo esta vazio no cadastro."
         >
           <select
             value={formModel}
@@ -557,6 +588,15 @@ function FormView({
               </option>
             ))}
           </select>
+          {formPoolType && !loadingModels && modelOptions.length === 0 && (
+            <p className="text-[10px] text-amber-700 mt-1">
+              Nenhum produto deste tipo tem o campo <strong>Modelo</strong> preenchido. Va em
+              Cadastros &gt; Produtos, edite os coletores e preencha o campo Modelo (ex: "Tropicos").
+            </p>
+          )}
+          {!formPoolType && (
+            <p className="text-[10px] text-slate-500 mt-1">Selecione o tipo primeiro.</p>
+          )}
         </Field>
       </div>
 
@@ -630,9 +670,11 @@ function FormView({
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-semibold text-slate-700 mb-1">{label}</label>
+      <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 mb-1">
+        <span>{label}</span>
+        {hint && <HelpHint text={hint} tone="cyan" width={320} />}
+      </label>
       {children}
-      {hint && <p className="text-[10px] text-slate-500 mt-1">{hint}</p>}
     </div>
   );
 }
