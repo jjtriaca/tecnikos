@@ -25,6 +25,7 @@ import { QueryPoolBudgetDto } from './dto/query-pool-budget.dto';
 import { CreateBudgetItemDto, UpdateBudgetItemDto } from './dto/budget-item.dto';
 import { HeatingSimulateDto } from './dto/heating-simulate.dto';
 import { SolarSimulateDto, SolarRecomputeDto } from './dto/solar-simulate.dto';
+import { CreateSolarRuleDto, UpdateSolarRuleDto } from './dto/solar-rule.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -156,6 +157,60 @@ export class PoolBudgetController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.solarBudget.setSolarOverride(id, user.companyId, body ?? null);
+  }
+
+  // ========== Regras Solares Configuraveis (v1.12.63) ==========
+  // Storage: Company.systemConfig.pool.solarRules. Vinculacao 1 regra ↔ 1 (poolType, model).
+  // Ver memory/project_solar_regras_configuraveis.md.
+
+  @ApiOperation({ summary: 'Lista regras solares cadastradas no tenant + cobertura (produtos por regra) + defaults do sistema. v1.12.63.' })
+  @Get('solar-rules')
+  listSolarRules(@CurrentUser() user: AuthenticatedUser) {
+    return this.solarBudget.listSolarRulesWithCoverage(user.companyId);
+  }
+
+  @ApiOperation({ summary: 'Lista modelos DISTINCT cadastrados para um poolType (alimenta dropdown "Modelo" do form de regra). v1.12.63.' })
+  @Get('solar-rules/models')
+  listModelsForRule(
+    @Query('poolType') poolType: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (!poolType?.trim()) throw new BadRequestException('poolType eh obrigatorio.');
+    return this.solarBudget.listModelsByPoolType(user.companyId, poolType.trim());
+  }
+
+  @ApiOperation({ summary: 'Resolve a regra ativa para o coletor selecionado no orcamento. Usado pelo badge do Simulador. v1.12.63.' })
+  @Get(':id/solar-active-rule')
+  getActiveSolarRule(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.solarBudget.getActiveSolarRuleForBudget(id, user.companyId);
+  }
+
+  @ApiOperation({ summary: 'Cria nova regra solar. v1.12.63.' })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post('solar-rules')
+  createSolarRule(@Body() dto: CreateSolarRuleDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.solarBudget.createSolarRule(user.companyId, dto);
+  }
+
+  @ApiOperation({ summary: 'Edita regra solar existente. v1.12.63.' })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Put('solar-rules/:ruleId')
+  updateSolarRule(
+    @Param('ruleId') ruleId: string,
+    @Body() dto: UpdateSolarRuleDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.solarBudget.updateSolarRule(user.companyId, ruleId, dto);
+  }
+
+  @ApiOperation({ summary: 'Exclui regra solar. Produtos vinculados passam a usar defaults do sistema. v1.12.63.' })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Delete('solar-rules/:ruleId')
+  deleteSolarRule(@Param('ruleId') ruleId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.solarBudget.deleteSolarRule(user.companyId, ruleId).then(() => ({ deleted: true }));
   }
 
   @ApiOperation({ summary: 'Simulacao solar — calculo rapido sem salvar' })

@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import { api, getAccessToken } from "@/lib/api";
 import { useDebounce } from "@/hooks/useDebounce";
 import { AutoSelectModal, type AutoSelectRule, type CatalogConfig } from "@/app/(dashboard)/quotes/pool/[id]/page";
+import SolarRulesModal from "@/components/pool/SolarRulesModal";
 
 // ============ Tipos ============
 
@@ -1535,6 +1536,27 @@ function SolarTab({
   const [bombaManuallySelected, setBombaManuallySelected] = useState<boolean>(initBombaManuallySelected);
   const [bombaCandidatesLoading, setBombaCandidatesLoading] = useState(false);
 
+  // v1.12.63: regras solares configuraveis
+  const [showSolarRulesModal, setShowSolarRulesModal] = useState(false);
+  const [activeRule, setActiveRule] = useState<{ id: string; name: string } | null>(null);
+
+  // Resolve regra ativa (badge "Regra: X" abaixo do diagrama). Re-resolve quando
+  // muda o coletor selecionado ou quando o operador edita as regras no modal.
+  const reloadActiveRule = useCallback(async () => {
+    try {
+      const res = await api.get<{ rule: { id: string; name: string } | null }>(
+        `/pool-budgets/${budget.id}/solar-active-rule`,
+      );
+      setActiveRule(res?.rule ?? null);
+    } catch {
+      setActiveRule(null);
+    }
+  }, [budget.id]);
+  useEffect(() => {
+    if (!report) return;
+    reloadActiveRule();
+  }, [report, reloadActiveRule, selectedCollectorId]);
+
   // v1.12.62: distincao entre escolha MANUAL (operador clicou no dropdown) vs
   // DEFAULT (primeiro candidato sugerido pela regra). Sem isso, ao reduzir vazao
   // a bomba grande ficava "ainda passando" na regra e nao voltava ao default.
@@ -2011,14 +2033,38 @@ function SolarTab({
                   {/* v1.12.55: diagrama em card de tamanho FIXO (170px de altura) — escala interna */}
                   {report.numBaterias > 0 && (
                     <div className="mt-1.5 rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50/30 p-2">
-                      <div className="text-[8.5px] uppercase tracking-wider font-bold text-slate-600 mb-1">
-                        Diagrama da instalação
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="text-[8.5px] uppercase tracking-wider font-bold text-slate-600">
+                          Diagrama da instalação
+                        </div>
+                        {/* v1.12.63: botao "Cadastrar regras" — abre modal de regras solares (MIN/MAX coletores, vazao, etc) */}
+                        <button
+                          type="button"
+                          onClick={() => setShowSolarRulesModal(true)}
+                          title="Cadastrar / editar regras de dimensionamento por modelo de coletor"
+                          className="text-[9px] font-semibold px-1.5 py-0.5 rounded border border-slate-200 text-slate-600 hover:text-cyan-700 hover:border-cyan-300 hover:bg-cyan-50 print:hidden"
+                        >
+                          ⚙ Regras
+                        </button>
                       </div>
                       <BatteryDiagram
                         numRamos={report.numRamosParalelos ?? 1}
                         batPorRamo={report.batPorRamo ?? report.numBaterias}
                         coletoresPorBateria={report.coletoresPorBateria}
                       />
+                      {activeRule && (
+                        <div className="mt-1 text-[9px] text-slate-600 text-center">
+                          Regra:{" "}
+                          <span className="font-semibold text-cyan-700">
+                            {activeRule.name}
+                          </span>
+                        </div>
+                      )}
+                      {!activeRule && (
+                        <div className="mt-1 text-[9px] text-slate-500 text-center">
+                          Sem regra cadastrada — usando padrões do sistema
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2520,6 +2566,19 @@ function SolarTab({
           }}
         />
       )}
+
+      {/* v1.12.63: modal de regras solares (acessado pelo botao ⚙ Regras no Diagrama de Instalacao). */}
+      <SolarRulesModal
+        open={showSolarRulesModal}
+        onClose={() => setShowSolarRulesModal(false)}
+        onChanged={async () => {
+          await reloadActiveRule();
+          // Force recompute do report pra refletir novas regras
+          if (selectedCollectorId !== undefined) {
+            onRecompute(undefined, selectedCollectorId);
+          }
+        }}
+      />
 
       {/* CSS Print: A4 portrait, 1 pagina garantida.
           - color-adjust: exact preserva fundos escuros do header/banner

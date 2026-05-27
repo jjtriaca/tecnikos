@@ -13,11 +13,6 @@ import {
   SOLAR_INSOLACAO_HORAS_PADRAO,
   SOLAR_FATOR_ENERGIA_KCAL,
   SOLAR_DELTA_REF_PADRAO,
-  SOLAR_VAZAO_FATOR,
-  SOLAR_BATERIA_MIN_COLETORES,
-  SOLAR_BATERIA_MAX_COLETORES,
-  SOLAR_BATERIA_MAX_M2,
-  SOLAR_BATERIAS_MAX_SERIE,
   SOLAR_DEFAULT_COLETOR_AREA_M2,
   SOLAR_DEFAULT_COLETOR_KWH_M2,
   SOLAR_DEFAULT_COLETOR_EFICIENCIA,
@@ -25,6 +20,7 @@ import {
   calcFatorInclinacao,
   getBombaRecomendadaSolar,
 } from './solar-constants';
+import { SolarRules, SYSTEM_DEFAULT_SOLAR_RULES, vazaoFatorFromRules } from './solar-rules';
 
 // ============ TIPOS ============
 
@@ -65,6 +61,11 @@ export interface SolarInputs {
     kwhPorM2?: number;      // kWh/m² (default SOLAR_DEFAULT_COLETOR_KWH_M2)
     eficiencia?: number;    // 0..1 (default SOLAR_DEFAULT_COLETOR_EFICIENCIA)
   };
+
+  // v1.12.63: regras de dimensionamento configuraveis (min/max coletores por
+  // bateria, baterias em serie, vazao de projeto). Default = SYSTEM_DEFAULT_SOLAR_RULES.
+  // Resolvido por SolarBudgetService via tipo+modelo do produto vs Company.systemConfig.pool.solarRules.
+  rules?: SolarRules;
 }
 
 export interface SolarMonthlyRow {
@@ -164,13 +165,18 @@ export class SolarService {
     //    assimetricos (ex: 3+3+1) desbalanceam a vazao — a bateria solitaria nao
     //    entra no calculo correto. Excesso de coletores e aceitavel pra manter
     //    simetria.
+    // v1.12.63: regras configuraveis (min/max coletores, max area, max serie, vazao).
+    // Fallback pros defaults do sistema quando nao ha regra cadastrada pro (tipo, modelo).
+    const rules: SolarRules = inputs.rules ?? SYSTEM_DEFAULT_SOLAR_RULES;
+    const vazaoFatorEfetivo = vazaoFatorFromRules(rules);
+
     const areaColetor = inputs.coletor.areaM2 || SOLAR_DEFAULT_COLETOR_AREA_M2;
     const qtdInicial = Math.max(0, Math.round(m2Necessario / areaColetor));
     const colMaxByArea = areaColetor > 0
-      ? Math.max(1, Math.floor(SOLAR_BATERIA_MAX_M2 / areaColetor))
-      : SOLAR_BATERIA_MAX_COLETORES;
-    const colMaxEfetivo = Math.min(SOLAR_BATERIA_MAX_COLETORES, colMaxByArea);
-    const colMinEfetivo = Math.min(SOLAR_BATERIA_MIN_COLETORES, colMaxEfetivo);
+      ? Math.max(1, Math.floor(rules.maxAreaPorBateriaM2 / areaColetor))
+      : rules.maxColetoresPorBateria;
+    const colMaxEfetivo = Math.min(rules.maxColetoresPorBateria, colMaxByArea);
+    const colMinEfetivo = Math.min(rules.minColetoresPorBateria, colMaxEfetivo);
 
     // Busca a melhor combinacao SIMETRICA:
     //  - Cobre qtdInicial (total >= qtdInicial)
@@ -193,7 +199,7 @@ export class SolarService {
       //  - colPorBat: colMinEfetivo..colMaxEfetivo
       const maxNumRamos = Math.max(1, Math.ceil(qtdInicial / colMinEfetivo)); // pior caso 1 bateria por ramo com colMin coletores
       for (let r = 1; r <= maxNumRamos; r++) {
-        for (let b = 1; b <= SOLAR_BATERIAS_MAX_SERIE; b++) {
+        for (let b = 1; b <= rules.maxBateriasEmSerie; b++) {
           for (let c = colMinEfetivo; c <= colMaxEfetivo; c++) {
             const total = r * b * c;
             if (total < qtdInicial) continue;
@@ -223,7 +229,7 @@ export class SolarService {
     //  - Vazao total = num_ramos × coletores_por_bateria × area × FATOR
     // Ramos sao IGUAIS (simetria garantida no algoritmo acima). Validado contra
     // 2 exemplos Solis (15col/3bat=2.8m³/h, 20col/4bat-2ramos=5.64m³/h).
-    const vazaoTotal = numRamosParalelos * coletoresPorBateria * areaColetor * SOLAR_VAZAO_FATOR;
+    const vazaoTotal = numRamosParalelos * coletoresPorBateria * areaColetor * vazaoFatorEfetivo;
 
     // === H39: m² total dos coletores ===
     const areaTotal = qtdTotal * areaColetor;

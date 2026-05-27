@@ -14,6 +14,13 @@ import { SolarRecomputeDto } from './dto/solar-simulate.dto';
 import { SolarPipeDto } from './dto/solar-pipe.dto';
 import { PipeHeadLossService, PipeMaterial } from './pipe-head-loss.service';
 import { SOLAR_LATITUDE_ABS_BY_UF } from './solar-constants';
+import {
+  SolarRuleConfig,
+  resolveRulesForCollector,
+  findRuleForCollector,
+  SYSTEM_DEFAULT_SOLAR_RULES,
+} from './solar-rules';
+import { CreateSolarRuleDto, UpdateSolarRuleDto } from './dto/solar-rule.dto';
 import { filterByWhere, orderCandidates, evaluateIndicator, interpolatePumpCurve } from './auto-select.helper';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -37,6 +44,10 @@ export interface SolarCollectorCandidate {
   // produto. Quando preenchida, o coletor aparece no dropdown com ⚠ e o motor
   // lanca BadRequest se for selecionado (em vez de usar defaults silenciosos).
   missingSpecs?: string[];
+  // v1.12.63: poolType + model usados pra resolver SolarRules (Company.systemConfig.pool.solarRules).
+  // Sem regra cadastrada pro (tipo, modelo), o motor usa SYSTEM_DEFAULT_SOLAR_RULES.
+  poolType?: string | null;
+  model?: string | null;
 }
 
 // Labels amigaveis pra cada spec exibida ao usuario no erro/aviso.
@@ -118,6 +129,8 @@ export class SolarBudgetService {
           salePriceCents: p.salePriceCents ?? undefined,
           imageUrl: p.imageUrl ?? null,
           ...(missingSpecs.length > 0 ? { missingSpecs } : {}),
+          poolType: p.poolType ?? null,
+          model: p.model ?? null,
         };
       })
       .sort((a, b) => a.areaM2 - b.areaM2);
@@ -172,6 +185,14 @@ export class SolarBudgetService {
     }
     const coletor = selected;
 
+    // v1.12.63: resolve regras de dimensionamento via (poolType, model) do coletor
+    // vs Company.systemConfig.pool.solarRules. Sem regra cadastrada, usa defaults do sistema.
+    const solarRuleConfigs = await this.listSolarRuleConfigs(companyId);
+    const rules = resolveRulesForCollector(
+      { poolType: coletor.poolType, model: coletor.model },
+      solarRuleConfigs,
+    );
+
     const inputs: SolarInputs = {
       areaPiscinaM2: params.areaPiscinaM2,
       volumeM3: params.volumeM3,
@@ -195,6 +216,7 @@ export class SolarBudgetService {
         kwhPorM2: coletor.kwhPorM2,
         eficiencia: coletor.eficiencia,
       },
+      rules,
     };
 
     const report = this.solar.computeSolarReport(inputs);
@@ -740,5 +762,216 @@ export class SolarBudgetService {
     } catch (err: any) {
       this.logger.warn(`Falha ao remover ${full}: ${err.message}`);
     }
+  }
+
+  // ============ CRUD de Regras Solares (v1.12.63) ============
+  //
+  // Storage: Company.systemConfig.pool.solarRules: SolarRuleConfig[].
+  // Vinculacao 1:1 — uma regra aplica a um (poolType, model). Validacao garante
+  // unicidade da tupla. Ver memory/project_solar_regras_configuraveis.md.
+
+  async listSolarRuleConfigs(companyId: string): Promise<SolarRuleConfig[]> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    const cfg = (company?.systemConfig as any)?.pool?.solarRules;
+    return Array.isArray(cfg) ? (cfg as SolarRuleConfig[]) : [];
+  }
+
+  /**
+   * Resumo pro frontend exibir na lista: regras + quantos produtos cada uma cobre
+   * + produtos sem regra (agrupados por poolType).
+   */
+  async listSolarRulesWithCoverage(companyId: string): Promise<{
+    rules: Array<SolarRuleConfig & { productCount: number }>;
+    uncovered: Array<{ poolType: string; model: string; productCount: number }>;
+    defaults: typeof SYSTEM_DEFAULT_SOLAR_RULES;
+  }> {
+    const rules = await this.listSolarRuleConfigs(companyId);
+    const products = await this.prisma.product.findMany({
+      where: { companyId, deletedAt: null, status: 'ATIVO' },
+      select: { poolType: true, model: true },
+    });
+
+    // Conta produtos cobertos por cada regra
+    const rulesWithCount = rules.map((r) => ({
+      ...r,
+      productCount: products.filter(
+        (p) => p.poolType === r.poolType && p.model === r.model,
+      ).length,
+    }));
+
+    // Agrupa produtos SEM regra por (poolType, model)
+    const coveredKeys = new Set(rules.map((r) => `${r.poolType}::${r.model}`));
+    const uncoveredMap = new Map<string, { poolType: string; model: string; count: number }>();
+    for (const p of products) {
+      if (!p.poolType?.trim() || !p.model?.trim()) continue;
+      const key = `${p.poolType}::${p.model}`;
+      if (coveredKeys.has(key)) continue;
+      const existing = uncoveredMap.get(key);
+      if (existing) existing.count += 1;
+      else uncoveredMap.set(key, { poolType: p.poolType, model: p.model, count: 1 });
+    }
+    const uncovered = Array.from(uncoveredMap.values())
+      .map((u) => ({ poolType: u.poolType, model: u.model, productCount: u.count }))
+      .sort((a, b) => a.poolType.localeCompare(b.poolType) || a.model.localeCompare(b.model));
+
+    return { rules: rulesWithCount, uncovered, defaults: SYSTEM_DEFAULT_SOLAR_RULES };
+  }
+
+  /**
+   * Lista modelos DISTINCT cadastrados pra um poolType — alimenta o dropdown
+   * "Modelo" do form. Inclui contagem de produtos por modelo.
+   */
+  async listModelsByPoolType(
+    companyId: string,
+    poolType: string,
+  ): Promise<Array<{ model: string; productCount: number }>> {
+    const products = await this.prisma.product.findMany({
+      where: {
+        companyId,
+        deletedAt: null,
+        status: 'ATIVO',
+        poolType: { equals: poolType, mode: 'insensitive' },
+      },
+      select: { model: true },
+    });
+    const map = new Map<string, number>();
+    for (const p of products) {
+      const m = p.model?.trim();
+      if (!m) continue;
+      map.set(m, (map.get(m) ?? 0) + 1);
+    }
+    return Array.from(map.entries())
+      .map(([model, productCount]) => ({ model, productCount }))
+      .sort((a, b) => a.model.localeCompare(b.model));
+  }
+
+  private validateUniqueRule(rules: SolarRuleConfig[], poolType: string, model: string, excludeId?: string): void {
+    const dup = rules.find(
+      (r) => r.poolType === poolType && r.model === model && r.id !== excludeId,
+    );
+    if (dup) {
+      throw new BadRequestException(
+        `Ja existe uma regra para o tipo "${poolType}" e modelo "${model}". Edite ou exclua a existente antes de criar outra.`,
+      );
+    }
+  }
+
+  private validateUniqueName(rules: SolarRuleConfig[], name: string, excludeId?: string): void {
+    const norm = (s: string) => s.trim().toLowerCase();
+    const dup = rules.find((r) => norm(r.name) === norm(name) && r.id !== excludeId);
+    if (dup) {
+      throw new BadRequestException(`Ja existe uma regra com o nome "${name}".`);
+    }
+  }
+
+  private validateRulesValues(rules: SolarRuleConfig['rules']): void {
+    if (rules.minColetoresPorBateria > rules.maxColetoresPorBateria) {
+      throw new BadRequestException('MIN coletores por bateria nao pode ser maior que MAX.');
+    }
+  }
+
+  private async saveSolarRules(companyId: string, newList: SolarRuleConfig[]): Promise<void> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    const systemConfig = (company?.systemConfig ?? {}) as Record<string, any>;
+    const pool = (systemConfig.pool ?? {}) as Record<string, any>;
+    pool.solarRules = newList;
+    systemConfig.pool = pool;
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { systemConfig: systemConfig as any },
+    });
+  }
+
+  async createSolarRule(companyId: string, dto: CreateSolarRuleDto): Promise<SolarRuleConfig> {
+    const list = await this.listSolarRuleConfigs(companyId);
+    this.validateUniqueName(list, dto.name);
+    this.validateUniqueRule(list, dto.poolType, dto.model);
+    this.validateRulesValues(dto.rules);
+
+    const created: SolarRuleConfig = {
+      id: randomUUID(),
+      name: dto.name.trim(),
+      poolType: dto.poolType.trim(),
+      model: dto.model.trim(),
+      rules: { ...dto.rules },
+    };
+    await this.saveSolarRules(companyId, [...list, created]);
+    this.logger.log(`SolarRule criada: ${created.id} (${created.name})`);
+    return created;
+  }
+
+  async updateSolarRule(
+    companyId: string,
+    ruleId: string,
+    dto: UpdateSolarRuleDto,
+  ): Promise<SolarRuleConfig> {
+    const list = await this.listSolarRuleConfigs(companyId);
+    const idx = list.findIndex((r) => r.id === ruleId);
+    if (idx === -1) throw new NotFoundException('Regra solar nao encontrada.');
+
+    const current = list[idx];
+    const merged: SolarRuleConfig = {
+      ...current,
+      ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+      ...(dto.poolType !== undefined ? { poolType: dto.poolType.trim() } : {}),
+      ...(dto.model !== undefined ? { model: dto.model.trim() } : {}),
+      ...(dto.rules !== undefined ? { rules: { ...dto.rules } } : {}),
+    };
+
+    this.validateUniqueName(list, merged.name, ruleId);
+    this.validateUniqueRule(list, merged.poolType, merged.model, ruleId);
+    this.validateRulesValues(merged.rules);
+
+    const newList = [...list];
+    newList[idx] = merged;
+    await this.saveSolarRules(companyId, newList);
+    this.logger.log(`SolarRule atualizada: ${ruleId}`);
+    return merged;
+  }
+
+  async deleteSolarRule(companyId: string, ruleId: string): Promise<void> {
+    const list = await this.listSolarRuleConfigs(companyId);
+    const idx = list.findIndex((r) => r.id === ruleId);
+    if (idx === -1) throw new NotFoundException('Regra solar nao encontrada.');
+    const newList = list.filter((r) => r.id !== ruleId);
+    await this.saveSolarRules(companyId, newList);
+    this.logger.log(`SolarRule deletada: ${ruleId}`);
+  }
+
+  /**
+   * Resolve a regra que se aplica ao coletor selecionado no PoolBudget atual.
+   * Usado pra exibir o badge "[regra: X]" no Simulador.
+   */
+  async getActiveSolarRuleForBudget(
+    budgetId: string,
+    companyId: string,
+  ): Promise<{ rule: SolarRuleConfig | null; effective: typeof SYSTEM_DEFAULT_SOLAR_RULES }> {
+    const budget = await this.prisma.poolBudget.findFirst({
+      where: { id: budgetId, companyId, deletedAt: null },
+      select: { environmentParams: true },
+    });
+    if (!budget) throw new NotFoundException('Orcamento nao encontrado.');
+
+    const env = (budget.environmentParams ?? {}) as Record<string, any>;
+    const collectorProductId = env.solarOverride?.collectorProductId;
+    if (!collectorProductId) {
+      return { rule: null, effective: SYSTEM_DEFAULT_SOLAR_RULES };
+    }
+    const product = await this.prisma.product.findFirst({
+      where: { id: collectorProductId, companyId, deletedAt: null },
+      select: { poolType: true, model: true },
+    });
+    if (!product) return { rule: null, effective: SYSTEM_DEFAULT_SOLAR_RULES };
+
+    const configs = await this.listSolarRuleConfigs(companyId);
+    const rule = findRuleForCollector(product, configs);
+    const effective = rule?.rules ?? SYSTEM_DEFAULT_SOLAR_RULES;
+    return { rule, effective };
   }
 }

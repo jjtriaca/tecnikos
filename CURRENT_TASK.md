@@ -2,32 +2,24 @@
 
 ## Sessao 213 — em aberto (27/05/2026)
 
-### Ja em prod (v1.12.61)
-- **`backend/src/nfse-emission/nfse-emission.service.ts:111`** — `mapFocusError` para 401 cita 2 causas (token invalido OU mensalidade Focus em atraso)
-- **`backend/src/tenant/tenant.service.ts:368-394`** — `block()` e `suspend()` early-return se `tenant.isMaster=true` (defense in depth)
-- **`backend/src/tenant/asaas.service.ts:1280`** — webhook `SUBSCRIPTION_DELETED/INACTIVATED` ignora tenant master
-- **`frontend/src/app/(dashboard)/nfe/saida/page.tsx`** — item "Reenviar NFS-e" no menu de acoes quando status=ERROR
+### Ja em prod (v1.12.62)
+- **NFS-e:** botao "Reenviar NFS-e" no menu de `/nfe/saida`, novo endpoint `POST /retry`, ActionsDropdown refatorado com `createPortal` (fix de menu deslocado e clicks ignorados), `mapFocusError` cita mensalidade Focus + token
+- **isMaster:** `tenant.service.block/suspend` + webhook `SUBSCRIPTION_DELETED/INACTIVATED` ignoram master tenants (defense in depth)
+- **Bomba solar:** `bombaManuallySelected` distingue escolha manual vs default — reduzir coletores agora recalcula bomba corretamente
 
-**Bug detectado pos-deploy v1.12.61:** click em "Reenviar NFS-e" nao disparava nada — `NfseEmissionModal` importado de outro modulo (`finance/components/`) nao bundla/monta corretamente em outra rota. JULIANA RPS 29 foi reenviada pelo modal de Financas (autorizada como NFS-e 76). WILSON RPS 28 continua em ERROR — aguarda fix.
+### Local — aguardando deploy v1.12.63 — Regras Solares Configuraveis
+- **`backend/src/pool-budget/solar-rules.ts`** (novo) — interface `SolarRules`, `SolarRuleConfig`, `SYSTEM_DEFAULT_SOLAR_RULES`, `resolveRulesForCollector`, `findRuleForCollector`, `vazaoFatorFromRules`
+- **`backend/src/pool-budget/dto/solar-rule.dto.ts`** (novo) — `CreateSolarRuleDto`, `UpdateSolarRuleDto` com validacoes (MIN 1-10, MAX 1-10, area 10-50, serie 1-5, vazao 150-400 L/h/m²)
+- **`backend/src/pool-budget/solar.service.ts`** — `SolarInputs.rules?` opcional. Loop usa `rules.minColetoresPorBateria` etc em vez das constantes hardcoded
+- **`backend/src/pool-budget/solar-budget.service.ts`** — `SolarCollectorCandidate` retorna `poolType`+`model`. `simulate()` resolve regras antes de `computeSolarReport`. CRUD novo: `listSolarRuleConfigs`, `listSolarRulesWithCoverage`, `listModelsByPoolType`, `createSolarRule`, `updateSolarRule`, `deleteSolarRule`, `getActiveSolarRuleForBudget`
+- **`backend/src/pool-budget/pool-budget.controller.ts`** — endpoints: `GET/POST/PUT/DELETE /pool-budgets/solar-rules*` + `GET /:id/solar-active-rule`
+- **`frontend/src/components/pool/SolarRulesModal.tsx`** (novo) — modal completo: lista, form, validacoes, dropdowns dinamicos de tipo e modelo, cobertura
+- **`frontend/src/components/pool/HeatingSimulatorModal.tsx`** — botao "⚙ Regras" no header do Diagrama + badge "Regra: X" / "Sem regra"
+- **`memory/project_solar_regras_configuraveis.md`** (nova) — proposta consolidada + decisoes
 
-### Local — aguardando deploy v1.12.62
-- **`backend/src/nfse-emission/nfse-emission.controller.ts`** — novo endpoint `POST /nfse-emission/emissions/:id/retry`
-- **`backend/src/nfse-emission/nfse-emission.service.ts:1341+`** — novo metodo `retryEmission()` reaproveita `getEmissionPreview` + snapshot da NfseEmission antiga, monta DTO e chama `emit()`. Backend faz tudo, sem precisar abrir modal no frontend
-- **`frontend/src/app/(dashboard)/nfe/saida/page.tsx`** — `handleRetry` agora faz `POST /retry` direto + confirm + toast. ActionsDropdown refatorado com `createPortal` + `pos.right` direto + listener checa `menuRef.contains` (fix: menu deslocado e clicks ignorados)
-- **`backend/src/pool-budget/solar-budget.service.ts:setSelectedBomba`** + **`pool-budget.controller.ts`** — aceita `manual: boolean` (default true), salva `bombaManuallySelected` em `environmentParams.solarReport`
-- **`frontend/src/components/pool/HeatingSimulatorModal.tsx`** — `useEffect` da bomba solar so preserva a selecao se `bombaManuallySelected===true` E ainda na lista. Caso contrario adota primeiro candidato (default da regra) — sem persistir. Fix bug v1.12.43: reduzir coletores nao recalculava bomba ja escolhida (ficava super-dimensionada)
+**Conceito:** regras de dimensionamento (MIN/MAX coletores por bateria, MAX area, MAX serie, vazao) deixaram de ser hardcoded. Operador cadastra regras por modelo (1 regra ↔ 1 model). Hierarquia: regra cadastrada → defaults do sistema. Backend resolve via `(poolType, model)` do coletor selecionado.
 
-Bug raiz que motivou os guards:
-- SLS tinha Subscription Asaas ativa apesar de `isMaster=true` (bypass interno nao cancela sub Asaas externa)
-- Cancelei sub `sub_uae6vnrmtrpuowz8` via API → webhook chegou e suspendeu SLS (`status=SUSPENDED`, `blockReason='Assinatura cancelada'`) por ~30min
-- Revertido manualmente via SQL. Guards agora previnem repeticao
-- Cobranca vencida R$ 397 cancelada pelo usuario no painel Asaas
-
-Memorias atualizadas:
-- [memory/project_ismaster_bypass_billing.md](memory/project_ismaster_bypass_billing.md) — adicionado incidente v1.12.61 + SQL de reversao
-- [memory/feedback_perguntar_antes_deploy.md](memory/feedback_perguntar_antes_deploy.md) — NOVA: perguntar antes de deploy
-
-## Versao atual em prod: v1.12.60 — Sessao 212 fechada (22 releases)
+## Versao atual em prod: v1.12.62 — Sessao 213 (em andamento)
 
 Sessao 212 (26/05/2026) foi maratona no modulo Piscina, focada em **3 frentes principais**:
 
