@@ -42,19 +42,27 @@ export const SYSTEM_DEFAULT_SOLAR_RULES: SolarRules = {
 /**
  * Resolve as regras pra um coletor especifico.
  * Procura regra cadastrada com (poolType, model) exatos.
- * Sem match, retorna defaults do sistema.
+ *
+ * v1.12.66: NAO retorna mais defaults do sistema — retorna null quando nao ha
+ * regra. Decisao: o operador deve cadastrar a regra explicitamente pra cada
+ * modelo de coletor. Sem isso, o motor nao dimensiona baterias e o frontend
+ * exibe mensagem de erro no Diagrama explicando o que fazer.
+ *
+ * `SYSTEM_DEFAULT_SOLAR_RULES` continua exportado mas serve APENAS como
+ * sugestao de valores iniciais no form (UI) — nao mais como fallback automatico
+ * pro calculo.
  */
 export function resolveRulesForCollector(
   product: { poolType?: string | null; model?: string | null } | null | undefined,
   configs: SolarRuleConfig[] | undefined,
-): SolarRules {
+): SolarRules | null {
   if (!product?.poolType || !product?.model || !configs?.length) {
-    return SYSTEM_DEFAULT_SOLAR_RULES;
+    return null;
   }
   const found = configs.find(
     (c) => c.poolType === product.poolType && c.model === product.model,
   );
-  return found?.rules ?? SYSTEM_DEFAULT_SOLAR_RULES;
+  return found?.rules ?? null;
 }
 
 /** Localiza a regra que se aplica a um (poolType, model). Retorna null se nao houver. */

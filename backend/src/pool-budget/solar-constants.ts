@@ -98,6 +98,88 @@ export function calcFatorInclinacao(inclinacaoGraus: number, latitudeAbs?: numbe
   return Math.max(0.55, Math.min(1.0, fator));
 }
 
+// ============ Ideal de inclinacao por orientacao (v1.12.65) ============
+// No hemisferio Sul, o ideal de inclinacao depende da orientacao:
+//  - Norte: pega sol direto, ideal ≈ latitude
+//  - NE/NO: ideal um pouco menor, ~85% da latitude
+//  - Leste/Oeste: ideal ainda menor, ~70% (sol cruza azimute manha/tarde)
+//  - SE/SO: ideal muito reduzido, ~40% (sol so de manha cedo ou tarde)
+//  - Sul: ideal = 0 (plano). Voltado pra Sul, qualquer inclinacao "esconde" o
+//    coletor do sol — quanto mais inclinado, pior. Plano capta ao menos o ceu difuso.
+export const SOLAR_INCLINACAO_IDEAL_POR_ORIENTACAO: Record<string, number> = {
+  N: 1.00,
+  NE: 0.85,
+  NO: 0.85,
+  L: 0.70,
+  O: 0.70,
+  SE: 0.40,
+  SO: 0.40,
+  S: 0.00,
+};
+
+/**
+ * v1.12.65/66: calcula o fator combinado (orientacao × inclinacao) considerando:
+ *  1. Ideal de inclinacao varia por orientacao no hemisferio Sul
+ *  2. Assimetria Leste/Oeste cresce com a latitude (coletor aberto perde menos
+ *     na tarde porque T_ambiente eh maior — efeito maior em climas com manhã fria)
+ *
+ * Modelo:
+ *   asymmetry = clamp(latitudeAbs / 30, 0, 1)
+ *     - Equador (lat 0): 0 (sem diferenca L/O)
+ *     - PoA (lat ~30): 1.0 (diferenca maxima ~7% entre L e O)
+ *
+ *   fatorOrientacao = base[orientacao] + deltaTarde[orientacao] × asymmetry
+ *     - L: base 0.85 + (-0.03) × asym = 0.82 a 0.85
+ *     - O: base 0.85 + (+0.03) × asym = 0.85 a 0.88
+ *
+ *   ideal_incl = latitude × INCLINACAO_IDEAL_POR_ORIENTACAO[orientacao]
+ *   fator_incl = cos(|inclinacao - ideal_incl|)   [clamp 0.55-1.0]
+ *
+ *   total = fatorOrientacao × fator_incl
+ *
+ * Substitui o modelo antigo (simetrico L=O, inclinacao independente de orientacao).
+ */
+
+/** Fator base por orientacao + delta tarde/manha (modula assimetria L/O). */
+const FATOR_ORIENTACAO_AJUSTAVEL: Record<string, { base: number; deltaTarde: number }> = {
+  N:  { base: 1.00, deltaTarde: 0.00 },   // zenite — sem assimetria
+  NE: { base: 0.97, deltaTarde: -0.02 },  // manha + norte
+  NO: { base: 0.97, deltaTarde: +0.02 },  // tarde + norte (quase ideal)
+  L:  { base: 0.85, deltaTarde: -0.03 },  // manha pura
+  O:  { base: 0.85, deltaTarde: +0.03 },  // tarde pura
+  SE: { base: 0.78, deltaTarde: -0.03 },  // manha + sul
+  SO: { base: 0.78, deltaTarde: +0.03 },  // tarde + sul
+  S:  { base: 0.65, deltaTarde: 0.00 },   // sem sol direto — sem assimetria
+};
+
+export function calcFatorInstalacao(
+  orientacao: string | undefined,
+  inclinacaoGraus: number | undefined,
+  latitudeAbs: number | undefined,
+): number {
+  const lat = latitudeAbs ?? SOLAR_INCLINACAO_OTIMA_DEFAULT;
+
+  // Assimetria L/O cresce com latitude. Equador=0, PoA(~30°)=1.0.
+  // Modela: manha mais fria em latitudes altas amplia perda termica em coletor aberto.
+  const asymmetryFactor = Math.max(0, Math.min(1, lat / 30));
+
+  const orient = orientacao
+    ? (FATOR_ORIENTACAO_AJUSTAVEL[orientacao] ?? FATOR_ORIENTACAO_AJUSTAVEL.N)
+    : FATOR_ORIENTACAO_AJUSTAVEL.N;
+  const fatorOrientacao = orient.base + orient.deltaTarde * asymmetryFactor;
+
+  if (inclinacaoGraus == null) return fatorOrientacao;
+
+  const proporcao = orientacao
+    ? (SOLAR_INCLINACAO_IDEAL_POR_ORIENTACAO[orientacao] ?? 1.0)
+    : 1.0;
+  const idealInclinacao = lat * proporcao;
+  const distancia = Math.abs(inclinacaoGraus - idealInclinacao);
+  const fatorInclinacao = Math.max(0.55, Math.min(1.0, Math.cos((distancia * Math.PI) / 180)));
+
+  return fatorOrientacao * fatorInclinacao;
+}
+
 // ============ Latitudes medias por UF (graus, valor absoluto) ============
 // Usado pra calcular fator inclinacao otima ≈ latitude. Aproximacoes pelas capitais.
 export const SOLAR_LATITUDE_ABS_BY_UF: Record<string, number> = {

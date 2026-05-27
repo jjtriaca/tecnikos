@@ -16,11 +16,10 @@ import {
   SOLAR_DEFAULT_COLETOR_AREA_M2,
   SOLAR_DEFAULT_COLETOR_KWH_M2,
   SOLAR_DEFAULT_COLETOR_EFICIENCIA,
-  SOLAR_FATOR_ORIENTACAO,
-  calcFatorInclinacao,
+  calcFatorInstalacao,
   getBombaRecomendadaSolar,
 } from './solar-constants';
-import { SolarRules, SYSTEM_DEFAULT_SOLAR_RULES, vazaoFatorFromRules } from './solar-rules';
+import { SolarRules, vazaoFatorFromRules } from './solar-rules';
 
 // ============ TIPOS ============
 
@@ -62,10 +61,12 @@ export interface SolarInputs {
     eficiencia?: number;    // 0..1 (default SOLAR_DEFAULT_COLETOR_EFICIENCIA)
   };
 
-  // v1.12.63: regras de dimensionamento configuraveis (min/max coletores por
-  // bateria, baterias em serie, vazao de projeto). Default = SYSTEM_DEFAULT_SOLAR_RULES.
-  // Resolvido por SolarBudgetService via tipo+modelo do produto vs Company.systemConfig.pool.solarRules.
-  rules?: SolarRules;
+  // v1.12.63/66: regras de dimensionamento configuraveis (min/max coletores por
+  // bateria, baterias em serie, vazao de projeto). Resolvido por SolarBudgetService
+  // via tipo+modelo do produto vs Company.systemConfig.pool.solarRules.
+  // null = nenhuma regra cadastrada → motor NAO dimensiona baterias (zera campos);
+  // frontend exibe erro no Diagrama orientando a cadastrar a regra ou corrigir o produto.
+  rules?: SolarRules | null;
 }
 
 export interface SolarMonthlyRow {
@@ -165,22 +166,20 @@ export class SolarService {
     //    assimetricos (ex: 3+3+1) desbalanceam a vazao — a bateria solitaria nao
     //    entra no calculo correto. Excesso de coletores e aceitavel pra manter
     //    simetria.
-    // v1.12.63: regras configuraveis (min/max coletores, max area, max serie, vazao).
-    // Fallback pros defaults do sistema quando nao ha regra cadastrada pro (tipo, modelo).
-    const rules: SolarRules = inputs.rules ?? SYSTEM_DEFAULT_SOLAR_RULES;
-    const vazaoFatorEfetivo = vazaoFatorFromRules(rules);
+    // v1.12.66: SEM regra solar cadastrada → NAO dimensiona baterias. Frontend
+    // detecta `numBaterias === 0` + warnings e exibe erro no card do Diagrama.
+    // Antes (v1.12.63), usava SYSTEM_DEFAULT_SOLAR_RULES como fallback, mas isso
+    // mascarava cadastros incompletos e levava o operador a confiar em dimensoes
+    // genericas. Agora exige regra explicita pro (poolType, model) do coletor.
+    const rules: SolarRules | null = inputs.rules ?? null;
+    const vazaoFatorEfetivo = rules ? vazaoFatorFromRules(rules) : 0;
 
     const areaColetor = inputs.coletor.areaM2 || SOLAR_DEFAULT_COLETOR_AREA_M2;
     const qtdInicial = Math.max(0, Math.round(m2Necessario / areaColetor));
-    const colMaxByArea = areaColetor > 0
-      ? Math.max(1, Math.floor(rules.maxAreaPorBateriaM2 / areaColetor))
-      : rules.maxColetoresPorBateria;
-    const colMaxEfetivo = Math.min(rules.maxColetoresPorBateria, colMaxByArea);
-    const colMinEfetivo = Math.min(rules.minColetoresPorBateria, colMaxEfetivo);
 
-    // Busca a melhor combinacao SIMETRICA:
+    // Busca a melhor combinacao SIMETRICA (so quando ha regra cadastrada):
     //  - Cobre qtdInicial (total >= qtdInicial)
-    //  - Respeita maxBatPorSerie e colMin/colMax
+    //  - Respeita maxBatPorSerie e colMin/colMax da regra
     //  - Minimiza excesso (total - qtdInicial)
     //  - Em empate: menos ramos paralelos primeiro (menos infraestrutura)
     //  - Em empate: mais baterias por ramo (compacta o sistema)
@@ -192,12 +191,13 @@ export class SolarService {
       excesso: number;
     };
     let best: BatConfig | null = null;
-    if (qtdInicial > 0) {
-      // Limites do loop:
-      //  - numRamos: 1..max (ate cobrir o pior caso)
-      //  - batPorRamo: 1..SOLAR_BATERIAS_MAX_SERIE (regra Solis)
-      //  - colPorBat: colMinEfetivo..colMaxEfetivo
-      const maxNumRamos = Math.max(1, Math.ceil(qtdInicial / colMinEfetivo)); // pior caso 1 bateria por ramo com colMin coletores
+    if (rules && qtdInicial > 0) {
+      const colMaxByArea = areaColetor > 0
+        ? Math.max(1, Math.floor(rules.maxAreaPorBateriaM2 / areaColetor))
+        : rules.maxColetoresPorBateria;
+      const colMaxEfetivo = Math.min(rules.maxColetoresPorBateria, colMaxByArea);
+      const colMinEfetivo = Math.min(rules.minColetoresPorBateria, colMaxEfetivo);
+      const maxNumRamos = Math.max(1, Math.ceil(qtdInicial / colMinEfetivo));
       for (let r = 1; r <= maxNumRamos; r++) {
         for (let b = 1; b <= rules.maxBateriasEmSerie; b++) {
           for (let c = colMinEfetivo; c <= colMaxEfetivo; c++) {
@@ -252,14 +252,15 @@ export class SolarService {
 
     // === Tabela78 / Tabela72 — perdas + ganhos mensais com simulacao 4 dias ===
     // v5: Fatores de instalacao do telhado (orientacao + inclinacao) — multiplicam ganhoDia.
-    // Quando nao fornecidos, usa Norte + 20° (ideal/bom) = fator ~1.0 (sem prejuizo).
-    const fatorOrientacao = inputs.orientacaoTelhado
-      ? (SOLAR_FATOR_ORIENTACAO[inputs.orientacaoTelhado] ?? 1.0)
-      : 1.0;
-    const fatorInclinacao = inputs.inclinacaoTelhadoGraus != null
-      ? calcFatorInclinacao(inputs.inclinacaoTelhadoGraus, inputs.latitudeAbs)
-      : 1.0;
-    const fatorInstalacao = fatorOrientacao * fatorInclinacao;
+    // v1.12.65: ideal de inclinacao varia por orientacao (calcFatorInstalacao). Telhados
+    // voltados pra Sul (no hemisferio Sul) tem ideal de inclinacao = 0° (plano); orientacoes
+    // intermediarias tem ideais proporcionais. Antes a inclinacao era simetrica em torno da
+    // latitude independente da orientacao — subdimensionava o impacto em telhados Sul.
+    const fatorInstalacao = calcFatorInstalacao(
+      inputs.orientacaoTelhado,
+      inputs.inclinacaoTelhadoGraus,
+      inputs.latitudeAbs,
+    );
 
     const monthly: SolarMonthlyRow[] = [];
     for (let m = 0; m < 12; m++) {

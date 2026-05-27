@@ -1767,11 +1767,23 @@ function SolarTab({
               className="w-5 h-5 rounded text-[11px] font-bold text-slate-700 hover:bg-slate-100">+</button>
           </div>
           <button onClick={() => {
-              const extras: { areaPiscinaM2?: number; volumeM3?: number } = {};
+              // v1.12.65: inclui TODOS os campos editaveis manualmente no recompute —
+              // antes so passava area/volume, entao mudar orientacao/inclinacao/temp.inicial
+              // no formulario nao surtia efeito (backend lia valor antigo do banco).
+              const extras: {
+                areaPiscinaM2?: number;
+                volumeM3?: number;
+                orientacaoTelhado?: string;
+                inclinacaoTelhadoGraus?: number;
+                temperaturaAguaInicial?: number;
+              } = {};
               if (dimManual) {
                 if (Number.isFinite(dispArea) && dispArea > 0) extras.areaPiscinaM2 = dispArea;
                 if (Number.isFinite(dispVolume) && dispVolume > 0) extras.volumeM3 = dispVolume;
               }
+              if (orientacaoTelhado) extras.orientacaoTelhado = orientacaoTelhado;
+              if (Number.isFinite(inclinacaoTelhado)) extras.inclinacaoTelhadoGraus = inclinacaoTelhado;
+              if (Number.isFinite(temperaturaInicial) && temperaturaInicial > 0) extras.temperaturaAguaInicial = temperaturaInicial;
               onRecompute(undefined, undefined, extras);
             }} disabled={recomputing || !uf}
             className="rounded bg-amber-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-amber-700 disabled:bg-slate-300 transition shadow-sm whitespace-nowrap">
@@ -2100,6 +2112,41 @@ function SolarTab({
                         batPorRamo={report.batPorRamo ?? report.numBaterias}
                         coletoresPorBateria={report.coletoresPorBateria}
                       />
+                    </div>
+                  )}
+
+                  {/* v1.12.66: sem regra cadastrada para o coletor → numBaterias=0.
+                      Substitui o diagrama por mensagem de erro orientando o operador. */}
+                  {report.numBaterias === 0 && (
+                    <div className="mt-1.5 rounded-lg border-2 border-amber-300 bg-amber-50 p-3">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <span className="text-amber-700 text-base leading-none">⚠</span>
+                        <div className="text-[10px] uppercase tracking-wider font-bold text-amber-900">
+                          Diagrama da instalação — sem dimensionamento
+                        </div>
+                      </div>
+                      <p className="text-[11px] leading-snug text-amber-900 mb-2">
+                        O sistema não tem regra cadastrada pra dimensionar baterias e vazão deste coletor.
+                        Verifique os warnings acima e:
+                      </p>
+                      <ul className="text-[11px] leading-snug text-amber-900 space-y-1 list-disc list-outside ml-4">
+                        <li>
+                          Confirme que o coletor selecionado tem os campos <strong>Tipo</strong> e{" "}
+                          <strong>Modelo</strong> preenchidos em <em>Cadastros &gt; Produtos &gt; aba Piscina</em>
+                        </li>
+                        <li>
+                          Cadastre uma regra solar pra esse modelo no botão <strong>⚙ Regras</strong> abaixo
+                        </li>
+                      </ul>
+                      <div className="mt-2 flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setShowSolarRulesModal(true)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-600 text-white text-[10px] font-bold hover:bg-amber-700 print:hidden"
+                        >
+                          ⚙ Cadastrar regra agora
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
