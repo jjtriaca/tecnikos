@@ -108,7 +108,7 @@ export class NfseEmissionService {
   /** Map Focus NFe technical errors to user-friendly messages */
   private mapFocusError(raw: string): string {
     const msg = raw || '';
-    if (/401.*access denied/i.test(msg)) return 'Token Focus NFe inválido para este ambiente. Verifique o token em Configurações > Fiscal.';
+    if (/401.*access denied/i.test(msg)) return 'Acesso negado pelo Focus NFe (401). Causas possíveis: (1) token inválido para este ambiente — verifique em Configurações > Fiscal; (2) mensalidade do Focus NFe em atraso — verifique sua conta em app.focusnfe.com.br.';
     if (/município.*não existe|não está ativo no convênio/i.test(msg)) return 'O município informado não está ativo na NFS-e Nacional. Verifique o código IBGE em Configurações > Fiscal.';
     if (/cTribNac.*inválido|codigo_tributacao_nacional/i.test(msg)) return 'O código tributário (cTribNac) não é válido para este município. Consulte os serviços habilitados na sua prefeitura.';
     if (/alíquota|aliquota.*não permitida/i.test(msg)) return 'A alíquota ISS configurada não é aceita pelo município. Verifique o valor correto na prefeitura.';

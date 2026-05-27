@@ -1279,6 +1279,13 @@ export class AsaasService {
     switch (event) {
       case 'SUBSCRIPTION_INACTIVATED':
       case 'SUBSCRIPTION_DELETED': {
+        if (subscription.tenant.isMaster) {
+          this.logger.log(
+            `Subscription ${event} para tenant master ${subscription.tenant.slug} — ignorando (sem update de Subscription nem suspend)`,
+          );
+          break;
+        }
+
         await this.prisma.subscription.update({
           where: { id: subscription.id },
           data: {

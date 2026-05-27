@@ -12,6 +12,7 @@ import { useTableLayout } from "@/hooks/useTableLayout";
 import type { FilterDefinition, ColumnDefinition } from "@/lib/types/table";
 import { NFSE_STATUS_CONFIG } from "@/types/finance";
 import Link from "next/link";
+import NfseEmissionModal from "@/app/(dashboard)/finance/components/NfseEmissionModal";
 
 /* ── Types ─────────────────────────────────────────── */
 
@@ -182,6 +183,7 @@ function ActionsDropdown({
   onDownloadPdf,
   onResendEmail,
   onRefreshStatus,
+  onRetry,
   onCancel,
   onToggleDetails,
   isExpanded,
@@ -191,6 +193,7 @@ function ActionsDropdown({
   onDownloadPdf: () => void;
   onResendEmail: () => void;
   onRefreshStatus: () => void;
+  onRetry: () => void;
   onCancel: () => void;
   onToggleDetails: () => void;
   isExpanded: boolean;
@@ -229,6 +232,8 @@ function ActionsDropdown({
 
   const isAuthorized = emission.status === "AUTHORIZED";
   const isRetryable = emission.status === "PROCESSING" || emission.status === "ERROR" || emission.status === "CANCELLING";
+  const isError = emission.status === "ERROR";
+  const canRetryEmit = isError && emission.financialEntries.length > 0;
 
   const menuItem = (label: string, onClick: () => void, className = "text-slate-700 hover:bg-slate-100") => (
     <button
@@ -257,6 +262,7 @@ function ActionsDropdown({
         >
           {isAuthorized && menuItem("Baixar PDF", onDownloadPdf)}
           {isAuthorized && menuItem("Reenviar Email", onResendEmail)}
+          {canRetryEmit && menuItem("Reenviar NFS-e", onRetry, "text-blue-600 hover:bg-blue-50")}
           {isRetryable && menuItem("Consultar Status", onRefreshStatus)}
           {(isAuthorized || isRetryable) && <div className="my-1 border-t border-slate-100" />}
           {isAuthorized && menuItem("Cancelar NFS-e", onCancel, "text-red-600 hover:bg-red-50")}
@@ -289,6 +295,7 @@ export default function NfseSaidaPage() {
   const [cancelJustificativa, setCancelJustificativa] = useState("");
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [retryEntryId, setRetryEntryId] = useState<string | null>(null);
 
   const loadEmissions = useCallback(async () => {
     try {
@@ -323,6 +330,15 @@ export default function NfseSaidaPage() {
     } finally {
       setActionLoading(null);
     }
+  }
+
+  function handleRetry(emission: NfseEmission) {
+    const entryId = emission.financialEntries[0]?.id;
+    if (!entryId) {
+      toast("Esta nota nao tem lancamento financeiro vinculado para reenvio.", "error");
+      return;
+    }
+    setRetryEntryId(entryId);
   }
 
   async function handleDownloadPdf(emission: NfseEmission) {
@@ -570,6 +586,7 @@ export default function NfseSaidaPage() {
                               onDownloadPdf={() => handleDownloadPdf(emission)}
                               onResendEmail={() => handleResendEmail(emission)}
                               onRefreshStatus={() => handleRefreshStatus(emission)}
+                              onRetry={() => handleRetry(emission)}
                               onCancel={() => handleCancelOpen(emission)}
                               onToggleDetails={() => setExpandedRow(isExpanded ? null : emission.id)}
                               isExpanded={isExpanded}
@@ -703,6 +720,16 @@ export default function NfseSaidaPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Retry Modal — reaproveita o NfseEmissionModal de Financas. data_emissao e regerada com brazilNow() pelo backend. */}
+      {retryEntryId && (
+        <NfseEmissionModal
+          financialEntryId={retryEntryId}
+          open={true}
+          onClose={() => setRetryEntryId(null)}
+          onSuccess={() => { setRetryEntryId(null); loadEmissions(); }}
+        />
       )}
     </div>
   );

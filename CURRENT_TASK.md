@@ -1,5 +1,23 @@
 # TAREFA ATUAL
 
+## Sessao 213 — em aberto (27/05/2026)
+
+Mudancas locais (NAO deployadas, aguardando autorizacao):
+- **`backend/src/nfse-emission/nfse-emission.service.ts:111`** — `mapFocusError` para 401 agora cita 2 causas (token invalido OU mensalidade Focus em atraso)
+- **`backend/src/tenant/tenant.service.ts:368-394`** — `block()` e `suspend()` agora fazem early-return se `tenant.isMaster=true` (defense in depth)
+- **`backend/src/tenant/asaas.service.ts:1280`** — webhook `SUBSCRIPTION_DELETED/INACTIVATED` agora ignora tenant master (nao marca Subscription=CANCELLED, nao chama suspend)
+- **`frontend/src/app/(dashboard)/nfe/saida/page.tsx`** — novo item "Reenviar NFS-e" no menu de acoes quando status=ERROR. Reaproveita `NfseEmissionModal` com o `financialEntryId` da emissao. Backend ja regenera `data_emissao` com `brazilNow()` a cada tentativa (sem risco de data retroativa)
+
+Bug raiz que motivou os guards:
+- SLS tinha Subscription Asaas ativa apesar de `isMaster=true` (bypass interno nao cancela sub Asaas externa)
+- Cancelei sub `sub_uae6vnrmtrpuowz8` via API → webhook chegou e suspendeu SLS (`status=SUSPENDED`, `blockReason='Assinatura cancelada'`) por ~30min
+- Revertido manualmente via SQL. Guards agora previnem repeticao
+- Cobranca vencida R$ 397 cancelada pelo usuario no painel Asaas
+
+Memorias atualizadas:
+- [memory/project_ismaster_bypass_billing.md](memory/project_ismaster_bypass_billing.md) — adicionado incidente v1.12.61 + SQL de reversao
+- [memory/feedback_perguntar_antes_deploy.md](memory/feedback_perguntar_antes_deploy.md) — NOVA: perguntar antes de deploy
+
 ## Versao atual em prod: v1.12.60 — Sessao 212 fechada (22 releases)
 
 Sessao 212 (26/05/2026) foi maratona no modulo Piscina, focada em **3 frentes principais**:

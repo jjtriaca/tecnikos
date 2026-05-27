@@ -366,7 +366,11 @@ export class TenantService {
   }
 
   async block(id: string, reason: string) {
-    await this.getTenantOrThrow(id);
+    const tenant = await this.getTenantOrThrow(id);
+    if (tenant.isMaster) {
+      this.logger.warn(`block() ignorado para tenant master ${tenant.slug} (motivo: ${reason})`);
+      return tenant;
+    }
     return this.prisma.tenant.update({
       where: { id },
       data: {
@@ -378,7 +382,11 @@ export class TenantService {
   }
 
   async suspend(id: string, reason: string) {
-    await this.getTenantOrThrow(id);
+    const tenant = await this.getTenantOrThrow(id);
+    if (tenant.isMaster) {
+      this.logger.warn(`suspend() ignorado para tenant master ${tenant.slug} (motivo: ${reason})`);
+      return tenant;
+    }
     return this.prisma.tenant.update({
       where: { id },
       data: {
