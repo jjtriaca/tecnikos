@@ -63,7 +63,14 @@ export interface AutoSelectIndicatorLevel {
 
 export interface IndicatorResult {
   value: number;
+  /** Nome do nivel correspondente ao valor calculado (ex: "Justo", "Adequado"). */
   label: string;
+  /**
+   * v1.12.66: nome geral da metrica (rule.indicator.label, ex: "Folga vazao").
+   * Frontend exibe como prefixo antes do valor. Permite distinguir o "o que" da
+   * metrica (Folga vazao) do "como esta" (Justo/Adequado/etc).
+   */
+  groupLabel: string;
   color: string;
   unit: string;
 }
@@ -214,6 +221,7 @@ export function evaluateIndicator(
   return {
     value,
     label: matched?.label || '',
+    groupLabel: ind.label || '',
     color: matched?.color || 'slate',
     unit: ind.unit || '',
   };

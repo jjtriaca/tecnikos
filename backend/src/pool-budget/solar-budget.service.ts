@@ -613,7 +613,7 @@ export class SolarBudgetService {
     pressaoTrabalhoMca: number;
     potenciaCv: number | null;
     hasPumpCurve: boolean;
-    indicator: { value: number; label: string; color: string; unit: string } | null;
+    indicator: { value: number; label: string; groupLabel: string; color: string; unit: string } | null;
   }>> {
     const budget = await this.prisma.poolBudget.findFirst({
       where: { id: budgetId, companyId, deletedAt: null },

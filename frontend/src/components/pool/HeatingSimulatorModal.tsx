@@ -1527,7 +1527,7 @@ function SolarTab({
     pressaoTrabalhoMca: number;
     potenciaCv: number | null;
     hasPumpCurve: boolean;
-    indicator: { value: number; label: string; color: string; unit: string } | null;
+    indicator: { value: number; label: string; groupLabel?: string; color: string; unit: string } | null;
   }
   const initSelectedBombaId = (budget.environmentParams as any)?.solarReport?.selectedBombaId ?? null;
   const initBombaManuallySelected = (budget.environmentParams as any)?.solarReport?.bombaManuallySelected === true;
@@ -2381,7 +2381,11 @@ function SolarTab({
                                 parts.push(`${c.vazaoM3h.toFixed(1)} m³/h`);
                                 parts.push(`${c.pressaoTrabalhoMca.toFixed(1)} mca`);
                                 if (c.hasPumpCurve) parts.push('📈 curva');
-                                if (c.indicator) parts.push(`${c.indicator.label}: ${c.indicator.value.toFixed(0)}${c.indicator.unit}`);
+                                if (c.indicator) {
+                                  const decimals = Math.abs(c.indicator.value) < 10 ? 1 : 0;
+                                  const formatted = c.indicator.value.toFixed(decimals).replace('.', ',');
+                                  parts.push(`${formatted}${c.indicator.unit} (${c.indicator.label})`);
+                                }
                                 return <option key={c.productId} value={c.productId}>{parts.join(' · ')}</option>;
                               })}
                             </select>
@@ -2425,7 +2429,14 @@ function SolarTab({
                                     selBomba.indicator.color === 'red' ? 'text-red-700' :
                                     'text-slate-700'
                                   }`}>
-                                    {selBomba.indicator.label}: {selBomba.indicator.value.toFixed(0)}{selBomba.indicator.unit} ({selBomba.indicator.label})
+                                    {(() => {
+                                      const v = selBomba.indicator.value;
+                                      // v1.12.66: usa 1 decimal pra valores < 10 (evita "0%" quando eh 0,3%)
+                                      const decimals = Math.abs(v) < 10 ? 1 : 0;
+                                      const formatted = v.toFixed(decimals).replace('.', ',');
+                                      const group = selBomba.indicator.groupLabel || 'Indicador';
+                                      return `${group}: ${formatted}${selBomba.indicator.unit} (${selBomba.indicator.label})`;
+                                    })()}
                                   </div>
                                 )}
                               </div>
