@@ -1529,11 +1529,15 @@ function SolarTab({
     indicator: { value: number; label: string; color: string; unit: string } | null;
   }
   const initSelectedBombaId = (budget.environmentParams as any)?.solarReport?.selectedBombaId ?? null;
+  const initBombaManuallySelected = (budget.environmentParams as any)?.solarReport?.bombaManuallySelected === true;
   const [bombaCandidates, setBombaCandidates] = useState<BombaCandidate[]>([]);
   const [selectedBombaId, setSelectedBombaId] = useState<string | null>(initSelectedBombaId);
+  const [bombaManuallySelected, setBombaManuallySelected] = useState<boolean>(initBombaManuallySelected);
   const [bombaCandidatesLoading, setBombaCandidatesLoading] = useState(false);
 
-  // Carrega candidatos sempre que ha solarReport + alturaTelhadoMca disponiveis.
+  // v1.12.62: distincao entre escolha MANUAL (operador clicou no dropdown) vs
+  // DEFAULT (primeiro candidato sugerido pela regra). Sem isso, ao reduzir vazao
+  // a bomba grande ficava "ainda passando" na regra e nao voltava ao default.
   // Re-roda quando pipeResult muda (altura nova) ou report.vazaoTotalM3h muda.
   useEffect(() => {
     if (!report || !report.vazaoTotalM3h || report.vazaoTotalM3h <= 0) {
@@ -1545,15 +1549,25 @@ function SolarTab({
     api.get<{ candidates: BombaCandidate[] }>(`/pool-budgets/${budget.id}/solar-bomba-candidates`)
       .then((res) => {
         if (cancelled) return;
-        setBombaCandidates(res?.candidates ?? []);
-        // Se nao tem selecao salva, ou a selecao salva nao passa mais na regra,
-        // adota o primeiro candidato (default da regra).
-        if (res?.candidates && res.candidates.length > 0) {
-          const stillValid = selectedBombaId && res.candidates.some((c) => c.productId === selectedBombaId);
-          if (!stillValid) setSelectedBombaId(res.candidates[0].productId);
-        } else {
+        const candidates = res?.candidates ?? [];
+        setBombaCandidates(candidates);
+        if (candidates.length === 0) {
           setSelectedBombaId(null);
+          return;
         }
+        // Se foi escolha manual E a bomba escolhida ainda esta na lista → preserva.
+        // Caso contrario (manual=false OU bomba caiu fora) → adota o primeiro
+        // candidato (default da regra). Quando o que vinha do banco era manual
+        // mas saiu da lista, limpa a flag no servidor pra evitar que retorne.
+        if (bombaManuallySelected && selectedBombaId) {
+          const stillValid = candidates.some((c) => c.productId === selectedBombaId);
+          if (stillValid) return;
+          setBombaManuallySelected(false);
+          api.post(`/pool-budgets/${budget.id}/solar-bomba-selection`, { productId: null })
+            .catch((err) => console.warn('Falha ao limpar bomba manual obsoleta:', err));
+        }
+        // Default automatico: primeiro candidato, sem persistir (manual=false implicito).
+        setSelectedBombaId(candidates[0].productId);
       })
       .catch(() => {
         if (!cancelled) setBombaCandidates([]);
@@ -1567,8 +1581,10 @@ function SolarTab({
 
   async function handleSelectBomba(productId: string | null) {
     setSelectedBombaId(productId);
+    setBombaManuallySelected(productId !== null);
     try {
-      await api.post(`/pool-budgets/${budget.id}/solar-bomba-selection`, { productId });
+      // manual=true ao escolher pelo dropdown, productId=null limpa a flag.
+      await api.post(`/pool-budgets/${budget.id}/solar-bomba-selection`, { productId, manual: productId !== null });
     } catch (err) {
       console.warn('Falha ao salvar selectedBombaId:', err);
     }

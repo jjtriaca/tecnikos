@@ -182,6 +182,15 @@ export class NfseEmissionController {
     return this.nfseService.refreshStatus(req.user.companyId, id);
   }
 
+  // ========== RETRY EMISSION ==========
+
+  @Post('emissions/:id/retry')
+  @Roles('ADMIN', 'FINANCEIRO', 'FISCAL')
+  @UseGuards(FiscalGuard)
+  async retryEmission(@Req() req: any, @Param('id') id: string) {
+    return this.nfseService.retryEmission(req.user.companyId, id);
+  }
+
   /**
    * Cancela uma tentativa em PROCESSING manualmente (marca como ERROR).
    * Usuario aciona pelo modal de processamento quando suspeita que o webhook

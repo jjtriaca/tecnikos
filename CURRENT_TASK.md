@@ -2,11 +2,20 @@
 
 ## Sessao 213 — em aberto (27/05/2026)
 
-Mudancas locais (NAO deployadas, aguardando autorizacao):
-- **`backend/src/nfse-emission/nfse-emission.service.ts:111`** — `mapFocusError` para 401 agora cita 2 causas (token invalido OU mensalidade Focus em atraso)
-- **`backend/src/tenant/tenant.service.ts:368-394`** — `block()` e `suspend()` agora fazem early-return se `tenant.isMaster=true` (defense in depth)
-- **`backend/src/tenant/asaas.service.ts:1280`** — webhook `SUBSCRIPTION_DELETED/INACTIVATED` agora ignora tenant master (nao marca Subscription=CANCELLED, nao chama suspend)
-- **`frontend/src/app/(dashboard)/nfe/saida/page.tsx`** — novo item "Reenviar NFS-e" no menu de acoes quando status=ERROR. Reaproveita `NfseEmissionModal` com o `financialEntryId` da emissao. Backend ja regenera `data_emissao` com `brazilNow()` a cada tentativa (sem risco de data retroativa)
+### Ja em prod (v1.12.61)
+- **`backend/src/nfse-emission/nfse-emission.service.ts:111`** — `mapFocusError` para 401 cita 2 causas (token invalido OU mensalidade Focus em atraso)
+- **`backend/src/tenant/tenant.service.ts:368-394`** — `block()` e `suspend()` early-return se `tenant.isMaster=true` (defense in depth)
+- **`backend/src/tenant/asaas.service.ts:1280`** — webhook `SUBSCRIPTION_DELETED/INACTIVATED` ignora tenant master
+- **`frontend/src/app/(dashboard)/nfe/saida/page.tsx`** — item "Reenviar NFS-e" no menu de acoes quando status=ERROR
+
+**Bug detectado pos-deploy v1.12.61:** click em "Reenviar NFS-e" nao disparava nada — `NfseEmissionModal` importado de outro modulo (`finance/components/`) nao bundla/monta corretamente em outra rota. JULIANA RPS 29 foi reenviada pelo modal de Financas (autorizada como NFS-e 76). WILSON RPS 28 continua em ERROR — aguarda fix.
+
+### Local — aguardando deploy v1.12.62
+- **`backend/src/nfse-emission/nfse-emission.controller.ts`** — novo endpoint `POST /nfse-emission/emissions/:id/retry`
+- **`backend/src/nfse-emission/nfse-emission.service.ts:1341+`** — novo metodo `retryEmission()` reaproveita `getEmissionPreview` + snapshot da NfseEmission antiga, monta DTO e chama `emit()`. Backend faz tudo, sem precisar abrir modal no frontend
+- **`frontend/src/app/(dashboard)/nfe/saida/page.tsx`** — `handleRetry` agora faz `POST /retry` direto + confirm + toast. ActionsDropdown refatorado com `createPortal` + `pos.right` direto + listener checa `menuRef.contains` (fix: menu deslocado e clicks ignorados)
+- **`backend/src/pool-budget/solar-budget.service.ts:setSelectedBomba`** + **`pool-budget.controller.ts`** — aceita `manual: boolean` (default true), salva `bombaManuallySelected` em `environmentParams.solarReport`
+- **`frontend/src/components/pool/HeatingSimulatorModal.tsx`** — `useEffect` da bomba solar so preserva a selecao se `bombaManuallySelected===true` E ainda na lista. Caso contrario adota primeiro candidato (default da regra) — sem persistir. Fix bug v1.12.43: reduzir coletores nao recalculava bomba ja escolhida (ficava super-dimensionada)
 
 Bug raiz que motivou os guards:
 - SLS tinha Subscription Asaas ativa apesar de `isMaster=true` (bypass interno nao cancela sub Asaas externa)

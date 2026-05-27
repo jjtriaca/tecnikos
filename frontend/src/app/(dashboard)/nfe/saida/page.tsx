@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { api, getAccessToken } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import FilterBar from "@/components/ui/FilterBar";
@@ -12,7 +13,6 @@ import { useTableLayout } from "@/hooks/useTableLayout";
 import type { FilterDefinition, ColumnDefinition } from "@/lib/types/table";
 import { NFSE_STATUS_CONFIG } from "@/types/finance";
 import Link from "next/link";
-import NfseEmissionModal from "@/app/(dashboard)/finance/components/NfseEmissionModal";
 
 /* ── Types ─────────────────────────────────────────── */
 
@@ -199,8 +199,12 @@ function ActionsDropdown({
   isExpanded: boolean;
 }) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const [pos, setPos] = useState({ top: 0, right: 0 });
+  const [mounted, setMounted] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => setMounted(true), []);
 
   const toggle = () => {
     if (!open && btnRef.current) {
@@ -209,7 +213,7 @@ function ActionsDropdown({
       const fitsBelow = rect.bottom + menuHeight < window.innerHeight;
       setPos({
         top: fitsBelow ? rect.bottom + 4 : rect.top - menuHeight - 4,
-        left: rect.right,
+        right: window.innerWidth - rect.right,
       });
     }
     setOpen((v) => !v);
@@ -217,23 +221,24 @@ function ActionsDropdown({
 
   useEffect(() => {
     if (!open) return;
-    const onClickOutside = (e: MouseEvent) => {
-      if (btnRef.current?.contains(e.target as Node)) return;
+    const onPointerDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (btnRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
       setOpen(false);
     };
     const onScroll = () => setOpen(false);
-    document.addEventListener("mousedown", onClickOutside);
+    document.addEventListener("mousedown", onPointerDown);
     window.addEventListener("scroll", onScroll, true);
     return () => {
-      document.removeEventListener("mousedown", onClickOutside);
+      document.removeEventListener("mousedown", onPointerDown);
       window.removeEventListener("scroll", onScroll, true);
     };
   }, [open]);
 
   const isAuthorized = emission.status === "AUTHORIZED";
   const isRetryable = emission.status === "PROCESSING" || emission.status === "ERROR" || emission.status === "CANCELLING";
-  const isError = emission.status === "ERROR";
-  const canRetryEmit = isError && emission.financialEntries.length > 0;
+  const canRetryEmit = emission.status === "ERROR" && emission.financialEntries.length > 0;
 
   const menuItem = (label: string, onClick: () => void, className = "text-slate-700 hover:bg-slate-100") => (
     <button
@@ -255,10 +260,11 @@ function ActionsDropdown({
       >
         &#x22EF;
       </button>
-      {open && (
+      {open && mounted && createPortal(
         <div
-          className="fixed z-50 min-w-[180px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
-          style={{ top: pos.top, left: pos.left, transform: "translateX(-100%)" }}
+          ref={menuRef}
+          className="fixed z-[60] min-w-[180px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+          style={{ top: pos.top, right: pos.right }}
         >
           {isAuthorized && menuItem("Baixar PDF", onDownloadPdf)}
           {isAuthorized && menuItem("Reenviar Email", onResendEmail)}
@@ -268,7 +274,8 @@ function ActionsDropdown({
           {isAuthorized && menuItem("Cancelar NFS-e", onCancel, "text-red-600 hover:bg-red-50")}
           {isAuthorized && <div className="my-1 border-t border-slate-100" />}
           {menuItem(isExpanded ? "Fechar Detalhes" : "Detalhes", onToggleDetails)}
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
@@ -295,7 +302,6 @@ export default function NfseSaidaPage() {
   const [cancelJustificativa, setCancelJustificativa] = useState("");
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
-  const [retryEntryId, setRetryEntryId] = useState<string | null>(null);
 
   const loadEmissions = useCallback(async () => {
     try {
@@ -332,13 +338,20 @@ export default function NfseSaidaPage() {
     }
   }
 
-  function handleRetry(emission: NfseEmission) {
-    const entryId = emission.financialEntries[0]?.id;
-    if (!entryId) {
-      toast("Esta nota nao tem lancamento financeiro vinculado para reenvio.", "error");
+  async function handleRetry(emission: NfseEmission) {
+    if (!confirm(`Reenviar NFS-e RPS ${emission.rpsNumber}? Sera usada a hora atual como data de emissao.`)) {
       return;
     }
-    setRetryEntryId(entryId);
+    setActionLoading(emission.id);
+    try {
+      await api.post(`/nfse-emission/emissions/${emission.id}/retry`, {});
+      toast("Reenvio disparado. Acompanhe o status na tabela.", "success");
+      loadEmissions();
+    } catch (err: any) {
+      toast(err?.message || "Erro ao reenviar NFS-e", "error");
+    } finally {
+      setActionLoading(null);
+    }
   }
 
   async function handleDownloadPdf(emission: NfseEmission) {
@@ -722,15 +735,6 @@ export default function NfseSaidaPage() {
         </div>
       )}
 
-      {/* Retry Modal — reaproveita o NfseEmissionModal de Financas. data_emissao e regerada com brazilNow() pelo backend. */}
-      {retryEntryId && (
-        <NfseEmissionModal
-          financialEntryId={retryEntryId}
-          open={true}
-          onClose={() => setRetryEntryId(null)}
-          onSuccess={() => { setRetryEntryId(null); loadEmissions(); }}
-        />
-      )}
     </div>
   );
 }

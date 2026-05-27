@@ -134,16 +134,16 @@ export class PoolBudgetController {
     return this.solarBudget.listSolarBombaCandidates(id, user.companyId).then((candidates) => ({ candidates }));
   }
 
-  @ApiOperation({ summary: 'Persiste a bomba escolhida pelo operador no dropdown do Simulador Solar. body.productId=null limpa. v1.12.43.' })
+  @ApiOperation({ summary: 'Persiste a bomba escolhida pelo operador no dropdown do Simulador Solar. body.productId=null limpa. body.manual=false marca como default automatico (recalculavel). v1.12.43/62.' })
   @RequireVerification()
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)
   @Post(':id/solar-bomba-selection')
   setSelectedBomba(
     @Param('id') id: string,
-    @Body() body: { productId: string | null },
+    @Body() body: { productId: string | null; manual?: boolean },
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.solarBudget.setSelectedBomba(id, user.companyId, body?.productId ?? null);
+    return this.solarBudget.setSelectedBomba(id, user.companyId, body?.productId ?? null, body?.manual !== false);
   }
 
   @ApiOperation({ summary: 'Salva override de area/volume manuais em environmentParams.solarOverride. body null/{} limpa. v1.12.52.' })

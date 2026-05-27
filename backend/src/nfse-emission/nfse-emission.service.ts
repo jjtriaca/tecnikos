@@ -1340,6 +1340,58 @@ export class NfseEmissionService {
     return this.prisma.nfseEmission.findUnique({ where: { id: emissionId } });
   }
 
+  // ========== RETRY EMISSION (reenvio de NFS-e em ERROR) ==========
+
+  /**
+   * Reenvia uma NFS-e que ficou em ERROR. Reaproveita o snapshot da emissao
+   * antiga (valor, discriminacao, aliquota, etc) e busca dados frescos do
+   * tomador (endereco, partner) via getEmissionPreview. O metodo `emit` ja
+   * detecta a emissao em ERROR, reusa o RPS, gera novo ref e nova
+   * data_emissao (`brazilNow()`). Sem risco de data retroativa.
+   */
+  async retryEmission(companyId: string, emissionId: string) {
+    const emission = await this.prisma.nfseEmission.findFirst({
+      where: { id: emissionId, companyId, status: 'ERROR' },
+      include: { financialEntries: true },
+    });
+    if (!emission) throw new BadRequestException('NFS-e em ERROR nao encontrada para reenvio');
+
+    const entry = emission.financialEntries[0];
+    if (!entry) throw new BadRequestException('NFS-e nao tem lancamento financeiro vinculado');
+
+    const preview = await this.getEmissionPreview(companyId, entry.id);
+
+    const dto: EmitNfseDto = {
+      financialEntryId: entry.id,
+      serviceOrderId: emission.serviceOrderId || preview.financialEntry.serviceOrderId || undefined,
+      tomadorCnpjCpf: emission.tomadorCnpjCpf || preview.tomador.cnpjCpf,
+      tomadorRazaoSocial: emission.tomadorRazaoSocial || preview.tomador.razaoSocial,
+      tomadorEmail: emission.tomadorEmail || preview.tomador.email || undefined,
+      tomadorLogradouro: preview.tomador.logradouro,
+      tomadorNumero: preview.tomador.numero,
+      tomadorComplemento: preview.tomador.complemento || undefined,
+      tomadorBairro: preview.tomador.bairro,
+      tomadorCodigoMunicipio: preview.tomador.codigoMunicipio,
+      tomadorUf: preview.tomador.uf,
+      tomadorCep: preview.tomador.cep,
+      tomadorCaepf: preview.tomador.caepf || undefined,
+      valorServicosCents: emission.valorServicos,
+      aliquotaIss: emission.aliquotaIss ?? preview.servico.aliquotaIss,
+      issRetido: emission.issRetido,
+      itemListaServico: emission.itemListaServico || preview.servico.itemListaServico || undefined,
+      codigoCnae: emission.codigoCnae || preview.servico.codigoCnae || undefined,
+      discriminacao: emission.discriminacao || preview.servico.discriminacao,
+      naturezaOperacao: emission.naturezaOperacao || preview.servico.naturezaOperacao,
+      codigoMunicipioServico: emission.codigoMunicipioServico || preview.servico.codigoMunicipioServico,
+      infComplementares: emission.infComplementares || undefined,
+      tipoNota: emission.obraId ? 'OBRA' : 'SERVICO',
+      obraId: emission.obraId || undefined,
+    };
+
+    this.logger.log(`Retry emission ${emissionId} via /retry: entryId=${entry.id} RPS=${emission.rpsNumber}`);
+    return this.emit(companyId, dto);
+  }
+
   // ========== PDF ==========
 
   async downloadPdf(companyId: string, emissionId: string): Promise<{ buffer: Buffer; filename: string }> {

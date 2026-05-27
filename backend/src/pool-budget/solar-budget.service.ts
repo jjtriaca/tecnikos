@@ -612,12 +612,20 @@ export class SolarBudgetService {
    * v1.12.43: persiste a bomba escolhida pelo operador no dropdown em
    * environmentParams.solarReport.selectedBombaId. Operador pode trocar a
    * sugestao default da regra por outra que tambem passa.
+   *
+   * v1.12.62: distingue escolha MANUAL (operador clicou no dropdown) vs
+   * DEFAULT (primeiro candidato sugerido pela regra). Flag
+   * `bombaManuallySelected` controla se a selecao deve sobreviver a mudancas
+   * de dimensionamento. Sem isso, ao reduzir vazao, a bomba grande continuava
+   * "passando" na regra e ficava super-dimensionada — sistema nunca voltava
+   * ao default automatico.
    */
   async setSelectedBomba(
     budgetId: string,
     companyId: string,
     productId: string | null,
-  ): Promise<{ selectedBombaId: string | null }> {
+    manual: boolean = true,
+  ): Promise<{ selectedBombaId: string | null; bombaManuallySelected: boolean }> {
     const budget = await this.prisma.poolBudget.findFirst({
       where: { id: budgetId, companyId, deletedAt: null },
       select: { environmentParams: true },
@@ -625,14 +633,19 @@ export class SolarBudgetService {
     if (!budget) throw new NotFoundException('Orcamento nao encontrado');
     const env = (budget.environmentParams ?? {}) as Record<string, any>;
     const solarReport = (env.solarReport ?? {}) as Record<string, any>;
-    if (productId === null) delete solarReport.selectedBombaId;
-    else solarReport.selectedBombaId = productId;
+    if (productId === null) {
+      delete solarReport.selectedBombaId;
+      delete solarReport.bombaManuallySelected;
+    } else {
+      solarReport.selectedBombaId = productId;
+      solarReport.bombaManuallySelected = manual;
+    }
     env.solarReport = solarReport;
     await this.prisma.poolBudget.update({
       where: { id: budgetId },
       data: { environmentParams: env as any },
     });
-    return { selectedBombaId: productId };
+    return { selectedBombaId: productId, bombaManuallySelected: productId === null ? false : manual };
   }
 
   private ruleHasAnyFilter(rule: any): boolean {
