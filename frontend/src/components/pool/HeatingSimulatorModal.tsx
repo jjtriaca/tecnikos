@@ -2077,7 +2077,10 @@ function SolarTab({
                 const productImg = selectedColetor?.imageUrl ?? null;
                 if (productImg) {
                   return (
-                    <div className="w-full aspect-square rounded border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center">
+                    // v1.12.73: no print, altura limitada pra alinhar com a parte de baixo
+                    // dos cards (col-span-8). aspect-square no print fica quadrado ENORME (~68mm
+                    // de lado em A4), gerando overflow pra segunda pagina.
+                    <div className="w-full aspect-square print:aspect-auto print:h-full print:max-h-[58mm] rounded border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={productImg} alt={selectedColetor?.modelName ?? "Coletor"} className="w-full h-full object-contain" />
                     </div>
@@ -2590,15 +2593,17 @@ function SolarTab({
                   Antes ficava acima do banner DIMENSIONAMENTO. Movido pra cá conforme pedido do user. */}
               <div className="flex-1" />
 
-              {/* ============ GRAFICO + TABELA ============ */}
-              <section className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-slate-200 avoid-break items-stretch">
+              {/* ============ GRAFICO + TABELA ============
+                  v1.12.73: print:items-start + print:py-1 pra evitar items-stretch esticando
+                  os cards verticalmente quando ha espaco sobrando — geram espaco branco no fim. */}
+              <section className="grid grid-cols-12 gap-3 px-5 py-3 print:py-1 border-b border-slate-200 avoid-break items-stretch print:items-start">
                 <div className="col-span-7 flex flex-col">
                   {selectedMonth && (
                     <SolarChart row={selectedMonth} tempDesejada={tempAguaDesejada} monthName={selectedMonth.monthName} />
                   )}
                 </div>
                 <div className="col-span-5 flex flex-col">
-                  <div className="border border-slate-200 rounded overflow-hidden h-full flex flex-col">
+                  <div className="border border-slate-200 rounded overflow-hidden h-full flex flex-col print:h-auto">
                     <table className="w-full text-[9.5px] tabular-nums">
                       <thead className="bg-slate-100 text-slate-700">
                         <tr>
@@ -2879,9 +2884,20 @@ function SolarTab({
           html.printing-mode #solar-pdf-clone .print\\:border-y { border-top-width: 1px !important; border-bottom-width: 1px !important; border-top-style: solid !important; border-bottom-style: solid !important; }
           html.printing-mode #solar-pdf-clone .print\\:border-blue-900 { border-color: #1e3a8a !important; }
 
-          /* SVG do grafico */
-          html.printing-mode #solar-pdf-clone svg { max-height: 80mm !important; width: 100% !important; height: auto !important; }
+          /* SVG do grafico — limita a 60mm (era 80mm, gerava overflow pra pag 2) */
+          html.printing-mode #solar-pdf-clone svg { max-height: 60mm !important; width: 100% !important; height: auto !important; }
           html.printing-mode #solar-pdf-clone img { max-height: none !important; }
+
+          /* v1.12.73: classes print:* especificas do Tailwind usadas pra controlar
+             altura/aspect-ratio da imagem do coletor + gráfico no print */
+          html.printing-mode #solar-pdf-clone .print\\:aspect-auto { aspect-ratio: auto !important; }
+          html.printing-mode #solar-pdf-clone .print\\:h-full { height: 100% !important; }
+          html.printing-mode #solar-pdf-clone .print\\:h-auto { height: auto !important; }
+          html.printing-mode #solar-pdf-clone .print\\:max-h-\\[58mm\\] { max-height: 58mm !important; }
+          html.printing-mode #solar-pdf-clone .print\\:max-h-\\[62mm\\] { max-height: 62mm !important; }
+          html.printing-mode #solar-pdf-clone .print\\:items-start { align-items: flex-start !important; }
+          html.printing-mode #solar-pdf-clone .print\\:py-1 { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
+          html.printing-mode #solar-pdf-clone .print\\:p-1 { padding: 0.25rem !important; }
 
           /* Classe .print\\:hidden geral aplicada via Tailwind no JSX */
           .print\\:hidden { display: none !important; }
@@ -2926,10 +2942,19 @@ function SolarTab({
         html.simulating-print #solar-pdf-clone footer { padding-top: 3px !important; padding-bottom: 3px !important; }
         html.simulating-print #solar-pdf-clone header { padding-top: 6px !important; padding-bottom: 6px !important; }
         html.simulating-print #solar-pdf-clone .px-5 { padding-left: 10px !important; padding-right: 10px !important; }
-        html.simulating-print #solar-pdf-clone svg { max-height: 80mm !important; width: 100% !important; height: auto !important; }
+        html.simulating-print #solar-pdf-clone svg { max-height: 60mm !important; width: 100% !important; height: auto !important; }
         html.simulating-print #solar-pdf-clone img { max-height: 38mm !important; }
         html.simulating-print #solar-pdf-clone select { display: none !important; }
         html.simulating-print #solar-pdf-clone input[type=range] { display: none !important; }
+        /* v1.12.73: classes print:* pra match com o que vai sair no PDF impresso */
+        html.simulating-print #solar-pdf-clone .print\\:aspect-auto { aspect-ratio: auto !important; }
+        html.simulating-print #solar-pdf-clone .print\\:h-full { height: 100% !important; }
+        html.simulating-print #solar-pdf-clone .print\\:h-auto { height: auto !important; }
+        html.simulating-print #solar-pdf-clone .print\\:max-h-\\[58mm\\] { max-height: 58mm !important; }
+        html.simulating-print #solar-pdf-clone .print\\:max-h-\\[62mm\\] { max-height: 62mm !important; }
+        html.simulating-print #solar-pdf-clone .print\\:items-start { align-items: flex-start !important; }
+        html.simulating-print #solar-pdf-clone .print\\:py-1 { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
+        html.simulating-print #solar-pdf-clone .print\\:p-1 { padding: 0.25rem !important; }
         /* v1.12.68: forca gradiente do header + cores no preview (Tailwind JIT pode nao
            incluir as classes do gradient quando o clone eh inserido via JS). */
         html.simulating-print #solar-pdf-clone header {
@@ -3574,7 +3599,9 @@ function SolarChart({ row, tempDesejada, monthName }: { row: SolarMonthlyRow; te
   for (let v = Math.ceil(yMin / 5) * 5; v <= yMax; v += 5) yTicks.push(v);
 
   return (
-    <div className="border border-slate-200 rounded bg-white p-2 print:border-slate-300 flex-1 flex flex-col">
+    // v1.12.73: no print, altura compacta (~60mm) pra evitar espaco em branco
+    // sobrando abaixo do card que empurra conteudo pra pagina 2.
+    <div className="border border-slate-200 rounded bg-white p-2 print:p-1 print:border-slate-300 flex-1 flex flex-col print:max-h-[62mm]">
       {monthName && (
         <div className="px-1 pb-1 flex items-baseline justify-between">
           <span className="text-[9px] uppercase tracking-[0.15em] text-slate-500 font-semibold">Variação térmica em 4 dias</span>
