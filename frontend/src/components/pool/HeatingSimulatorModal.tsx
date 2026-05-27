@@ -2658,12 +2658,14 @@ function SolarTab({
             ✕ Fechar
           </button>
           <button onClick={() => {
-              // v1.12.69: desliga a simulacao ANTES de imprimir.
-              // O CSS de simulacao deixa #solar-pdf-area com display:none, o que faz
-              // o @media print imprimir cinza/branco. Saindo do modo simulacao, o
-              // #solar-pdf-area volta ao fluxo normal e o @media print funciona.
+              // v1.12.70: limpa o clone SINCRONAMENTE antes do print pra evitar
+              // duplicacao (original + clone no PDF). setTimeout do React nao
+              // garantia ordem antes do window.print(). Aqui force cleanup DOM direto.
+              document.documentElement.classList.remove("simulating-print");
+              document.querySelectorAll(".solar-pdf-clone-container").forEach((el) => el.remove());
               setPdfPreviewMode(false);
-              setTimeout(() => window.print(), 100);
+              // Pequeno delay pra Chrome reagir ao reflow do DOM antes de capturar pra print
+              setTimeout(() => window.print(), 200);
             }}
             className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded text-[11px] hover:bg-amber-600">
             🖨️ Imprimir agora
@@ -2960,8 +2962,8 @@ function StatEditable({ label, value, onChange, unit, manual }: {
     ? { border: "border-emerald-300", bg: "bg-emerald-50", labelText: "text-emerald-700", valueText: "text-emerald-900", unitText: "text-emerald-600" }
     : { border: "border-slate-200", bg: "bg-white", labelText: "text-slate-500", valueText: "text-slate-900", unitText: "text-slate-500" };
   return (
-    <div className={`rounded px-1.5 py-0.5 border leading-tight flex flex-col justify-center ${colors.border} ${colors.bg}`} style={{ height: '28px' }}>
-      <div className={`text-[7.5px] uppercase tracking-wide ${colors.labelText} font-semibold leading-[1.1]`}>{label}</div>
+    <div className={`rounded px-1.5 py-0.5 border leading-tight flex flex-col justify-center ${colors.border} ${colors.bg}`} style={{ height: '32px' }}>
+      <div className={`text-[7.5px] uppercase tracking-wide ${colors.labelText} font-semibold leading-[1.05]`}>{label}</div>
       <div className="flex items-baseline gap-0.5">
         <input type="number" step="0.01" value={value}
           onChange={(e) => onChange(Number(e.target.value) || 0)}
@@ -3142,8 +3144,8 @@ function ConfigFieldBig({ label, children, manual }: { label: string; children: 
     ? { border: "border-emerald-300", bg: "bg-emerald-50", label: "text-emerald-700" }
     : { border: "border-slate-200", bg: "bg-white", label: "text-slate-500" };
   return (
-    <div className={`rounded border px-1.5 py-0.5 leading-tight overflow-hidden flex flex-col justify-center ${colors.border} ${colors.bg}`} style={{ height: '28px' }}>
-      <div className={`text-[7px] uppercase tracking-tight font-semibold leading-[1.1] whitespace-nowrap truncate ${colors.label}`}>{label}</div>
+    <div className={`rounded border px-1.5 py-0.5 leading-tight overflow-hidden flex flex-col justify-center ${colors.border} ${colors.bg}`} style={{ height: '32px' }}>
+      <div className={`text-[7px] uppercase tracking-tight font-semibold leading-[1.05] ${colors.label}`} title={label}>{label}</div>
       <div className="flex items-center">{children}</div>
     </div>
   );
@@ -3161,8 +3163,8 @@ function SelectCard({ label, value, options, onChange, readOnly, fullWidth }: {
 }) {
   const currentLabel = options.find((o) => o.v === value)?.l ?? value;
   return (
-    <div className={`rounded border border-slate-200 bg-white px-1.5 py-0.5 leading-tight overflow-hidden flex flex-col justify-center ${fullWidth ? "w-full" : ""}`} style={{ height: '28px' }}>
-      <div className="text-[7px] uppercase tracking-tight text-slate-500 font-semibold leading-[1.1] whitespace-nowrap truncate">{label}</div>
+    <div className={`rounded border border-slate-200 bg-white px-1.5 py-0.5 leading-tight overflow-hidden flex flex-col justify-center ${fullWidth ? "w-full" : ""}`} style={{ height: '32px' }}>
+      <div className="text-[7px] uppercase tracking-tight text-slate-500 font-semibold leading-[1.05]" title={label}>{label}</div>
       {readOnly ? (
         <div className="flex items-center h-[14px]">
           <span className="text-[9.5px] font-bold text-slate-900 leading-[1.1]">{currentLabel}</span>
@@ -3186,7 +3188,7 @@ function BigHighlight({ label, value, unit, manual }: { label: string; value: st
     ? { border: "border-emerald-300", bg: "bg-emerald-50", labelText: "text-emerald-700", valueText: "text-emerald-900", unitText: "text-emerald-700" }
     : { border: "border-amber-300", bg: "bg-amber-50", labelText: "text-amber-700", valueText: "text-amber-900", unitText: "text-amber-700" };
   return (
-    <div className={`rounded border ${colors.border} ${colors.bg} px-1.5 py-0.5 flex flex-col justify-center overflow-hidden`} style={{ height: '28px' }}>
+    <div className={`rounded border ${colors.border} ${colors.bg} px-1.5 py-0.5 flex flex-col justify-center overflow-hidden`} style={{ height: '32px' }}>
       <div className={`text-[8px] uppercase tracking-wide ${colors.labelText} font-semibold leading-tight`}>{label}</div>
       <div className="flex items-baseline gap-1 leading-tight">
         <span className={`text-[13px] font-bold ${colors.valueText} tabular-nums leading-none`}>{value}</span>
@@ -3204,7 +3206,7 @@ function BigHighlightInput({ label, value, onChange, unit, min, max, manual }: {
     ? { border: "border-emerald-300", bg: "bg-emerald-50", labelText: "text-emerald-700", valueText: "text-emerald-900", unitText: "text-emerald-700" }
     : { border: "border-amber-300", bg: "bg-amber-50", labelText: "text-amber-700", valueText: "text-amber-900", unitText: "text-amber-700" };
   return (
-    <div className={`rounded border ${colors.border} ${colors.bg} px-1.5 py-0.5 flex flex-col justify-center overflow-hidden`} style={{ height: '28px' }}>
+    <div className={`rounded border ${colors.border} ${colors.bg} px-1.5 py-0.5 flex flex-col justify-center overflow-hidden`} style={{ height: '32px' }}>
       <div className={`text-[8px] uppercase tracking-wide ${colors.labelText} font-semibold leading-tight`}>{label}</div>
       <div className="flex items-baseline gap-1 leading-tight">
         <input type="number" min={min} max={max} value={value}
