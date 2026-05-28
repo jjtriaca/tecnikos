@@ -1,5 +1,5 @@
 {
-  "version": "1.12.76",
-  "codename": "PDF print fix: 2a pagina em branco + imagem coletor pequena — display:none ao inves de visibility:hidden + h-[52mm] fixo",
-  "releasedAt": "2026-05-28T14:18:39.130Z"
+  "version": "1.12.77",
+  "codename": "Limpeza PDF: removido botao 👁️ PDF (redundante com Chrome Print Preview) + ~100 linhas de CSS simulating-print + portal toolbar — Imprimir agora tem icone 🖨️",
+  "releasedAt": "2026-05-28T15:30:59.609Z"
 }

@@ -4,7 +4,6 @@
 // Ver memory/project_heating_simulator_plan.md pra contexto.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { api, getAccessToken } from "@/lib/api";
 import { useDebounce } from "@/hooks/useDebounce";
 import { AutoSelectModal, type AutoSelectRule, type CatalogConfig } from "@/app/(dashboard)/quotes/pool/[id]/page";
@@ -1700,9 +1699,8 @@ function SolarTab({
   const [showColetorPicker, setShowColetorPicker] = useState(false);
   // v5.7 — modal de auto-selecao da bomba hidraulica (✨ ao lado da Bomba recomendada)
   const [showBombaPicker, setShowBombaPicker] = useState(false);
-  // v5.3 — pre-visualizacao do PDF dentro da propria pagina.
-  // Clona o #solar-pdf-area pra dentro do body via JS quando ativa, pra fugir dos containers Next.js.
-  const [pdfPreviewMode, setPdfPreviewMode] = useState(false);
+  // v1.12.77: removido pdfPreviewMode + botao 👁️ PDF — redundante com o botao Imprimir
+  // (Chrome ja abre print preview automatico, mesmo resultado visual).
 
   // v5.9 — zoom manual do datasheet, alem do zoom automatico por viewport (CSS).
   // Persistido em localStorage. null = usa o auto via CSS @media (lg/xl/2xl).
@@ -1760,7 +1758,6 @@ function SolarTab({
   const printViaClone = () => {
     // Cleanup defensivo: garante zero clones residuais antes de criar o novo
     document.querySelectorAll(".solar-pdf-clone-container").forEach((el) => el.remove());
-    document.documentElement.classList.remove("simulating-print");
 
     const container = createPdfClone("printing-clone");
     if (!container) return;
@@ -1785,20 +1782,6 @@ function SolarTab({
       }, 1000);
     }, 50);
   };
-
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    const cleanup = () => {
-      document.documentElement.classList.remove("simulating-print");
-      // Remove SOMENTE o clone do preview, nao do print
-      document.querySelectorAll(".solar-pdf-clone-container.preview-clone").forEach((el) => el.remove());
-    };
-    if (!pdfPreviewMode) { cleanup(); return; }
-    const container = createPdfClone("preview-clone");
-    if (!container) return;
-    document.documentElement.classList.add("simulating-print");
-    return cleanup;
-  }, [pdfPreviewMode]);
 
   if (loading) {
     return <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">Carregando dados solares...</div>;
@@ -1872,13 +1855,9 @@ function SolarTab({
               ✕ Limpar
             </button>
           )}
-          <button onClick={() => setPdfPreviewMode(true)}
-            className="rounded border border-blue-300 bg-blue-50 text-blue-800 px-2 py-1 text-[11px] font-semibold hover:bg-blue-100 transition shadow-sm whitespace-nowrap">
-            👁️ PDF
-          </button>
           <button onClick={printViaClone}
             className="rounded border border-slate-300 bg-white text-slate-700 px-2 py-1 text-[11px] font-semibold hover:bg-slate-50 transition shadow-sm whitespace-nowrap">
-            Imprimir
+            🖨️ Imprimir
           </button>
         </div>
       </div>
@@ -2709,29 +2688,8 @@ function SolarTab({
         </div>
       </div>
 
-      {/* Toolbar do pre-visualizacao via Portal (renderiza direto no body, sobrevive ao display:none) */}
-      {pdfPreviewMode && typeof document !== "undefined" && createPortal(
-        <div className="pdf-preview-toolbar">
-          <span>📄 Pré-visualização PDF — como ficará impresso em A4</span>
-          <button onClick={() => setPdfPreviewMode(false)}
-            className="bg-white text-blue-900 font-bold px-2 py-0.5 rounded text-[11px] hover:bg-amber-50">
-            ✕ Fechar
-          </button>
-          <button onClick={() => {
-              // v1.12.72: fecha o preview e dispara o printViaClone, que cria
-              // um clone limpo no body e printa SO o clone (via @media print +
-              // html.printing-mode). Resolve o "2 paginas" porque o original
-              // dentro do modal `fixed inset-0` nunca eh visto pelo motor de print.
-              setPdfPreviewMode(false);
-              // Aguarda React desmontar preview antes de criar o clone novo
-              setTimeout(() => printViaClone(), 50);
-            }}
-            className="bg-amber-500 text-white font-bold px-2 py-0.5 rounded text-[11px] hover:bg-amber-600">
-            🖨️ Imprimir agora
-          </button>
-        </div>,
-        document.body
-      )}
+      {/* v1.12.77: removida toolbar de Pre-visualizacao PDF (era redundante — Chrome
+          ja abre Print Preview automatico quando clica Imprimir). */}
 
       {/* Modal AutoSelect REAL (reusa do orcamento) — abre via icone ✨ ao lado do dropdown.
           Permite configurar regra de auto-selecao do coletor (filtro de tipo, criterio, ordenacao). */}
@@ -2942,106 +2900,16 @@ function SolarTab({
           }
         }
 
-        /* === Simulacao do @media print — usado pelo botao "Pre-visualizar PDF" ===
-           Estrategia: clone JS do #solar-pdf-area dentro de .solar-pdf-clone-container
-           inserido direto no body. Tudo o resto do body fica escondido. */
-        html.simulating-print body { background: #6b7280 !important; overflow: auto !important; }
-        html.simulating-print body > *:not(.solar-pdf-clone-container):not(.pdf-preview-toolbar) { display: none !important; }
-        html.simulating-print .solar-pdf-clone-container {
-          display: block !important;
-          padding: 30px 0 30px 0 !important;
-          min-height: 100vh !important;
-        }
-        html.simulating-print .solar-pdf-clone-container #solar-pdf-clone {
-          margin: 0 auto !important;
-          width: 210mm !important;
-          max-width: 210mm !important;
-          background: #fff !important;
-          box-shadow: 0 6px 32px rgba(0,0,0,0.4) !important;
-          font-size: 10px !important; line-height: 1.2 !important;
-          padding: 0 !important;
-          min-height: 0 !important; height: auto !important;
-          display: block !important;
-          border: 0 !important;
-        }
-        html.simulating-print #solar-pdf-clone > div.flex-1,
-        html.simulating-print #solar-pdf-clone .flex-1:empty { display: none !important; }
-        html.simulating-print #solar-pdf-clone[class*="min-h-"] { min-height: 0 !important; }
-        html.simulating-print #solar-pdf-clone section { padding-top: 4px !important; padding-bottom: 4px !important; }
-        html.simulating-print #solar-pdf-clone footer { padding-top: 3px !important; padding-bottom: 3px !important; }
-        html.simulating-print #solar-pdf-clone header { padding-top: 6px !important; padding-bottom: 6px !important; }
-        html.simulating-print #solar-pdf-clone .px-5 { padding-left: 10px !important; padding-right: 10px !important; }
-        html.simulating-print #solar-pdf-clone svg { max-height: 60mm !important; width: 100% !important; height: auto !important; }
-        html.simulating-print #solar-pdf-clone img { max-height: 38mm !important; }
-        html.simulating-print #solar-pdf-clone select { display: none !important; }
-        html.simulating-print #solar-pdf-clone input[type=range] { display: none !important; }
-        /* v1.12.73: classes print:* pra match com o que vai sair no PDF impresso */
-        html.simulating-print #solar-pdf-clone .print\\:aspect-auto { aspect-ratio: auto !important; }
-        html.simulating-print #solar-pdf-clone .print\\:h-full { height: 100% !important; }
-        html.simulating-print #solar-pdf-clone .print\\:h-auto { height: auto !important; }
-        html.simulating-print #solar-pdf-clone .print\\:max-h-\\[52mm\\] { max-height: 52mm !important; }
-        html.simulating-print #solar-pdf-clone .print\\:max-h-\\[58mm\\] { max-height: 58mm !important; }
-        html.simulating-print #solar-pdf-clone .print\\:max-h-\\[62mm\\] { max-height: 62mm !important; }
-        html.simulating-print #solar-pdf-clone .print\\:items-start { align-items: flex-start !important; }
-        html.simulating-print #solar-pdf-clone .print\\:py-1 { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
-        html.simulating-print #solar-pdf-clone .print\\:p-1 { padding: 0.25rem !important; }
-        html.simulating-print #solar-pdf-clone .print\\:mb-1 { margin-bottom: 0.25rem !important; }
-        /* v1.12.68: forca gradiente do header + cores no preview (Tailwind JIT pode nao
-           incluir as classes do gradient quando o clone eh inserido via JS). */
-        html.simulating-print #solar-pdf-clone header {
-          background: linear-gradient(to right, #0f172a, #1e3a8a) !important;
-          color: #ffffff !important;
-        }
-        html.simulating-print #solar-pdf-clone header h2,
-        html.simulating-print #solar-pdf-clone header div { color: #ffffff !important; }
-        html.simulating-print #solar-pdf-clone header .text-amber-300 { color: #fcd34d !important; }
-        html.simulating-print #solar-pdf-clone header .text-slate-300 { color: #cbd5e1 !important; }
-        /* Banners DIMENSIONAMENTO / SIMULACAO TERMICA — bg-blue-900 */
-        html.simulating-print #solar-pdf-clone .bg-blue-900 {
-          background-color: #1e3a8a !important;
-          color: #ffffff !important;
-        }
-        html.simulating-print #solar-pdf-clone .bg-blue-900 * { color: #ffffff !important; }
-        /* Ativa as classes print:* do Tailwind no modo simulacao */
-        html.simulating-print #solar-pdf-clone .print\\:inline-block { display: inline-block !important; }
-        html.simulating-print #solar-pdf-clone .print\\:hidden { display: none !important; }
-        html.simulating-print #solar-pdf-clone .print\\:bg-white { background: #fff !important; background-image: none !important; }
-        html.simulating-print #solar-pdf-clone .print\\:text-blue-900 { color: #1e3a8a !important; }
-        html.simulating-print #solar-pdf-clone .print\\:text-amber-700 { color: #b45309 !important; }
-        html.simulating-print #solar-pdf-clone .print\\:text-slate-600 { color: #475569 !important; }
-        html.simulating-print #solar-pdf-clone .print\\:border-b-4 { border-bottom-width: 4px !important; }
-        html.simulating-print #solar-pdf-clone .print\\:border-y { border-top-width: 1px !important; border-bottom-width: 1px !important; border-top-style: solid !important; border-bottom-style: solid !important; }
-        html.simulating-print #solar-pdf-clone .print\\:border-blue-900 { border-color: #1e3a8a !important; }
-
-        /* Toolbar fixa pra fechar a pre-visualizacao (sai do display:none geral) */
-        html.simulating-print body > .pdf-preview-toolbar-wrapper { display: block !important; }
-        html.simulating-print .pdf-preview-toolbar {
-          display: flex !important;
-          position: fixed !important;
-          top: 10px !important; left: 50% !important;
-          transform: translateX(-50%) !important;
-          z-index: 10000 !important;
-          background: #1e3a8a !important;
-          color: #fff !important;
-          padding: 6px 14px !important;
-          border-radius: 6px !important;
-          gap: 12px !important;
-          align-items: center !important;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
-          font-size: 12px !important;
-          font-family: ui-sans-serif, system-ui, sans-serif !important;
-        }
-        .pdf-preview-toolbar { display: none; }
+        /* v1.12.77: removido bloco "simulating-print" inteiro — era do botao 👁️ PDF
+           que foi extinto. Pra debug futuro do print, usar /dev/print-test. */
 
         /* === Tela: escala o datasheet proporcionalmente em viewports grandes ===
-           PDF/print mantem A4 inalterado (zoom: 1 forcado em @media print e
-           em html.simulating-print abaixo). So afeta a visualizacao na tela. */
+           PDF/print mantem A4 inalterado (zoom: 1 forcado em @media print). */
         @media (min-width: 1024px) { .solar-screen-wrapper { zoom: 1.15; } }
         @media (min-width: 1280px) { .solar-screen-wrapper { zoom: 1.30; } }
         @media (min-width: 1536px) { .solar-screen-wrapper { zoom: 1.50; } }
         @media (min-width: 1792px) { .solar-screen-wrapper { zoom: 1.70; } }
         @media print { .solar-screen-wrapper { zoom: 1 !important; } }
-        html.simulating-print .solar-screen-wrapper { zoom: 1 !important; }
       ` }} />
     </>
   );
@@ -3508,7 +3376,7 @@ function HeaderImageBlock({
   };
 
   return (
-    <div className="relative border border-slate-200 rounded overflow-hidden bg-slate-50 aspect-square w-full flex items-center justify-center print:bg-white print:aspect-auto print:h-full">
+    <div className="relative border border-slate-200 rounded overflow-hidden bg-slate-50 aspect-square w-full flex items-center justify-center print:bg-white print:aspect-auto print:h-[52mm]">
       <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleChange} />
       {imageUrl ? (
         <>
