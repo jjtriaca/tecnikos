@@ -5,6 +5,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -211,6 +212,29 @@ export class PoolBudgetController {
   @Delete('solar-rules/:ruleId')
   deleteSolarRule(@Param('ruleId') ruleId: string, @CurrentUser() user: AuthenticatedUser) {
     return this.solarBudget.deleteSolarRule(user.companyId, ruleId).then(() => ({ deleted: true }));
+  }
+
+  // ========== Tarifa de energia (v1.12.78) ==========
+  // Storage: Company.systemConfig.pool.tarifaKwhBRLCents. Default 95 (= R$ 0,95/kWh).
+  // Usada no card da bomba do Simulador pra estimar custo eletrico mensal.
+
+  @ApiOperation({ summary: 'Le a tarifa de energia configurada (centavos por kWh). Default 95. v1.12.78.' })
+  @Get('solar-tarifa-kwh')
+  async getSolarTarifaKwh(@CurrentUser() user: AuthenticatedUser) {
+    const cents = await this.solarBudget.getTarifaKwhBRLCents(user.companyId);
+    return { tarifaKwhBRLCents: cents };
+  }
+
+  @ApiOperation({ summary: 'Salva tarifa de energia (centavos por kWh). v1.12.78.' })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Patch('solar-tarifa-kwh')
+  async setSolarTarifaKwh(
+    @Body() body: { tarifaKwhBRLCents: number },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const cents = await this.solarBudget.setTarifaKwhBRLCents(user.companyId, body.tarifaKwhBRLCents);
+    return { tarifaKwhBRLCents: cents };
   }
 
   @ApiOperation({ summary: 'Simulacao solar — calculo rapido sem salvar' })

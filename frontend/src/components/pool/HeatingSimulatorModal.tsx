@@ -1539,6 +1539,47 @@ function SolarTab({
   const [showSolarRulesModal, setShowSolarRulesModal] = useState(false);
   const [activeRule, setActiveRule] = useState<{ id: string; name: string } | null>(null);
 
+  // v1.12.78: tarifa de energia (R$/kWh em centavos). Default 95 = R$ 0,95/kWh.
+  // Armazenada em Company.systemConfig.pool.tarifaKwhBRLCents (tenant global).
+  const [tarifaKwhBRLCents, setTarifaKwhBRLCents] = useState<number>(95);
+  const [showTarifaPopover, setShowTarifaPopover] = useState(false);
+  const [tarifaInputValue, setTarifaInputValue] = useState<string>("0,95");
+  const [tarifaSaving, setTarifaSaving] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await api.get<{ tarifaKwhBRLCents: number }>("/pool-budget/solar-tarifa-kwh");
+        if (!cancelled && Number.isFinite(r.tarifaKwhBRLCents)) {
+          setTarifaKwhBRLCents(r.tarifaKwhBRLCents);
+          setTarifaInputValue((r.tarifaKwhBRLCents / 100).toFixed(2).replace(".", ","));
+        }
+      } catch {
+        // mantem default 95
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const saveTarifa = async () => {
+    const norm = tarifaInputValue.replace(",", ".").trim();
+    const reais = Number(norm);
+    if (!Number.isFinite(reais) || reais <= 0 || reais > 1000) {
+      alert("Tarifa invalida. Use valor entre R$ 0,01 e R$ 1.000,00.");
+      return;
+    }
+    const cents = Math.round(reais * 100);
+    setTarifaSaving(true);
+    try {
+      const r = await api.patch<{ tarifaKwhBRLCents: number }>("/pool-budget/solar-tarifa-kwh", { tarifaKwhBRLCents: cents });
+      setTarifaKwhBRLCents(r.tarifaKwhBRLCents);
+      setShowTarifaPopover(false);
+    } catch (err: any) {
+      alert(`Erro ao salvar tarifa: ${err?.message ?? err}`);
+    } finally {
+      setTarifaSaving(false);
+    }
+  };
+
   // Resolve regra ativa (badge "Regra: X" abaixo do diagrama). Re-resolve quando
   // muda o coletor selecionado ou quando o operador edita as regras no modal.
   const reloadActiveRule = useCallback(async () => {
@@ -2483,6 +2524,25 @@ function SolarTab({
                       {bombaCandidates.length > 0 && (() => {
                         const selBomba = bombaCandidates.find((b) => b.productId === selectedBombaId) ?? bombaCandidates[0];
                         if (!selBomba) return null;
+
+                        // v1.12.78: estimativa de consumo eletrico mensal da bomba solar.
+                        // HSE_medio (Horas de Sol Equivalente) = media anual de radSol (kWh/m²/dia).
+                        // kWh/mes = potencia_kW × HSE_medio × 30 dias. Bomba liga durante sol util
+                        // (controlador diferencial: aciona quando T_coletor > T_piscina). Inverno
+                        // tem menos HSE, verao mais. A media anual eh proxy razoavel pro consumo.
+                        const computeConsumo = () => {
+                          const cv = selBomba.potenciaCv;
+                          if (cv == null || cv <= 0) return null;
+                          if (!report?.monthly?.length) return null;
+                          const hseMedio = report.monthly.reduce((s, m) => s + (Number(m.radSol) || 0), 0) / report.monthly.length;
+                          if (!Number.isFinite(hseMedio) || hseMedio <= 0) return null;
+                          const potenciaKW = cv * 0.7355;
+                          const kwhMes = potenciaKW * hseMedio * 30;
+                          const custoMesCents = kwhMes * tarifaKwhBRLCents; // cents
+                          return { hseMedio, potenciaKW, kwhMes, custoMesCents };
+                        };
+                        const consumo = computeConsumo();
+
                         return (
                           <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2.5 flex gap-3 items-start shadow-sm">
                             {/* Imagem da bomba (mesma estetica do coletor — quadrada, contain) */}
@@ -2532,6 +2592,63 @@ function SolarTab({
                                   </div>
                                 )}
                               </div>
+
+                              {/* v1.12.78: consumo eletrico mensal estimado */}
+                              {consumo && (
+                                <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                                  <div className="text-[10px] text-slate-700 leading-tight">
+                                    <span className="text-slate-500">⚡ Consumo médio:</span>{" "}
+                                    <span className="font-bold tabular-nums text-slate-900">{consumo.kwhMes.toFixed(0)}</span>
+                                    <span className="text-[9px] font-semibold text-slate-500"> kWh/mês</span>
+                                    <span className="text-[9px] text-slate-500 ml-1.5">({consumo.hseMedio.toFixed(1)}h sol/dia · {(consumo.potenciaKW).toFixed(2)} kW)</span>
+                                  </div>
+                                  <div className="relative flex items-center gap-1">
+                                    <div className="text-[11px] font-bold tabular-nums text-amber-700">
+                                      R$ {(consumo.custoMesCents / 100).toFixed(2)}<span className="text-[9px] font-semibold text-amber-600">/mês</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setTarifaInputValue((tarifaKwhBRLCents / 100).toFixed(2).replace(".", ","));
+                                        setShowTarifaPopover((v) => !v);
+                                      }}
+                                      title={`Tarifa atual: R$ ${(tarifaKwhBRLCents / 100).toFixed(2)}/kWh. Clique para alterar.`}
+                                      className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 print:hidden"
+                                    >
+                                      💡
+                                    </button>
+                                    {showTarifaPopover && (
+                                      <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-slate-300 rounded-lg shadow-lg p-3 w-[240px] print:hidden">
+                                        <div className="text-[10px] uppercase tracking-wider text-slate-600 font-bold mb-1.5">Tarifa de energia (R$/kWh)</div>
+                                        <input
+                                          type="text"
+                                          value={tarifaInputValue}
+                                          onChange={(e) => setTarifaInputValue(e.target.value)}
+                                          onKeyDown={(e) => { if (e.key === "Enter") saveTarifa(); if (e.key === "Escape") setShowTarifaPopover(false); }}
+                                          autoFocus
+                                          placeholder="0,95"
+                                          className="w-full rounded border border-slate-300 px-2 py-1 text-[12px] font-semibold focus:border-amber-500 focus:outline-none"
+                                        />
+                                        <div className="text-[9px] text-slate-500 mt-1 leading-tight">Tarifa aplicada a todos os orcamentos do tenant.</div>
+                                        <div className="mt-2 flex gap-1.5 justify-end">
+                                          <button
+                                            type="button"
+                                            onClick={() => setShowTarifaPopover(false)}
+                                            disabled={tarifaSaving}
+                                            className="text-[10px] px-2 py-1 rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-700"
+                                          >Cancelar</button>
+                                          <button
+                                            type="button"
+                                            onClick={saveTarifa}
+                                            disabled={tarifaSaving}
+                                            className="text-[10px] px-2 py-1 rounded bg-amber-600 text-white font-bold hover:bg-amber-700 disabled:bg-slate-300"
+                                          >{tarifaSaving ? "Salvando..." : "Salvar"}</button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
                         );

@@ -829,6 +829,41 @@ export class SolarBudgetService {
     }
   }
 
+  // ============ Tarifa de energia (v1.12.78) ============
+  //
+  // Storage: Company.systemConfig.pool.tarifaKwhBRLCents (int, centavos por kWh).
+  // Default: 95 (= R$ 0,95/kWh). Usada pelo card da bomba do Simulador Solar
+  // pra estimar custo eletrico mensal.
+
+  async getTarifaKwhBRLCents(companyId: string): Promise<number> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    const cents = (company?.systemConfig as any)?.pool?.tarifaKwhBRLCents;
+    const n = Number(cents);
+    return Number.isFinite(n) && n > 0 ? Math.round(n) : 95;
+  }
+
+  async setTarifaKwhBRLCents(companyId: string, valueCents: number): Promise<number> {
+    if (!Number.isFinite(valueCents) || valueCents <= 0 || valueCents > 100000) {
+      throw new BadRequestException('Tarifa invalida. Use valor entre 1 e 100000 centavos (R$ 0,01 a R$ 1.000,00).');
+    }
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    const systemConfig = (company?.systemConfig ?? {}) as Record<string, any>;
+    const pool = (systemConfig.pool ?? {}) as Record<string, any>;
+    pool.tarifaKwhBRLCents = Math.round(valueCents);
+    systemConfig.pool = pool;
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { systemConfig: systemConfig as any },
+    });
+    return Math.round(valueCents);
+  }
+
   // ============ CRUD de Regras Solares (v1.12.63) ============
   //
   // Storage: Company.systemConfig.pool.solarRules: SolarRuleConfig[].
