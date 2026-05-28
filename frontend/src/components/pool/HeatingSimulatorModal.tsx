@@ -255,6 +255,23 @@ interface SolarReport {
 type TabKey = "solar" | "bomba" | "comparativo";
 
 export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog }: Props) {
+  // v1.12.88: difere chamadas a onSaved pro momento de fechar o modal.
+  // Antes, cada recompute (extras, capa, vento, dropdown, etc) disparava
+  // onSaved → pai fazia await load() → refetch do budget → rerender pesado
+  // do modal → scroll resetava pro topo enquanto operador editava.
+  // Agora: marca pendingReloadRef e so chama onSaved no handleClose.
+  const pendingReloadRef = useRef(false);
+  const notifyPendingSave = useCallback(() => {
+    pendingReloadRef.current = true;
+  }, []);
+  const handleClose = useCallback(() => {
+    if (pendingReloadRef.current) {
+      pendingReloadRef.current = false;
+      // Notifica pai SEM aguardar — o close acontece imediato.
+      notifyPendingSave();
+    }
+    onClose();
+  }, [onSaved, onClose]);
   const [activeTab, setActiveTab] = useState<TabKey>("solar");
   const [cities, setCities] = useState<HeatingCity[]>([]);
   const [loading, setLoading] = useState(false);
@@ -434,7 +451,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
       }
       const data = await res.json();
       setSolarHeaderImage(data.solarHeaderImage);
-      onSaved?.();
+      notifyPendingSave();
     } catch (e: any) {
       setError(String(e?.message ?? e));
     } finally {
@@ -449,7 +466,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
     try {
       await api.del(`/pool-budgets/${budget.id}/solar-header-image`);
       setSolarHeaderImage(null);
-      onSaved?.();
+      notifyPendingSave();
     } catch (e: any) {
       setError(String(e?.message ?? e));
     } finally {
@@ -508,7 +525,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
       if (cid) body.collectorProductId = cid;
       const r = await api.post<SolarReport>(`/pool-budgets/${budget.id}/solar-report/recompute`, body);
       setSolarReport(r);
-      onSaved?.();
+      notifyPendingSave();
       // Restaura scroll apos o re-render (2 RAFs pra cobrir layout + repaint do zoom CSS)
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
@@ -533,7 +550,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
       });
       setReport(r);
       setShowEquipmentPicker(false);
-      onSaved?.();
+      notifyPendingSave();
     } catch (e: any) {
       setError(String(e?.message ?? e));
     } finally {
@@ -623,7 +640,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
         const fresh = await api.post<HeatingReport>(`/pool-budgets/${budget.id}/heating-report/recompute`);
         setReport(fresh);
         userTouchedExtrasRef.current = false; // resetar — proximo touch dispara de novo
-        onSaved?.();
+        notifyPendingSave();
       } catch (e: any) {
         setError(String(e?.message ?? e));
       }
@@ -669,7 +686,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
       await api.put(`/pool-budgets/${budget.id}`, { environmentParams: newEnv });
       const r = await api.post<HeatingReport>(`/pool-budgets/${budget.id}/heating-report/recompute`);
       setReport(r);
-      onSaved?.();
+      notifyPendingSave();
     } catch (e: any) {
       setError(String(e?.message ?? e));
     } finally {
@@ -752,7 +769,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
                 className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 h-3 w-3" />
               <span className="text-[10.5px] font-semibold text-amber-900">⚡ Cálculo rápido</span>
             </label>
-            <button onClick={onClose}
+            <button onClick={handleClose}
               className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition leading-none">
               ✕
             </button>
