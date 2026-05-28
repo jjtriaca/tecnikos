@@ -2525,33 +2525,51 @@ function SolarTab({
                         const selBomba = bombaCandidates.find((b) => b.productId === selectedBombaId) ?? bombaCandidates[0];
                         if (!selBomba) return null;
 
-                        // v1.12.79: consumo eletrico considera DEMANDA TERMICA vs CAPACIDADE
-                        // dos coletores. Bomba opera com controlador diferencial: liga enquanto
-                        // T_coletor > T_piscina (durante sol). Mas DESLIGA antes do fim do sol
-                        // se a perda termica do dia ja foi reposta.
+                        // v1.12.80: consumo eletrico com 2 ajustes em cima de v1.12.79.
                         //
-                        // Fator de utilizacao = min(1, perdaDiaria / ganhoDia):
-                        //  - Sol forte + coletores sobrando → fator < 1 → bomba opera < HSE
-                        //  - Sol fraco / poucos coletores → fator = 1 → bomba opera HSE inteiro
+                        // 1) ESCALA TERMICA — perda escala com ΔT(alvo − ambiente). Backend
+                        //    calcula perdaCorrigidaPorDia em °C/dia FIXO (so depende de mes,
+                        //    capa, vento), mas perda real e proporcional ao ΔT. Sem isso,
+                        //    mudar temp_alvo de 35→30°C nao afetava o consumo da bomba.
                         //
-                        // Quando operador reduz coletores extras, ganhoDia cai proporcionalmente
-                        // → fator sobe → horas/dia sobem → consumo sobe. Modela a realidade.
+                        // 2) FLOOR VARIAVEL POR TEMP_ALVO — controlador diferencial padrao nao
+                        //    mede temp_alvo. Roda enquanto T_coletor > T_piscina + ΔT_min.
+                        //    Quando alvo eh alto (35°C+), sistema raramente atinge alvo →
+                        //    bomba opera quase todo HSE. Quando alvo eh baixo (25°C), piscina
+                        //    bate o alvo cedo e operador eventualmente desliga manual.
+                        //    Floor reflete esse minimo de operacao por temperatura alvo:
+                        //      25°C → 0.20 / 30°C → 0.50 / 35°C → 0.70 / 38°C → 0.85
+                        //      formula: clamp(0.20, 0.85, 0.20 + 0.10 × (tempAlvo − 25))
                         const computeConsumo = () => {
                           const cv = selBomba.potenciaCv;
                           if (cv == null || cv <= 0) return null;
                           if (!report?.monthly?.length) return null;
                           const potenciaKW = cv * 0.7355;
+                          const tempAlvo = Number(tempAguaDesejada) || 30;
+                          const DELTA_T_BASE = 13; // ΔT tipico (35°C alvo − 22°C ambiente)
+                          const floorByTarget = Math.max(0.20, Math.min(0.85, 0.20 + 0.10 * (tempAlvo - 25)));
+
                           let kwhAno = 0;
                           let horasAno = 0;
                           let hseTotal = 0;
                           let fatorTotal = 0;
                           let mesesValidos = 0;
                           for (const m of report.monthly) {
-                            const hse = Number(m.radSol) || 0;             // kWh/m²/dia ≈ horas sol equivalente
-                            const perda = Number(m.perdaCorrigidaPorDia) || 0; // kWh/dia
-                            const ganho = Number(m.ganhoDia) || 0;          // kWh/dia
+                            const hse = Number(m.radSol) || 0;
+                            const perdaBase = Number(m.perdaCorrigidaPorDia) || 0;
+                            const ganho = Number(m.ganhoDia) || 0;
+                            const tempAmb = Number(m.tempAmbiente) || 22;
                             if (hse <= 0) continue;
-                            const fator = ganho > 0 ? Math.min(1, perda / ganho) : 1;
+
+                            // Escala termica: perda real ∝ ΔT(alvo − ambiente)
+                            const deltaT = Math.max(1, tempAlvo - tempAmb);
+                            const escalaTermica = deltaT / DELTA_T_BASE;
+                            const perdaEscalada = perdaBase * escalaTermica;
+
+                            const fatorBase = ganho > 0 ? Math.min(1, perdaEscalada / ganho) : 1;
+                            // Floor: bomba sempre opera o minimo, conforme temp alvo
+                            const fator = Math.max(floorByTarget, fatorBase);
+
                             const horasDia = hse * fator;
                             const horasMes = horasDia * 30;
                             kwhAno += potenciaKW * horasMes;
@@ -2566,7 +2584,7 @@ function SolarTab({
                           const hseMedio = hseTotal / mesesValidos;
                           const fatorMedio = fatorTotal / mesesValidos;
                           const custoMesCents = kwhMesMedio * tarifaKwhBRLCents;
-                          return { hseMedio, horasDiaMedio, fatorMedio, potenciaKW, kwhMes: kwhMesMedio, custoMesCents };
+                          return { hseMedio, horasDiaMedio, fatorMedio, floorByTarget, tempAlvo, potenciaKW, kwhMes: kwhMesMedio, custoMesCents };
                         };
                         const consumo = computeConsumo();
 
@@ -2627,7 +2645,7 @@ function SolarTab({
                                     <span className="text-slate-500">⚡ Consumo médio:</span>{" "}
                                     <span className="font-bold tabular-nums text-slate-900">{consumo.kwhMes.toFixed(0)}</span>
                                     <span className="text-[9px] font-semibold text-slate-500"> kWh/mês</span>
-                                    <span className="text-[9px] text-slate-500 ml-1.5" title={`Fator utilizacao bomba: ${(consumo.fatorMedio * 100).toFixed(0)}% do tempo de sol (HSE medio ${consumo.hseMedio.toFixed(1)}h/dia · perda termica vs ganho dos coletores)`}>({consumo.horasDiaMedio.toFixed(1)}h bomba/dia · {(consumo.potenciaKW).toFixed(2)} kW)</span>
+                                    <span className="text-[9px] text-slate-500 ml-1.5" title={`Fator utilizacao bomba: ${(consumo.fatorMedio * 100).toFixed(0)}% do tempo de sol (HSE medio ${consumo.hseMedio.toFixed(1)}h/dia · floor por temp alvo ${consumo.tempAlvo}°C = ${(consumo.floorByTarget * 100).toFixed(0)}% · escala termica por ΔT(alvo-ambiente))`}>({consumo.horasDiaMedio.toFixed(1)}h bomba/dia · {(consumo.potenciaKW).toFixed(2)} kW)</span>
                                   </div>
                                   <div className="relative flex items-center gap-1">
                                     <div className="text-[11px] font-bold tabular-nums text-amber-700">
