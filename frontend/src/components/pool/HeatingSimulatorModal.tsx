@@ -1549,7 +1549,7 @@ function SolarTab({
     let cancelled = false;
     (async () => {
       try {
-        const r = await api.get<{ tarifaKwhBRLCents: number }>("/pool-budget/solar-tarifa-kwh");
+        const r = await api.get<{ tarifaKwhBRLCents: number }>("/pool-budgets/solar-tarifa-kwh");
         if (!cancelled && Number.isFinite(r.tarifaKwhBRLCents)) {
           setTarifaKwhBRLCents(r.tarifaKwhBRLCents);
           setTarifaInputValue((r.tarifaKwhBRLCents / 100).toFixed(2).replace(".", ","));
@@ -1570,7 +1570,7 @@ function SolarTab({
     const cents = Math.round(reais * 100);
     setTarifaSaving(true);
     try {
-      const r = await api.patch<{ tarifaKwhBRLCents: number }>("/pool-budget/solar-tarifa-kwh", { tarifaKwhBRLCents: cents });
+      const r = await api.patch<{ tarifaKwhBRLCents: number }>("/pool-budgets/solar-tarifa-kwh", { tarifaKwhBRLCents: cents });
       setTarifaKwhBRLCents(r.tarifaKwhBRLCents);
       setShowTarifaPopover(false);
     } catch (err: any) {

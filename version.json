@@ -1,5 +1,5 @@
 {
-  "version": "1.12.80",
-  "codename": "Consumo eletrico bomba v2: escala termica (perda ∝ ΔT alvo-ambiente) + floor variavel por temp_alvo (25°C→20% / 35°C→70%). Mudar temp alvo agora afeta consumo significativamente",
-  "releasedAt": "2026-05-28T16:59:07.123Z"
+  "version": "1.12.81",
+  "codename": "Fix tarifa kWh: URL singular /pool-budget/ era plural /pool-budgets/ no frontend — popover do icone 💡 voltou a salvar",
+  "releasedAt": "2026-05-28T17:05:49.094Z"
 }
