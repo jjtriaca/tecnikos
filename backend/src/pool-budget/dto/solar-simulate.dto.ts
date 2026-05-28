@@ -95,4 +95,15 @@ export class SolarRecomputeDto {
   @IsNumber()
   @Min(0)
   volumeM3?: number;
+
+  // v1.12.83: capa termica e vento. Antes nao eram aceitos no recompute do solar,
+  // entao mudar a capa no formulario nao afetava o calculo (backend lia env.capaTermica
+  // do banco). Agora frontend envia esses 2 campos a cada Recalcular.
+  @IsOptional()
+  @IsIn(['SIM', 'NAO'])
+  capa?: 'SIM' | 'NAO';
+
+  @IsOptional()
+  @IsIn(['FRACO', 'MODERADO', 'FORTE'])
+  vento?: 'FRACO' | 'MODERADO' | 'FORTE';
 }

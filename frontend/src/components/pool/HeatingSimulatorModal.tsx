@@ -464,7 +464,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
   async function recomputeSolar(
     extraPct?: number,
     collectorId?: string | null,
-    extras?: { orientacaoTelhado?: string; inclinacaoTelhadoGraus?: number; temperaturaAguaInicial?: number; alturaTelhadoM?: number; areaPiscinaM2?: number; volumeM3?: number },
+    extras?: { orientacaoTelhado?: string; inclinacaoTelhadoGraus?: number; temperaturaAguaInicial?: number; alturaTelhadoM?: number; areaPiscinaM2?: number; volumeM3?: number; capa?: 'SIM' | 'NAO'; vento?: 'FRACO' | 'MODERADO' | 'FORTE' },
   ) {
     const savedScrollTop = scrollContainerRef.current?.scrollTop ?? 0;
     setSolarRecomputing(true);
@@ -480,9 +480,15 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
         alturaTelhadoM?: number;
         areaPiscinaM2?: number;
         volumeM3?: number;
+        capa?: 'SIM' | 'NAO';
+        vento?: 'FRACO' | 'MODERADO' | 'FORTE';
       } = {
         extraColetoresPct: extraPct ?? solarExtraPct,
         tempDesejada: Number(tempAguaDesejada),
+        // v1.12.83: envia capa/vento atuais do form pro backend usar no calculo + persistir.
+        // Antes esses campos nao iam, backend usava env do banco e ignorava mudanca da UI.
+        capa: capaTermica ? 'SIM' : 'NAO',
+        vento: normEnum(vento, ['FRACO', 'MODERADO', 'FORTE'], 'MODERADO') as 'FRACO' | 'MODERADO' | 'FORTE',
         ...(extras ?? {}),
       };
       // v1.12.50: envia area/volume vindos do estado MANUAL do Simulador (dispArea/dispVolume

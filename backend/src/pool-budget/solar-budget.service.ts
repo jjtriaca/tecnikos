@@ -243,8 +243,10 @@ export class SolarBudgetService {
       areaPiscinaM2: overrides?.areaPiscinaM2 ?? (Number(dims.area) || 0),
       volumeM3: overrides?.volumeM3 ?? (Number(dims.volume) || 0),
       tempDesejada: overrides?.tempDesejada ?? Number(env.temperaturaAguaDesejada) ?? 30,
-      capa: (env.capaTermica === false ? 'NAO' : 'SIM') as 'SIM' | 'NAO',
-      vento: ((env.vento ?? 'MODERADO') as string).toUpperCase() as 'FRACO' | 'MODERADO' | 'FORTE',
+      // v1.12.83: capa/vento agora aceitam override do form (antes era so env do banco,
+      // que nao reflete mudancas nao salvas no formulario).
+      capa: (overrides?.capa ?? (env.capaTermica === false ? 'NAO' : 'SIM')) as 'SIM' | 'NAO',
+      vento: (overrides?.vento ?? ((env.velocidadeVento ?? env.vento ?? 'MODERADO') as string).toUpperCase()) as 'FRACO' | 'MODERADO' | 'FORTE',
       extraColetoresPct: overrides?.extraColetoresPct ?? Number(existingSolar.extraColetoresPct) ?? 0,
       uf: (env.uf ?? 'SP') as string,
       cidade: env.cidade ?? null,
@@ -298,6 +300,10 @@ export class SolarBudgetService {
       ...(overrides?.inclinacaoTelhadoGraus !== undefined && { inclinacaoTelhadoGraus: overrides.inclinacaoTelhadoGraus }),
       ...(overrides?.temperaturaAguaInicial !== undefined && { temperaturaAguaInicial: overrides.temperaturaAguaInicial }),
       ...(overrides?.alturaTelhadoM !== undefined && { alturaTelhadoM: overrides.alturaTelhadoM }),
+      // v1.12.83: persiste capa/vento quando vem override (antes nao persistia, mudanca
+      // no form sumia ao reabrir o modal). capaTermica eh boolean, capa do DTO eh "SIM"/"NAO".
+      ...(overrides?.capa !== undefined && { capaTermica: overrides.capa === 'SIM' }),
+      ...(overrides?.vento !== undefined && { velocidadeVento: overrides.vento }),
     };
     await this.prisma.poolBudget.update({
       where: { id: budgetId },
