@@ -1,5 +1,5 @@
 {
-  "version": "1.12.88",
-  "codename": "Fix scroll volta pro topo no Simulador: cada recompute disparava onSaved → pai fazia load() → refetch + rerender pesado durante edicao. Agora difere onSaved pro fechamento do modal (pendingReloadRef + handleClose)",
-  "releasedAt": "2026-05-28T18:36:08.012Z"
+  "version": "1.12.89",
+  "codename": "Debug consumo bomba: painel violeta no card mostra qPerdas/qSolar/fator/capa/vento lidos pelo backend. thermal-demand recebe capa/vento do form atual (antes lia banco com delay). Pra identificar saturacao do fator",
+  "releasedAt": "2026-05-28T18:48:46.728Z"
 }

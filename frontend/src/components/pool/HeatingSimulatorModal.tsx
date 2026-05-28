@@ -1577,15 +1577,24 @@ function SolarTab({
       qSolarKwhDia?: number; qSolarKwhMes?: number;
       coberturaSolarPct?: number;
       fatorUtilizacaoBomba?: number; bombaHorasDia?: number; bombaConsumoKwhMes?: number;
+      hseHorasDia?: number;
     }>;
     qPerdasMediaKwhDia: number; qPerdasMediaKwhMes: number; qPerdasPicoKwhDia: number;
     qSolarMediaKwhDia?: number; qSolarMediaKwhMes?: number; coberturaSolarMediaPct?: number;
     bombaHorasDiaMedio?: number; bombaConsumoKwhMesMedio?: number; bombaPotenciaKW?: number;
+    inputs: {
+      tempAlvo: number; tempInicial?: number; capaTermica: boolean; vento: string;
+      areaM2: number; volumeM3: number;
+      qtdColetores?: number; areaTotalColetorM2?: number;
+      orientacaoTelhado?: string; inclinacaoTelhadoGraus?: number; fatorInstalacao?: number;
+    };
   };
   const [thermalReport, setThermalReport] = useState<ThermalDemandReport | null>(null);
 
   // Recalcula thermal-demand sempre que o report solar, bomba ou inputs criticos mudam.
-  // Endpoint usa o budget salvo + overrides do form atual (capa/vento/temps/qtdColetores/bomba).
+  // v1.12.89: agora envia TAMBEM capa e vento atuais do form (antes lia so do banco,
+  // que tinha delay de save do recomputeSolar — quando vento mudava na UI, demand
+  // ainda usava valor antigo do banco).
   useEffect(() => {
     if (!report || !selectedBombaId) { setThermalReport(null); return; }
     const selBomba = bombaCandidates.find((b) => b.productId === selectedBombaId) ?? bombaCandidates[0];
@@ -1596,6 +1605,8 @@ function SolarTab({
         const r = await api.post<ThermalDemandReport>(`/pool-budgets/${budget.id}/thermal-demand`, {
           tempAlvo: Number(tempAguaDesejada),
           tempInicial: Number.isFinite(temperaturaInicial) ? temperaturaInicial : undefined,
+          capaTermica,
+          vento: normEnum(vento, ['FRACO', 'MODERADO', 'FORTE'], 'MODERADO'),
           qtdColetores: Math.round(Number(report.qtdColetores) || 0),
           orientacaoTelhado,
           inclinacaoTelhadoGraus: Number.isFinite(inclinacaoTelhado) ? inclinacaoTelhado : undefined,
@@ -1608,7 +1619,7 @@ function SolarTab({
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [budget.id, report?.computedAt, report?.qtdColetores, selectedBombaId, tempAguaDesejada, temperaturaInicial, orientacaoTelhado, inclinacaoTelhado]);
+  }, [budget.id, report?.computedAt, report?.qtdColetores, selectedBombaId, tempAguaDesejada, temperaturaInicial, orientacaoTelhado, inclinacaoTelhado, capaTermica, vento]);
   const [showTarifaPopover, setShowTarifaPopover] = useState(false);
   const [tarifaInputValue, setTarifaInputValue] = useState<string>("0,95");
   const [tarifaSaving, setTarifaSaving] = useState(false);
@@ -2796,6 +2807,34 @@ function SolarTab({
                                       </div>
                                     )}
                                   </div>
+                                </div>
+                              )}
+
+                              {/* v1.12.89: PAINEL DEBUG (print:hidden) — mostra os valores que vem do
+                                  backend thermal-demand pra diagnosticar saturacao do fator. Remover
+                                  apos validar que o calculo varia conforme esperado. */}
+                              {thermalReport && (
+                                <div className="mt-1.5 pt-1.5 border-t border-dashed border-violet-200 text-[9px] text-violet-700 print:hidden leading-snug">
+                                  <div className="font-bold text-violet-800 mb-0.5">🐛 DEBUG thermal-demand</div>
+                                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+                                    <div>qPerdas média: <span className="font-semibold tabular-nums">{thermalReport.qPerdasMediaKwhDia?.toFixed(1)} kWh/dia</span></div>
+                                    <div>qPerdas pico: <span className="font-semibold tabular-nums">{thermalReport.qPerdasPicoKwhDia?.toFixed(1)} kWh/dia</span></div>
+                                    <div>qSolar média: <span className="font-semibold tabular-nums">{thermalReport.qSolarMediaKwhDia?.toFixed(1) ?? '—'} kWh/dia</span></div>
+                                    <div>Cobertura solar: <span className="font-semibold tabular-nums">{thermalReport.coberturaSolarMediaPct?.toFixed(0) ?? '—'}%</span></div>
+                                    <div>Fator bomba: <span className={`font-semibold tabular-nums ${(thermalReport.monthly[0]?.fatorUtilizacaoBomba ?? 0) >= 0.99 ? 'text-red-600' : ''}`}>{((thermalReport.monthly[0]?.fatorUtilizacaoBomba ?? 0) * 100).toFixed(0)}% {(thermalReport.monthly[0]?.fatorUtilizacaoBomba ?? 0) >= 0.99 && '⚠ SATURADO'}</span></div>
+                                    <div>HSE médio: <span className="font-semibold tabular-nums">{((thermalReport.monthly.reduce((s,m)=>s+(m.hseHorasDia||0),0))/(thermalReport.monthly.length||1)).toFixed(1)}h/dia</span></div>
+                                    <div>Capa lida: <span className="font-semibold">{thermalReport.inputs?.capaTermica ? 'SIM ✓' : 'NÃO ✗'}</span></div>
+                                    <div>Vento lido: <span className="font-semibold">{thermalReport.inputs?.vento}</span></div>
+                                    <div>Qtd col lida: <span className="font-semibold tabular-nums">{thermalReport.inputs?.qtdColetores ?? '—'}</span></div>
+                                    <div>Area col total: <span className="font-semibold tabular-nums">{thermalReport.inputs?.areaTotalColetorM2?.toFixed(1) ?? '—'} m²</span></div>
+                                    <div>Fator instalação: <span className="font-semibold tabular-nums">{thermalReport.inputs?.fatorInstalacao?.toFixed(2) ?? '—'}</span></div>
+                                    <div>T_alvo lido: <span className="font-semibold tabular-nums">{thermalReport.inputs?.tempAlvo}°C</span></div>
+                                  </div>
+                                  {thermalReport.monthly[0]?.fatorUtilizacaoBomba != null && thermalReport.monthly[0].fatorUtilizacaoBomba >= 0.99 && (
+                                    <div className="mt-1 text-red-700 font-semibold">
+                                      ⚠ Sistema saturado: qPerdas ({thermalReport.qPerdasMediaKwhDia.toFixed(0)}) ≥ qSolar ({thermalReport.qSolarMediaKwhDia?.toFixed(0)}). Bomba opera HSE inteiro independente de coletores extras. Investigar: qtotalKw × 24 pode estar inflando perdas demais OU capa/vento errados.
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
