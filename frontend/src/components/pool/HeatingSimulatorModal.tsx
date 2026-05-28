@@ -2547,7 +2547,10 @@ function SolarTab({
                           const potenciaKW = cv * 0.7355;
                           const tempAlvo = Number(tempAguaDesejada) || 30;
                           const DELTA_T_BASE = 13; // ΔT tipico (35°C alvo − 22°C ambiente)
-                          const floorByTarget = Math.max(0.20, Math.min(0.85, 0.20 + 0.10 * (tempAlvo - 25)));
+                          // v1.12.82: floor mais suave (era 0.20 + 0.10× → cap 0.85 a 35°C, dominava demais).
+                          // Agora: 25°C→0.10 / 30°C→0.30 / 35°C→0.50 / 38°C+→0.50 (cap). Mudar coletores
+                          // extras volta a influenciar o consumo (antes ambos batiam no floor alto).
+                          const floorByTarget = Math.max(0.10, Math.min(0.50, 0.10 + 0.04 * (tempAlvo - 25)));
 
                           let kwhAno = 0;
                           let horasAno = 0;

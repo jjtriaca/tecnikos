@@ -1,5 +1,5 @@
 {
-  "version": "1.12.81",
-  "codename": "Fix tarifa kWh: URL singular /pool-budget/ era plural /pool-budgets/ no frontend — popover do icone 💡 voltou a salvar",
-  "releasedAt": "2026-05-28T17:05:49.094Z"
+  "version": "1.12.82",
+  "codename": "Fix floor consumo bomba: inclinacao reduzida (25°C→10% / 30°C→30% / 35°C→50% / cap 50%). Antes floor 85% a 35°C dominava — agora mexer em coletores extras volta a variar o consumo",
+  "releasedAt": "2026-05-28T17:10:09.628Z"
 }
