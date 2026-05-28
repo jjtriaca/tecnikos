@@ -1702,6 +1702,21 @@ function SolarTab({
     }
   }
 
+  // v1.12.86: re-dispara o calculo da perda de carga quando o dimensionamento
+  // do report muda (coletPorBat, batPorRamo, vazao) — porque agora a perda
+  // de carga INCLUI as baterias em serie (v1.12.85). Sem isso, o card mostrava
+  // valor antigo de mca quando o operador trocava de coletor ou aumentava extras.
+  const reportColetPorBat = report?.coletoresPorBateria;
+  const reportBatPorRamo = report?.batPorRamo;
+  const reportVazao = report?.vazaoTotalM3h;
+  useEffect(() => {
+    if (!pipeResult) return;
+    if (!pipeComprimento || pipeComprimento <= 0) return;
+    // Re-dispara apenas se ja temos um pipe calculado e o dimensionamento mudou
+    recomputePipe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reportColetPorBat, reportBatPorRamo, reportVazao]);
+
   async function recomputePipe(overrides?: { comprimentoM?: number; desnivelM?: number; diametroMm?: number | null }) {
     const comp = overrides?.comprimentoM ?? pipeComprimento;
     const desn = overrides?.desnivelM ?? pipeDesnivel;

@@ -1,5 +1,5 @@
 {
-  "version": "1.12.85",
-  "codename": "Perda interna das baterias na altura manometrica: coletPorBat × batSerie × 0.20mca/coletor. Antes ignorava — bomba ficava subdimensionada com varias baterias em serie. Override por tenant via pipeDefaults.perdaPorColetorMca",
-  "releasedAt": "2026-05-28T18:01:29.964Z"
+  "version": "1.12.86",
+  "codename": "Auto-recalcula perda de carga quando coletPorBat/batSerie/vazao do report mudam — antes o mca ficava desatualizado ao trocar coletor ou aumentar extras (Recalcular nao disparava recomputePipe)",
+  "releasedAt": "2026-05-28T18:13:32.289Z"
 }
