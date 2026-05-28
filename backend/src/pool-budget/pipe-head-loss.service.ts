@@ -36,11 +36,19 @@ export interface PipeHeadLossInputs {
   teQty?: number;
   registroQty?: number;
   valvulaQty?: number;
+  // v1.12.85: perda interna nos coletores em serie. Atraves de N coletores
+  // ligados em SERIE (dentro de cada bateria + B baterias em serie), a agua
+  // perde carga. Cada coletor tem ~0.15-0.30 mca a vazao nominal (datasheet
+  // do fabricante). Solis usa ~0.20 mca/coletor como referencia.
+  coletoresPorBateria?: number;     // N coletores em serie dentro da bateria
+  batPorRamo?: number;              // B baterias em serie (paralelas nao somam)
+  perdaPorColetorMca?: number;      // default 0.20 (mca por coletor a vazao nominal)
 }
 
 export interface PipeHeadLossResult {
-  alturaManometricaTotal: number; // MCA
-  perdaDinamica: number; // MCA
+  alturaManometricaTotal: number; // MCA (perdaDinamica + perdaBaterias + desnivel)
+  perdaDinamica: number; // MCA (atrito na tubulacao externa)
+  perdaBateriasMca: number; // MCA (perda interna nos coletores em serie)
   velocidade: number; // m/s
   reynolds: number;
   atritoF: number;
@@ -229,8 +237,17 @@ export class PipeHeadLossService {
     const g = 9.8;
     const perdaDinamica = atritoF * (comprimentoEquivalente / diM) * (Math.pow(velocidade, 2) / (2 * g));
 
-    // Altura manometrica total = perda dinamica + desnivel geometrico
-    const alturaManometricaTotal = perdaDinamica + inputs.desnivelM;
+    // v1.12.85: perda interna nos coletores em serie. Total de coletores num
+    // ramo serie = coletoresPorBateria × batPorRamo. Cada coletor tem perda
+    // ~0.20 mca a vazao nominal. Baterias em PARALELO nao somam (vazao se
+    // divide, mas perda por ramo eh a mesma).
+    const coletPorBat = inputs.coletoresPorBateria ?? 0;
+    const batSerie = inputs.batPorRamo ?? 0;
+    const perdaUnitaria = inputs.perdaPorColetorMca ?? 0.20;
+    const perdaBateriasMca = coletPorBat * batSerie * perdaUnitaria;
+
+    // Altura manometrica total = perda dinamica + perda baterias + desnivel geometrico
+    const alturaManometricaTotal = perdaDinamica + perdaBateriasMca + inputs.desnivelM;
 
     // Aviso de velocidade alta (Solis alerta >=2.5 m/s)
     let aviso: string | null = null;
@@ -241,6 +258,7 @@ export class PipeHeadLossService {
     return {
       alturaManometricaTotal: Number(alturaManometricaTotal.toFixed(3)),
       perdaDinamica: Number(perdaDinamica.toFixed(3)),
+      perdaBateriasMca: Number(perdaBateriasMca.toFixed(3)),
       velocidade: Number(velocidade.toFixed(3)),
       reynolds: Math.round(reynolds),
       atritoF: Number(atritoF.toFixed(5)),

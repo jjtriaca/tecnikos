@@ -1,5 +1,5 @@
 {
-  "version": "1.12.84",
-  "codename": "ThermalDemandService — calculo central unificado de demanda termica (kWh/mes) considerando 17 fatores (capa, vento, temps, telhado, clima, coletor, extras). Endpoint /thermal-demand. Card da bomba usa esse motor (Tabela78) ao inves de heuristica local",
-  "releasedAt": "2026-05-28T17:47:40.501Z"
+  "version": "1.12.85",
+  "codename": "Perda interna das baterias na altura manometrica: coletPorBat × batSerie × 0.20mca/coletor. Antes ignorava — bomba ficava subdimensionada com varias baterias em serie. Override por tenant via pipeDefaults.perdaPorColetorMca",
+  "releasedAt": "2026-05-28T18:01:29.964Z"
 }

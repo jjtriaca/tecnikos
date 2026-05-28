@@ -477,6 +477,15 @@ export class SolarBudgetService {
       diametroMm = autoPickInfo.diametroMm;
     }
 
+    // v1.12.85: passa coletoresPorBateria + batPorRamo do solarReport pra incluir
+    // a perda interna dos coletores em serie (cada coletor ~0.20 mca a vazao
+    // nominal). Antes ignoravamos isso e bomba ficava subdimensionada quando
+    // havia muitas baterias em serie.
+    const coletPorBat = Number(solarReport?.coletoresPorBateria) || 0;
+    const batSerie = Number(solarReport?.batPorRamo) || 0;
+    // Permite override no Company.systemConfig.pool.pipeDefaults.perdaPorColetorMca
+    const perdaPorColetorMca = Number(tenantDefaults.perdaPorColetorMca) || 0.20;
+
     const inputs = {
       comprimentoM: dto.comprimentoM,
       desnivelM: dto.desnivelM,
@@ -489,6 +498,9 @@ export class SolarBudgetService {
       teQty: dto.teQty ?? tenantDefaults.teQty ?? HARDCODED_DEFAULTS.teQty,
       registroQty: dto.registroQty ?? tenantDefaults.registroQty ?? HARDCODED_DEFAULTS.registroQty,
       valvulaQty: dto.valvulaQty ?? tenantDefaults.valvulaQty ?? HARDCODED_DEFAULTS.valvulaQty,
+      coletoresPorBateria: coletPorBat,
+      batPorRamo: batSerie,
+      perdaPorColetorMca,
     };
 
     const result = this.pipeHeadLoss.compute(inputs);

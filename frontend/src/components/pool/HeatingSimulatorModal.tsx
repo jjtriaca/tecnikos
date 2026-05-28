@@ -2478,7 +2478,11 @@ function SolarTab({
                               <div className={`text-base font-bold tabular-nums leading-none ${valueCls}`}>{pipeResult.alturaManometricaTotal?.toFixed(2)} <span className="text-[10px] font-semibold">mca</span></div>
                             </div>
                             <div className={`text-[9.5px] mt-0.5 ${subCls}`}>
-                              = {pipeResult.perdaDinamica?.toFixed(2)} mca perda dinâmica + {pipeDesnivel} m desnível · velocidade <span className={veloCls}>{pipeResult.velocidade?.toFixed(2)} m/s</span>
+                              = {pipeResult.perdaDinamica?.toFixed(2)} mca tubulação
+                              {(pipeResult as any).perdaBateriasMca > 0 && (
+                                <> + {(pipeResult as any).perdaBateriasMca.toFixed(2)} mca baterias<span className="text-[8.5px] opacity-75"> ({report.coletoresPorBateria}col × {report.batPorRamo ?? report.numBaterias}série)</span></>
+                              )}
+                              {" "}+ {pipeDesnivel} m desnível · velocidade <span className={veloCls}>{pipeResult.velocidade?.toFixed(2)} m/s</span>
                             </div>
                             <div className="mt-2 flex items-center gap-2 flex-wrap">
                               <label className={`text-[10px] uppercase tracking-wider font-bold ${labelCls}`}>📏 Tubo:</label>
