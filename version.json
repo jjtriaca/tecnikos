@@ -1,5 +1,5 @@
 {
-  "version": "1.12.83",
-  "codename": "Fix capa termica/vento no Simulador Solar: nao chegavam ao backend no Recalcular (DTO nao aceitava, frontend nao enviava). Agora mudar capa/vento e clicar Recalcular afeta o calculo E persiste no banco",
-  "releasedAt": "2026-05-28T17:20:34.024Z"
+  "version": "1.12.84",
+  "codename": "ThermalDemandService — calculo central unificado de demanda termica (kWh/mes) considerando 17 fatores (capa, vento, temps, telhado, clima, coletor, extras). Endpoint /thermal-demand. Card da bomba usa esse motor (Tabela78) ao inves de heuristica local",
+  "releasedAt": "2026-05-28T17:47:40.501Z"
 }

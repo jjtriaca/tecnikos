@@ -19,6 +19,7 @@ import { PoolBudgetService } from './pool-budget.service';
 import { HeatingBudgetService } from './heating-budget.service';
 import { HeatingService } from './heating.service';
 import { SolarBudgetService } from './solar-budget.service';
+import { ThermalDemandService } from './thermal-demand.service';
 import { SolarPipeDto } from './dto/solar-pipe.dto';
 import { CreatePoolBudgetDto } from './dto/create-pool-budget.dto';
 import { UpdatePoolBudgetDto } from './dto/update-pool-budget.dto';
@@ -41,6 +42,7 @@ export class PoolBudgetController {
     private readonly heatingBudget: HeatingBudgetService,
     private readonly heating: HeatingService,
     private readonly solarBudget: SolarBudgetService,
+    private readonly thermalDemand: ThermalDemandService,
   ) {}
 
   // ============ Simulador de Aquecimento ============
@@ -235,6 +237,32 @@ export class PoolBudgetController {
   ) {
     const cents = await this.solarBudget.setTarifaKwhBRLCents(user.companyId, body.tarifaKwhBRLCents);
     return { tarifaKwhBRLCents: cents };
+  }
+
+  // ========== Demanda Termica Unificada (v1.12.84) ==========
+  // Calculo central que retorna kWh/mes necessario (perdas) + oferta solar (coletores)
+  // + horas/dia da bomba + consumo eletrico. Usa heating.service (Tabela78) por composicao.
+  // Aceita overrides pra UI testar cenarios sem salvar.
+
+  @ApiOperation({ summary: 'Demanda termica unificada do orcamento — kWh/mes perdas + oferta solar + bomba. v1.12.84.' })
+  @Post(':id/thermal-demand')
+  computeThermalDemand(
+    @Param('id') id: string,
+    @Body() overrides: {
+      tempAlvo?: number;
+      tempInicial?: number;
+      capaTermica?: boolean;
+      vento?: 'FRACO' | 'MODERADO' | 'FORTE';
+      qtdColetores?: number;
+      orientacaoTelhado?: string;
+      inclinacaoTelhadoGraus?: number;
+      potenciaCv?: number;
+      areaPiscinaM2?: number;
+      volumeM3?: number;
+    } = {},
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.thermalDemand.computeForBudget(id, user.companyId, overrides);
   }
 
   @ApiOperation({ summary: 'Simulacao solar — calculo rapido sem salvar' })

@@ -1548,6 +1548,50 @@ function SolarTab({
   // v1.12.78: tarifa de energia (R$/kWh em centavos). Default 95 = R$ 0,95/kWh.
   // Armazenada em Company.systemConfig.pool.tarifaKwhBRLCents (tenant global).
   const [tarifaKwhBRLCents, setTarifaKwhBRLCents] = useState<number>(95);
+
+  // v1.12.84: report da demanda termica unificada (thermal-demand). Calculo
+  // central que considera TODOS os 14 fatores: capa, vento, ΔT, telhado,
+  // clima, eficiencia coletor, extras (cascata/hidro/borda). Substitui o
+  // calculo local de consumo da bomba — agora vem direto do backend.
+  type ThermalDemandReport = {
+    monthly: Array<{
+      monthIndex: number; monthName: string; tempAmbiente: number;
+      qPerdasKwhDia: number; qPerdasKwhMes: number;
+      qSolarKwhDia?: number; qSolarKwhMes?: number;
+      coberturaSolarPct?: number;
+      fatorUtilizacaoBomba?: number; bombaHorasDia?: number; bombaConsumoKwhMes?: number;
+    }>;
+    qPerdasMediaKwhDia: number; qPerdasMediaKwhMes: number; qPerdasPicoKwhDia: number;
+    qSolarMediaKwhDia?: number; qSolarMediaKwhMes?: number; coberturaSolarMediaPct?: number;
+    bombaHorasDiaMedio?: number; bombaConsumoKwhMesMedio?: number; bombaPotenciaKW?: number;
+  };
+  const [thermalReport, setThermalReport] = useState<ThermalDemandReport | null>(null);
+
+  // Recalcula thermal-demand sempre que o report solar, bomba ou inputs criticos mudam.
+  // Endpoint usa o budget salvo + overrides do form atual (capa/vento/temps/qtdColetores/bomba).
+  useEffect(() => {
+    if (!report || !selectedBombaId) { setThermalReport(null); return; }
+    const selBomba = bombaCandidates.find((b) => b.productId === selectedBombaId) ?? bombaCandidates[0];
+    if (!selBomba?.potenciaCv) { setThermalReport(null); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await api.post<ThermalDemandReport>(`/pool-budgets/${budget.id}/thermal-demand`, {
+          tempAlvo: Number(tempAguaDesejada),
+          tempInicial: Number.isFinite(temperaturaInicial) ? temperaturaInicial : undefined,
+          qtdColetores: Math.round(Number(report.qtdColetores) || 0),
+          orientacaoTelhado,
+          inclinacaoTelhadoGraus: Number.isFinite(inclinacaoTelhado) ? inclinacaoTelhado : undefined,
+          potenciaCv: selBomba.potenciaCv,
+        });
+        if (!cancelled) setThermalReport(r);
+      } catch {
+        if (!cancelled) setThermalReport(null);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [budget.id, report?.computedAt, report?.qtdColetores, selectedBombaId, tempAguaDesejada, temperaturaInicial, orientacaoTelhado, inclinacaoTelhado]);
   const [showTarifaPopover, setShowTarifaPopover] = useState(false);
   const [tarifaInputValue, setTarifaInputValue] = useState<string>("0,95");
   const [tarifaSaving, setTarifaSaving] = useState(false);
@@ -2531,6 +2575,22 @@ function SolarTab({
                         const selBomba = bombaCandidates.find((b) => b.productId === selectedBombaId) ?? bombaCandidates[0];
                         if (!selBomba) return null;
 
+                        // v1.12.84: usa thermal-demand do backend quando disponivel (cobre
+                        // TODOS os 14 fatores via Tabela78). Fallback pro calculo local
+                        // (HSE × min(1, perda/ganho)) quando o endpoint nao retornou ainda.
+                        const consumoFromBackend = thermalReport && thermalReport.bombaConsumoKwhMesMedio != null
+                          ? {
+                              hseMedio: thermalReport.bombaHorasDiaMedio ?? 0,
+                              horasDiaMedio: thermalReport.bombaHorasDiaMedio ?? 0,
+                              fatorMedio: thermalReport.monthly[0]?.fatorUtilizacaoBomba ?? 0,
+                              floorByTarget: 0,
+                              tempAlvo: Number(tempAguaDesejada) || 30,
+                              potenciaKW: thermalReport.bombaPotenciaKW ?? 0,
+                              kwhMes: thermalReport.bombaConsumoKwhMesMedio,
+                              custoMesCents: thermalReport.bombaConsumoKwhMesMedio * tarifaKwhBRLCents,
+                            }
+                          : null;
+
                         // v1.12.80: consumo eletrico com 2 ajustes em cima de v1.12.79.
                         //
                         // 1) ESCALA TERMICA — perda escala com ΔT(alvo − ambiente). Backend
@@ -2595,7 +2655,8 @@ function SolarTab({
                           const custoMesCents = kwhMesMedio * tarifaKwhBRLCents;
                           return { hseMedio, horasDiaMedio, fatorMedio, floorByTarget, tempAlvo, potenciaKW, kwhMes: kwhMesMedio, custoMesCents };
                         };
-                        const consumo = computeConsumo();
+                        // v1.12.84: prefere thermal-demand do backend (Tabela78 completa)
+                        const consumo = consumoFromBackend ?? computeConsumo();
 
                         return (
                           <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2.5 flex gap-3 items-start shadow-sm">
