@@ -1,5 +1,5 @@
 {
-  "version": "1.12.74",
-  "codename": "Coletor v2: 8 mangueiras (em vez de 5) + cabeçotes mais espessos com highlight 3D + corpo preto puro",
-  "releasedAt": "2026-05-27T23:37:52.749Z"
+  "version": "1.12.76",
+  "codename": "PDF print fix: 2a pagina em branco + imagem coletor pequena — display:none ao inves de visibility:hidden + h-[52mm] fixo",
+  "releasedAt": "2026-05-28T14:18:39.130Z"
 }

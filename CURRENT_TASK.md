@@ -1,112 +1,23 @@
 # TAREFA ATUAL
 
-## Sessao 213 — em aberto (27/05/2026)
+## Versao em prod: v1.12.74 (sessao 213 fechada — 27/05/2026)
 
-### Ja em prod (v1.12.62)
-- **NFS-e:** botao "Reenviar NFS-e" no menu de `/nfe/saida`, novo endpoint `POST /retry`, ActionsDropdown refatorado com `createPortal` (fix de menu deslocado e clicks ignorados), `mapFocusError` cita mensalidade Focus + token
-- **isMaster:** `tenant.service.block/suspend` + webhook `SUBSCRIPTION_DELETED/INACTIVATED` ignoram master tenants (defense in depth)
-- **Bomba solar:** `bombaManuallySelected` distingue escolha manual vs default — reduzir coletores agora recalcula bomba corretamente
+Sessao 213 entregou **16 releases** em 4 frentes:
+1. **NFS-e + isMaster guard** (v1.12.60 → v1.12.62)
+2. **Bomba solar manual vs default** (v1.12.62)
+3. **Solar Rules configuraveis + fisica refinada + indicator** (v1.12.63 → v1.12.67)
+4. **PDF profissional A4 1 pagina** (v1.12.67 → v1.12.74) — 8 releases
 
-### Local — aguardando deploy v1.12.63 — Regras Solares Configuraveis
-- **`backend/src/pool-budget/solar-rules.ts`** (novo) — interface `SolarRules`, `SolarRuleConfig`, `SYSTEM_DEFAULT_SOLAR_RULES`, `resolveRulesForCollector`, `findRuleForCollector`, `vazaoFatorFromRules`
-- **`backend/src/pool-budget/dto/solar-rule.dto.ts`** (novo) — `CreateSolarRuleDto`, `UpdateSolarRuleDto` com validacoes (MIN 1-10, MAX 1-10, area 10-50, serie 1-5, vazao 150-400 L/h/m²)
-- **`backend/src/pool-budget/solar.service.ts`** — `SolarInputs.rules?` opcional. Loop usa `rules.minColetoresPorBateria` etc em vez das constantes hardcoded
-- **`backend/src/pool-budget/solar-budget.service.ts`** — `SolarCollectorCandidate` retorna `poolType`+`model`. `simulate()` resolve regras antes de `computeSolarReport`. CRUD novo: `listSolarRuleConfigs`, `listSolarRulesWithCoverage`, `listModelsByPoolType`, `createSolarRule`, `updateSolarRule`, `deleteSolarRule`, `getActiveSolarRuleForBudget`
-- **`backend/src/pool-budget/pool-budget.controller.ts`** — endpoints: `GET/POST/PUT/DELETE /pool-budgets/solar-rules*` + `GET /:id/solar-active-rule`
-- **`frontend/src/components/pool/SolarRulesModal.tsx`** (novo) — modal completo: lista, form, validacoes, dropdowns dinamicos de tipo e modelo, cobertura
-- **`frontend/src/components/pool/HeatingSimulatorModal.tsx`** — botao "⚙ Regras" no header do Diagrama + badge "Regra: X" / "Sem regra"
-- **`memory/project_solar_regras_configuraveis.md`** (nova) — proposta consolidada + decisoes
+Detalhes completos em [memory/sessao_213_summary.md](memory/sessao_213_summary.md).
 
-**Conceito:** regras de dimensionamento (MIN/MAX coletores por bateria, MAX area, MAX serie, vazao) deixaram de ser hardcoded. Operador cadastra regras por modelo (1 regra ↔ 1 model). Hierarquia: regra cadastrada → defaults do sistema. Backend resolve via `(poolType, model)` do coletor selecionado.
+## Pendentes pra sessao 214
+- **PDF v1.12.74:** confirmar com usuario se 2ª pagina em branco resolveu + se imagem coletor (52mm) alinha com cards no Chrome print real
+- **Aguardando Solis:** confirmar comportamento com 7+ baterias (3 ramos paralelos)
+- **Roadmap:** Defaults de tubulacao configuraveis em Configuracoes > Piscina, auto-selecao "Seguir produto da linha X" (`autoSelectRule.followProductLine`)
+- **Legado (sessao 209):** SQL `update-solis-procel-sls.sql` manual, configurar regra do Coletor Solar no SLS
 
-## Versao atual em prod: v1.12.62 — Sessao 213 (em andamento)
+## Sessao anterior: v1.12.59 — Sessao 212 fechada
+22 releases v1.12.39 → v1.12.60: bomba auto-select, formula vazao Solis oficial, diagrama de instalacao no padrao Solis Tropicos.
 
-Sessao 212 (26/05/2026) foi maratona no modulo Piscina, focada em **3 frentes principais**:
-
-1. **Bomba do Coletor Solar (auto-select)** — cadeia completa do bug "Nenhum candidato passa"
-2. **Formula de vazao oficial Solis** — confirmacao tecnica + algoritmo simetrico de baterias
-3. **UI do Simulador Solar** — dropdown de candidatos, diagrama visual de instalacao, compactacao geral
-
-22 releases: v1.12.39 → **v1.12.60**.
-
-## Cronologia das 22 releases
-
-### Caso "Bomba do Coletor Solar — Nenhum candidato passa" (5 releases)
-- **v1.12.40** — Backend: `extractSolarVars` populou `vazaoSolarM3h` (faltava)
-- **v1.12.41** — Backend: `auto-select.helper` passou a interpolar `pumpCurve` quando candidato tem curva cadastrada
-- **v1.12.42** — Frontend: `dimVars` do AutoSelectModal e `ruleVars` do CatalogPickModal populaA m `alturaTelhadoMca` (bug visivel intermediario)
-- **v1.12.43** — Backend `listSolarBombaCandidates` + endpoint `GET /pool-budgets/:id/solar-bomba-candidates` + dropdown na pagina (substitui string fixa `getBombaRecomendadaSolar`)
-- **v1.12.46/47** — `/products/for-pool-simulator` + frontend mescla Products do tenant no `catalog` do AutoSelectModal (resolveu dessincronizacao fonte preview vs backend)
-
-Memoria: [feedback_autoselect_vars_frontend_backend.md](memory/feedback_autoselect_vars_frontend_backend.md) — regra de ouro pra adicionar variavel nova no motor (atualizar nos **4 lugares**: backend `extractXVars` + `ALLOWED_VARS`, frontend `dimVars` + `ruleVars`).
-
-### Formula de vazao Solis oficial (1 release central + 2 fixes UX)
-- **v1.12.48** — formula validada contra 2 exemplos da Solis (15col/3bat=2,8m³/h, 20col/4bat-2serie=5,64m³/h). Regras: max 7 col/bat, max 30 m²/bat, max 3 bat/serie, vazao=`num_ramos × col_por_bat × area × 0,252`.
-- **v1.12.49** — 3 cards de baterias (total/serie/paralelo) + backend respeita area/volume override no recompute.
-- **v1.12.51** — Botao Recalcular passa `dispArea/dispVolume` no body quando modo MANUAL.
-- **v1.12.52** — **Algoritmo SIMETRICO de baterias**: forca distribuicao igual em todos os ramos (sem 3+3+1). Botoes "Salvar/Limpar override" persistem area/volume manuais em `environmentParams.solarOverride` (NAO altera `poolDimensions`).
-
-Memoria: [study_solar_vazao_base_teorica.md](memory/study_solar_vazao_base_teorica.md) — estudo completo + sources industriais.
-
-### Bugs UX intermediarios (3 releases)
-- **v1.12.39 → v1.12.40 (texto)** — Defaults da tubulacao no aviso (10 joelhos, 4 tes) — fix em `HeatingSimulatorModal:2030`.
-- **v1.12.50** — Card "Baterias em paralelo: 0" quando ha 1 ramo unico (era "1" matematicamente, mas conceitualmente confuso).
-
-### Diagrama da instalacao + Imagem da bomba (8 releases)
-- **v1.12.53** — Card "Coletores por bateria" + imagem da bomba selecionada (96x96, mesma estetica do coletor) + **diagrama SVG inicial** (ramos verticais).
-- **v1.12.54** — Compactacao da UI: header, toolbar, tubulacao 50% menos altura.
-- **v1.12.55** — Container do diagrama com tamanho **FIXO** (170px) + Kpis super compactos + stepper −/+ no extra coletores + comprimento/desnivel inline.
-- **v1.12.56** — Diagrama refeito no padrao Solis: baterias HORIZONTAIS em serie + ramos EMPILHADOS verticalmente + troncos azul/vermelho.
-- **v1.12.57** — Labels ALIMENTACAO/RETORNO 75% menores + ancoragem start/end pra nao cortar.
-- **v1.12.58** — Container 140px (era 220) + **placas solares visuais** dentro de cada bateria (N coletores reais).
-- **v1.12.59** — Coletor preto + cabecotes + mangueiras verticais paralelas (estilo Solis Tropicos).
-- **v1.12.60** — Coletor v2: 8 mangueiras (em vez de 5) + cabecotes mais espessos com highlight 3D + corpo preto puro. ✅ Aprovado pelo usuario.
-
-## Estado da regra `solarBombaRule` no tenant SLS
-Atualmente: `filterPoolType="Bomba"`, `filterDescription="Bomba"`, `where="vazaoM3h >= vazaoSolarM3h && pressaoTrabalhoMca >= alturaTelhadoMca"`, `orderBy="vazaoM3h asc"`, indicator de folga.
-
-Catalogo SLS tem 12 bombas usaveis (poolType="Bombas diversas"). Pro filtro funcionar, o usuario PRECISA mudar `filterPoolType="Bombas diversas"` no botao ✨ do Simulador (ou via SQL direto).
-
-## Mudancas estruturais importantes
-
-### Backend
-- `solar.service.ts:140-195` — algoritmo de baterias SIMETRICO (busca combinacao `(ramos × bat × col)` com menor excesso)
-- `solar.service.ts` SolarReport adicionou `numRamosParalelos` + `batPorRamo`
-- `solar-budget.service.ts:listSolarBombaCandidates` + `setSelectedBomba` + `setSolarOverride` (3 metodos novos)
-- `solar-constants.ts` — constantes Solis oficiais (0.252, max 7 col, max 30m², max 3 serie)
-- `dto/solar-simulate.dto.ts` — DTO aceita `areaPiscinaM2`, `volumeM3` override
-- `pool-budget.controller.ts` — 3 endpoints novos: `solar-bomba-candidates` (GET), `solar-bomba-selection` (POST), `solar-override` (POST)
-- `product.service.ts:listForPoolSimulator` + `product.controller.ts` GET `/products/for-pool-simulator`
-- `auto-select.helper.ts:interpolatePumpCurve` + `extractCandidateSpecs` (refator de `filterByWhere`/`orderCandidates`)
-- `formula-eval.ts:extractSolarVars` populou `vazaoSolarM3h`
-
-### Frontend
-- `HeatingSimulatorModal.tsx` — dropdown bomba + imagem + diagrama SVG + override area/volume + stepper +/-
-- `quotes/pool/[id]/page.tsx` — dimVars e ruleVars com `alturaTelhadoMca` + `vazaoSolarM3h`. Catalog mescla Products do tenant.
-- `products/page.tsx:2022` — "Vazao maxima (m³/h)" + tooltip novo (so dimensiona ralo de fundo)
-
-## Pendentes pra proxima sessao
-
-### Aguardando Solis
-- Confirmar comportamento com 7+ baterias (3 ramos paralelos) — testar caso real
-- Validar se `volume` deveria entrar no dimensionamento de coletores (hoje so afeta simulacao termica mensal)
-
-### Roadmap
-- **Configuracoes > Piscina > Defaults de tubulacao** — hoje hardcoded em `solar-constants.ts` (PVC, [32,40,50,60,75], 10 joelhos, 4 tes, 1 reg, 1 valv, fator 20%). Tela em Configuracoes pra editar e salvar em `Company.systemConfig.pool.pipeDefaults`.
-- **Auto-selecao de servico: "Seguir produto da linha X"** — schema ja tem `Product.linkedServiceId`. Falta `autoSelectRule.followProductLine: cellRef` + UI + backend.
-- **Pendentes legado (sessao 209):** SQL `update-solis-procel-sls.sql` (manual), configurar regra do Coletor Solar no SLS, persistir overrides modo MANUAL em environmentParams, motor aplicar inclinacao otima ≈ latitude
-
-## Memorias atualizadas/criadas
-- [memory/feedback_autoselect_vars_frontend_backend.md](memory/feedback_autoselect_vars_frontend_backend.md) — incidente v1.12.40 → v1.12.47 (vars duplicadas + fonte de candidatos duplicada)
-- [memory/study_solar_vazao_base_teorica.md](memory/study_solar_vazao_base_teorica.md) — base teorica + validacao oficial Solis + implementacao v1.12.48
-
----
-
-## Versao anterior: v1.12.39 — Sessao 211 fechada (21 releases)
-
-Sessao 211 (25/05/2026) — maratona de modulo Piscina cobriu 3 frentes principais:
-1. Tela de orcamento (etapas custom, modal +Linha, tipos PRODUCT/SERVICE, ordem das linhas)
-2. Simulador Solar (coletor do simulador, perda de carga Darcy-Weisbach, curva da bomba)
-3. Bugs universais (FormData upload, sortOrder negativo, dropdown tipos)
-
-Detalhes de cada release em `git log` (tags v1.12.19 → v1.12.39).
+## Sessao 211: v1.12.39 fechada (21 releases)
+Maratona modulo Piscina: etapas custom, modal +Linha, tipos PRODUCT/SERVICE, Darcy-Weisbach, curva da bomba.

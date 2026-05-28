@@ -2085,7 +2085,11 @@ function SolarTab({
                     // v1.12.74: imagem ainda saia maior que os cards no print —
                     // reduzido de 58mm pra 52mm pra alinhar com a base dos cards
                     // e liberar espaco que causava 2a pagina em branco.
-                    <div className="w-full aspect-square print:aspect-auto print:h-full print:max-h-[52mm] rounded border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center">
+                    // v1.12.75: trocado `h-full + max-h-[52mm]` por `h-[52mm]` fixo —
+                    // h-full depende da altura da grid row (items-stretch). Se col-span-8
+                    // ficar curto, a row encolhe e a imagem com h-full some. Altura fixa
+                    // resolve definitivamente.
+                    <div className="w-full aspect-square print:aspect-auto print:h-[52mm] rounded border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={productImg} alt={selectedColetor?.modelName ?? "Coletor"} className="w-full h-full object-contain" />
                     </div>
@@ -2807,22 +2811,29 @@ function SolarTab({
              "fixed inset-0 overflow-hidden", que confunde o motor de print do
              Chrome e gera 2 paginas. Solucao: printViaClone() cria um clone
              em document.body com classe .printing-clone, adiciona
-             html.printing-mode e printa SO o clone. */
-          html.printing-mode body * { visibility: hidden !important; }
+             html.printing-mode e printa SO o clone.
+
+             v1.12.75: ESCONDER COM display:none, nao visibility:hidden.
+             visibility:hidden mantem o elemento no layout flow — o #solar-pdf-area
+             original (1163px altura natural) ocupava espaco no body e causava
+             2a pagina em branco no print (overflow ~40px do A4 portrait).
+             display:none remove do flow, o clone (1029px) cabe em 1 pagina. */
+          html.printing-mode body > *:not(.solar-pdf-clone-container) {
+            display: none !important;
+          }
           html.printing-mode .solar-pdf-clone-container.printing-clone,
           html.printing-mode .solar-pdf-clone-container.printing-clone * {
-            visibility: visible !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             color-adjust: exact !important;
           }
           /* Container do clone — fluxo normal direto no topo da pagina */
           html.printing-mode .solar-pdf-clone-container.printing-clone {
-            position: absolute !important;
-            left: 0 !important; top: 0 !important;
+            position: static !important;
             width: 100% !important;
             padding: 0 !important; margin: 0 !important;
             background: #fff !important;
+            display: block !important;
           }
           html.printing-mode #solar-pdf-clone {
             width: 100% !important;
