@@ -1584,9 +1584,12 @@ function SolarTab({
     bombaHorasDiaMedio?: number; bombaConsumoKwhMesMedio?: number; bombaPotenciaKW?: number;
     inputs: {
       tempAlvo: number; tempInicial?: number; capaTermica: boolean; vento: string;
+      tipoConstrucao?: string;
       areaM2: number; volumeM3: number;
       qtdColetores?: number; areaTotalColetorM2?: number;
       orientacaoTelhado?: string; inclinacaoTelhadoGraus?: number; fatorInstalacao?: number;
+      perdaBaseWm2?: number; ventoMult?: number; construcaoMult?: number;
+      deltaTBaseAnualMult?: number; extrasKwTotal?: number;
     };
   };
   const [thermalReport, setThermalReport] = useState<ThermalDemandReport | null>(null);
@@ -2829,6 +2832,13 @@ function SolarTab({
                                     <div>Area col total: <span className="font-semibold tabular-nums">{thermalReport.inputs?.areaTotalColetorM2?.toFixed(1) ?? '—'} m²</span></div>
                                     <div>Fator instalação: <span className="font-semibold tabular-nums">{thermalReport.inputs?.fatorInstalacao?.toFixed(2) ?? '—'}</span></div>
                                     <div>T_alvo lido: <span className="font-semibold tabular-nums">{thermalReport.inputs?.tempAlvo}°C</span></div>
+                                    <div className="col-span-2 mt-1 pt-1 border-t border-dashed border-violet-200 font-bold text-[9px]">Fórmula simplificada v1.12.90:</div>
+                                    <div>Base W/m²: <span className="font-semibold tabular-nums">{thermalReport.inputs?.perdaBaseWm2 ?? '—'}</span> <span className="text-violet-400 text-[8.5px]">({thermalReport.inputs?.capaTermica ? 'capa SIM' : 'capa NÃO'})</span></div>
+                                    <div>× Vento: <span className="font-semibold tabular-nums">{thermalReport.inputs?.ventoMult?.toFixed(2) ?? '—'}</span> <span className="text-violet-400 text-[8.5px]">({thermalReport.inputs?.vento})</span></div>
+                                    <div>× Construção: <span className="font-semibold tabular-nums">{thermalReport.inputs?.construcaoMult?.toFixed(2) ?? '—'}</span> <span className="text-violet-400 text-[8.5px]">({thermalReport.inputs?.tipoConstrucao ?? '—'})</span></div>
+                                    <div>× ΔT média anual: <span className="font-semibold tabular-nums">{thermalReport.inputs?.deltaTBaseAnualMult?.toFixed(2) ?? '—'}</span></div>
+                                    <div>Extras (hidro+casc+borda): <span className="font-semibold tabular-nums">{thermalReport.inputs?.extrasKwTotal?.toFixed(1) ?? '0'} kW</span></div>
+                                    <div>Wm² efetivo: <span className="font-semibold tabular-nums">{((thermalReport.inputs?.perdaBaseWm2 ?? 0) * (thermalReport.inputs?.ventoMult ?? 1) * (thermalReport.inputs?.construcaoMult ?? 1) * (thermalReport.inputs?.deltaTBaseAnualMult ?? 1)).toFixed(0)} W/m²</span></div>
                                   </div>
                                   {thermalReport.monthly[0]?.fatorUtilizacaoBomba != null && thermalReport.monthly[0].fatorUtilizacaoBomba >= 0.99 && (
                                     <div className="mt-1 text-red-700 font-semibold">

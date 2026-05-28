@@ -1,5 +1,5 @@
 {
-  "version": "1.12.89",
-  "codename": "Debug consumo bomba: painel violeta no card mostra qPerdas/qSolar/fator/capa/vento lidos pelo backend. thermal-demand recebe capa/vento do form atual (antes lia banco com delay). Pra identificar saturacao do fator",
-  "releasedAt": "2026-05-28T18:48:46.728Z"
+  "version": "1.12.90",
+  "codename": "thermal-demand substitui Tabela78 inflada (1500W/m2 absurdo) por formula simplificada calibrada: base(capa) × vento × construcao × ΔT + extras. Realista (250-500 W/m2). heating.service intocado pra bomba de calor",
+  "releasedAt": "2026-05-28T20:41:36.201Z"
 }

@@ -40,6 +40,37 @@ import {
   calcFatorInstalacao,
 } from './solar-constants';
 
+// ============ Constantes do modelo simplificado de perdas (v1.12.90) ============
+//
+// Substitui o heating.service.computeMonthlyHeatLoss (Tabela78) que estava
+// inflando perdas 5-10x. Calibrado com literatura Carrier/ASHRAE pra valores
+// realistas (150-600 W/m² total).
+
+// Perda termica BASE (W/m²) — perda media 24h em condicoes de referencia
+// (vento moderado, alvo 35°C, T_amb 22°C, construcao aberta).
+const PERDA_BASE_WM2 = {
+  COM_CAPA: 120,   // SIM — capa reduz evaporacao em ~64% (literatura)
+  SEM_CAPA: 330,   // NAO — evaporacao + conveccao + radiacao plenas
+};
+const VENTO_MULT: Record<string, number> = {
+  NULO: 0.5, FRACO: 0.7, MODERADO: 1.0, FORTE: 1.5, INTERNA: 0.5,
+};
+const CONSTRUCAO_MULT: Record<string, number> = {
+  ABERTA: 1.0,
+  COBERTA: 0.7,        // teto reduz radiacao + vento na superficie
+  FECHADA: 0.7,        // sinonimo de coberta (legado)
+  CLIMATIZADA: 0.5,    // ambiente controlado, menor perda
+};
+const DELTA_T_BASE = 13;       // °C — ΔT(35 alvo − 22 ambiente) referencia
+const MIN_PERDA_WM2 = 30;      // floor — sempre tem alguma perda residual
+
+// Extras (kW por unidade, em uso continuo). Multiplicado por (horas/168).
+const EXTRAS_KW_REF = {
+  hidromassagemPorUnidade: 4.0,   // SPA medio
+  cascataPorMetroLargura: 3.0,    // ~3 kW por metro de borda
+  bordaInfinitaPorMetro: 2.0,     // ~2 kW por metro linear
+};
+
 export interface ThermalDemandInputs {
   // Reusa HeatingInputs como base — todos os campos de perdas, extras, uso, clima
   heating: HeatingInputs;
@@ -110,6 +141,7 @@ export interface ThermalDemandReport {
     tempInicial?: number;
     capaTermica: boolean;
     vento: string;
+    tipoConstrucao?: string;
     areaM2: number;
     volumeM3: number;
     qtdColetores?: number;
@@ -117,6 +149,12 @@ export interface ThermalDemandReport {
     orientacaoTelhado?: string;
     inclinacaoTelhadoGraus?: number;
     fatorInstalacao?: number;
+    // v1.12.90: componentes da formula simplificada (pra debug)
+    perdaBaseWm2?: number;
+    ventoMult?: number;
+    construcaoMult?: number;
+    deltaTBaseAnualMult?: number;
+    extrasKwTotal?: number;
   };
 }
 
@@ -166,6 +204,9 @@ export class ThermalDemandService {
     // === Clima do tenant ===
     const climate = await this.climateData.findForLookup(companyId, uf, cidade);
     const radSolPorMes = climate?.radSol ?? new Array(12).fill(5);
+    // v1.12.90: passa temp/humidity pra formula simplificada (perda escala com ΔT-ambiente)
+    const tempByMonth = climate?.temp ?? new Array(12).fill(22);
+    const humidityByMonth = climate?.humidity ?? new Array(12).fill(0.65);
 
     // === Coletor (do solarReport persistido) ===
     const sel = solarReport.selectedCollector as Record<string, any> | undefined;
@@ -224,6 +265,9 @@ export class ThermalDemandService {
         : {}),
     };
 
+    // Anexa clima pre-resolvido — usado pela formula simplificada (sem dep do Prisma).
+    (inputs as any)._climateTempByMonth = tempByMonth;
+    (inputs as any)._climateHumidityByMonth = humidityByMonth;
     return this.compute(inputs);
   }
 
@@ -232,10 +276,94 @@ export class ThermalDemandService {
    * Resultado consumido por: card da bomba do Simulador Solar, dimensionamento
    * de bomba de calor, comparativo de fontes, futuro DRE termico.
    */
+  /**
+   * v1.12.90: calculo simplificado de perdas termicas (W/m² calibrado vs
+   * literatura). Substitui heating.service.computeMonthlyHeatLoss que estava
+   * inflando perdas ~5-10x (BETA_INV de conversao mmHg gerava 1500 W/m² absurdo
+   * pra piscina sem capa, quando o real eh 250-400 W/m²).
+   *
+   * Modelo: perda = base(capa) × vento × construcao × ΔT(alvo-ambiente)/13
+   * + extras (hidro, cascata, borda) ponderados por horas de uso.
+   *
+   * Retorna formato compativel com MonthlyHeatLoss[] pra nao quebrar resto do flow.
+   */
+  private computeSimplifiedLosses(
+    h: HeatingInputs,
+    climateTempByMonth: number[],
+    climateHumidityByMonth: number[],
+  ): MonthlyHeatLoss[] {
+    const baseWm2 = h.capaTermica ? PERDA_BASE_WM2.COM_CAPA : PERDA_BASE_WM2.SEM_CAPA;
+    const ventoMult = VENTO_MULT[String(h.vento).toUpperCase()] ?? 1.0;
+    const construMult = CONSTRUCAO_MULT[String(h.tipoConstrucao).toUpperCase()] ?? 1.0;
+
+    // Extras (constantes pelo ano — ponderado por horas de uso/semana)
+    const hidroQty = Number(h.hidromassagensQtd) || 0;
+    const hidroHs = h.hidromassagemHorasSemana != null ? Number(h.hidromassagemHorasSemana) : 6;
+    const hidroKw = hidroQty * EXTRAS_KW_REF.hidromassagemPorUnidade
+                    * Math.max(0, Math.min(1, hidroHs / 168));
+
+    const cascCm = Number(h.cascataLarguraCm) || 0;
+    const cascHs = h.cascataHorasSemana != null ? Number(h.cascataHorasSemana) : 6;
+    const cascKw = (cascCm / 100) * EXTRAS_KW_REF.cascataPorMetroLargura
+                    * Math.max(0, Math.min(1, cascHs / 168));
+
+    const bordaM = Number(h.bordaInfinitaM) || 0;
+    const bordaHd = h.bordaInfinitaHorasAtivaDia != null ? Number(h.bordaInfinitaHorasAtivaDia) : 24;
+    const bordaKw = bordaM * EXTRAS_KW_REF.bordaInfinitaPorMetro
+                    * Math.max(0, Math.min(1, bordaHd / 24));
+
+    const extrasKwTotal = hidroKw + cascKw + bordaKw;
+
+    const result: MonthlyHeatLoss[] = [];
+    for (let m = 0; m < 12; m++) {
+      const tempAr = climateTempByMonth[m] ?? 22;
+      const humidity = climateHumidityByMonth[m] ?? 0.65;
+
+      // ΔT escala linear (0 quando alvo = ambiente, 1 quando ΔT = 13°C, >1 quando maior)
+      const deltaT = Math.max(0, h.tempAguaDesejada - tempAr);
+      const deltaTMult = Math.max(0.1, deltaT / DELTA_T_BASE);
+
+      // W/m² efetivo + floor
+      const wPorM2 = Math.max(
+        MIN_PERDA_WM2,
+        baseWm2 * ventoMult * construMult * deltaTMult,
+      );
+
+      // kW da piscina (W/m² × area / 1000)
+      const qPiscinaKw = (wPorM2 * h.areaM2) / 1000;
+      const qsKw = qPiscinaKw; // compat com schema MonthlyHeatLoss
+      const qsExtraKw = 0;     // ja incluso na qPiscinaKw
+      const qtotalKw = qsKw + extrasKwTotal;
+
+      result.push({
+        monthIndex: m,
+        tempAr,
+        humidity,
+        qsKw: Math.round(qsKw * 10) / 10,
+        qsExtraKw,
+        qsExtrasKw: Math.round(extrasKwTotal * 10) / 10,
+        qtotalKw: Math.round(qtotalKw * 10) / 10,
+      });
+    }
+    return result;
+  }
+
   compute(inputs: ThermalDemandInputs): ThermalDemandReport {
-    // === 1) Perdas mensais via HeatingService (Tabela78) ===
-    // Usa computeMonthlyHeatLoss diretamente (atalho — nao precisa do report completo).
-    const monthlyLoss: MonthlyHeatLoss[] = this.heating.computeMonthlyHeatLoss(inputs.heating);
+    // === 1) Perdas mensais via formula simplificada (v1.12.90) ===
+    // Antes usava heating.service.computeMonthlyHeatLoss (Tabela78) que estava
+    // inflando perdas 5-10x devido a confusao de unidades (BETA_INV mmHg).
+    // Buscar climate pra ter tempAr + humidity por mes.
+    // Como o compute() puro nao tem PrismaService, recebemos os dados via inputs.heating
+    // ja resolvidos OU usamos defaults. computeForBudget pre-carrega o climate.
+    const climateTempByMonth = (inputs as any)._climateTempByMonth as number[] | undefined
+      ?? new Array(12).fill(22);
+    const climateHumidityByMonth = (inputs as any)._climateHumidityByMonth as number[] | undefined
+      ?? new Array(12).fill(0.65);
+    const monthlyLoss: MonthlyHeatLoss[] = this.computeSimplifiedLosses(
+      inputs.heating,
+      climateTempByMonth,
+      climateHumidityByMonth,
+    );
 
     // === 2) Oferta solar (se coletor fornecido) ===
     let fatorInstalacao = 1;
@@ -344,6 +472,7 @@ export class ThermalDemandService {
         tempInicial: inputs.heating.tempAguaInicial,
         capaTermica: inputs.heating.capaTermica,
         vento: inputs.heating.vento,
+        tipoConstrucao: inputs.heating.tipoConstrucao,
         areaM2: inputs.heating.areaM2,
         volumeM3: inputs.heating.volumeM3,
         qtdColetores: inputs.solar?.qtdColetores,
@@ -351,6 +480,14 @@ export class ThermalDemandService {
         orientacaoTelhado: inputs.solar?.orientacaoTelhado,
         inclinacaoTelhadoGraus: inputs.solar?.inclinacaoTelhadoGraus,
         fatorInstalacao: round2(fatorInstalacao),
+        // v1.12.90: componentes da formula simplificada pra debug
+        perdaBaseWm2: inputs.heating.capaTermica ? PERDA_BASE_WM2.COM_CAPA : PERDA_BASE_WM2.SEM_CAPA,
+        ventoMult: VENTO_MULT[String(inputs.heating.vento).toUpperCase()] ?? 1.0,
+        construcaoMult: CONSTRUCAO_MULT[String(inputs.heating.tipoConstrucao).toUpperCase()] ?? 1.0,
+        deltaTBaseAnualMult: round2(
+          monthlyLoss.reduce((s, m, i) => s + Math.max(0, inputs.heating.tempAguaDesejada - m.tempAr) / DELTA_T_BASE, 0) / 12
+        ),
+        extrasKwTotal: round1(monthlyLoss[0]?.qsExtrasKw ?? 0),
       },
     };
   }
