@@ -1,5 +1,5 @@
 {
-  "version": "1.12.78",
-  "codename": "Consumo eletrico da bomba solar: estimativa kWh/mes + custo em R$ (icone 💡 abre popover pra editar tarifa R$/kWh) — aparece tambem no print",
-  "releasedAt": "2026-05-28T16:29:29.543Z"
+  "version": "1.12.79",
+  "codename": "Consumo eletrico bomba — modelo fisico correto: horas/dia = HSE × min(1, perda/ganho). Reduzir coletores extras aumenta horas e consumo (refletindo realidade do controlador diferencial)",
+  "releasedAt": "2026-05-28T16:45:01.882Z"
 }

@@ -2525,21 +2525,48 @@ function SolarTab({
                         const selBomba = bombaCandidates.find((b) => b.productId === selectedBombaId) ?? bombaCandidates[0];
                         if (!selBomba) return null;
 
-                        // v1.12.78: estimativa de consumo eletrico mensal da bomba solar.
-                        // HSE_medio (Horas de Sol Equivalente) = media anual de radSol (kWh/m²/dia).
-                        // kWh/mes = potencia_kW × HSE_medio × 30 dias. Bomba liga durante sol util
-                        // (controlador diferencial: aciona quando T_coletor > T_piscina). Inverno
-                        // tem menos HSE, verao mais. A media anual eh proxy razoavel pro consumo.
+                        // v1.12.79: consumo eletrico considera DEMANDA TERMICA vs CAPACIDADE
+                        // dos coletores. Bomba opera com controlador diferencial: liga enquanto
+                        // T_coletor > T_piscina (durante sol). Mas DESLIGA antes do fim do sol
+                        // se a perda termica do dia ja foi reposta.
+                        //
+                        // Fator de utilizacao = min(1, perdaDiaria / ganhoDia):
+                        //  - Sol forte + coletores sobrando → fator < 1 → bomba opera < HSE
+                        //  - Sol fraco / poucos coletores → fator = 1 → bomba opera HSE inteiro
+                        //
+                        // Quando operador reduz coletores extras, ganhoDia cai proporcionalmente
+                        // → fator sobe → horas/dia sobem → consumo sobe. Modela a realidade.
                         const computeConsumo = () => {
                           const cv = selBomba.potenciaCv;
                           if (cv == null || cv <= 0) return null;
                           if (!report?.monthly?.length) return null;
-                          const hseMedio = report.monthly.reduce((s, m) => s + (Number(m.radSol) || 0), 0) / report.monthly.length;
-                          if (!Number.isFinite(hseMedio) || hseMedio <= 0) return null;
                           const potenciaKW = cv * 0.7355;
-                          const kwhMes = potenciaKW * hseMedio * 30;
-                          const custoMesCents = kwhMes * tarifaKwhBRLCents; // cents
-                          return { hseMedio, potenciaKW, kwhMes, custoMesCents };
+                          let kwhAno = 0;
+                          let horasAno = 0;
+                          let hseTotal = 0;
+                          let fatorTotal = 0;
+                          let mesesValidos = 0;
+                          for (const m of report.monthly) {
+                            const hse = Number(m.radSol) || 0;             // kWh/m²/dia ≈ horas sol equivalente
+                            const perda = Number(m.perdaCorrigidaPorDia) || 0; // kWh/dia
+                            const ganho = Number(m.ganhoDia) || 0;          // kWh/dia
+                            if (hse <= 0) continue;
+                            const fator = ganho > 0 ? Math.min(1, perda / ganho) : 1;
+                            const horasDia = hse * fator;
+                            const horasMes = horasDia * 30;
+                            kwhAno += potenciaKW * horasMes;
+                            horasAno += horasMes;
+                            hseTotal += hse;
+                            fatorTotal += fator;
+                            mesesValidos++;
+                          }
+                          if (mesesValidos === 0) return null;
+                          const kwhMesMedio = kwhAno / 12;
+                          const horasDiaMedio = horasAno / (12 * 30);
+                          const hseMedio = hseTotal / mesesValidos;
+                          const fatorMedio = fatorTotal / mesesValidos;
+                          const custoMesCents = kwhMesMedio * tarifaKwhBRLCents;
+                          return { hseMedio, horasDiaMedio, fatorMedio, potenciaKW, kwhMes: kwhMesMedio, custoMesCents };
                         };
                         const consumo = computeConsumo();
 
@@ -2600,7 +2627,7 @@ function SolarTab({
                                     <span className="text-slate-500">⚡ Consumo médio:</span>{" "}
                                     <span className="font-bold tabular-nums text-slate-900">{consumo.kwhMes.toFixed(0)}</span>
                                     <span className="text-[9px] font-semibold text-slate-500"> kWh/mês</span>
-                                    <span className="text-[9px] text-slate-500 ml-1.5">({consumo.hseMedio.toFixed(1)}h sol/dia · {(consumo.potenciaKW).toFixed(2)} kW)</span>
+                                    <span className="text-[9px] text-slate-500 ml-1.5" title={`Fator utilizacao bomba: ${(consumo.fatorMedio * 100).toFixed(0)}% do tempo de sol (HSE medio ${consumo.hseMedio.toFixed(1)}h/dia · perda termica vs ganho dos coletores)`}>({consumo.horasDiaMedio.toFixed(1)}h bomba/dia · {(consumo.potenciaKW).toFixed(2)} kW)</span>
                                   </div>
                                   <div className="relative flex items-center gap-1">
                                     <div className="text-[11px] font-bold tabular-nums text-amber-700">
