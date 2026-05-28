@@ -288,6 +288,10 @@ export class PoolBudgetController {
     // pra que linhas com formulaExpr=solarQty atualizem a quantidade e linhas com
     // autoSelectRule.useSolarCollector vinculem ao novo coletor automaticamente.
     await this.service.recalculateTotals(id);
+    // v1.12.87: anexa pipeResult atualizado na resposta (computeAndSaveReport
+    // ja recalcula o pipe internamente quando ha solarPipe configurado). Frontend
+    // usa isso pra atualizar o card de tubulacao sem precisar de chamada separada.
+    (report as any).solarPipeAfter = await this.solarBudget.getSolarPipeFromBudget(id, user.companyId);
     return report;
   }
 

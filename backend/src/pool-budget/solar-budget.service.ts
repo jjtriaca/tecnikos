@@ -310,6 +310,33 @@ export class SolarBudgetService {
       data: { environmentParams: newEnv as any },
     });
 
+    // v1.12.87: se ha pipe ja calculado (operador preencheu Comp/Desniv antes),
+    // recalcula com os novos coletoresPorBateria/batPorRamo. Antes o pipe ficava
+    // desatualizado: ao trocar coletor ou aumentar extras, o numero de baterias
+    // em serie mudava mas a perda das baterias (v1.12.85) so era atualizada se
+    // o operador clicasse novamente em Comp/Desniv. Agora o backend cuida da
+    // sincronia — elimina race condition do useEffect frontend.
+    const existingPipeInputs = (env.solarPipe as any)?.inputs;
+    if (existingPipeInputs?.comprimentoM > 0) {
+      try {
+        await this.computeAndSavePipe(budgetId, companyId, {
+          comprimentoM: Number(existingPipeInputs.comprimentoM),
+          desnivelM: Number(existingPipeInputs.desnivelM) || 0,
+          material: existingPipeInputs.material,
+          diametroMm: existingPipeInputs.diametroMm,
+          fatorSegurancaPct: existingPipeInputs.fatorSegurancaPct,
+          joelho90Qty: existingPipeInputs.joelho90Qty,
+          teQty: existingPipeInputs.teQty,
+          registroQty: existingPipeInputs.registroQty,
+          valvulaQty: existingPipeInputs.valvulaQty,
+        } as any);
+      } catch (err) {
+        // Falha no recompute do pipe nao deve quebrar o recompute do solar.
+        // Frontend pode disparar manualmente via /solar-pipe/recompute se precisar.
+        this.logger.warn(`Falha ao re-sincronizar pipe apos solar recompute: ${(err as any)?.message ?? err}`);
+      }
+    }
+
     return report;
   }
 
@@ -422,6 +449,16 @@ export class SolarBudgetService {
       });
     }
     return warnings;
+  }
+
+  /** v1.12.87: helper pra controller retornar solarPipe atualizado junto com o solar report. */
+  async getSolarPipeFromBudget(budgetId: string, companyId: string): Promise<any | null> {
+    const budget = await this.prisma.poolBudget.findFirst({
+      where: { id: budgetId, companyId, deletedAt: null },
+      select: { environmentParams: true },
+    });
+    const env = (budget?.environmentParams ?? {}) as Record<string, any>;
+    return env.solarPipe ?? null;
   }
 
   // v1.12.34: calcula perda de carga da tubulacao + persiste em environmentParams.solarPipe.

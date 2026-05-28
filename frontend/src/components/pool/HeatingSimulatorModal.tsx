@@ -1702,20 +1702,18 @@ function SolarTab({
     }
   }
 
-  // v1.12.86: re-dispara o calculo da perda de carga quando o dimensionamento
-  // do report muda (coletPorBat, batPorRamo, vazao) — porque agora a perda
-  // de carga INCLUI as baterias em serie (v1.12.85). Sem isso, o card mostrava
-  // valor antigo de mca quando o operador trocava de coletor ou aumentava extras.
-  const reportColetPorBat = report?.coletoresPorBateria;
-  const reportBatPorRamo = report?.batPorRamo;
-  const reportVazao = report?.vazaoTotalM3h;
+  // v1.12.87: sincronia do pipe foi movida pro backend (computeAndSaveReport ja
+  // recalcula o pipe quando ha solarPipe configurado, e o endpoint
+  // /solar-report/recompute retorna solarPipeAfter junto). UseEffect anterior
+  // (v1.12.86) sofria race condition e foi removido. O `report` aqui ja vem
+  // com a propriedade solarPipeAfter populada pelo backend — o useEffect
+  // abaixo so atualiza o state local.
   useEffect(() => {
-    if (!pipeResult) return;
-    if (!pipeComprimento || pipeComprimento <= 0) return;
-    // Re-dispara apenas se ja temos um pipe calculado e o dimensionamento mudou
-    recomputePipe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reportColetPorBat, reportBatPorRamo, reportVazao]);
+    const pipeAfter = (report as any)?.solarPipeAfter?.result;
+    if (pipeAfter) {
+      setPipeResult(pipeAfter);
+    }
+  }, [report]);
 
   async function recomputePipe(overrides?: { comprimentoM?: number; desnivelM?: number; diametroMm?: number | null }) {
     const comp = overrides?.comprimentoM ?? pipeComprimento;

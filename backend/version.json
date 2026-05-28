@@ -1,5 +1,5 @@
 {
-  "version": "1.12.86",
-  "codename": "Auto-recalcula perda de carga quando coletPorBat/batSerie/vazao do report mudam — antes o mca ficava desatualizado ao trocar coletor ou aumentar extras (Recalcular nao disparava recomputePipe)",
-  "releasedAt": "2026-05-28T18:13:32.289Z"
+  "version": "1.12.87",
+  "codename": "Fix MCA das baterias nao atualizava: useEffect frontend (v1.12.86) tinha race condition. Movido pro backend — computeAndSaveReport agora recalcula o pipe internamente e devolve solarPipeAfter junto da resposta. Sem race",
+  "releasedAt": "2026-05-28T18:25:39.959Z"
 }
