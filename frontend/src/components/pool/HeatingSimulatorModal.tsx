@@ -2840,11 +2840,12 @@ function SolarTab({
                                     <div>× ΔT média anual: <span className="font-semibold tabular-nums">{thermalReport.inputs?.deltaTBaseAnualMult?.toFixed(2) ?? '—'}</span></div>
                                     <div>Extras (hidro+casc+borda): <span className="font-semibold tabular-nums">{thermalReport.inputs?.extrasKwTotal?.toFixed(1) ?? '0'} kW</span></div>
                                     <div>Wm² efetivo: <span className="font-semibold tabular-nums">{((thermalReport.inputs?.perdaBaseWm2 ?? 0) * (thermalReport.inputs?.ventoMult ?? 1) * (thermalReport.inputs?.construcaoMult ?? 1) * (thermalReport.inputs?.deltaTBaseAnualMult ?? 1)).toFixed(0)} W/m²</span></div>
-                                    <div className="col-span-2 mt-1 pt-1 border-t border-dashed border-violet-200 font-bold text-[9px]">Indice Solar Ajustado v1.12.91:</div>
-                                    <div>HSP_inclinado: <span className="font-semibold tabular-nums">{thermalReport.inputs?.hspInclinadoMedio?.toFixed(2) ?? '—'}h/dia</span> <span className="text-violet-400 text-[8.5px]">(HSE×fInst)</span></div>
-                                    <div>Floor bomba: <span className="font-semibold tabular-nums">{((thermalReport.inputs?.floorFatorBomba ?? 0) * 100).toFixed(0)}%</span> <span className="text-violet-400 text-[8.5px]">(min HSE op)</span></div>
+                                    <div className="col-span-2 mt-1 pt-1 border-t border-dashed border-violet-200 font-bold text-[9px]">Operacao bomba v1.12.92:</div>
+                                    <div>HSE (bruto): <span className="font-semibold tabular-nums">{((thermalReport.monthly.reduce((s,m)=>s+(m.hseHorasDia||0),0))/(thermalReport.monthly.length||1)).toFixed(2)}h/dia</span></div>
+                                    <div>Floor bomba: <span className="font-semibold tabular-nums">{((thermalReport.inputs?.floorFatorBomba ?? 0) * 100).toFixed(0)}%</span></div>
                                     <div>× Fator horas real: <span className="font-semibold tabular-nums">{thermalReport.inputs?.fatorHorasOperacaoReal?.toFixed(2) ?? '—'}</span> <span className="text-violet-400 text-[8.5px]">(sol difuso)</span></div>
                                     <div>= horas/dia médio: <span className="font-semibold tabular-nums">{thermalReport.bombaHorasDiaMedio?.toFixed(2) ?? '—'}h</span></div>
+                                    <div className="col-span-2 text-[8.5px] text-violet-500 italic">HSP_inclinado ({thermalReport.inputs?.hspInclinadoMedio?.toFixed(2) ?? '—'}h) aplicado SO em qSolar (oferta), nao nas horas da bomba.</div>
                                   </div>
                                   {thermalReport.monthly[0]?.fatorUtilizacaoBomba != null && thermalReport.monthly[0].fatorUtilizacaoBomba >= 0.99 && (
                                     <div className="mt-1 text-red-700 font-semibold">

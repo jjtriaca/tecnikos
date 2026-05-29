@@ -437,26 +437,23 @@ export class ThermalDemandService {
         out.coberturaSolarPct = round1(cobertura);
 
         if (potenciaKW != null) {
-          // v1.12.91: Indice Solarimetrico Ajustado (padrao fotovoltaico) +
-          // controlador diferencial padrao.
+          // v1.12.92: HSE bruto (NAO multiplicado por fatorInstalacao).
+          // Controlador diferencial liga enquanto T_coletor > T_piscina + ΔT_min.
+          // Orientacao ruim NAO faz a bomba operar menos — coletor ainda esquenta
+          // (mesmo que menos), bomba ainda liga durante toda a janela de sol.
+          // O efeito de orientacao ja eh capturado via qSolar (oferta): orientacao
+          // ruim → qSolar menor → fatorBase = qPerdas/qSolar sobe → bomba opera
+          // MAIS horas. Modelo correto.
           //
-          //  HSP_inclinado = HSE_horizontal × fatorInstalacao(orientacao, inclinacao, lat)
-          //   - Norte ideal: HSP = HSE × 1.0
-          //   - Sul (pessima): HSP = HSE × 0.2
-          //   Orientacao ruim → menos sol util → bomba opera menos horas.
+          // v1.12.91 (errado): multiplicar fatorInstalacao no HSE fazia orientacao
+          // ruim reduzir horas, invertendo a fisica.
           //
           //  fatorBase = min(1, qPerdas/qSolar)
-          //   - Sistema dimensionado: 0.4-0.7 (verao) a 1.0 (inverno)
-          //
-          //  FLOOR 0.85 = controlador diferencial nao para mesmo com piscina quente
-          //
-          //  FATOR_HORAS_REAL 1.3 = bomba opera tambem em horas com sol difuso
-          //   (manha cedo, tarde) alem do HSP equivalente.
-          const fatorInst = fatorInstalacao; // do escopo externo (calculado em compute)
-          const hsp = hse * fatorInst;
+          //  fator = max(FLOOR_FATOR_BOMBA, fatorBase)
+          //  horasDia = HSE × fator × FATOR_HORAS_OPERACAO_REAL
           const fatorBase = qSolarKwhDia > 0 ? Math.min(1, qPerdasKwhDia / qSolarKwhDia) : 1;
           const fator = Math.max(FLOOR_FATOR_BOMBA, fatorBase);
-          const horasDia = hsp * fator * FATOR_HORAS_OPERACAO_REAL;
+          const horasDia = hse * fator * FATOR_HORAS_OPERACAO_REAL;
           const consumoKwhMes = potenciaKW * horasDia * 30;
 
           out.fatorUtilizacaoBomba = round2(fator);
