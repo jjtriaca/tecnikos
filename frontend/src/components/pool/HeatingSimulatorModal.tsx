@@ -1591,6 +1591,8 @@ function SolarTab({
       perdaBaseWm2?: number; ventoMult?: number; construcaoMult?: number;
       deltaTBaseAnualMult?: number; extrasKwTotal?: number;
       hspInclinadoMedio?: number; floorFatorBomba?: number; fatorHorasOperacaoReal?: number;
+      rendimentoBomba?: number;
+      vazaoBombaM3h?: number; vazaoSolarM3h?: number; fatorVazao?: number;
     };
   };
   const [thermalReport, setThermalReport] = useState<ThermalDemandReport | null>(null);
@@ -1615,6 +1617,9 @@ function SolarTab({
           orientacaoTelhado,
           inclinacaoTelhadoGraus: Number.isFinite(inclinacaoTelhado) ? inclinacaoTelhado : undefined,
           potenciaCv: selBomba.potenciaCv,
+          // v1.12.93: vazao da bomba pra calcular fator de vazao (bomba com
+          // mais vazao circula mais rapido → coletor esfria → controlador desliga antes)
+          vazaoBombaM3h: selBomba.vazaoM3h,
         });
         if (!cancelled) setThermalReport(r);
       } catch {
@@ -2818,38 +2823,51 @@ function SolarTab({
                                   backend thermal-demand pra diagnosticar saturacao do fator. Remover
                                   apos validar que o calculo varia conforme esperado. */}
                               {thermalReport && (
-                                <div className="mt-1.5 pt-1.5 border-t border-dashed border-violet-200 text-[9px] text-violet-700 print:hidden leading-snug">
-                                  <div className="font-bold text-violet-800 mb-0.5">🐛 DEBUG thermal-demand</div>
-                                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
-                                    <div>qPerdas média: <span className="font-semibold tabular-nums">{thermalReport.qPerdasMediaKwhDia?.toFixed(1)} kWh/dia</span></div>
-                                    <div>qPerdas pico: <span className="font-semibold tabular-nums">{thermalReport.qPerdasPicoKwhDia?.toFixed(1)} kWh/dia</span></div>
-                                    <div>qSolar média: <span className="font-semibold tabular-nums">{thermalReport.qSolarMediaKwhDia?.toFixed(1) ?? '—'} kWh/dia</span></div>
-                                    <div>Cobertura solar: <span className="font-semibold tabular-nums">{thermalReport.coberturaSolarMediaPct?.toFixed(0) ?? '—'}%</span></div>
-                                    <div>Fator bomba: <span className={`font-semibold tabular-nums ${(thermalReport.monthly[0]?.fatorUtilizacaoBomba ?? 0) >= 0.99 ? 'text-red-600' : ''}`}>{((thermalReport.monthly[0]?.fatorUtilizacaoBomba ?? 0) * 100).toFixed(0)}% {(thermalReport.monthly[0]?.fatorUtilizacaoBomba ?? 0) >= 0.99 && '⚠ SATURADO'}</span></div>
-                                    <div>HSE médio: <span className="font-semibold tabular-nums">{((thermalReport.monthly.reduce((s,m)=>s+(m.hseHorasDia||0),0))/(thermalReport.monthly.length||1)).toFixed(1)}h/dia</span></div>
-                                    <div>Capa lida: <span className="font-semibold">{thermalReport.inputs?.capaTermica ? 'SIM ✓' : 'NÃO ✗'}</span></div>
-                                    <div>Vento lido: <span className="font-semibold">{thermalReport.inputs?.vento}</span></div>
-                                    <div>Qtd col lida: <span className="font-semibold tabular-nums">{thermalReport.inputs?.qtdColetores ?? '—'}</span></div>
-                                    <div>Area col total: <span className="font-semibold tabular-nums">{thermalReport.inputs?.areaTotalColetorM2?.toFixed(1) ?? '—'} m²</span></div>
-                                    <div>Fator instalação: <span className="font-semibold tabular-nums">{thermalReport.inputs?.fatorInstalacao?.toFixed(2) ?? '—'}</span></div>
-                                    <div>T_alvo lido: <span className="font-semibold tabular-nums">{thermalReport.inputs?.tempAlvo}°C</span></div>
-                                    <div className="col-span-2 mt-1 pt-1 border-t border-dashed border-violet-200 font-bold text-[9px]">Fórmula simplificada v1.12.90:</div>
-                                    <div>Base W/m²: <span className="font-semibold tabular-nums">{thermalReport.inputs?.perdaBaseWm2 ?? '—'}</span> <span className="text-violet-400 text-[8.5px]">({thermalReport.inputs?.capaTermica ? 'capa SIM' : 'capa NÃO'})</span></div>
-                                    <div>× Vento: <span className="font-semibold tabular-nums">{thermalReport.inputs?.ventoMult?.toFixed(2) ?? '—'}</span> <span className="text-violet-400 text-[8.5px]">({thermalReport.inputs?.vento})</span></div>
-                                    <div>× Construção: <span className="font-semibold tabular-nums">{thermalReport.inputs?.construcaoMult?.toFixed(2) ?? '—'}</span> <span className="text-violet-400 text-[8.5px]">({thermalReport.inputs?.tipoConstrucao ?? '—'})</span></div>
-                                    <div>× ΔT média anual: <span className="font-semibold tabular-nums">{thermalReport.inputs?.deltaTBaseAnualMult?.toFixed(2) ?? '—'}</span></div>
-                                    <div>Extras (hidro+casc+borda): <span className="font-semibold tabular-nums">{thermalReport.inputs?.extrasKwTotal?.toFixed(1) ?? '0'} kW</span></div>
-                                    <div>Wm² efetivo: <span className="font-semibold tabular-nums">{((thermalReport.inputs?.perdaBaseWm2 ?? 0) * (thermalReport.inputs?.ventoMult ?? 1) * (thermalReport.inputs?.construcaoMult ?? 1) * (thermalReport.inputs?.deltaTBaseAnualMult ?? 1)).toFixed(0)} W/m²</span></div>
-                                    <div className="col-span-2 mt-1 pt-1 border-t border-dashed border-violet-200 font-bold text-[9px]">Operacao bomba v1.12.92:</div>
-                                    <div>HSE (bruto): <span className="font-semibold tabular-nums">{((thermalReport.monthly.reduce((s,m)=>s+(m.hseHorasDia||0),0))/(thermalReport.monthly.length||1)).toFixed(2)}h/dia</span></div>
-                                    <div>Floor bomba: <span className="font-semibold tabular-nums">{((thermalReport.inputs?.floorFatorBomba ?? 0) * 100).toFixed(0)}%</span></div>
-                                    <div>× Fator horas real: <span className="font-semibold tabular-nums">{thermalReport.inputs?.fatorHorasOperacaoReal?.toFixed(2) ?? '—'}</span> <span className="text-violet-400 text-[8.5px]">(sol difuso)</span></div>
-                                    <div>= horas/dia médio: <span className="font-semibold tabular-nums">{thermalReport.bombaHorasDiaMedio?.toFixed(2) ?? '—'}h</span></div>
-                                    <div className="col-span-2 text-[8.5px] text-violet-500 italic">HSP_inclinado ({thermalReport.inputs?.hspInclinadoMedio?.toFixed(2) ?? '—'}h) aplicado SO em qSolar (oferta), nao nas horas da bomba.</div>
+                                <div className="mt-1 pt-1 border-t border-dashed border-violet-200 text-[6px] text-violet-700 print:hidden leading-[1.15]">
+                                  <div className="font-bold text-violet-800 mb-0.5 text-[7px]">🐛 DEBUG thermal-demand</div>
+                                  <div className="grid grid-cols-4 gap-x-1.5 gap-y-0">
+                                    <div>qPerdas méd: <span className="font-semibold tabular-nums">{thermalReport.qPerdasMediaKwhDia?.toFixed(1)}</span></div>
+                                    <div>qPerdas pico: <span className="font-semibold tabular-nums">{thermalReport.qPerdasPicoKwhDia?.toFixed(1)}</span></div>
+                                    <div>qSolar méd: <span className="font-semibold tabular-nums">{thermalReport.qSolarMediaKwhDia?.toFixed(1) ?? '—'}</span></div>
+                                    <div>Cob solar: <span className="font-semibold tabular-nums">{thermalReport.coberturaSolarMediaPct?.toFixed(0) ?? '—'}%</span></div>
+                                    <div>Fator: <span className={`font-semibold tabular-nums ${(thermalReport.monthly[0]?.fatorUtilizacaoBomba ?? 0) >= 0.99 ? 'text-red-600' : ''}`}>{((thermalReport.monthly[0]?.fatorUtilizacaoBomba ?? 0) * 100).toFixed(0)}%{(thermalReport.monthly[0]?.fatorUtilizacaoBomba ?? 0) >= 0.99 && '⚠'}</span></div>
+                                    <div>HSE: <span className="font-semibold tabular-nums">{((thermalReport.monthly.reduce((s,m)=>s+(m.hseHorasDia||0),0))/(thermalReport.monthly.length||1)).toFixed(1)}h</span></div>
+                                    <div>Capa: <span className="font-semibold">{thermalReport.inputs?.capaTermica ? 'SIM' : 'NÃO'}</span></div>
+                                    <div>Vento: <span className="font-semibold">{thermalReport.inputs?.vento}</span></div>
+                                    <div>Qtd col: <span className="font-semibold tabular-nums">{thermalReport.inputs?.qtdColetores ?? '—'}</span></div>
+                                    <div>Area col: <span className="font-semibold tabular-nums">{thermalReport.inputs?.areaTotalColetorM2?.toFixed(1) ?? '—'}m²</span></div>
+                                    <div>fInst: <span className="font-semibold tabular-nums">{thermalReport.inputs?.fatorInstalacao?.toFixed(2) ?? '—'}</span></div>
+                                    <div>T_alvo: <span className="font-semibold tabular-nums">{thermalReport.inputs?.tempAlvo}°C</span></div>
                                   </div>
+                                  <div className="mt-0.5 pt-0.5 border-t border-dashed border-violet-200 font-bold text-[6.5px]">Fórmula perdas v1.12.90:</div>
+                                  <div className="grid grid-cols-4 gap-x-1.5 gap-y-0">
+                                    <div>Base: <span className="font-semibold tabular-nums">{thermalReport.inputs?.perdaBaseWm2 ?? '—'}</span> W/m²</div>
+                                    <div>×Vento: <span className="font-semibold tabular-nums">{thermalReport.inputs?.ventoMult?.toFixed(2) ?? '—'}</span></div>
+                                    <div>×Constr: <span className="font-semibold tabular-nums">{thermalReport.inputs?.construcaoMult?.toFixed(2) ?? '—'}</span></div>
+                                    <div>×ΔT: <span className="font-semibold tabular-nums">{thermalReport.inputs?.deltaTBaseAnualMult?.toFixed(2) ?? '—'}</span></div>
+                                    <div>Extras: <span className="font-semibold tabular-nums">{thermalReport.inputs?.extrasKwTotal?.toFixed(1) ?? '0'}kW</span></div>
+                                    <div className="col-span-3">Wm² efetivo: <span className="font-semibold tabular-nums">{((thermalReport.inputs?.perdaBaseWm2 ?? 0) * (thermalReport.inputs?.ventoMult ?? 1) * (thermalReport.inputs?.construcaoMult ?? 1) * (thermalReport.inputs?.deltaTBaseAnualMult ?? 1)).toFixed(0)} W/m²</span></div>
+                                  </div>
+                                  <div className="mt-0.5 pt-0.5 border-t border-dashed border-violet-200 font-bold text-[6.5px]">Bomba v1.12.93:</div>
+                                  <div className="grid grid-cols-4 gap-x-1.5 gap-y-0">
+                                    <div>HSE: <span className="font-semibold tabular-nums">{((thermalReport.monthly.reduce((s,m)=>s+(m.hseHorasDia||0),0))/(thermalReport.monthly.length||1)).toFixed(2)}h</span></div>
+                                    <div>Floor: <span className="font-semibold tabular-nums">{((thermalReport.inputs?.floorFatorBomba ?? 0) * 100).toFixed(0)}%</span></div>
+                                    <div>×Real: <span className="font-semibold tabular-nums">{thermalReport.inputs?.fatorHorasOperacaoReal?.toFixed(2) ?? '—'}</span></div>
+                                    <div>=h/dia: <span className="font-semibold tabular-nums">{thermalReport.bombaHorasDiaMedio?.toFixed(2) ?? '—'}h</span></div>
+                                    <div>Pot elétr: <span className="font-semibold tabular-nums">{thermalReport.bombaPotenciaKW?.toFixed(2) ?? '—'}kW</span></div>
+                                    <div>Rend: <span className="font-semibold tabular-nums">{thermalReport.inputs?.rendimentoBomba?.toFixed(2) ?? '0.65'}</span></div>
+                                    {thermalReport.inputs?.fatorVazao != null && (
+                                      <>
+                                        <div>Vaz bomba: <span className="font-semibold tabular-nums">{thermalReport.inputs?.vazaoBombaM3h?.toFixed(2) ?? '—'}</span></div>
+                                        <div>Vaz solar: <span className="font-semibold tabular-nums">{thermalReport.inputs?.vazaoSolarM3h?.toFixed(2) ?? '—'}</span></div>
+                                        <div className="col-span-4">×Fator vazão: <span className={`font-semibold tabular-nums ${thermalReport.inputs.fatorVazao < 0.85 ? 'text-emerald-600' : thermalReport.inputs.fatorVazao > 1.15 ? 'text-red-600' : ''}`}>{thermalReport.inputs.fatorVazao.toFixed(2)}</span> <span className="text-violet-400">(vazaoSolar/vazaoBomba)</span></div>
+                                      </>
+                                    )}
+                                  </div>
+                                  <div className="text-violet-500 italic mt-0.5 leading-tight">HSP_inclinado ({thermalReport.inputs?.hspInclinadoMedio?.toFixed(2) ?? '—'}h) só em qSolar (oferta), não nas horas da bomba.</div>
                                   {thermalReport.monthly[0]?.fatorUtilizacaoBomba != null && thermalReport.monthly[0].fatorUtilizacaoBomba >= 0.99 && (
-                                    <div className="mt-1 text-red-700 font-semibold">
-                                      ⚠ Sistema saturado: qPerdas ({thermalReport.qPerdasMediaKwhDia.toFixed(0)}) ≥ qSolar ({thermalReport.qSolarMediaKwhDia?.toFixed(0)}). Bomba opera HSE inteiro independente de coletores extras. Investigar: qtotalKw × 24 pode estar inflando perdas demais OU capa/vento errados.
+                                    <div className="mt-0.5 text-red-700 font-semibold text-[6.5px]">
+                                      ⚠ Saturado: qPerdas ({thermalReport.qPerdasMediaKwhDia.toFixed(0)}) ≥ qSolar ({thermalReport.qSolarMediaKwhDia?.toFixed(0)}).
                                     </div>
                                   )}
                                 </div>

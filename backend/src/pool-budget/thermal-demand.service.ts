@@ -86,6 +86,26 @@ const FLOOR_FATOR_BOMBA = 0.85;
 // total real eh ~1.3x o HSP. Tipico de instalacoes brasileiras.
 const FATOR_HORAS_OPERACAO_REAL = 1.3;
 
+// v1.12.93: rendimento medio de bombas centrifugas de piscina.
+// Bomba real consome mais potencia eletrica do que entrega na agua (perdas
+// mecanicas + perdas no motor). Rendimento global tipico: 60-75%.
+// Conversao: P_eletrica = P_mecanica / rendimento
+//          = (cv × 0.7355) / 0.65
+// Antes: assumimos rendimento 100% (subestimava consumo ~50%).
+const RENDIMENTO_BOMBA_MEDIO = 0.65;
+
+// v1.12.93: fator de vazao na operacao da bomba.
+// Bomba com vazao MAIOR que a necessaria circula a agua mais rapido,
+// fazendo o coletor esfriar mais rapido — controlador diferencial desliga
+// antes. Inversamente: bomba sub-dimensionada opera mais tempo.
+//
+// Modelo: fatorVazao = clamp(0.7, 1.3, vazaoSolar / vazaoBomba)
+//  - vazaoBomba >> vazaoSolar: clamp 0.7 (controlador tem histerese, nao
+//    desliga instantaneo)
+//  - vazaoBomba << vazaoSolar: clamp 1.3 (nao opera mais que +30%)
+const FATOR_VAZAO_MIN = 0.7;
+const FATOR_VAZAO_MAX = 1.3;
+
 export interface ThermalDemandInputs {
   // Reusa HeatingInputs como base — todos os campos de perdas, extras, uso, clima
   heating: HeatingInputs;
@@ -106,7 +126,9 @@ export interface ThermalDemandInputs {
     inclinacaoTelhadoGraus?: number;
     bomba?: {
       potenciaCv: number;       // pra calcular consumo eletrico
+      vazaoM3h?: number;        // v1.12.93: pra calcular fator de vazao
     };
+    vazaoSolarM3h?: number;     // v1.12.93: vazao solar necessaria (do solar report)
   };
 }
 
@@ -174,6 +196,11 @@ export interface ThermalDemandReport {
     hspInclinadoMedio?: number;
     floorFatorBomba?: number;
     fatorHorasOperacaoReal?: number;
+    // v1.12.93: rendimento bomba + fator vazao
+    rendimentoBomba?: number;
+    vazaoBombaM3h?: number;
+    vazaoSolarM3h?: number;
+    fatorVazao?: number;
   };
 }
 
@@ -202,6 +229,7 @@ export class ThermalDemandService {
       orientacaoTelhado?: string;
       inclinacaoTelhadoGraus?: number;
       potenciaCv?: number; // bomba selecionada
+      vazaoBombaM3h?: number; // v1.12.93: pra fator de vazao
       areaPiscinaM2?: number;
       volumeM3?: number;
     },
@@ -277,8 +305,14 @@ export class ThermalDemandService {
               inclinacaoTelhadoGraus:
                 overrides?.inclinacaoTelhadoGraus ?? (env.inclinacaoTelhadoGraus as number | undefined),
               ...(overrides?.potenciaCv != null && {
-                bomba: { potenciaCv: overrides.potenciaCv },
+                bomba: {
+                  potenciaCv: overrides.potenciaCv,
+                  // v1.12.93: vazao da bomba (do form) pra calcular fator de vazao
+                  vazaoM3h: overrides.vazaoBombaM3h,
+                },
               }),
+              // v1.12.93: vazao solar necessaria (do solar report) pra fator de vazao
+              vazaoSolarM3h: Number(solarReport.vazaoTotalM3h) || undefined,
             },
           }
         : {}),
@@ -403,7 +437,11 @@ export class ThermalDemandService {
       qSolarPorM2DiaCalc = (radSol: number) => radSol * eficiencia * fatorInstalacao;
     }
 
-    const potenciaKW = inputs.solar?.bomba ? inputs.solar.bomba.potenciaCv * 0.7355 : undefined;
+    // v1.12.93: potencia eletrica = potencia mecanica / rendimento (~0.65 medio).
+    // Antes assumia rendimento 100%, subestimava o consumo eletrico em ~50%.
+    const potenciaKW = inputs.solar?.bomba
+      ? (inputs.solar.bomba.potenciaCv * 0.7355) / RENDIMENTO_BOMBA_MEDIO
+      : undefined;
 
     // === 3) Montagem do mensal ===
     const MES_NOMES = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -437,23 +475,24 @@ export class ThermalDemandService {
         out.coberturaSolarPct = round1(cobertura);
 
         if (potenciaKW != null) {
-          // v1.12.92: HSE bruto (NAO multiplicado por fatorInstalacao).
-          // Controlador diferencial liga enquanto T_coletor > T_piscina + ΔT_min.
-          // Orientacao ruim NAO faz a bomba operar menos — coletor ainda esquenta
-          // (mesmo que menos), bomba ainda liga durante toda a janela de sol.
-          // O efeito de orientacao ja eh capturado via qSolar (oferta): orientacao
-          // ruim → qSolar menor → fatorBase = qPerdas/qSolar sobe → bomba opera
-          // MAIS horas. Modelo correto.
+          // v1.12.93: fator de vazao da bomba.
+          // Bomba com vazao > vazao necessaria → coletor esfria mais rapido →
+          // controlador diferencial desliga antes → bomba opera menos horas.
+          // Inversamente: bomba sub-dimensionada opera mais.
           //
-          // v1.12.91 (errado): multiplicar fatorInstalacao no HSE fazia orientacao
-          // ruim reduzir horas, invertendo a fisica.
-          //
+          //   fatorVazao = clamp(0.7, 1.3, vazaoSolar / vazaoBomba)
+          const vazaoSolar = inputs.solar?.vazaoSolarM3h ?? 0;
+          const vazaoBomba = inputs.solar?.bomba?.vazaoM3h ?? 0;
+          const fatorVazao = (vazaoBomba > 0 && vazaoSolar > 0)
+            ? Math.max(FATOR_VAZAO_MIN, Math.min(FATOR_VAZAO_MAX, vazaoSolar / vazaoBomba))
+            : 1.0;
+
           //  fatorBase = min(1, qPerdas/qSolar)
           //  fator = max(FLOOR_FATOR_BOMBA, fatorBase)
-          //  horasDia = HSE × fator × FATOR_HORAS_OPERACAO_REAL
+          //  horasDia = HSE × fator × FATOR_HORAS_OPERACAO_REAL × fatorVazao
           const fatorBase = qSolarKwhDia > 0 ? Math.min(1, qPerdasKwhDia / qSolarKwhDia) : 1;
           const fator = Math.max(FLOOR_FATOR_BOMBA, fatorBase);
-          const horasDia = hse * fator * FATOR_HORAS_OPERACAO_REAL;
+          const horasDia = hse * fator * FATOR_HORAS_OPERACAO_REAL * fatorVazao;
           const consumoKwhMes = potenciaKW * horasDia * 30;
 
           out.fatorUtilizacaoBomba = round2(fator);
@@ -524,6 +563,15 @@ export class ThermalDemandService {
           : undefined,
         floorFatorBomba: FLOOR_FATOR_BOMBA,
         fatorHorasOperacaoReal: FATOR_HORAS_OPERACAO_REAL,
+        rendimentoBomba: RENDIMENTO_BOMBA_MEDIO,
+        vazaoBombaM3h: inputs.solar?.bomba?.vazaoM3h,
+        vazaoSolarM3h: inputs.solar?.vazaoSolarM3h,
+        fatorVazao: (() => {
+          const vs = inputs.solar?.vazaoSolarM3h ?? 0;
+          const vb = inputs.solar?.bomba?.vazaoM3h ?? 0;
+          if (vb <= 0 || vs <= 0) return undefined;
+          return round2(Math.max(FATOR_VAZAO_MIN, Math.min(FATOR_VAZAO_MAX, vs / vb)));
+        })(),
       },
     };
   }
