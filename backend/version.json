@@ -1,5 +1,5 @@
 {
-  "version": "1.12.96",
-  "codename": "v1.12.96: cadastro bomba de calor ganha vazao min/max (so dados) + auto-selecao CONFIGURAVEL da bomba de calor (regra heatingRule + endpoints /heating/rule; sem regra = fallback atual). Aba visual da bomba (parte C) ainda pendente.",
-  "releasedAt": "2026-05-29T20:02:26.904Z"
+  "version": "1.12.97",
+  "codename": "v1.12.97: aba Bomba de Calor reescrita como datasheet A4 (clone visual da Solar) — toolbar/zoom/print bomba-pdf 1 pagina, Cliente/Obra, Dimensoes, Configuracao, Dimensionamento (calor kcal/h + Equipamento + COP + ✨ regra heatingRule), Simulacao de consumo. So os calculos mudam vs solar.",
+  "releasedAt": "2026-05-29T20:37:30.445Z"
 }

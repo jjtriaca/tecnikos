@@ -286,6 +286,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
   const [solarCollectors, setSolarCollectors] = useState<SolarCollectorCandidate[]>([]);
   // v5.8 — regras de auto-selecao do tenant (config global, nao por orcamento)
   const [solarColetorRule, setSolarColetorRule] = useState<AutoSelectRule | null>(null);
+  const [heatingRule, setHeatingRule] = useState<AutoSelectRule | null>(null);
   const [solarBombaRule, setSolarBombaRule] = useState<AutoSelectRule | null>(null);
 
   // v5.9 — ref do container scrollavel pra preservar scrollTop em recomputes
@@ -341,6 +342,18 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
 
   // Candidatos pra dropdown de selecao manual do equipamento
   const [candidates, setCandidates] = useState<HeatingCandidate[]>([]);
+
+  // Salva regra de auto-selecao da bomba de calor + recarrega candidatos + recomputa report.
+  const saveHeatingRule = useCallback(async (rule: AutoSelectRule | null) => {
+    try {
+      await api.post("/pool-budgets/heating/rule", { rule });
+      setHeatingRule(rule);
+      try { const cands = await api.get<HeatingCandidate[]>("/pool-budgets/heating/candidates"); setCandidates(cands); } catch { /* ignora */ }
+      try { const r = await api.post<HeatingReport>(`/pool-budgets/${budget.id}/heating-report/recompute`); setReport(r); } catch { /* ignora */ }
+    } catch (e: any) {
+      setError(String(e?.message ?? "Erro ao salvar regra da bomba de calor"));
+    }
+  }, [budget.id]);
   const [showEquipmentPicker, setShowEquipmentPicker] = useState<boolean>(false);
   const [changingEquipment, setChangingEquipment] = useState<boolean>(false);
   // equipmentQty removido em v1.11.84 — agora cada linha do dropdown tem seu proprio
@@ -410,6 +423,9 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
     api.get<{ rule: AutoSelectRule | null }>("/pool-budgets/solar/collector-rule")
       .then((r) => setSolarColetorRule(r?.rule ?? null))
       .catch(() => setSolarColetorRule(null));
+    api.get<{ rule: AutoSelectRule | null }>("/pool-budgets/heating/rule")
+      .then((r) => setHeatingRule(r?.rule ?? null))
+      .catch(() => setHeatingRule(null));
     api.get<{ rule: AutoSelectRule | null }>("/pool-budgets/solar/bomba-rule")
       .then((r) => setSolarBombaRule(r?.rule ?? null))
       .catch(() => setSolarBombaRule(null));
@@ -803,581 +819,41 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
           )}
 
           {activeTab === "bomba" && (
-            <div className="space-y-4">
-              {/* CABECALHO COLAPSAVEL — Dados do projeto (F6.4)
-                  Quando minimizado: pills compactas com infos chave pra apresentacao limpa
-                  Quando expandido + quickMode: inputs editaveis (simulacao livre)
-                  Quando expandido + nao quickMode: read-only com link pra Editar dados */}
-              <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                <button type="button" onClick={() => setProjectExpanded(!projectExpanded)}
-                  className="w-full flex items-center justify-between gap-3 px-4 py-3 hover:bg-slate-50 transition">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="text-base">📋</span>
-                    <span className="text-sm font-bold text-slate-900">Dados do projeto</span>
-                    {!projectExpanded && (
-                      <div className="flex flex-wrap gap-1.5 ml-3">
-                        <Pill icon="📐" text={`${(budget.poolDimensions?.volume ?? 0).toFixed(0)} m³ · ${(budget.poolDimensions?.area ?? 0).toFixed(0)} m²`} tone="slate" />
-                        <Pill icon="📍" text={uf ? `${uf}${cidade ? ` — ${cidade}` : ""}` : "Sem localizacao"} tone={uf ? "cyan" : "amber"} />
-                        <Pill icon="🌡" text={`${tempAguaDesejada}°C`} tone="orange" />
-                        <Pill icon="⛅" text={labelVento[vento] || vento} tone="slate" />
-                        <Pill icon={capaTermica ? "🧱" : "☀"} text={capaTermica ? "Com capa" : "Sem capa"} tone={capaTermica ? "emerald" : "amber"} />
-                        <Pill icon="📅" text={labelUtilAno[utilizacaoAno] || utilizacaoAno} tone="slate" />
-                        {(hidromassagensQtd > 0 || cascataLarguraCm > 0 || bordaInfinitaM > 0) && (
-                          <Pill icon="✨" text={[
-                            hidromassagensQtd > 0 ? `${hidromassagensQtd} jato${hidromassagensQtd > 1 ? "s" : ""}` : null,
-                            cascataLarguraCm > 0 ? `cascata ${cascataLarguraCm}cm` : null,
-                            bordaInfinitaM > 0 ? `borda ${bordaInfinitaM}m` : null,
-                          ].filter(Boolean).join(" · ")} tone="cyan" />
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-slate-400 text-xs">{projectExpanded ? "▲ recolher" : "▼ expandir"}</span>
-                </button>
-
-                {projectExpanded && (
-                  <div className="border-t border-slate-200 p-4 space-y-4 bg-slate-50">
-                    {/* === Bloco 1: Dados da obra === */}
-                    <div className="rounded-lg border border-slate-200 bg-white p-3">
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2 flex items-center justify-between">
-                        <span>📐 Dados da obra</span>
-                        {!quickMode && <span className="text-[10px] text-slate-400 normal-case font-normal">Vem das dimensoes do orcamento</span>}
-                      </div>
-                      {quickMode ? (
-                        <>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            <Field label="Volume (m³)"><NumInput value={quickVolume} onChange={setQuickVolume} step={0.5} min={0.1} /></Field>
-                            <Field label="Area (m²)"><NumInput value={quickArea} onChange={setQuickArea} step={0.5} min={0.1} /></Field>
-                            <Field label="Comprimento (m)"><NumInput value={quickLength} onChange={setQuickLength} step={0.5} min={0} /></Field>
-                            <Field label="Largura (m)"><NumInput value={quickWidth} onChange={setQuickWidth} step={0.5} min={0} /></Field>
-                          </div>
-                          <div className="mt-2 flex items-center justify-between">
-                            <div className="text-[11px] text-amber-700">⚡ Modo Calculo Rapido — alteracoes NAO sao salvas.</div>
-                            <button onClick={restoreFromBudget} type="button" className="text-[11px] text-cyan-700 hover:underline">↩ Restaurar dados do orcamento</button>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                          <ReadField label="Volume" value={`${(budget.poolDimensions?.volume ?? 0).toFixed(2)} m³`} />
-                          <ReadField label="Area superficie" value={`${(budget.poolDimensions?.area ?? 0).toFixed(2)} m²`} />
-                          <ReadField label="Comprimento" value={`${budget.poolDimensions?.length ?? "—"} m`} />
-                          <ReadField label="Largura" value={`${budget.poolDimensions?.width ?? "—"} m`} />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* === Bloco 2: Localizacao e clima === */}
-                    <div className="rounded-lg border border-slate-200 bg-white p-3">
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2 flex items-center justify-between">
-                        <span>📍 Localizacao e clima</span>
-                        {!quickMode && <span className="text-[10px] text-slate-400 normal-case font-normal">Edite via "Editar dados" do orcamento</span>}
-                      </div>
-                      {quickMode ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <Field label="Estado (UF)">
-                            <select value={uf} onChange={(e) => { setUf(e.target.value); setCidade(""); }}
-                              className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm">
-                              <option value="">Selecione...</option>
-                              {cities.map((c) => <option key={c.uf} value={c.uf}>{c.uf} — {c.ufName}</option>)}
-                            </select>
-                          </Field>
-                          <Field label="Cidade-clima">
-                            <select value={cidade} onChange={(e) => setCidade(e.target.value)} disabled={!uf}
-                              className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm disabled:bg-slate-50">
-                              <option value="">{availableCities[0] ? `${availableCities[0]} (capital)` : "—"}</option>
-                              {availableCities.slice(1).map((c) => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                          </Field>
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                          <ReadField label="Estado" value={uf || "—"} />
-                          <ReadField label="Cidade-clima" value={cidade || (report?.cityResolved?.name ? `${report.cityResolved.name} (capital)` : "—")} />
-                        </div>
-                      )}
-                      {report?.cityResolved && (
-                        <div className="mt-2 text-[11px] text-cyan-700">Cidade-clima em uso: <strong>{report.cityResolved.name} / {report.cityResolved.uf}</strong></div>
-                      )}
-                    </div>
-
-                    {/* === Bloco 3: Dados de uso === */}
-                    <div className="rounded-lg border border-slate-200 bg-white p-3">
-                      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2 flex items-center justify-between">
-                        <span>🌡 Dados de uso</span>
-                        {!quickMode && <span className="text-[10px] text-slate-400 normal-case font-normal">Edite via "Editar dados" do orcamento</span>}
-                      </div>
-                      {quickMode ? (
-                        <>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            <Field label="Temp. agua desejada (°C)"><NumInput value={tempAguaDesejada} onChange={setTempAguaDesejada} step={1} min={20} max={42} /></Field>
-                            <Field label="Temp. agua inicial (°C)">
-                              <input type="number" value={tempAguaInicial === "" ? "" : String(tempAguaInicial)}
-                                onChange={(e) => setTempAguaInicial(e.target.value === "" ? "" : Number(e.target.value))}
-                                className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm" />
-                            </Field>
-                            <Field label="Velocidade vento">
-                              <select value={vento} onChange={(e) => setVento(e.target.value)} className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm">
-                                {VENTO_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
-                              </select>
-                            </Field>
-                            <Field label="Tipo construcao">
-                              <select value={tipoConstrucao} onChange={(e) => setTipoConstrucao(e.target.value)} className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm">
-                                {TIPO_CONSTRUCAO_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
-                              </select>
-                            </Field>
-                            <Field label="Capa termica">
-                              <label className="flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-sm cursor-pointer">
-                                <input type="checkbox" checked={capaTermica} onChange={(e) => setCapaTermica(e.target.checked)} className="rounded border-slate-300 text-cyan-600" />
-                                <span>{capaTermica ? "Sim" : "Nao"}</span>
-                              </label>
-                            </Field>
-                            <Field label="Tipo piscina">
-                              <select value={tipoPiscina} onChange={(e) => setTipoPiscina(e.target.value)} className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm">
-                                {TIPO_PISCINA_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
-                              </select>
-                            </Field>
-                            <Field label="Utilizacao ano">
-                              <select value={utilizacaoAno} onChange={(e) => setUtilizacaoAno(e.target.value)} className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm">
-                                {UTILIZACAO_ANO_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
-                              </select>
-                            </Field>
-                            <Field label="Utilizacao semana">
-                              <select value={utilizacaoSemana} onChange={(e) => setUtilizacaoSemana(e.target.value)} className="w-full rounded border border-slate-300 bg-white px-3 py-2 text-sm">
-                                {UTILIZACAO_SEMANA_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
-                              </select>
-                            </Field>
-                          </div>
-                          {/* Extras editaveis em quickMode */}
-                          <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                            <div className="text-xs font-semibold text-slate-700 mb-2">💦 Hidromassagem</div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <Field label="Qtd jatos"><NumInput value={hidromassagensQtd} onChange={setHidromassagensQtd} step={1} min={0} /></Field>
-                              <Field label="Horas ligada/semana"><NumInput value={hidromassagemHorasSemana} onChange={setHidromassagemHorasSemana} step={1} min={0} max={168} /></Field>
-                            </div>
-                            <div className="text-[10px] text-slate-500 mt-1">Default 2h/semana = uso casual. 168h = sempre ligada. Peso no calculo: horas/168.</div>
-                          </div>
-                          <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                            <div className="text-xs font-semibold text-slate-700 mb-2">🌊 Cascata</div>
-                            <div className="grid grid-cols-2 gap-3">
-                              <Field label="Largura (cm)"><NumInput value={cascataLarguraCm} onChange={setCascataLarguraCm} step={1} min={0} /></Field>
-                              <Field label="Horas ligada/semana"><NumInput value={cascataHorasSemana} onChange={setCascataHorasSemana} step={1} min={0} max={168} /></Field>
-                            </div>
-                            <div className="text-[10px] text-slate-500 mt-1">Default 2h/semana = uso decorativo casual. Peso no calculo: horas/168.</div>
-                          </div>
-                          <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                            <div className="text-xs font-semibold text-slate-700 mb-2">💧 Borda infinita</div>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                              <Field label="Comprimento (m)"><NumInput value={bordaInfinitaM} onChange={setBordaInfinitaM} step={0.5} min={0} /></Field>
-                              <Field label="Altura queda (m)"><NumInput value={bordaInfinitaAlturaM} onChange={setBordaInfinitaAlturaM} step={0.1} min={0.1} max={3} /></Field>
-                              <Field label="Vazao (L/min·m)"><NumInput value={bordaInfinitaVazaoLminPorM} onChange={setBordaInfinitaVazaoLminPorM} step={5} min={5} max={120} /></Field>
-                              <Field label="Horas/dia ativa"><NumInput value={bordaInfinitaHorasAtivaDia} onChange={setBordaInfinitaHorasAtivaDia} step={1} min={0} max={24} /></Field>
-                            </div>
-                          </div>
-                          <div className="mt-3 grid grid-cols-2 gap-3">
-                            <Field label="Horas funcionamento/dia"><NumInput value={horasFuncionamentoDia} onChange={setHorasFuncionamentoDia} step={1} min={1} max={24} /></Field>
-                            <Field label="Taxa funcionamento (0-1)"><NumInput value={taxaFuncionamento} onChange={setTaxaFuncionamento} step={0.1} min={0.1} max={1} /></Field>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                            <ReadField label="Temp. desejada" value={`${tempAguaDesejada}°C`} />
-                            <ReadField label="Temp. inicial" value={tempAguaInicial === "" ? "auto (clima)" : `${tempAguaInicial}°C`} />
-                            <ReadField label="Vento" value={labelVento[vento] || vento} />
-                            <ReadField label="Construcao" value={tipoConstrucao === "ABERTA" ? "Aberta" : "Fechada"} />
-                            <ReadField label="Capa termica" value={capaTermica ? "Sim" : "Nao"} />
-                            <ReadField label="Tipo piscina" value={tipoPiscina === "PRIVATIVA" ? "Privativa" : "Coletiva"} />
-                            <ReadField label="Utilizacao ano" value={labelUtilAno[utilizacaoAno] || utilizacaoAno} />
-                            <ReadField label="Utilizacao semana" value={labelUtilSem[utilizacaoSemana] || utilizacaoSemana} />
-                          </div>
-                          {/* Extras agregados das linhas */}
-                          {(hidromassagensQtd > 0 || cascataLarguraCm > 0 || bordaInfinitaM > 0) && (
-                            <div className="mt-3 rounded-lg border border-cyan-200 bg-cyan-50 p-3">
-                              <div className="text-[11px] font-semibold text-cyan-900 mb-1.5">✨ Extras (agregados das linhas das etapas)</div>
-                              <div className="grid grid-cols-3 gap-3 text-xs">
-                                <div>
-                                  <div className="text-[10px] text-cyan-700">Hidromassagens</div>
-                                  <div className="font-bold text-cyan-900">{hidromassagensQtd} jato(s) · {hidromassagemHorasSemana}h/sem</div>
-                                </div>
-                                <div>
-                                  <div className="text-[10px] text-cyan-700">Cascata (largura total)</div>
-                                  <div className="font-bold text-cyan-900">{cascataLarguraCm} cm · {cascataHorasSemana}h/sem</div>
-                                </div>
-                                <div>
-                                  <div className="text-[10px] text-cyan-700">Borda infinita</div>
-                                  <div className="font-bold text-cyan-900">{bordaInfinitaM} m · {bordaInfinitaAlturaM}m queda · {bordaInfinitaHorasAtivaDia}h/dia</div>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-
-                    {/* Botao de acao (so em quickMode) */}
-                    {quickMode && (
-                      <div className="flex items-center justify-end gap-2">
-                        <button onClick={handleSaveAndRecompute} disabled={saving || loading || !uf}
-                          className="rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition bg-amber-600 hover:bg-amber-700 disabled:bg-slate-300 disabled:cursor-not-allowed">
-                          {saving ? "Calculando..." : "⚡ Calcular (nao salva)"}
-                        </button>
-                      </div>
-                    )}
-                    {!quickMode && (
-                      <div className="flex items-center justify-between text-[11px] text-slate-500">
-                        <span>Edite os dados no orcamento (botao "Editar dados" no header). O Simulador recalcula automaticamente.</span>
-                        <button type="button" onClick={handleSaveAndRecompute} disabled={saving || loading}
-                          className="text-[11px] text-cyan-700 hover:underline disabled:text-slate-400">
-                          {saving ? "Recalculando..." : "↻ Recalcular agora"}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* SECAO 4 — Dimensionamento */}
-              <Section title="4. Dimensionamento" icon="📊">
-                {loading ? (
-                  <div className="text-sm text-slate-500">Carregando relatorio...</div>
-                ) : report ? (
-                  <>
-                    {/* Card "Calor necessario" — v1.11.81: agora com cards de extras AO LADO
-                        (so quando identificados), mostrando contribuicao kW de cada um. Layout
-                        responsivo: em telas pequenas empilha, em desktop fica lado a lado. */}
-                    {(() => {
-                      const ed = report.extrasDetected;
-                      const hasAnyExtra = ed && (
-                        ed.cascata.status !== "NAO_IDENTIFICADA" ||
-                        ed.hidromassagem.status !== "NAO_IDENTIFICADA" ||
-                        ed.bordaInfinita.status !== "NAO_IDENTIFICADA"
-                      );
-                      return (
-                        <div className="rounded-xl border border-slate-200 bg-gradient-to-r from-cyan-50 via-orange-50 to-emerald-50 px-4 py-3 mb-3">
-                          <div className={`grid gap-4 items-center ${hasAnyExtra ? "lg:grid-cols-[1fr_auto]" : "grid-cols-1"}`}>
-                            {/* Bloco esquerdo: numeros principais */}
-                            <div>
-                              <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Calor necessario · mes critico</div>
-                              <div className="flex items-baseline gap-3 flex-wrap">
-                                <div className="flex items-baseline gap-1">
-                                  <span className="text-2xl font-bold text-cyan-700 tabular-nums">{report.calorNecessarioKcalH.toLocaleString("pt-BR")}</span>
-                                  <span className="text-xs font-semibold text-cyan-700">Kcal/h</span>
-                                </div>
-                                <span className="text-slate-300">·</span>
-                                <div className="flex items-baseline gap-1">
-                                  <span className="text-2xl font-bold text-orange-700 tabular-nums">{report.qtotalMaxKw.toFixed(1)}</span>
-                                  <span className="text-xs font-semibold text-orange-700">kW</span>
-                                </div>
-                                <span className="text-slate-300">·</span>
-                                <div className="flex items-baseline gap-1">
-                                  <span className="text-2xl font-bold text-emerald-700 tabular-nums">{report.calorNecessarioBtuH.toLocaleString("pt-BR")}</span>
-                                  <span className="text-xs font-semibold text-emerald-700">Btu/h</span>
-                                </div>
-                              </div>
-                            </div>
-                            {/* Bloco direito: cards de extras (so identificados) */}
-                            {hasAnyExtra && (
-                              <div className="flex flex-wrap gap-2 lg:justify-end">
-                                {ed!.cascata.status !== "NAO_IDENTIFICADA" && (
-                                  <ExtraImpactCard
-                                    icon="🌊"
-                                    title="Cascata"
-                                    extra={ed!.cascata}
-                                    horasValue={cascataHorasSemana}
-                                    onChangeHoras={touchAndSetCascata}
-                                  />
-                                )}
-                                {ed!.hidromassagem.status !== "NAO_IDENTIFICADA" && (
-                                  <ExtraImpactCard
-                                    icon="💦"
-                                    title="SPA"
-                                    extra={ed!.hidromassagem}
-                                    horasValue={hidromassagemHorasSemana}
-                                    onChangeHoras={touchAndSetHidro}
-                                  />
-                                )}
-                                {ed!.bordaInfinita.status !== "NAO_IDENTIFICADA" && (
-                                  <ExtraImpactCard
-                                    icon="🏞"
-                                    title="Borda"
-                                    extra={ed!.bordaInfinita}
-                                    horasValue={bordaInfinitaHorasAtivaDia}
-                                    onChangeHoras={touchAndSetBorda}
-                                    hoursLabel="h/dia"
-                                  />
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })()}
-
-                    {/* Tabela mensal compacta */}
-                    <div className="rounded-lg border border-slate-200 bg-white overflow-x-auto">
-                      <table className="w-full text-xs">
-                        <thead className="bg-slate-50 border-b border-slate-200">
-                          <tr>
-                            <th className="px-2 py-1.5 text-left font-semibold text-slate-700">Mes</th>
-                            {MESES.map((m) => <th key={m} className="px-1.5 py-1.5 text-center font-semibold text-slate-700">{m}</th>)}
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          <tr>
-                            <td className="px-2 py-1.5 font-medium text-slate-700">Temp ar (°C)</td>
-                            {report.monthlyHeatLoss.map((m, i) => (
-                              <td key={i} className="px-1.5 py-1.5 text-center text-slate-600 tabular-nums">{m.tempAr.toFixed(1)}</td>
-                            ))}
-                          </tr>
-                          <tr>
-                            <td className="px-2 py-1.5 font-medium text-slate-700">Umidade</td>
-                            {report.monthlyHeatLoss.map((m, i) => (
-                              <td key={i} className="px-1.5 py-1.5 text-center text-slate-600 tabular-nums">{(m.humidity * 100).toFixed(0)}%</td>
-                            ))}
-                          </tr>
-                          <tr className="bg-orange-50">
-                            <td className="px-2 py-1.5 font-semibold text-orange-900">Qtotal (kW)</td>
-                            {report.monthlyHeatLoss.map((m, i) => {
-                              const isCritical = i === report.qtotalMonthCritical;
-                              return (
-                                <td key={i} className={`px-1.5 py-1.5 text-center tabular-nums font-mono ${isCritical ? "bg-orange-200 font-bold text-orange-900" : "text-orange-900"}`}>
-                                  {m.qtotalKw.toFixed(1)}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="mt-2 text-[11px] text-slate-500">
-                      Mes critico: <strong>{MESES[report.qtotalMonthCritical]}</strong> ({report.monthlyHeatLoss[report.qtotalMonthCritical].qtotalKw.toFixed(1)} kW). Aplicada margem de seguranca conforme utilizacao.
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-sm text-slate-500">Preencha dados e clique em "Salvar e calcular" pra ver o dimensionamento.</div>
-                )}
-              </Section>
-
-              {/* SECAO 5 — Equipamento selecionado */}
-              <Section title="5. Equipamento selecionado" icon="🔧">
-                {report?.selectedEquipment ? (
-                  <div className="flex items-start gap-4 rounded-xl border-2 border-emerald-200 bg-emerald-50 p-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <div className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
-                          {report.selectedEquipment.fromOverride ? "Equipamento (escolha manual)" :
-                            report.selectedEquipment.fromItemCellRef ? "Equipamento da linha do orcamento" : "Modelo recomendado"}
-                        </div>
-                        {report.selectedEquipment.fromOverride && (
-                          <span className="inline-flex items-center gap-1 bg-violet-100 text-violet-900 border border-violet-300 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                            ✋ MANUAL
-                          </span>
-                        )}
-                        {report.selectedEquipment.fromItemCellRef && (
-                          <span className="inline-flex items-center gap-1 bg-cyan-100 text-cyan-900 border border-cyan-300 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                            📎 {report.selectedEquipment.fromItemCellRef}
-                          </span>
-                        )}
-                        {report.selectedEquipment.quantity > 1 && (
-                          <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                            ⚡ {report.selectedEquipment.quantity}× UNIDADES EM PARALELO
-                          </span>
-                        )}
-                      </div>
-                      {/* Dropdown clickable no nome + input Qtd ao lado (v1.11.87 — repos.) */}
-                      <div className="mt-1 flex items-center gap-3 flex-wrap">
-                        <div className="relative inline-flex items-center">
-                          <button type="button" onClick={() => setShowEquipmentPicker(!showEquipmentPicker)}
-                            className="flex items-center gap-2 text-xl font-bold text-emerald-900 hover:text-emerald-700 transition text-left">
-                            <span>{report.selectedEquipment.modelName}</span>
-                            <span className="text-sm text-emerald-700">{showEquipmentPicker ? "▲" : "▼"}</span>
-                          </button>
-                        {showEquipmentPicker && (
-                          <div className="absolute z-50 left-0 top-full mt-2 rounded-xl border-2 border-emerald-200 bg-white shadow-xl p-3 max-h-96 overflow-y-auto w-[560px] max-w-[90vw]">
-                            <div className="text-[11px] font-semibold uppercase text-slate-500 mb-2">Trocar equipamento</div>
-                            {report.selectedEquipment.fromOverride && (
-                              <button type="button" onClick={() => changeEquipment(null)} disabled={changingEquipment}
-                                className="w-full text-left px-3 py-2 mb-2 rounded-lg border border-violet-300 bg-violet-50 hover:bg-violet-100 text-sm font-semibold text-violet-900 disabled:opacity-50">
-                                ↺ Voltar pra selecao automatica
-                              </button>
-                            )}
-                            {/* Lista de candidatos com input de quantidade por linha (v1.11.84).
-                                Antes tinha um seletor global de quantidade no topo e duplicava cada
-                                equipamento como "2× X23-09C, 3× X23-09C..." — UI confusa. Agora:
-                                lista simples dos equipamentos UNICOS, cada um com Qtd: [_] ao lado. */}
-                            <div className="space-y-1">
-                              {candidates.length === 0 && (
-                                <div className="text-xs text-slate-500 px-2 py-3">
-                                  Nenhum produto cadastrado tipo Bomba de Calor com kcalHNominal preenchido.
-                                </div>
-                              )}
-                              {[...candidates].sort((a, b) => a.kcalHNominal - b.kcalHNominal).map((c) => (
-                                <EquipmentCandidateRow
-                                  key={c.productId}
-                                  candidate={c}
-                                  isCurrentSelected={c.productId === report.selectedEquipment?.productId}
-                                  currentSelectedQty={report.selectedEquipment?.quantity ?? 1}
-                                  onSelect={(qty) => changeEquipment(c.productId, qty)}
-                                  disabled={changingEquipment}
-                                />
-                              ))}
-                            </div>
-                            {changingEquipment && (
-                              <div className="mt-2 text-center text-[11px] text-slate-500">Recalculando...</div>
-                            )}
-                          </div>
-                        )}
-                        </div>
-                        {/* Input Qtd ao lado do nome (v1.11.86) — debounce 600ms dispara
-                            selectEquipmentOverride com mesmo productId + nova qty.
-                            Sincronia bidirecional vai propagar pra linha L44 do orcamento. */}
-                        <EquipmentQuantityInput
-                          productId={report.selectedEquipment.productId}
-                          currentQty={report.selectedEquipment.quantity}
-                          onChangeQty={(newQty) => changeEquipment(report.selectedEquipment!.productId, newQty)}
-                          disabled={changingEquipment}
-                        />
-                      </div>
-                      {report.selectedEquipment.quantity > 1 && (
-                        <div className="mt-1 text-[11px] text-amber-800">
-                          Nenhum modelo unico cobre a demanda. Sistema sugere {report.selectedEquipment.quantity} unidades do maior modelo disponivel operando em paralelo. Capacidade combinada = {report.selectedEquipment.kcalHNominal?.toLocaleString("pt-BR")} Kcal/h.
-                        </div>
-                      )}
-                      <div className="mt-2 grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-                        <SmallStat label="Capacidade" value={`${report.selectedEquipment.kcalHNominal?.toLocaleString("pt-BR")} Kcal/h`} />
-                        {report.selectedEquipment.kwNominal && <SmallStat label="Potencia termica" value={`${report.selectedEquipment.kwNominal} kW`} />}
-                        {report.selectedEquipment.ratedInputPowerKW && <SmallStat label="Consumo medio" value={`${report.selectedEquipment.ratedInputPowerKW} kW`} />}
-                      </div>
-
-                      {/* COP em 3 condicoes */}
-                      <div className="mt-3 rounded-lg bg-white border border-emerald-200 p-2">
-                        <div className="text-[10px] uppercase tracking-wider font-semibold text-emerald-700 mb-1.5">Coeficiente de Performance (COP)</div>
-                        <div className="grid grid-cols-3 gap-2 text-xs">
-                          {report.selectedEquipment.copMax !== undefined && report.selectedEquipment.copMax > 0 && (
-                            <div className="rounded bg-slate-50 px-2 py-1.5">
-                              <div className="text-[10px] text-slate-500">Maximo (marketing)</div>
-                              <div className="font-bold text-slate-700 tabular-nums">{report.selectedEquipment.copMax}</div>
-                              <div className="text-[9px] text-slate-400">ar 26°C, carga baixa</div>
-                            </div>
-                          )}
-                          {report.selectedEquipment.copAt50Air26 !== undefined && report.selectedEquipment.copAt50Air26 > 0 && (
-                            <div className="rounded bg-amber-50 px-2 py-1.5">
-                              <div className="text-[10px] text-amber-700">Verao (50% carga)</div>
-                              <div className="font-bold text-amber-900 tabular-nums">{report.selectedEquipment.copAt50Air26}</div>
-                              <div className="text-[9px] text-amber-700/70">ar 26°C real</div>
-                            </div>
-                          )}
-                          {report.selectedEquipment.copAt50Air15 !== undefined && report.selectedEquipment.copAt50Air15 > 0 && (
-                            <div className="rounded bg-cyan-50 px-2 py-1.5 ring-1 ring-cyan-200">
-                              <div className="text-[10px] text-cyan-700">Inverno (50% carga) ✓</div>
-                              <div className="font-bold text-cyan-900 tabular-nums">{report.selectedEquipment.copAt50Air15}</div>
-                              <div className="text-[9px] text-cyan-700/70">ar 15°C — usado no calculo</div>
-                            </div>
-                          )}
-                        </div>
-                        <div className="mt-1.5 text-[10px] text-slate-500">
-                          O COP de marketing eh teorico em condicao ideal. Pra calculo conservador de consumo no Brasil, usamos o COP em ar 15°C.
-                        </div>
-                      </div>
-                      <div className="mt-2 text-xs text-emerald-700">
-                        Carga: <strong>{(report.selectedEquipment.loadRatio * 100).toFixed(0)}%</strong>
-                        {report.selectedEquipment.isAdequate
-                          ? <span className="ml-2 text-emerald-700">✓ Folga adequada (30-70%)</span>
-                          : <span className="ml-2 text-amber-700">⚠ Fora da faixa ideal</span>}
-                      </div>
-                      {report.timeToHeatInfeasible ? (
-                        <div className="mt-2 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-xs text-rose-900">
-                          <strong>⛔ Equipamento nao consegue aquecer a piscina nas condicoes atuais.</strong>
-                          <div className="mt-0.5">A perda termica continua (evaporacao + extras como borda infinita) excede a capacidade do modelo selecionado. Considere: reduzir a temperatura desejada, adicionar capa termica, ou escolher equipamento de maior capacidade.</div>
-                        </div>
-                      ) : report.timeToHeatHours !== undefined && report.timeToHeatHours > 0 && isFinite(report.timeToHeatHours) ? (
-                        <div className={`mt-2 text-xs ${report.timeToHeatHours > 48 ? "text-amber-800" : "text-emerald-800"}`}>
-                          Tempo de elevacao: <strong>{Math.floor(report.timeToHeatHours)}h {Math.round((report.timeToHeatHours % 1) * 60)}min</strong>
-                          {report.degreesPerHour && <> · {report.degreesPerHour.toFixed(2)} °C/h</>}
-                          {report.timeToHeatHours > 48 && <span className="ml-2">⚠ Tempo elevado — folga apertada, perdas continuas pesam.</span>}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    <strong>Nenhum equipamento compativel no catalogo.</strong>
-                    <div className="mt-1 text-xs">
-                      Cadastre produtos com <code className="rounded bg-amber-100 px-1">poolType = "Bomba de Calor"</code> e <code className="rounded bg-amber-100 px-1">technicalSpecs.kcalHNominal</code> preenchido.
-                    </div>
-                  </div>
-                )}
-              </Section>
-
-              {/* SECAO 6 — Consumo mensal e custos */}
-              <Section title="6. Consumo mensal e custos estimados" icon="💰">
-                {report?.monthlyConsumption && report.monthlyConsumption.length > 0 ? (
-                  <>
-                    {/* 4 cards de totais */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                      <BigStatLegacy label="Consumo anual" value={(report.annualKwh ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} unit="kWh/ano" emphasis="cyan" />
-                      <BigStatLegacy label="Custo medio mensal" value={fmtBRL(Math.round((report.annualCostBRLCents ?? 0) / 12))} unit="por mes" emphasis="orange" />
-                      <BigStatLegacy label="Custo anual operacao" value={fmtBRL(report.annualCostBRLCents ?? 0)} unit="por ano" emphasis="orange" />
-                      <BigStatLegacy label="Custo aquec. inicial" value={fmtBRL(report.initialHeatingCostBRLCents ?? 0)} unit="1a vez" emphasis="emerald" />
-                    </div>
-
-                    {/* Tabela mensal */}
-                    <div className="rounded-lg border border-slate-200 bg-white overflow-x-auto">
-                      <table className="w-full text-xs">
-                        <thead className="bg-slate-50 border-b border-slate-200">
-                          <tr>
-                            <th className="px-3 py-1.5 text-left font-semibold text-slate-700">Mes</th>
-                            <th className="px-3 py-1.5 text-right font-semibold text-slate-700">Qtotal (kW)</th>
-                            <th className="px-3 py-1.5 text-right font-semibold text-slate-700">Consumo (kWh)</th>
-                            <th className="px-3 py-1.5 text-right font-semibold text-slate-700">Custo (R$)</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {report.monthlyConsumption.map((m) => {
-                            const qm = report.monthlyHeatLoss[m.monthIndex];
-                            const isCritical = m.monthIndex === report.qtotalMonthCritical;
-                            return (
-                              <tr key={m.monthIndex} className={isCritical ? "bg-orange-50" : ""}>
-                                <td className="px-3 py-1.5 font-medium text-slate-700">{m.monthName}{isCritical && <span className="ml-2 text-[10px] text-orange-700">(critico)</span>}</td>
-                                <td className="px-3 py-1.5 text-right text-orange-900 tabular-nums">{qm.qtotalKw.toFixed(1)}</td>
-                                <td className="px-3 py-1.5 text-right text-slate-700 tabular-nums">{m.kwhConsumido.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</td>
-                                <td className="px-3 py-1.5 text-right font-semibold text-emerald-700 tabular-nums">{fmtBRL(m.custoBRLCents)}</td>
-                              </tr>
-                            );
-                          })}
-                          <tr className="bg-slate-100 font-bold">
-                            <td className="px-3 py-2 text-slate-900">Total anual</td>
-                            <td className="px-3 py-2 text-right text-orange-900 tabular-nums">—</td>
-                            <td className="px-3 py-2 text-right text-slate-900 tabular-nums">{(report.annualKwh ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</td>
-                            <td className="px-3 py-2 text-right text-emerald-700 tabular-nums">{fmtBRL(report.annualCostBRLCents ?? 0)}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="mt-2 text-[11px] text-slate-500">
-                      Calculo usa tarifa de energia configurada em <a href="/settings/energy-tariff" className="text-cyan-700 hover:underline" target="_blank" rel="noopener">Configuracoes → Tarifas de Energia</a>.
-                      Horas: {horasFuncionamentoDia}h/dia · Taxa: {(taxaFuncionamento * 100).toFixed(0)}%.
-                    </div>
-                  </>
-                ) : report?.selectedEquipment ? (
-                  <div className="text-sm text-slate-500">
-                    Equipamento sem <code className="rounded bg-slate-100 px-1">ratedInputPowerKW</code> no cadastro — nao foi possivel estimar consumo. Adicione o campo no <code className="rounded bg-slate-100 px-1">technicalSpecs</code> do produto.
-                  </div>
-                ) : (
-                  <div className="text-sm text-slate-500">Calculo de consumo requer equipamento selecionado.</div>
-                )}
-              </Section>
-
-              {/* SECAO 7 — Observacoes */}
-              <Section title="7. Observacoes" icon="📝">
-                <textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} rows={4}
-                  placeholder="Anote condicoes especiais da obra, premissas de calculo, recomendacoes ao cliente, etc. Este texto aparece no PDF do orcamento."
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-cyan-500 focus:outline-none resize-y" />
-                <div className="mt-1 text-[11px] text-slate-500">
-                  Salvo junto com os outros campos ao clicar em "Salvar e calcular".
-                </div>
-              </Section>
-            </div>
+            <BombaCalorTab
+              budget={budget}
+              report={report}
+              loading={loading}
+              recomputing={saving}
+              candidates={candidates}
+              changeEquipment={changeEquipment}
+              changingEquipment={changingEquipment}
+              uf={uf}
+              cidade={cidade}
+              setUf={setUf}
+              setCidade={setCidade}
+              availableUfs={cities}
+              availableCities={availableCities}
+              capaTermica={capaTermica}
+              setCapaTermica={setCapaTermica}
+              vento={vento}
+              setVento={setVento}
+              tempAguaDesejada={tempAguaDesejada}
+              setTempAguaDesejada={setTempAguaDesejada}
+              tempAguaInicial={tempAguaInicial}
+              setTempAguaInicial={setTempAguaInicial}
+              tipoPiscina={tipoPiscina}
+              setTipoPiscina={setTipoPiscina}
+              tipoConstrucao={tipoConstrucao}
+              setTipoConstrucao={setTipoConstrucao}
+              onRecompute={handleSaveAndRecompute}
+              headerImage={solarHeaderImage}
+              headerImageUploading={headerImageUploading}
+              onUploadHeaderImage={uploadSolarHeaderImage}
+              onRemoveHeaderImage={removeSolarHeaderImage}
+              catalog={catalog ?? []}
+              heatingRule={heatingRule}
+              onSaveHeatingRule={saveHeatingRule}
+            />
           )}
 
           {activeTab === "solar" && (
@@ -3257,28 +2733,24 @@ function SolarTab({
 
 // ============ Aba Bomba de Calor (clone visual da aba Solar; so os calculos mudam) ============
 function BombaCalorTab({
-  budget, report, loading, recomputing, collectors,
-  extraPct, setExtraPct, selectedCollectorId, setSelectedCollectorId,
-  selectedMonthIdx, setSelectedMonthIdx,
+  budget, report, loading, recomputing,
+  candidates, changeEquipment, changingEquipment,
   uf, cidade, setUf, setCidade, availableUfs, availableCities,
   capaTermica, setCapaTermica, vento, setVento,
   tempAguaDesejada, setTempAguaDesejada,
+  tempAguaInicial, setTempAguaInicial,
+  tipoPiscina, setTipoPiscina, tipoConstrucao, setTipoConstrucao,
   onRecompute,
   headerImage, headerImageUploading, onUploadHeaderImage, onRemoveHeaderImage,
-  catalog,
-  coletorRule, bombaRule, onSaveColetorRule, onSaveBombaRule,
+  catalog, heatingRule, onSaveHeatingRule,
 }: {
   budget: BudgetForHeating;
-  report: SolarReport | null;
+  report: HeatingReport | null;
   loading: boolean;
   recomputing: boolean;
-  collectors: SolarCollectorCandidate[];
-  extraPct: number;
-  setExtraPct: (n: number) => void;
-  selectedCollectorId: string | null;
-  setSelectedCollectorId: (id: string | null) => void;
-  selectedMonthIdx: number;
-  setSelectedMonthIdx: (i: number) => void;
+  candidates: HeatingCandidate[];
+  changeEquipment: (productId: string | null, qty?: number) => void | Promise<void>;
+  changingEquipment: boolean;
   uf: string;
   cidade: string;
   setUf: (v: string) => void;
@@ -3291,373 +2763,48 @@ function BombaCalorTab({
   setVento: (v: string) => void;
   tempAguaDesejada: number;
   setTempAguaDesejada: (n: number) => void;
-  onRecompute: (extraPct?: number, collectorId?: string | null, extras?: { orientacaoTelhado?: string; inclinacaoTelhadoGraus?: number; temperaturaAguaInicial?: number; alturaTelhadoM?: number; areaPiscinaM2?: number; volumeM3?: number }) => void | Promise<void>;
+  tempAguaInicial: number | "";
+  setTempAguaInicial: (n: number | "") => void;
+  tipoPiscina: string;
+  setTipoPiscina: (v: string) => void;
+  tipoConstrucao: string;
+  setTipoConstrucao: (v: string) => void;
+  onRecompute: () => void | Promise<void>;
   headerImage: string | null;
   headerImageUploading: boolean;
   onUploadHeaderImage: (file: File) => void | Promise<void>;
   onRemoveHeaderImage: () => void | Promise<void>;
   catalog: CatalogConfig[];
-  coletorRule: AutoSelectRule | null;
-  bombaRule: AutoSelectRule | null;
-  onSaveColetorRule: (rule: AutoSelectRule | null) => void | Promise<void>;
-  onSaveBombaRule: (rule: AutoSelectRule | null) => void | Promise<void>;
+  heatingRule: AutoSelectRule | null;
+  onSaveHeatingRule: (rule: AutoSelectRule | null) => void | Promise<void>;
 }) {
-  const dims = budget.poolDimensions ?? {};
-  const area = Number(dims.area) || 0;
-  const volume = Number(dims.volume) || 0;
-  const len = Number(dims.length) || 0;
-  const wid = Number(dims.width) || 0;
-  const profMin = Number(dims.depthMin ?? dims.profundidadeMinima) || 0;
-  const profMax = Number(dims.depthMax ?? dims.profundidadeMaxima ?? dims.depth) || 0;
-  const tipoPiscinaTxt = (budget.environmentParams as any)?.tipoPiscina ?? "PRIVATIVA";
+  const dims = (budget.poolDimensions ?? {}) as any;
+  const dispArea = Number(dims.area) || 0;
+  const dispVolume = Number(dims.volume) || 0;
+  const dispLen = Number(dims.length) || 0;
+  const dispWid = Number(dims.width) || 0;
+  const dispProfMin = Number(dims.depthMin ?? dims.profundidadeMinima) || 0;
+  const dispProfMax = Number(dims.depthMax ?? dims.profundidadeMaxima ?? dims.depth) || 0;
+  const cfgManual = true;
+  const tempIniDisplay = typeof tempAguaInicial === "number" ? tempAguaInicial : 22;
 
-  // Orientacao + inclinacao do telhado + temperatura inicial (UI only por enquanto — serao persistidos
-  // em environmentParams na fase futura quando o motor do solar usar esses dados no calculo)
-  const initOrient = (budget.environmentParams as any)?.orientacaoTelhado ?? "N";
-  const initIncl = Number((budget.environmentParams as any)?.inclinacaoTelhadoGraus) || 20;
-  const initTempIni = Number((budget.environmentParams as any)?.temperaturaAguaInicial) || 22;
-  // v1.12.34: bloco Tubulacao. Comprimento + Desnivel sao inputs do operador.
-  // Backend calcula altura manometrica total (perda dinamica + desnivel) via
-  // Darcy-Weisbach + Haaland (igual planilha Solis). Resultado persiste em
-  // environmentParams.solarPipe e tambem em environmentParams.alturaTelhadoM
-  // (que alimenta a var alturaTelhadoMca pra auto-selecao da bomba).
-  const initPipe = (budget.environmentParams as any)?.solarPipe ?? {};
-  const initPipeComprimento = Number(initPipe?.inputs?.comprimentoM) || 0;
-  const initPipeDesnivel = Number(initPipe?.inputs?.desnivelM) || 0;
-  const initPipeResult = initPipe?.result ?? null;
-  const [orientacaoTelhado, setOrientacaoTelhado] = useState<string>(initOrient);
-  const [inclinacaoTelhado, setInclinacaoTelhado] = useState<number>(initIncl);
-  const [temperaturaInicial, setTemperaturaInicial] = useState<number>(initTempIni);
-  const [pipeComprimento, setPipeComprimento] = useState<number>(initPipeComprimento);
-  const [pipeDesnivel, setPipeDesnivel] = useState<number>(initPipeDesnivel);
-  const [pipeResult, setPipeResult] = useState<any | null>(initPipeResult);
-  const [pipeRecomputing, setPipeRecomputing] = useState(false);
-
-  // v1.12.43: dropdown de candidatos a bomba. Substitui a string fixa "Bomba recomendada"
-  // por lista real do catalogo filtrada pela bombaRule (vazaoSolarM3h + alturaTelhadoMca).
-  // Backend interpola pumpCurve em vazaoM3h/pressaoTrabalhoMca quando candidato tem curva.
-  interface BombaCandidate {
-    productId: string;
-    description: string;
-    salePriceCents: number;
-    poolType: string | null;
-    imageUrl: string | null;
-    vazaoM3h: number;
-    pressaoTrabalhoMca: number;
-    potenciaCv: number | null;
-    hasPumpCurve: boolean;
-    indicator: { value: number; label: string; groupLabel?: string; color: string; unit: string } | null;
-  }
-  const initSelectedBombaId = (budget.environmentParams as any)?.solarReport?.selectedBombaId ?? null;
-  const initBombaManuallySelected = (budget.environmentParams as any)?.solarReport?.bombaManuallySelected === true;
-  const [bombaCandidates, setBombaCandidates] = useState<BombaCandidate[]>([]);
-  const [selectedBombaId, setSelectedBombaId] = useState<string | null>(initSelectedBombaId);
-  const [bombaManuallySelected, setBombaManuallySelected] = useState<boolean>(initBombaManuallySelected);
-  const [bombaCandidatesLoading, setBombaCandidatesLoading] = useState(false);
-
-  // v1.12.63: regras solares configuraveis
-  const [showSolarRulesModal, setShowSolarRulesModal] = useState(false);
-  const [activeRule, setActiveRule] = useState<{ id: string; name: string } | null>(null);
-
-  // v1.12.78: tarifa de energia (R$/kWh em centavos). Default 95 = R$ 0,95/kWh.
-  // Armazenada em Company.systemConfig.pool.tarifaKwhBRLCents (tenant global).
-  const [tarifaKwhBRLCents, setTarifaKwhBRLCents] = useState<number>(95);
-
-  // v1.12.84: report da demanda termica unificada (thermal-demand). Calculo
-  // central que considera TODOS os 14 fatores: capa, vento, ΔT, telhado,
-  // clima, eficiencia coletor, extras (cascata/hidro/borda). Substitui o
-  // calculo local de consumo da bomba — agora vem direto do backend.
-  type ThermalDemandReport = {
-    monthly: Array<{
-      monthIndex: number; monthName: string; tempAmbiente: number;
-      qPerdasKwhDia: number; qPerdasKwhMes: number;
-      qSolarKwhDia?: number; qSolarKwhMes?: number;
-      coberturaSolarPct?: number;
-      fatorUtilizacaoBomba?: number; bombaHorasDia?: number; bombaConsumoKwhMes?: number;
-      hseHorasDia?: number;
-    }>;
-    qPerdasMediaKwhDia: number; qPerdasMediaKwhMes: number; qPerdasPicoKwhDia: number;
-    qSolarMediaKwhDia?: number; qSolarMediaKwhMes?: number; coberturaSolarMediaPct?: number;
-    bombaHorasDiaMedio?: number; bombaConsumoKwhMesMedio?: number; bombaPotenciaKW?: number;
-    inputs: {
-      tempAlvo: number; tempInicial?: number; capaTermica: boolean; vento: string;
-      tipoConstrucao?: string;
-      areaM2: number; volumeM3: number;
-      qtdColetores?: number; areaTotalColetorM2?: number;
-      orientacaoTelhado?: string; inclinacaoTelhadoGraus?: number; fatorInstalacao?: number;
-      perdaBaseWm2?: number; ventoMult?: number; construcaoMult?: number;
-      deltaTBaseAnualMult?: number; extrasKwTotal?: number;
-      hspInclinadoMedio?: number; floorFatorBomba?: number; fatorHorasOperacaoReal?: number;
-      rendimentoBomba?: number;
-      vazaoBombaM3h?: number; vazaoSolarM3h?: number; fatorVazao?: number;
-    };
-  };
-  const [thermalReport, setThermalReport] = useState<ThermalDemandReport | null>(null);
-
-  // Recalcula thermal-demand sempre que o report solar, bomba ou inputs criticos mudam.
-  // v1.12.89: agora envia TAMBEM capa e vento atuais do form (antes lia so do banco,
-  // que tinha delay de save do recomputeSolar — quando vento mudava na UI, demand
-  // ainda usava valor antigo do banco).
-  useEffect(() => {
-    if (!report || !selectedBombaId) { setThermalReport(null); return; }
-    const selBomba = bombaCandidates.find((b) => b.productId === selectedBombaId) ?? bombaCandidates[0];
-    if (!selBomba?.potenciaCv) { setThermalReport(null); return; }
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await api.post<ThermalDemandReport>(`/pool-budgets/${budget.id}/thermal-demand`, {
-          tempAlvo: Number(tempAguaDesejada),
-          tempInicial: Number.isFinite(temperaturaInicial) ? temperaturaInicial : undefined,
-          capaTermica,
-          vento: normEnum(vento, ['FRACO', 'MODERADO', 'FORTE'], 'MODERADO'),
-          qtdColetores: Math.round(Number(report.qtdColetores) || 0),
-          orientacaoTelhado,
-          inclinacaoTelhadoGraus: Number.isFinite(inclinacaoTelhado) ? inclinacaoTelhado : undefined,
-          potenciaCv: selBomba.potenciaCv,
-          // v1.12.93: vazao da bomba pra calcular fator de vazao (bomba com
-          // mais vazao circula mais rapido → coletor esfria → controlador desliga antes)
-          vazaoBombaM3h: selBomba.vazaoM3h,
-        });
-        if (!cancelled) setThermalReport(r);
-      } catch {
-        if (!cancelled) setThermalReport(null);
-      }
-    })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [budget.id, report?.computedAt, report?.qtdColetores, selectedBombaId, tempAguaDesejada, temperaturaInicial, orientacaoTelhado, inclinacaoTelhado, capaTermica, vento]);
-  const [showTarifaPopover, setShowTarifaPopover] = useState(false);
-  const [tarifaInputValue, setTarifaInputValue] = useState<string>("0,95");
-  const [tarifaSaving, setTarifaSaving] = useState(false);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await api.get<{ tarifaKwhBRLCents: number }>("/pool-budgets/solar-tarifa-kwh");
-        if (!cancelled && Number.isFinite(r.tarifaKwhBRLCents)) {
-          setTarifaKwhBRLCents(r.tarifaKwhBRLCents);
-          setTarifaInputValue((r.tarifaKwhBRLCents / 100).toFixed(2).replace(".", ","));
-        }
-      } catch {
-        // mantem default 95
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-  const saveTarifa = async () => {
-    const norm = tarifaInputValue.replace(",", ".").trim();
-    const reais = Number(norm);
-    if (!Number.isFinite(reais) || reais <= 0 || reais > 1000) {
-      alert("Tarifa invalida. Use valor entre R$ 0,01 e R$ 1.000,00.");
-      return;
-    }
-    const cents = Math.round(reais * 100);
-    setTarifaSaving(true);
-    try {
-      const r = await api.patch<{ tarifaKwhBRLCents: number }>("/pool-budgets/solar-tarifa-kwh", { tarifaKwhBRLCents: cents });
-      setTarifaKwhBRLCents(r.tarifaKwhBRLCents);
-      setShowTarifaPopover(false);
-    } catch (err: any) {
-      alert(`Erro ao salvar tarifa: ${err?.message ?? err}`);
-    } finally {
-      setTarifaSaving(false);
-    }
-  };
-
-  // Resolve regra ativa (badge "Regra: X" abaixo do diagrama). Re-resolve quando
-  // muda o coletor selecionado ou quando o operador edita as regras no modal.
-  const reloadActiveRule = useCallback(async () => {
-    try {
-      const res = await api.get<{ rule: { id: string; name: string } | null }>(
-        `/pool-budgets/${budget.id}/solar-active-rule`,
-      );
-      setActiveRule(res?.rule ?? null);
-    } catch {
-      setActiveRule(null);
-    }
-  }, [budget.id]);
-  useEffect(() => {
-    if (!report) return;
-    reloadActiveRule();
-  }, [report, reloadActiveRule, selectedCollectorId]);
-
-  // v1.12.62: distincao entre escolha MANUAL (operador clicou no dropdown) vs
-  // DEFAULT (primeiro candidato sugerido pela regra). Sem isso, ao reduzir vazao
-  // a bomba grande ficava "ainda passando" na regra e nao voltava ao default.
-  // Re-roda quando pipeResult muda (altura nova) ou report.vazaoTotalM3h muda.
-  useEffect(() => {
-    if (!report || !report.vazaoTotalM3h || report.vazaoTotalM3h <= 0) {
-      setBombaCandidates([]);
-      return;
-    }
-    let cancelled = false;
-    setBombaCandidatesLoading(true);
-    api.get<{ candidates: BombaCandidate[] }>(`/pool-budgets/${budget.id}/solar-bomba-candidates`)
-      .then((res) => {
-        if (cancelled) return;
-        const candidates = res?.candidates ?? [];
-        setBombaCandidates(candidates);
-        if (candidates.length === 0) {
-          setSelectedBombaId(null);
-          return;
-        }
-        // Se foi escolha manual E a bomba escolhida ainda esta na lista → preserva.
-        // Caso contrario (manual=false OU bomba caiu fora) → adota o primeiro
-        // candidato (default da regra). Quando o que vinha do banco era manual
-        // mas saiu da lista, limpa a flag no servidor pra evitar que retorne.
-        if (bombaManuallySelected && selectedBombaId) {
-          const stillValid = candidates.some((c) => c.productId === selectedBombaId);
-          if (stillValid) return;
-          setBombaManuallySelected(false);
-          api.post(`/pool-budgets/${budget.id}/solar-bomba-selection`, { productId: null })
-            .catch((err) => console.warn('Falha ao limpar bomba manual obsoleta:', err));
-        }
-        // Default automatico: primeiro candidato, sem persistir (manual=false implicito).
-        setSelectedBombaId(candidates[0].productId);
-      })
-      .catch(() => {
-        if (!cancelled) setBombaCandidates([]);
-      })
-      .finally(() => {
-        if (!cancelled) setBombaCandidatesLoading(false);
-      });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [budget.id, report?.vazaoTotalM3h, pipeResult?.alturaManometricaTotal, bombaRule?.where, bombaRule?.orderBy, bombaRule?.filterPoolType, bombaRule?.filterDescription, JSON.stringify(bombaRule?.indicator)]);
-
-  async function handleSelectBomba(productId: string | null) {
-    setSelectedBombaId(productId);
-    setBombaManuallySelected(productId !== null);
-    try {
-      // manual=true ao escolher pelo dropdown, productId=null limpa a flag.
-      await api.post(`/pool-budgets/${budget.id}/solar-bomba-selection`, { productId, manual: productId !== null });
-    } catch (err) {
-      console.warn('Falha ao salvar selectedBombaId:', err);
-    }
-  }
-
-  // v1.12.87: sincronia do pipe foi movida pro backend (computeAndSaveReport ja
-  // recalcula o pipe quando ha solarPipe configurado, e o endpoint
-  // /solar-report/recompute retorna solarPipeAfter junto). UseEffect anterior
-  // (v1.12.86) sofria race condition e foi removido. O `report` aqui ja vem
-  // com a propriedade solarPipeAfter populada pelo backend — o useEffect
-  // abaixo so atualiza o state local.
-  useEffect(() => {
-    const pipeAfter = (report as any)?.solarPipeAfter?.result;
-    if (pipeAfter) {
-      setPipeResult(pipeAfter);
-    }
-  }, [report]);
-
-  async function recomputePipe(overrides?: { comprimentoM?: number; desnivelM?: number; diametroMm?: number | null }) {
-    const comp = overrides?.comprimentoM ?? pipeComprimento;
-    const desn = overrides?.desnivelM ?? pipeDesnivel;
-    if (comp <= 0 || desn < 0) return;
-    setPipeRecomputing(true);
-    try {
-      const body: any = { comprimentoM: comp, desnivelM: desn };
-      // diametroMm: undefined = auto-pick. number = forca o diametro. null = volta pra auto.
-      if (overrides && 'diametroMm' in overrides && overrides.diametroMm) {
-        body.diametroMm = overrides.diametroMm;
-      }
-      const r = await api.post<{ inputs: any; result: any }>(`/pool-budgets/${budget.id}/solar-pipe/recompute`, body);
-      setPipeResult(r.result);
-    } catch {
-      // silencia — se vazaoM3h for 0 (Simulador nao rodou ainda), backend pode dar erro
-    } finally {
-      setPipeRecomputing(false);
-    }
-  }
-
-  // v5.5 — Tipo piscina + Tipo construção + Modos de dimensão/configuração (UI only por enquanto).
-  // Modo AUTOMATICO: campos vem do orcamento, readonly, cor amber (padrao).
-  // Modo MANUAL: libera edicao + cor verde nos cards highlight (Area/Volume e Temp Inicial/Final).
-  const initTipoPisc = (budget.environmentParams as any)?.tipoPiscina ?? "PRIVATIVA";
-  const initTipoConstr = (budget.environmentParams as any)?.tipoConstrucao ?? "ABERTA";
-  // v1.12.52: se ha solarOverride salvo, o modo MANUAL e inferido automaticamente.
-  const initModoDim = (budget.environmentParams as any)?.modoDimensao
-    ?? ((budget.environmentParams as any)?.solarOverride ? "MANUAL" : "AUTOMATICO");
-  const initModoCfg = (budget.environmentParams as any)?.modoConfigAquec ?? "AUTOMATICO";
-  const [tipoPiscinaSel, setTipoPiscinaSel] = useState<string>(initTipoPisc);
-  const [tipoConstrucao, setTipoConstrucao] = useState<string>(initTipoConstr);
-  const [modoDimensao, setModoDimensao] = useState<string>(initModoDim);
-  const [modoConfigAquec, setModoConfigAquec] = useState<string>(initModoCfg);
-  const dimManual = modoDimensao === "MANUAL";
-  const cfgManual = modoConfigAquec === "MANUAL";
-
-  // v5.5 — Overrides das dimensões quando modo = MANUAL (UI only). Inicializados das props.
-  // v1.12.52 — se existir solarOverride salvo no environmentParams, usa esses valores
-  //            como inicial (e marca modo MANUAL automaticamente — feito no initModoDim acima).
-  const savedOverride = (budget.environmentParams as any)?.solarOverride;
-  const initAreaOverride = Number(savedOverride?.areaPiscinaM2) > 0 ? Number(savedOverride.areaPiscinaM2) : area;
-  const initVolumeOverride = Number(savedOverride?.volumeM3) > 0 ? Number(savedOverride.volumeM3) : volume;
-  const [lenOverride, setLenOverride] = useState<number>(len);
-  const [widOverride, setWidOverride] = useState<number>(wid);
-  const [profMinOverride, setProfMinOverride] = useState<number>(profMin);
-  const [profMaxOverride, setProfMaxOverride] = useState<number>(profMax);
-  const [areaOverride, setAreaOverride] = useState<number>(initAreaOverride);
-  const [volumeOverride, setVolumeOverride] = useState<number>(initVolumeOverride);
-  const [savingOverride, setSavingOverride] = useState(false);
-  // Indica se ha um override salvo no banco (controla visibilidade do botao "Limpar override")
-  const [hasSavedOverride, setHasSavedOverride] = useState<boolean>(!!savedOverride);
-
-  async function handleSaveOverride() {
-    setSavingOverride(true);
-    try {
-      const body: { areaPiscinaM2?: number; volumeM3?: number } = {};
-      if (Number.isFinite(areaOverride) && areaOverride > 0) body.areaPiscinaM2 = areaOverride;
-      if (Number.isFinite(volumeOverride) && volumeOverride > 0) body.volumeM3 = volumeOverride;
-      await api.post(`/pool-budgets/${budget.id}/solar-override`, body);
-      setHasSavedOverride(Object.keys(body).length > 0);
-    } catch (err) {
-      console.warn('Falha ao salvar solarOverride:', err);
-    } finally {
-      setSavingOverride(false);
-    }
-  }
-
-  async function handleClearOverride() {
-    setSavingOverride(true);
-    try {
-      await api.post(`/pool-budgets/${budget.id}/solar-override`, {});
-      setHasSavedOverride(false);
-    } catch (err) {
-      console.warn('Falha ao limpar solarOverride:', err);
-    } finally {
-      setSavingOverride(false);
-    }
-  }
-  const dispLen = dimManual ? lenOverride : len;
-  const dispWid = dimManual ? widOverride : wid;
-  const dispProfMin = dimManual ? profMinOverride : profMin;
-  const dispProfMax = dimManual ? profMaxOverride : profMax;
-  const dispArea = dimManual ? areaOverride : area;
-  const dispVolume = dimManual ? volumeOverride : volume;
-  // v5.3 — modal de selecao do coletor (abrira ao clicar ✨)
-  const [showColetorPicker, setShowColetorPicker] = useState(false);
-  // v5.7 — modal de auto-selecao da bomba hidraulica (✨ ao lado da Bomba recomendada)
-  const [showBombaPicker, setShowBombaPicker] = useState(false);
-  // v1.12.77: removido pdfPreviewMode + botao 👁️ PDF — redundante com o botao Imprimir
-  // (Chrome ja abre print preview automatico, mesmo resultado visual).
-
-  // v5.9 — zoom manual do datasheet, alem do zoom automatico por viewport (CSS).
-  // Persistido em localStorage. null = usa o auto via CSS @media (lg/xl/2xl).
   const [manualZoom, setManualZoom] = useState<number | null>(() => {
     if (typeof window === "undefined") return null;
-    const v = window.localStorage.getItem("solar:manualZoom");
+    const v = window.localStorage.getItem("bomba:manualZoom");
     const n = v ? Number(v) : NaN;
     return Number.isFinite(n) && n >= 0.5 && n <= 2.5 ? n : null;
   });
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (manualZoom == null) window.localStorage.removeItem("solar:manualZoom");
-    else window.localStorage.setItem("solar:manualZoom", String(manualZoom));
+    if (manualZoom == null) window.localStorage.removeItem("bomba:manualZoom");
+    else window.localStorage.setItem("bomba:manualZoom", String(manualZoom));
   }, [manualZoom]);
-  // v1.12.72: helper compartilhado — clona #bomba-pdf-area pra dentro do body.
-  // Resolve IDs duplicados (gradients SVG) prefixando todos os IDs internos.
-  // Usado tanto pelo Preview (visualizar) quanto pelo Print (clone fica no DOM
-  // durante window.print, evita que o Chrome tente printar o original enterrado
-  // dentro do modal `fixed inset-0 overflow-hidden`, que duplica em 2 paginas).
+
+  const [showEquipPicker, setShowEquipPicker] = useState(false);
+  const [showHeatingRulePicker, setShowHeatingRulePicker] = useState(false);
+
+  // Clona #bomba-pdf-area pra dentro do body (mesmo mecanismo do Solar — resolve
+  // IDs duplicados e o problema das 2 paginas do modal fixed+overflow-hidden).
   const createPdfClone = (cloneClassName: string): HTMLElement | null => {
     const original = document.getElementById("bomba-pdf-area");
     if (!original) return null;
@@ -3670,74 +2817,43 @@ function BombaCalorTab({
       const oldId = el.getAttribute('id')!;
       el.setAttribute('id', `${prefix}${oldId}`);
     });
-    clone.querySelectorAll('[fill], [stroke]').forEach((el) => {
-      ['fill', 'stroke'].forEach((attr) => {
-        const v = el.getAttribute(attr);
-        if (v?.startsWith('url(#')) {
-          const ref = v.slice(5, -1);
-          el.setAttribute(attr, `url(#${prefix}${ref})`);
-        }
-      });
-    });
     container.appendChild(clone);
     document.body.appendChild(container);
-    // v1.12.74: forca remocao do min-h-[1120px] da tela (cloneNode preserva
-    // classes do Tailwind, e a regra `min-height: 0` no CSS pode nao vencer
-    // por especificidade). Aqui zeramos no DOM direto.
     clone.style.minHeight = "0";
     clone.style.height = "auto";
     return container;
   };
-
-  // v1.12.72: impressao SEMPRE via clone no body — soluciona o problema das 2
-  // paginas porque o original esta dentro de um modal fixed+overflow-hidden que
-  // confunde o motor de print do Chrome. CSS @media print + html.printing-mode
-  // mostra so o clone, escondendo todo o resto (inclusive o original).
   const printViaClone = () => {
-    // Cleanup defensivo: garante zero clones residuais antes de criar o novo
     document.querySelectorAll(".bomba-pdf-clone-container").forEach((el) => el.remove());
-
     const container = createPdfClone("printing-clone");
     if (!container) return;
-
     document.documentElement.classList.add("printing-mode");
-
     const cleanupAfterPrint = () => {
       document.documentElement.classList.remove("printing-mode");
       document.querySelectorAll(".bomba-pdf-clone-container").forEach((el) => el.remove());
       window.removeEventListener("afterprint", cleanupAfterPrint);
     };
     window.addEventListener("afterprint", cleanupAfterPrint);
-
-    // Pequeno delay pro browser pintar o clone + computar layout
     setTimeout(() => {
       window.print();
-      // Fallback: se afterprint nao disparar (alguns browsers), limpa em 1s
       setTimeout(() => {
-        if (document.documentElement.classList.contains("printing-mode")) {
-          cleanupAfterPrint();
-        }
+        if (document.documentElement.classList.contains("printing-mode")) cleanupAfterPrint();
       }, 1000);
     }, 50);
   };
 
   if (loading) {
-    return <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">Carregando dados solares...</div>;
+    return <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-500">Carregando dados...</div>;
   }
 
-  const selectedMonth = report?.monthly?.[selectedMonthIdx];
   const today = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-  // v1.12.68: slug do tenant extraido do hostname (ex: "sls.tecnikos.com.br" -> "sls").
-  // Usado pra carregar a logo da empresa via endpoint publico /api/public/tenant/:slug/logo/:variant.
-  const tenantSlug = typeof window !== "undefined"
-    ? (window.location.hostname.split('.')[0] || null)
-    : null;
-
+  const tenantSlug = typeof window !== "undefined" ? (window.location.hostname.split('.')[0] || null) : null;
   const localName = cidade || (availableUfs.find((u) => u.uf === uf)?.ufName) || "—";
+  const eq = report?.selectedEquipment ?? null;
 
   return (
     <>
-      {/* === Toolbar — v1.12.54: compactado === */}
+      {/* === Toolbar === */}
       <div className="mb-2 flex items-center justify-between gap-2 print:hidden">
         <div className="text-[10.5px] text-slate-500">
           Edite UF, capa, vento, temperatura e clique <span className="font-semibold text-slate-700">Recalcular</span>.
@@ -3745,89 +2861,30 @@ function BombaCalorTab({
         </div>
         <div className="flex items-center gap-1.5">
           <div className="flex items-center gap-0.5 rounded border border-slate-300 bg-white px-0.5 py-0" title="Zoom">
-            <button type="button"
-              onClick={() => setManualZoom((z) => Math.max(0.6, Math.round(((z ?? 1) - 0.1) * 10) / 10))}
-              className="w-5 h-5 rounded text-[11px] font-bold text-slate-700 hover:bg-slate-100">−</button>
-            <button type="button"
-              onClick={() => setManualZoom(null)}
-              className="px-1 h-5 rounded text-[9px] font-semibold text-slate-600 hover:bg-slate-100 tabular-nums min-w-[36px]"
-              title="Resetar zoom">{manualZoom != null ? `${Math.round(manualZoom * 100)}%` : "Auto"}</button>
-            <button type="button"
-              onClick={() => setManualZoom((z) => Math.min(2.5, Math.round(((z ?? 1) + 0.1) * 10) / 10))}
-              className="w-5 h-5 rounded text-[11px] font-bold text-slate-700 hover:bg-slate-100">+</button>
+            <button type="button" onClick={() => setManualZoom((z) => Math.max(0.6, Math.round(((z ?? 1) - 0.1) * 10) / 10))} className="w-5 h-5 rounded text-[11px] font-bold text-slate-700 hover:bg-slate-100">−</button>
+            <button type="button" onClick={() => setManualZoom(null)} className="px-1 h-5 rounded text-[9px] font-semibold text-slate-600 hover:bg-slate-100 tabular-nums min-w-[36px]" title="Resetar zoom">{manualZoom != null ? `${Math.round(manualZoom * 100)}%` : "Auto"}</button>
+            <button type="button" onClick={() => setManualZoom((z) => Math.min(2.5, Math.round(((z ?? 1) + 0.1) * 10) / 10))} className="w-5 h-5 rounded text-[11px] font-bold text-slate-700 hover:bg-slate-100">+</button>
           </div>
-          <button onClick={() => {
-              // v1.12.65: inclui TODOS os campos editaveis manualmente no recompute —
-              // antes so passava area/volume, entao mudar orientacao/inclinacao/temp.inicial
-              // no formulario nao surtia efeito (backend lia valor antigo do banco).
-              const extras: {
-                areaPiscinaM2?: number;
-                volumeM3?: number;
-                orientacaoTelhado?: string;
-                inclinacaoTelhadoGraus?: number;
-                temperaturaAguaInicial?: number;
-              } = {};
-              if (dimManual) {
-                if (Number.isFinite(dispArea) && dispArea > 0) extras.areaPiscinaM2 = dispArea;
-                if (Number.isFinite(dispVolume) && dispVolume > 0) extras.volumeM3 = dispVolume;
-              }
-              if (orientacaoTelhado) extras.orientacaoTelhado = orientacaoTelhado;
-              if (Number.isFinite(inclinacaoTelhado)) extras.inclinacaoTelhadoGraus = inclinacaoTelhado;
-              if (Number.isFinite(temperaturaInicial) && temperaturaInicial > 0) extras.temperaturaAguaInicial = temperaturaInicial;
-              onRecompute(undefined, undefined, extras);
-            }} disabled={recomputing || !uf}
-            className="rounded bg-amber-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-amber-700 disabled:bg-slate-300 transition shadow-sm whitespace-nowrap">
+          <button onClick={() => onRecompute()} disabled={recomputing || !uf} className="rounded bg-amber-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-amber-700 disabled:bg-slate-300 transition shadow-sm whitespace-nowrap">
             {recomputing ? "Recalculando..." : "Recalcular"}
           </button>
-          {dimManual && (
-            <button onClick={handleSaveOverride} disabled={savingOverride}
-              title="Salvar área/volume manuais (não altera o cadastro do orçamento)"
-              className="rounded bg-emerald-600 px-2 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700 disabled:bg-slate-300 transition shadow-sm print:hidden whitespace-nowrap">
-              {savingOverride ? "..." : (hasSavedOverride ? "💾 Atualizar" : "💾 Salvar")}
-            </button>
-          )}
-          {dimManual && hasSavedOverride && (
-            <button onClick={handleClearOverride} disabled={savingOverride}
-              title="Remove o override salvo"
-              className="rounded bg-white border border-slate-300 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:bg-slate-200 transition shadow-sm print:hidden whitespace-nowrap">
-              ✕ Limpar
-            </button>
-          )}
-          <button onClick={printViaClone}
-            className="rounded border border-slate-300 bg-white text-slate-700 px-2 py-1 text-[11px] font-semibold hover:bg-slate-50 transition shadow-sm whitespace-nowrap">
-            🖨️ Imprimir
-          </button>
+          <button onClick={printViaClone} className="rounded border border-slate-300 bg-white text-slate-700 px-2 py-1 text-[11px] font-semibold hover:bg-slate-50 transition shadow-sm whitespace-nowrap">🖨️ Imprimir</button>
         </div>
       </div>
 
-      {/* === Folha A4 (datasheet) ===
-          Tela: max-w-[820px] + altura A4 via wrapper (sem min-h direto no bomba-pdf-area)
-          Print: o min-h fica num wrapper.solar-screen-only, neutralizado via display:contents */}
-      <div
-        className="mx-auto max-w-[820px] print:max-w-none bomba-screen-wrapper"
-        style={manualZoom != null ? ({ zoom: manualZoom } as React.CSSProperties) : undefined}
-      >
+      {/* === Folha A4 (datasheet) === */}
+      <div className="mx-auto max-w-[820px] print:max-w-none bomba-screen-wrapper" style={manualZoom != null ? ({ zoom: manualZoom } as React.CSSProperties) : undefined}>
         <div id="bomba-pdf-area" className="bg-white text-slate-900 font-sans border border-slate-200 shadow-sm print:border-0 print:shadow-none flex flex-col min-h-[1120px]">
 
-          {/* ============ HEADER BANNER ============
-              Tela: gradient slate-900 → blue-900 com texto branco
-              Print: fundo BRANCO com texto azul escuro + borda inferior (funciona mesmo sem
-              "Gráficos de segundo plano" marcado no painel do Chrome) */}
+          {/* HEADER */}
           <header className="bg-gradient-to-r from-slate-900 to-blue-900 text-white px-5 py-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              {/* v1.12.68: logo do tenant a esquerda. Usa endpoint publico que serve a logo
-                  pela variant 'icon-192' (quadrada, mas funciona como mark identitario). */}
               {tenantSlug && (
-                <img
-                  src={`/api/public/tenant/${tenantSlug}/logo/icon-192`}
-                  alt="Logo"
-                  className="h-10 w-10 rounded bg-white/10 object-contain flex-shrink-0"
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                />
+                <img src={`/api/public/tenant/${tenantSlug}/logo/icon-192`} alt="Logo" className="h-10 w-10 rounded bg-white/10 object-contain flex-shrink-0" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
               )}
               <div className="min-w-0">
-                <div className="text-[9px] uppercase tracking-[0.18em] text-amber-300 font-medium">Aquecimento solar para piscinas</div>
-                <h2 className="text-base font-bold mt-0.5 leading-tight">Dimensionamento para Coletor Solar</h2>
+                <div className="text-[9px] uppercase tracking-[0.18em] text-amber-300 font-medium">Aquecimento para piscinas</div>
+                <h2 className="text-base font-bold mt-0.5 leading-tight">Dimensionamento para Bomba de Calor</h2>
               </div>
             </div>
             <div className="text-right flex-shrink-0">
@@ -3837,12 +2894,9 @@ function BombaCalorTab({
             </div>
           </header>
 
-          {/* ============ LADO ESQUERDO (Cliente + Dim+NBR | Config) + IMAGEM ============
-              Esquerda (8 col): Cliente/Obra em cima, Dim+NBR | Config em 2 cols (h-full pra alinhar)
-              Direita (4 col): Imagem aspect-square (menor) */}
+          {/* CLIENTE + DIM/CONFIG + IMAGEM */}
           <section className="grid grid-cols-12 gap-4 px-5 py-3 border-b border-slate-200 avoid-break">
             <div className="col-span-8 flex flex-col gap-2">
-              {/* Cliente / Obra — sem SectionLabel (titulo redundante) pra ganhar altura */}
               <div className="text-[11px] leading-tight">
                 <div className="font-bold text-slate-900 text-[12px]">{budget.clientPartner?.name ?? "—"}</div>
                 <div className="text-slate-700 mt-0.5 flex flex-wrap gap-x-4">
@@ -3850,75 +2904,39 @@ function BombaCalorTab({
                   <span><span className="text-slate-500 uppercase text-[8.5px] tracking-wide font-semibold">Projeto:</span> {budget.title || "—"}</span>
                 </div>
               </div>
-
-              {/* Dimensoes+NBR | Configuracao em 2 colunas — h-full pra alinhar altura */}
               <div className="grid grid-cols-2 gap-3 items-stretch flex-1">
-                {/* Dimensoes — layout do print: 4 cards top (Comp/Larg/ProfMin/ProfMax) +
-                    2 cards tipo (Privativa/Aberta) + 2 cards GRANDES highlight (Area/Volume) +
-                    dropdown Automatico/manual (modo seleção do coletor) */}
+                {/* Dimensoes (read-only) */}
                 <div className="flex flex-col h-full">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <SectionLabel>Dimensões da piscina</SectionLabel>
+                  <SectionLabel>Dimensões da piscina</SectionLabel>
+                  <div className="mt-1 grid grid-cols-2 gap-1">
+                    <StatEditable label="Comp." value={dispLen} onChange={() => {}} unit="m" manual={false} />
+                    <StatEditable label="Larg." value={dispWid} onChange={() => {}} unit="m" manual={false} />
+                    <StatEditable label="Prof. mín" value={dispProfMin} onChange={() => {}} unit="m" manual={false} />
+                    <StatEditable label="Prof. máx" value={dispProfMax} onChange={() => {}} unit="m" manual={false} />
                   </div>
                   <div className="mt-1 grid grid-cols-2 gap-1">
-                    {/* Linha 1: COMP. | LARG. */}
-                    <StatEditable label="Comp." value={dispLen} onChange={setLenOverride} unit="m" manual={dimManual} />
-                    <StatEditable label="Larg." value={dispWid} onChange={setWidOverride} unit="m" manual={dimManual} />
-                    {/* Linha 2: PROF.MIN | PROF.MAX */}
-                    <StatEditable label="Prof. mín" value={dispProfMin} onChange={setProfMinOverride} unit="m" manual={dimManual} />
-                    <StatEditable label="Prof. máx" value={dispProfMax} onChange={setProfMaxOverride} unit="m" manual={dimManual} />
+                    <SelectCard label="Tipo de piscina" value={tipoPiscina} options={[{ v: "PRIVATIVA", l: "Privativa" }, { v: "COLETIVA", l: "Coletiva" }, { v: "CLINICA_SPA", l: "Clínica SPA" }]} onChange={(v) => setTipoPiscina(v)} />
+                    <SelectCard label="Tipo de construção" value={tipoConstrucao} options={[{ v: "ABERTA", l: "Aberta" }, { v: "COBERTA", l: "Coberta" }, { v: "CLIMATIZADA", l: "Climatizada" }]} onChange={(v) => setTipoConstrucao(v)} />
                   </div>
-                  {/* Linha 3: Tipo piscina | Tipo construção (compactos) */}
                   <div className="mt-1 grid grid-cols-2 gap-1">
-                    <SelectCard label="Tipo de piscina" value={tipoPiscinaSel}
-                      options={[{ v: "PRIVATIVA", l: "Privativa" }, { v: "COLETIVA", l: "Coletiva" }, { v: "CLINICA_SPA", l: "Clínica SPA" }]}
-                      onChange={(v) => setTipoPiscinaSel(v)} />
-                    <SelectCard label="Tipo de construção" value={tipoConstrucao}
-                      options={[{ v: "ABERTA", l: "Aberta" }, { v: "COBERTA", l: "Coberta" }, { v: "CLIMATIZADA", l: "Climatizada" }]}
-                      onChange={(v) => setTipoConstrucao(v)} />
+                    <BigHighlightInput label="Área" value={dispArea} onChange={() => {}} unit="m²" min={0} max={9999} manual={false} />
+                    <BigHighlightInput label="Volume" value={dispVolume} onChange={() => {}} unit="m³" min={0} max={99999} manual={false} />
                   </div>
-                  {/* Linha 4: AREA | VOLUME — cor amber (auto) ou verde+editavel (manual) */}
-                  <div className="mt-1 grid grid-cols-2 gap-1">
-                    <BigHighlightInput label="Área" value={dispArea} onChange={setAreaOverride} unit="m²" min={0} max={9999} manual={dimManual} />
-                    <BigHighlightInput label="Volume" value={dispVolume} onChange={setVolumeOverride} unit="m³" min={0} max={99999} manual={dimManual} />
-                  </div>
-                  {/* Linha 5: dropdown Modo de dimensão da piscina — escondido no print (v1.12.71) */}
-                  <div className="mt-1 print:hidden">
-                    <SelectCard label="Modo de dimensão da piscina" value={modoDimensao}
-                      options={[{ v: "AUTOMATICO", l: "Automático" }, { v: "MANUAL", l: "Manual" }]}
-                      onChange={(v) => setModoDimensao(v)} fullWidth />
-                  </div>
-                  {((budget.environmentParams as any)?.hidromassagensQtd > 0 ||
-                    (budget.environmentParams as any)?.cascataLarguraCm > 0 ||
-                    (budget.environmentParams as any)?.bordaInfinitaM > 0) && (
-                    <div className="mt-1.5 text-[8.5px] text-slate-600 flex gap-3 leading-tight">
-                      {(budget.environmentParams as any)?.hidromassagensQtd > 0 && <span>Hidromass.: <b>{(budget.environmentParams as any).hidromassagensQtd}</b></span>}
-                      {(budget.environmentParams as any)?.cascataLarguraCm > 0 && <span>Cascata: <b>{(budget.environmentParams as any).cascataLarguraCm} cm</b></span>}
-                      {(budget.environmentParams as any)?.bordaInfinitaM > 0 && <span>Borda inf.: <b>{(budget.environmentParams as any).bordaInfinitaM} m</b></span>}
-                    </div>
-                  )}
                 </div>
-
-                {/* Configuracao — mesmo padrao compacto da Dimensoes (label dentro, fonte pequena).
-                    Quando cfgManual=true: borda verde + editavel. Quando AUTO: cinza + disabled. */}
+                {/* Configuracao (editavel) */}
                 <div className="flex flex-col h-full">
                   <SectionLabel>Configuração do aquecimento</SectionLabel>
                   <div className="mt-1 space-y-1 flex-1">
-                    {/* L1: Capa | Vento */}
                     <div className="grid grid-cols-2 gap-1">
                       <ConfigFieldBig label="Capa térmica" manual={cfgManual}>
-                        <select value={capaTermica ? "SIM" : "NAO"} onChange={(e) => setCapaTermica(e.target.value === "SIM")}
-                          disabled={!cfgManual}
-                          className={`w-full bg-transparent text-[10.5px] font-bold leading-[1.1] focus:outline-none print:hidden h-[14px] -mt-0.5 disabled:cursor-not-allowed ${cfgManual ? "text-emerald-900" : "text-slate-900"}`}>
+                        <select value={capaTermica ? "SIM" : "NAO"} onChange={(e) => setCapaTermica(e.target.value === "SIM")} className="w-full bg-transparent text-[10.5px] font-bold leading-[1.1] focus:outline-none print:hidden h-[14px] -mt-0.5 text-emerald-900">
                           <option value="SIM">Sim</option>
                           <option value="NAO">Não</option>
                         </select>
                         <span className="hidden print:inline-block text-[10.5px] font-bold text-slate-900 leading-[1.1]">{capaTermica ? "Sim" : "Não"}</span>
                       </ConfigFieldBig>
                       <ConfigFieldBig label="Vento" manual={cfgManual}>
-                        <select value={vento} onChange={(e) => setVento(e.target.value)}
-                          disabled={!cfgManual}
-                          className={`w-full bg-transparent text-[10.5px] font-bold leading-[1.1] focus:outline-none print:hidden h-[14px] -mt-0.5 capitalize disabled:cursor-not-allowed ${cfgManual ? "text-emerald-900" : "text-slate-900"}`}>
+                        <select value={vento} onChange={(e) => setVento(e.target.value)} className="w-full bg-transparent text-[10.5px] font-bold leading-[1.1] focus:outline-none print:hidden h-[14px] -mt-0.5 capitalize text-emerald-900">
                           <option value="FRACO">Fraco</option>
                           <option value="MODERADO">Moderado</option>
                           <option value="FORTE">Forte</option>
@@ -3926,976 +2944,193 @@ function BombaCalorTab({
                         <span className="hidden print:inline-block text-[10.5px] font-bold text-slate-900 leading-[1.1] capitalize">{vento.toLowerCase()}</span>
                       </ConfigFieldBig>
                     </div>
-                    {/* L2: Orientação | Inclinação */}
-                    <div className="grid grid-cols-2 gap-1">
-                      <ConfigFieldBig label="Orientação telhado" manual={cfgManual}>
-                        <select value={orientacaoTelhado} onChange={(e) => setOrientacaoTelhado(e.target.value)}
-                          disabled={!cfgManual}
-                          className={`w-full bg-transparent text-[10.5px] font-bold leading-[1.1] focus:outline-none print:hidden h-[14px] -mt-0.5 disabled:cursor-not-allowed ${cfgManual ? "text-emerald-900" : "text-slate-900"}`}>
-                          <option value="N">Norte</option>
-                          <option value="NE">Nordeste</option>
-                          <option value="L">Leste</option>
-                          <option value="SE">Sudeste</option>
-                          <option value="S">Sul</option>
-                          <option value="SO">Sudoeste</option>
-                          <option value="O">Oeste</option>
-                          <option value="NO">Noroeste</option>
-                        </select>
-                        <span className="hidden print:inline-block text-[10.5px] font-bold text-slate-900 leading-[1.1]">{({ N: "Norte", NE: "Nordeste", L: "Leste", SE: "Sudeste", S: "Sul", SO: "Sudoeste", O: "Oeste", NO: "Noroeste" } as Record<string, string>)[orientacaoTelhado] ?? orientacaoTelhado}</span>
-                      </ConfigFieldBig>
-                      <ConfigFieldBig label="Inclinação" manual={cfgManual}>
-                        <div className="flex items-baseline gap-0.5 w-full">
-                          <input type="number" min={0} max={60} value={inclinacaoTelhado}
-                            onChange={(e) => setInclinacaoTelhado(Number(e.target.value) || 0)}
-                            disabled={!cfgManual}
-                            className={`flex-1 bg-transparent text-[10.5px] font-bold leading-[1.1] tabular-nums focus:outline-none print:hidden w-0 min-w-0 disabled:cursor-not-allowed ${cfgManual ? "text-emerald-900" : "text-slate-900"}`} />
-                          <span className="hidden print:inline-block text-[10.5px] font-bold text-slate-900 leading-[1.1] tabular-nums flex-1">{inclinacaoTelhado}</span>
-                          <span className={`text-[9px] ${cfgManual ? "text-emerald-600" : "text-slate-500"}`}>°</span>
-                        </div>
-                      </ConfigFieldBig>
-                    </div>
-                    {/* L3: Cidade | Estado (2 cards pra alinhar com a coluna Dimensoes — Tipo Piscina | Tipo Construcao) */}
                     <div className="grid grid-cols-2 gap-1">
                       <ConfigFieldBig label="Cidade" manual={cfgManual}>
-                        <select value={cidade} onChange={(e) => setCidade(e.target.value)}
-                          disabled={!uf || !cfgManual}
-                          className={`w-full bg-transparent text-[10.5px] font-bold leading-[1.1] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed print:hidden h-[14px] -mt-0.5 ${cfgManual ? "text-emerald-900" : "text-slate-900"}`}>
+                        <select value={cidade} onChange={(e) => setCidade(e.target.value)} disabled={!uf} className="w-full bg-transparent text-[10.5px] font-bold leading-[1.1] focus:outline-none disabled:opacity-50 print:hidden h-[14px] -mt-0.5 text-emerald-900">
                           <option value="">{uf ? "Capital" : "Selecione UF"}</option>
                           {availableCities.map((c) => <option key={c} value={c}>{c}</option>)}
                         </select>
                         <span className="hidden print:inline-block text-[10.5px] font-bold text-slate-900 leading-[1.1]">{cidade || "—"}</span>
                       </ConfigFieldBig>
                       <ConfigFieldBig label="Estado" manual={cfgManual}>
-                        <select value={uf} onChange={(e) => { setUf(e.target.value); setCidade(""); }}
-                          disabled={!cfgManual}
-                          className={`w-full bg-transparent text-[10.5px] font-bold leading-[1.1] focus:outline-none disabled:cursor-not-allowed print:hidden h-[14px] -mt-0.5 ${cfgManual ? "text-emerald-900" : "text-slate-900"}`}>
+                        <select value={uf} onChange={(e) => { setUf(e.target.value); setCidade(""); }} className="w-full bg-transparent text-[10.5px] font-bold leading-[1.1] focus:outline-none print:hidden h-[14px] -mt-0.5 text-emerald-900">
                           <option value="">--</option>
                           {availableUfs.map((u) => <option key={u.uf} value={u.uf}>{u.uf}</option>)}
                         </select>
                         <span className="hidden print:inline-block text-[10.5px] font-bold text-slate-900 leading-[1.1]">{uf || "—"}</span>
                       </ConfigFieldBig>
                     </div>
-                    {/* L4: Temp. inicial | Temp. final — cor amber (auto) ou verde (manual) */}
                     <div className="grid grid-cols-2 gap-1">
-                      <BigHighlightInput label="Temp. inicial" value={temperaturaInicial} onChange={setTemperaturaInicial} unit="°C" min={5} max={40} manual={cfgManual} />
-                      <BigHighlightInput label="Temp. final" value={tempAguaDesejada} onChange={setTempAguaDesejada} unit="°C" min={20} max={40} manual={cfgManual} />
-                    </div>
-                    {/* L5: dropdown Modo da configuração do aquecimento — escondido no print (v1.12.71) */}
-                    <div className="print:hidden">
-                      <SelectCard label="Modo da configuração do aquecimento" value={modoConfigAquec}
-                        options={[{ v: "AUTOMATICO", l: "Automático" }, { v: "MANUAL", l: "Manual" }]}
-                        onChange={(v) => setModoConfigAquec(v)} fullWidth />
+                      <BigHighlightInput label="Temp. inicial" value={tempIniDisplay} onChange={(n) => setTempAguaInicial(n)} unit="°C" min={5} max={40} manual={cfgManual} />
+                      <BigHighlightInput label="Temp. final" value={tempAguaDesejada} onChange={(n) => setTempAguaDesejada(n)} unit="°C" min={20} max={40} manual={cfgManual} />
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-
             <div className="col-span-4">
-              {/* v5.9: prioriza imagem do produto coletor selecionado. Fallback pra
-                  imagem cadastrada manualmente no orcamento (legado solarHeaderImage). */}
-              {(() => {
-                const selectedColetor = collectors.find((c) => c.productId === selectedCollectorId);
-                const productImg = selectedColetor?.imageUrl ?? null;
-                if (productImg) {
-                  return (
-                    // v1.12.74: imagem ainda saia maior que os cards no print —
-                    // reduzido de 58mm pra 52mm pra alinhar com a base dos cards
-                    // e liberar espaco que causava 2a pagina em branco.
-                    // v1.12.75: trocado `h-full + max-h-[52mm]` por `h-[52mm]` fixo —
-                    // h-full depende da altura da grid row (items-stretch). Se col-span-8
-                    // ficar curto, a row encolhe e a imagem com h-full some. Altura fixa
-                    // resolve definitivamente.
-                    <div className="w-full aspect-square print:aspect-auto print:h-[52mm] rounded border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={productImg} alt={selectedColetor?.modelName ?? "Coletor"} className="w-full h-full object-contain" />
-                    </div>
-                  );
-                }
-                return (
-                  <HeaderImageBlock
-                    imageUrl={headerImage}
-                    uploading={headerImageUploading}
-                    onUpload={onUploadHeaderImage}
-                    onRemove={onRemoveHeaderImage}
-                  />
-                );
-              })()}
+              <HeaderImageBlock imageUrl={headerImage} uploading={headerImageUploading} onUpload={onUploadHeaderImage} onRemove={onRemoveHeaderImage} />
             </div>
           </section>
 
-          {/* v5.5 — CIDADE/ORIENTAÇÃO/INCLINAÇÃO voltaram pra dentro da Configuração do Aquecimento.
-              Espaço em branco foi deslocado pra logo acima do gráfico das temperaturas. */}
-
-          {/* v5.5 — Espacejador movido pra entre o banner SIMULACAO TERMICA MENSAL e o grafico/tabela.
-              Antes ficava aqui (acima de DIMENSIONAMENTO), agora sai do fluxo pra empurrar o gráfico pra baixo. */}
-
-          {/* ============ TITULO BANNER DIMENSIONAMENTO ============
-              Print: fundo branco + texto azul + borda (sem depender de "Gráficos de segundo plano")
-              v1.12.74: print:mb-1 pra criar respiro entre banner e cards (estavam encostados) */}
+          {/* BANNER DIMENSIONAMENTO */}
           <div className="bg-blue-900 text-white px-5 py-1.5 print:mb-1">
             <span className="text-[10px] uppercase tracking-[0.18em] font-bold">Dimensionamento</span>
           </div>
 
           {report ? (
             <>
-              {/* ============ KPIs (coluna estreita) + COLETOR/SLIDER/BOMBA (coluna larga) ============ */}
               <section className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-slate-200 avoid-break">
-                {/* Esquerda — KPIs em coluna estreita */}
+                {/* KPIs */}
                 <div className="col-span-5 grid grid-cols-1 gap-1">
-                  <Kpi label="Área da piscina" value={report.areaPiscinaM2.toFixed(2).replace(".", ",")} unit="m²" />
-                  <Kpi label="m² necessário de coletor" value={String(Math.round(report.m2ColetorNecessario))} unit="m²" />
-                  <Kpi label="Qtd. de coletores" value={report.qtdColetores.toFixed(1).replace(".", ",")} unit="un" accent />
-                  <Kpi label="Coletores por bateria" value={String(report.coletoresPorBateria)} unit="un" />
-                  <Kpi label="Baterias (total)" value={String(report.numBaterias)} unit="un" />
-                  <Kpi label="Baterias em série" value={String(report.batPorRamo ?? report.numBaterias)} unit="un" />
-                  <Kpi label="Baterias em paralelo" value={String((report.numRamosParalelos ?? 1) > 1 ? report.numRamosParalelos : 0)} unit="un" />
-                  <Kpi label="Vazão necessária" value={report.vazaoTotalM3h.toFixed(2).replace(".", ",")} unit="m³/h" />
-                  <Kpi label="Cobertura piscina × coletores" value={report.percentualCobertura.toFixed(1).replace(".", ",")} unit="%" />
-                  {/* v1.12.55: diagrama em card de tamanho FIXO (170px de altura) — escala interna */}
-                  {/* v1.12.64: badge da regra no TOPO (header) + warnings de erro/info abaixo do header */}
-                  {report.numBaterias > 0 && (
-                    <div className="mt-1.5 rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-blue-50/30 p-2">
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <div className="text-[8.5px] uppercase tracking-wider font-bold text-slate-600 flex-shrink-0">
-                          Diagrama da instalação
+                  <Kpi label="Calor necessário (mês crítico)" value={report.calorNecessarioKcalH.toLocaleString("pt-BR")} unit="Kcal/h" accent />
+                  <Kpi label="Potência térmica" value={report.qtotalMaxKw.toFixed(1).replace(".", ",")} unit="kW" />
+                  <Kpi label="Equivalente" value={report.calorNecessarioBtuH.toLocaleString("pt-BR")} unit="Btu/h" />
+                  <Kpi label="Mês crítico" value={MESES[report.qtotalMonthCritical] ?? "—"} unit="" />
+                </div>
+                {/* Equipamento */}
+                <div className="col-span-7">
+                  {eq ? (
+                    <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
+                          {eq.fromOverride ? "Equipamento (manual)" : eq.fromItemCellRef ? "Equipamento da linha" : "Modelo recomendado"}
                         </div>
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          {activeRule ? (
-                            <button
-                              type="button"
-                              onClick={() => setShowSolarRulesModal(true)}
-                              title={`Regra aplicada: ${activeRule.name}. Clique para gerenciar.`}
-                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-cyan-300 bg-cyan-50 text-[9px] font-semibold text-cyan-800 hover:bg-cyan-100 print:hidden truncate max-w-[120px]"
-                            >
-                              <span className="text-cyan-600">●</span>
-                              <span className="truncate">{activeRule.name}</span>
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => setShowSolarRulesModal(true)}
-                              title="Nenhuma regra solar específica para este coletor. Usando padrões do sistema."
-                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-[9px] font-semibold text-amber-800 hover:bg-amber-100 print:hidden"
-                            >
-                              <span>⚠</span>
-                              <span>sem regra</span>
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => setShowSolarRulesModal(true)}
-                            title="Cadastrar / editar regras de dimensionamento por modelo de coletor"
-                            className="text-[9px] font-semibold px-1.5 py-0.5 rounded border border-slate-200 text-slate-600 hover:text-cyan-700 hover:border-cyan-300 hover:bg-cyan-50 print:hidden flex-shrink-0"
-                          >
-                            ⚙ Regras
+                        <button type="button" onClick={() => setShowHeatingRulePicker(true)} title="Configurar regra de auto-seleção da bomba de calor" className="print:hidden text-violet-700 hover:text-violet-900 text-sm font-bold">✨</button>
+                      </div>
+                      <div className="mt-1 flex items-center gap-2 flex-wrap">
+                        <div className="relative inline-flex items-center">
+                          <button type="button" onClick={() => setShowEquipPicker(!showEquipPicker)} className="flex items-center gap-2 text-lg font-bold text-emerald-900 hover:text-emerald-700 transition text-left print:hidden">
+                            <span>{eq.modelName}</span>
+                            <span className="text-xs text-emerald-700">{showEquipPicker ? "▲" : "▼"}</span>
                           </button>
-                        </div>
-                      </div>
-
-                      {/* v1.12.64: bandagem de erros/info relativa a regra solar (filtra warnings que falam sobre regra/tipo/modelo) */}
-                      {Array.isArray(report.warnings) && report.warnings.length > 0 && (
-                        <div className="mb-1.5 space-y-0.5">
-                          {report.warnings
-                            .filter((w) => /regra|tipo|modelo|usando padroes|coletor "/i.test(w.message))
-                            .slice(0, 3)
-                            .map((w, idx) => (
-                              <div
-                                key={idx}
-                                className={`text-[9px] leading-snug rounded px-1.5 py-1 border ${
-                                  w.severity === "warning"
-                                    ? "bg-amber-50 border-amber-200 text-amber-900"
-                                    : "bg-sky-50 border-sky-200 text-sky-900"
-                                }`}
-                              >
-                                <span className="font-bold mr-1">
-                                  {w.severity === "warning" ? "⚠" : "ℹ"}
-                                </span>
-                                {w.message}
-                              </div>
-                            ))}
-                        </div>
-                      )}
-
-                      <BatteryDiagram
-                        numRamos={report.numRamosParalelos ?? 1}
-                        batPorRamo={report.batPorRamo ?? report.numBaterias}
-                        coletoresPorBateria={report.coletoresPorBateria}
-                      />
-                    </div>
-                  )}
-
-                  {/* v1.12.66: sem regra cadastrada para o coletor → numBaterias=0.
-                      Substitui o diagrama por mensagem de erro orientando o operador. */}
-                  {report.numBaterias === 0 && (
-                    <div className="mt-1.5 rounded-lg border-2 border-amber-300 bg-amber-50 p-3">
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <span className="text-amber-700 text-base leading-none">⚠</span>
-                        <div className="text-[10px] uppercase tracking-wider font-bold text-amber-900">
-                          Diagrama da instalação — sem dimensionamento
-                        </div>
-                      </div>
-                      <p className="text-[11px] leading-snug text-amber-900 mb-2">
-                        O sistema não tem regra cadastrada pra dimensionar baterias e vazão deste coletor.
-                        Verifique os warnings acima e:
-                      </p>
-                      <ul className="text-[11px] leading-snug text-amber-900 space-y-1 list-disc list-outside ml-4">
-                        <li>
-                          Confirme que o coletor selecionado tem os campos <strong>Tipo</strong> e{" "}
-                          <strong>Modelo</strong> preenchidos em <em>Cadastros &gt; Produtos &gt; aba Piscina</em>
-                        </li>
-                        <li>
-                          Cadastre uma regra solar pra esse modelo no botão <strong>⚙ Regras</strong> abaixo
-                        </li>
-                      </ul>
-                      <div className="mt-2 flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setShowSolarRulesModal(true)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-600 text-white text-[10px] font-bold hover:bg-amber-700 print:hidden"
-                        >
-                          ⚙ Cadastrar regra agora
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Direita — Coletor + slider + bomba */}
-                <div className="col-span-7 flex flex-col gap-2">
-                  <div>
-                    <SectionLabel>Coletor selecionado</SectionLabel>
-                    <div className="mt-1.5 flex items-center gap-1.5">
-                      {/* Botao ✨ — abre modal de selecao detalhada do coletor */}
-                      <button type="button"
-                        onClick={() => setShowColetorPicker(true)}
-                        title="Escolher coletor (lista com especificações)"
-                        className="text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300 print:hidden flex-shrink-0">
-                        ✨
-                      </button>
-                      <select value={selectedCollectorId ?? ""}
-                        onChange={(e) => {
-                          const id = e.target.value || null;
-                          setSelectedCollectorId(id);
-                          onRecompute(undefined, id);
-                        }}
-                        className="flex-1 min-w-0 bg-amber-50 border border-amber-200 rounded text-[12px] font-semibold px-2 py-1 print:hidden">
-                        <option value="">— Padrão —</option>
-                        {collectors.map((c) => (
-                          <option key={c.productId} value={c.productId}>
-                            {(c.missingSpecs && c.missingSpecs.length > 0) ? "⚠ " : ""}{c.modelName}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="hidden print:block text-[12px] font-semibold bg-amber-50 px-2 py-1 border border-amber-200 rounded flex-1">
-                        {report.selectedCollector.modelName}
-                      </div>
-                    </div>
-                    {/* Aviso de specs faltando no coletor selecionado (lido do GET /collectors) */}
-                    {(() => {
-                      const sel = collectors.find((c) => c.productId === selectedCollectorId)
-                        ?? (selectedCollectorId == null ? collectors[collectors.length - 1] : null);
-                      const missing = sel?.missingSpecs ?? [];
-                      if (missing.length === 0) return null;
-                      const labels: Record<string, string> = {
-                        areaM2: "Área externa (m²)",
-                        kwhPorM2: "Produção específica (kWh/mês·m²)",
-                        eficiencia: "Eficiência energética média (%)",
-                      };
-                      return (
-                        <div className="mt-1.5 rounded border border-red-300 bg-red-50 px-2 py-1.5 text-[10.5px] text-red-800 print:hidden">
-                          <strong>⚠ Cadastro incompleto:</strong> faltam {missing.map((k) => labels[k] ?? k).join(", ")} em <a href="/products" className="underline font-semibold">/products</a> (aba Especificações técnicas). O cálculo solar não rodará até completar.
-                        </div>
-                      );
-                    })()}
-                    {collectors.length === 0 && !coletorRule && (
-                      <div className="mt-1.5 rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-[10.5px] text-amber-900 print:hidden">
-                        <strong>⚠ Regra de auto-selecao nao configurada.</strong> Sem filtro definido, nenhum produto eh listado. Clique no <button type="button" onClick={() => setShowColetorPicker(true)} className="underline font-bold text-violet-700 hover:text-violet-900">✨ pra configurar</button> qual filtro (tipo / descricao / categoria) escolhe os coletores do catalogo.
-                      </div>
-                    )}
-                    {collectors.length === 0 && coletorRule && (
-                      <div className="mt-1.5 rounded border border-red-300 bg-red-50 px-2 py-1.5 text-[10.5px] text-red-800 print:hidden">
-                        <strong>⚠ Nenhum produto passa na regra atual.</strong> Revise o filtro no <button type="button" onClick={() => setShowColetorPicker(true)} className="underline font-bold">✨</button> ou ajuste produtos em <a href="/products" className="underline font-semibold">/products</a>.
-                      </div>
-                    )}
-                  </div>
-
-                  {/* v1.12.55: slider substituido por stepper −/+. Clique discreto, sem drag. */}
-                  <div>
-                    <SectionLabel>Aumento da eficiência (coletores extras)</SectionLabel>
-                    <div className="mt-1 flex items-center gap-1.5 print:hidden">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = Math.max(0, extraPct - 1);
-                          setExtraPct(next);
-                          onRecompute(next, undefined);
-                        }}
-                        disabled={extraPct <= 0}
-                        className="w-7 h-6 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 text-sm font-bold leading-none flex items-center justify-center transition shadow-sm"
-                        title="Diminuir"
-                      >−</button>
-                      <div className="bg-emerald-50 border border-emerald-300 rounded px-3 py-0.5 text-[12px] font-bold text-emerald-800 tabular-nums min-w-[56px] text-center">
-                        +{extraPct} <span className="text-[9px] text-emerald-600">({extraPct * 10}%)</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = Math.min(10, extraPct + 1);
-                          setExtraPct(next);
-                          onRecompute(next, undefined);
-                        }}
-                        disabled={extraPct >= 10}
-                        className="w-7 h-6 rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:bg-slate-100 disabled:text-slate-400 text-sm font-bold leading-none flex items-center justify-center transition shadow-sm"
-                        title="Aumentar"
-                      >+</button>
-                      <span className="text-[9px] text-slate-500 italic ml-2">Aumenta a eficiência em meses frios (0–10).</span>
-                    </div>
-                    {/* v1.12.69: versao print do extra. Sem o stepper interativo, mostra so o valor + percentual. */}
-                    <div className="hidden print:block mt-1">
-                      <div className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-300 rounded px-3 py-1 text-[11px] font-bold text-emerald-800">
-                        +{extraPct} coletor{extraPct === 1 ? "" : "es"} extras <span className="text-[10px] text-emerald-600">({extraPct * 10}%)</span>
-                      </div>
-                      <span className="text-[9px] text-slate-600 italic ml-2">Aumenta a eficiência em meses frios.</span>
-                    </div>
-                  </div>
-
-                  {/* v1.12.34: bloco Tubulacao — calculadora de perda de carga.
-                      v1.12.38: movido pra ANTES da Bomba — o calculo da tubulacao
-                      eh pre-requisito (altura manometrica) pra escolher a bomba certa.
-                      Operador informa comprimento (ida+volta) + desnivel. Backend
-                      calcula altura manometrica total (Darcy-Weisbach + Haaland) e
-                      persiste em environmentParams.solarPipe + alturaTelhadoM.
-                      A auto-selecao da bomba usa esse valor. */}
-                  <div>
-                    <SectionLabel>🚰 Tubulação — perda de carga</SectionLabel>
-                    <div className="mt-1 rounded border border-slate-200 bg-slate-50/50 p-1.5 space-y-1">
-                      <div className="grid grid-cols-2 gap-1.5 items-center print:hidden">
-                        <div className="flex items-center gap-1.5">
-                          <label className="text-[9px] uppercase tracking-wider text-slate-500 font-bold whitespace-nowrap" title="Comprimento total da tubulacao em metros (ida + volta).">
-                            Comp. (m)
-                          </label>
-                          <input
-                            type="number" step="0.5" min="0"
-                            value={pipeComprimento || ""}
-                            onChange={(e) => setPipeComprimento(Number(e.target.value) || 0)}
-                            onBlur={() => recomputePipe({ comprimentoM: pipeComprimento })}
-                            placeholder="30"
-                            className="flex-1 min-w-0 rounded border border-slate-300 px-1.5 py-0.5 text-[12px] font-semibold focus:border-amber-500 focus:outline-none h-6"
-                          />
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <label className="text-[9px] uppercase tracking-wider text-slate-500 font-bold whitespace-nowrap" title="Altura geometrica do telhado em metros (desnivel).">
-                            Desnív. (m)
-                          </label>
-                          <input
-                            type="number" step="0.5" min="0"
-                            value={pipeDesnivel || ""}
-                            onChange={(e) => setPipeDesnivel(Number(e.target.value) || 0)}
-                            onBlur={() => recomputePipe({ desnivelM: pipeDesnivel })}
-                            placeholder="4"
-                            className="flex-1 min-w-0 rounded border border-slate-300 px-1.5 py-0.5 text-[12px] font-semibold focus:border-amber-500 focus:outline-none h-6"
-                          />
-                        </div>
-                      </div>
-                      {/* v1.12.69: no print, mostra Comp+Desniv como texto simples (sem input) */}
-                      <div className="hidden print:flex gap-3 text-[9px] uppercase tracking-wider text-slate-600 font-semibold">
-                        <span>Comp.: <span className="text-slate-900 normal-case font-bold text-[10px]">{pipeComprimento || 0} m</span></span>
-                        <span>Desnív.: <span className="text-slate-900 normal-case font-bold text-[10px]">{pipeDesnivel || 0} m</span></span>
-                      </div>
-                      {pipeResult ? (() => {
-                        const velocidadeAlta = (pipeResult.velocidade ?? 0) >= 2.5;
-                        const availableDns: number[] = pipeResult.availableDiametersMm ?? [32, 40, 50, 60, 75];
-                        // Fallback: se result salvo nao tem diametroDnMm (dado antigo), pega do input
-                        const dnAtual = pipeResult.diametroDnMm
-                          ?? (pipeResult as any)?.inputs?.diametroMm
-                          ?? availableDns.find((d) => d >= 50) ?? availableDns[0];
-                        // cardCls: vermelho se velocidade alta; senao amber
-                        const cardCls = velocidadeAlta
-                          ? "rounded border border-red-400 bg-red-50 px-2 py-1.5"
-                          : "rounded border border-amber-300 bg-amber-50 px-2 py-1.5";
-                        const labelCls = velocidadeAlta ? "text-red-800" : "text-amber-800";
-                        const valueCls = velocidadeAlta ? "text-red-900" : "text-amber-900";
-                        const subCls = velocidadeAlta ? "text-red-800" : "text-amber-800";
-                        const veloCls = velocidadeAlta ? "font-bold text-red-700" : "";
-                        return (
-                          <div className={cardCls}>
-                            <div className="flex items-baseline justify-between gap-2">
-                              <div className={`text-[8.5px] uppercase tracking-wider font-bold ${labelCls}`}>Altura manométrica total</div>
-                              <div className={`text-base font-bold tabular-nums leading-none ${valueCls}`}>{pipeResult.alturaManometricaTotal?.toFixed(2)} <span className="text-[10px] font-semibold">mca</span></div>
-                            </div>
-                            <div className={`text-[9.5px] mt-0.5 ${subCls}`}>
-                              = {pipeResult.perdaDinamica?.toFixed(2)} mca tubulação
-                              {(pipeResult as any).perdaBateriasMca > 0 && (
-                                <> + {(pipeResult as any).perdaBateriasMca.toFixed(2)} mca baterias<span className="text-[8.5px] opacity-75"> ({report.coletoresPorBateria}col × {report.batPorRamo ?? report.numBaterias}série)</span></>
+                          <span className="hidden print:inline text-lg font-bold text-emerald-900">{eq.modelName}</span>
+                          {showEquipPicker && (
+                            <div className="absolute z-50 left-0 top-full mt-2 rounded-xl border-2 border-emerald-200 bg-white shadow-xl p-3 max-h-96 overflow-y-auto w-[520px] max-w-[90vw]">
+                              <div className="text-[11px] font-semibold uppercase text-slate-500 mb-2">Trocar equipamento</div>
+                              {eq.fromOverride && (
+                                <button type="button" onClick={() => changeEquipment(null)} disabled={changingEquipment} className="w-full text-left px-3 py-2 mb-2 rounded-lg border border-violet-300 bg-violet-50 hover:bg-violet-100 text-sm font-semibold text-violet-900 disabled:opacity-50">↺ Voltar pra seleção automática</button>
                               )}
-                              {" "}+ {pipeDesnivel} m desnível · velocidade <span className={veloCls}>{pipeResult.velocidade?.toFixed(2)} m/s</span>
-                            </div>
-                            <div className="mt-2 flex items-center gap-2 flex-wrap">
-                              <label className={`text-[10px] uppercase tracking-wider font-bold ${labelCls}`}>📏 Tubo:</label>
-                              <span className={`text-[11px] font-semibold ${valueCls}`}>{pipeResult.material ?? 'PVC'}</span>
-                              {/* Select interativo na tela */}
-                              <select
-                                value={dnAtual}
-                                onChange={(e) => recomputePipe({ diametroMm: Number(e.target.value) })}
-                                className={`text-xs font-bold rounded border px-2 py-0.5 print:hidden ${velocidadeAlta ? 'border-red-400 bg-white text-red-900' : 'border-amber-400 bg-white text-amber-900'} focus:outline-none focus:ring-1 focus:ring-amber-500`}
-                              >
-                                {availableDns.map((d) => (
-                                  <option key={d} value={d}>{d} mm DN</option>
+                              <div className="space-y-1">
+                                {candidates.length === 0 && (<div className="text-xs text-slate-500 px-2 py-3">Nenhum produto Bomba de Calor com kcalHNominal. Configure a regra no ✨.</div>)}
+                                {[...candidates].sort((a, b) => a.kcalHNominal - b.kcalHNominal).map((c) => (
+                                  <button key={c.productId} type="button" onClick={() => { changeEquipment(c.productId, 1); setShowEquipPicker(false); }} disabled={changingEquipment} className={`w-full text-left px-3 py-2 rounded-lg border text-sm disabled:opacity-50 ${c.productId === eq.productId ? "border-emerald-400 bg-emerald-50 font-semibold" : "border-slate-200 hover:bg-slate-50"}`}>
+                                    {c.modelName} <span className="text-[11px] text-slate-500">· {c.kcalHNominal.toLocaleString("pt-BR")} Kcal/h</span>
+                                  </button>
                                 ))}
-                              </select>
-                              {/* Valor texto no print */}
-                              <span className={`hidden print:inline-block text-xs font-bold ${valueCls}`}>{dnAtual} mm DN</span>
-                              {pipeResult.diametroAutoPicked
-                                ? <span className="text-[9px] uppercase tracking-wider text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">auto</span>
-                                : <span className="text-[9px] uppercase tracking-wider text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded">manual</span>}
-                              {pipeResult.diametroInternoMm && <span className={`text-[10px] ${subCls}`}>(DI {pipeResult.diametroInternoMm} mm)</span>}
-                              <button
-                                type="button"
-                                onClick={() => recomputePipe({ diametroMm: null })}
-                                className="text-[10px] underline text-slate-500 hover:text-slate-700 print:hidden"
-                                title="Volta a deixar o sistema escolher o tubo ideal pela vazao"
-                              >
-                                ↺ deixar automatico
-                              </button>
-                            </div>
-                            {velocidadeAlta && (
-                              <div className="mt-2 rounded bg-red-100 border border-red-300 px-2 py-1.5 text-[11px] font-bold text-red-800 uppercase tracking-wide text-center">
-                                ⚠ Velocidade {pipeResult.velocidade?.toFixed(2)} m/s acima do limite de 2,5 m/s — AUMENTE O DIÂMETRO DO TUBO
-                              </div>
-                            )}
-                            <div className={`text-[9px] mt-1 italic ${velocidadeAlta ? 'text-red-700' : 'text-amber-700'}`}>Defaults: PVC, fator 20%, 10 joelhos, 4 tês, 1 registro, 1 válvula.</div>
-                          </div>
-                        );
-                      })() : (
-                        <div className="text-[10px] text-slate-500 italic">
-                          {pipeRecomputing ? 'Calculando…' : 'Preencha comprimento e desnível pra o sistema escolher o melhor tubo + calcular a altura manométrica.'}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* v1.12.43: dropdown com candidatos reais.
-                      v1.12.53: layout reorganizado com imagem da bomba (mesmo padrao do coletor). */}
-                  <div>
-                    <SectionLabel>Bomba recomendada</SectionLabel>
-                    <div className="mt-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <button type="button"
-                          onClick={() => setShowBombaPicker(true)}
-                          title="Configurar auto-seleção da bomba (filtra por vazão calculada e altura manométrica)"
-                          className="text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300 print:hidden flex-shrink-0">
-                          ✨
-                        </button>
-                        <div className="flex-1">
-                          {bombaCandidates.length === 0 ? (
-                            <div className="bg-slate-50 border border-slate-200 rounded px-3 py-2">
-                              <div className="text-[12px] font-bold text-slate-900 leading-tight">
-                                {bombaCandidatesLoading ? 'Carregando candidatos...' : (report.bombaRecomendada || 'Nenhum candidato no catálogo')}
-                              </div>
-                              <div className="text-[9px] text-slate-500 mt-0.5 leading-tight">
-                                {bombaCandidatesLoading
-                                  ? 'Avaliando catálogo contra a regra...'
-                                  : `Nenhuma bomba do catálogo atende a regra atual (vazão ≥ ${report.vazaoTotalM3h?.toFixed(2)} m³/h${pipeResult ? ` e pressão ≥ ${pipeResult.alturaManometricaTotal?.toFixed(2)} mca` : ''}). Edite no ✨ ou cadastre bombas compatíveis.`}
                               </div>
                             </div>
-                          ) : (
-                            <select
-                              value={selectedBombaId ?? ''}
-                              onChange={(e) => handleSelectBomba(e.target.value || null)}
-                              className="w-full rounded border border-slate-300 bg-amber-50 px-2 py-1 text-[12px] font-semibold print:hidden">
-                              {bombaCandidates.map((c) => {
-                                const parts: string[] = [c.description];
-                                if (c.potenciaCv != null) parts.push(`${c.potenciaCv} cv`);
-                                parts.push(`${c.vazaoM3h.toFixed(1)} m³/h`);
-                                parts.push(`${c.pressaoTrabalhoMca.toFixed(1)} mca`);
-                                if (c.hasPumpCurve) parts.push('📈 curva');
-                                if (c.indicator) {
-                                  const decimals = Math.abs(c.indicator.value) < 10 ? 1 : 0;
-                                  const formatted = c.indicator.value.toFixed(decimals).replace('.', ',');
-                                  parts.push(`${formatted}${c.indicator.unit} (${c.indicator.label})`);
-                                }
-                                return <option key={c.productId} value={c.productId}>{parts.join(' · ')}</option>;
-                              })}
-                            </select>
                           )}
                         </div>
+                        <EquipmentQuantityInput productId={eq.productId} currentQty={eq.quantity} onChangeQty={(newQty) => changeEquipment(eq.productId, newQty)} disabled={changingEquipment} />
+                        {eq.quantity > 1 && (<span className="inline-flex items-center gap-1 bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full text-[10px] font-bold">⚡ {eq.quantity}× EM PARALELO</span>)}
                       </div>
-                      {/* v1.12.53: card com imagem + specs da bomba selecionada (mesmo padrao do coletor) */}
-                      {bombaCandidates.length > 0 && (() => {
-                        const selBomba = bombaCandidates.find((b) => b.productId === selectedBombaId) ?? bombaCandidates[0];
-                        if (!selBomba) return null;
-
-                        // v1.12.84: usa thermal-demand do backend quando disponivel (cobre
-                        // TODOS os 14 fatores via Tabela78). Fallback pro calculo local
-                        // (HSE × min(1, perda/ganho)) quando o endpoint nao retornou ainda.
-                        const consumoFromBackend = thermalReport && thermalReport.bombaConsumoKwhMesMedio != null
-                          ? {
-                              hseMedio: thermalReport.bombaHorasDiaMedio ?? 0,
-                              horasDiaMedio: thermalReport.bombaHorasDiaMedio ?? 0,
-                              fatorMedio: thermalReport.monthly[0]?.fatorUtilizacaoBomba ?? 0,
-                              floorByTarget: 0,
-                              tempAlvo: Number(tempAguaDesejada) || 30,
-                              potenciaKW: thermalReport.bombaPotenciaKW ?? 0,
-                              kwhMes: thermalReport.bombaConsumoKwhMesMedio,
-                              custoMesCents: thermalReport.bombaConsumoKwhMesMedio * tarifaKwhBRLCents,
-                            }
-                          : null;
-
-                        // v1.12.80: consumo eletrico com 2 ajustes em cima de v1.12.79.
-                        //
-                        // 1) ESCALA TERMICA — perda escala com ΔT(alvo − ambiente). Backend
-                        //    calcula perdaCorrigidaPorDia em °C/dia FIXO (so depende de mes,
-                        //    capa, vento), mas perda real e proporcional ao ΔT. Sem isso,
-                        //    mudar temp_alvo de 35→30°C nao afetava o consumo da bomba.
-                        //
-                        // 2) FLOOR VARIAVEL POR TEMP_ALVO — controlador diferencial padrao nao
-                        //    mede temp_alvo. Roda enquanto T_coletor > T_piscina + ΔT_min.
-                        //    Quando alvo eh alto (35°C+), sistema raramente atinge alvo →
-                        //    bomba opera quase todo HSE. Quando alvo eh baixo (25°C), piscina
-                        //    bate o alvo cedo e operador eventualmente desliga manual.
-                        //    Floor reflete esse minimo de operacao por temperatura alvo:
-                        //      25°C → 0.20 / 30°C → 0.50 / 35°C → 0.70 / 38°C → 0.85
-                        //      formula: clamp(0.20, 0.85, 0.20 + 0.10 × (tempAlvo − 25))
-                        const computeConsumo = () => {
-                          const cv = selBomba.potenciaCv;
-                          if (cv == null || cv <= 0) return null;
-                          if (!report?.monthly?.length) return null;
-                          const potenciaKW = cv * 0.7355;
-                          const tempAlvo = Number(tempAguaDesejada) || 30;
-                          const DELTA_T_BASE = 13; // ΔT tipico (35°C alvo − 22°C ambiente)
-                          // v1.12.82: floor mais suave (era 0.20 + 0.10× → cap 0.85 a 35°C, dominava demais).
-                          // Agora: 25°C→0.10 / 30°C→0.30 / 35°C→0.50 / 38°C+→0.50 (cap). Mudar coletores
-                          // extras volta a influenciar o consumo (antes ambos batiam no floor alto).
-                          const floorByTarget = Math.max(0.10, Math.min(0.50, 0.10 + 0.04 * (tempAlvo - 25)));
-
-                          let kwhAno = 0;
-                          let horasAno = 0;
-                          let hseTotal = 0;
-                          let fatorTotal = 0;
-                          let mesesValidos = 0;
-                          for (const m of report.monthly) {
-                            const hse = Number(m.radSol) || 0;
-                            const perdaBase = Number(m.perdaCorrigidaPorDia) || 0;
-                            const ganho = Number(m.ganhoDia) || 0;
-                            const tempAmb = Number(m.tempAmbiente) || 22;
-                            if (hse <= 0) continue;
-
-                            // Escala termica: perda real ∝ ΔT(alvo − ambiente)
-                            const deltaT = Math.max(1, tempAlvo - tempAmb);
-                            const escalaTermica = deltaT / DELTA_T_BASE;
-                            const perdaEscalada = perdaBase * escalaTermica;
-
-                            const fatorBase = ganho > 0 ? Math.min(1, perdaEscalada / ganho) : 1;
-                            // Floor: bomba sempre opera o minimo, conforme temp alvo
-                            const fator = Math.max(floorByTarget, fatorBase);
-
-                            const horasDia = hse * fator;
-                            const horasMes = horasDia * 30;
-                            kwhAno += potenciaKW * horasMes;
-                            horasAno += horasMes;
-                            hseTotal += hse;
-                            fatorTotal += fator;
-                            mesesValidos++;
-                          }
-                          if (mesesValidos === 0) return null;
-                          const kwhMesMedio = kwhAno / 12;
-                          const horasDiaMedio = horasAno / (12 * 30);
-                          const hseMedio = hseTotal / mesesValidos;
-                          const fatorMedio = fatorTotal / mesesValidos;
-                          const custoMesCents = kwhMesMedio * tarifaKwhBRLCents;
-                          return { hseMedio, horasDiaMedio, fatorMedio, floorByTarget, tempAlvo, potenciaKW, kwhMes: kwhMesMedio, custoMesCents };
-                        };
-                        // v1.12.84: prefere thermal-demand do backend (Tabela78 completa)
-                        const consumo = consumoFromBackend ?? computeConsumo();
-
-                        return (
-                          <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2.5 flex gap-3 items-start shadow-sm">
-                            {/* Imagem da bomba (mesma estetica do coletor — quadrada, contain) */}
-                            <div className="w-24 h-24 flex-shrink-0 rounded border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center">
-                              {selBomba.imageUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={selBomba.imageUrl} alt={selBomba.description} className="w-full h-full object-contain" />
-                              ) : (
-                                <div className="text-[9px] text-slate-400 text-center px-1">Sem imagem</div>
-                              )}
-                            </div>
-                            {/* Specs */}
-                            <div className="flex-1 min-w-0">
-                              <div className="text-[12px] font-bold text-slate-900 leading-tight truncate">{selBomba.description}</div>
-                              <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] text-slate-700">
-                                {selBomba.potenciaCv != null && (
-                                  <div><span className="text-slate-500">Potência:</span> <span className="font-semibold tabular-nums">{selBomba.potenciaCv} cv</span></div>
-                                )}
-                                <div><span className="text-slate-500">Vazão:</span> <span className="font-semibold tabular-nums">{selBomba.vazaoM3h.toFixed(2)} m³/h</span></div>
-                                <div><span className="text-slate-500">Pressão:</span> <span className="font-semibold tabular-nums">{selBomba.pressaoTrabalhoMca.toFixed(2)} mca</span></div>
-                                {selBomba.salePriceCents > 0 && (
-                                  <div><span className="text-slate-500">Preço:</span> <span className="font-semibold tabular-nums">R$ {(selBomba.salePriceCents / 100).toFixed(2)}</span></div>
-                                )}
-                                {selBomba.hasPumpCurve && <div className="text-[9px] text-emerald-700 font-semibold">📈 com curva característica</div>}
-                                {selBomba.indicator && (
-                                  <div className={`text-[10px] font-semibold ${
-                                    // v1.12.67: tons -500/-600 deixam laranja e amarelo VISUALMENTE
-                                    // distintos de vermelho. Antes orange-700 (#c2410c) parecia
-                                    // vermelho-marrom, confundindo operador (Justo aparentava ruim).
-                                    selBomba.indicator.color === 'emerald' ? 'text-emerald-600' :
-                                    selBomba.indicator.color === 'green' ? 'text-green-600' :
-                                    selBomba.indicator.color === 'lime' ? 'text-lime-600' :
-                                    selBomba.indicator.color === 'yellow' ? 'text-yellow-600' :
-                                    selBomba.indicator.color === 'orange' ? 'text-orange-500' :
-                                    selBomba.indicator.color === 'amber' ? 'text-amber-600' :
-                                    selBomba.indicator.color === 'red' ? 'text-red-600' :
-                                    'text-slate-700'
-                                  }`}>
-                                    {(() => {
-                                      const v = selBomba.indicator.value;
-                                      // v1.12.66: usa 1 decimal pra valores < 10 (evita "0%" quando eh 0,3%)
-                                      const decimals = Math.abs(v) < 10 ? 1 : 0;
-                                      const formatted = v.toFixed(decimals).replace('.', ',');
-                                      const group = selBomba.indicator.groupLabel || 'Indicador';
-                                      return `${group}: ${formatted}${selBomba.indicator.unit} (${selBomba.indicator.label})`;
-                                    })()}
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* v1.12.78: consumo eletrico mensal estimado */}
-                              {consumo && (
-                                <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-                                  <div className="text-[10px] text-slate-700 leading-tight">
-                                    <span className="text-slate-500">⚡ Consumo médio:</span>{" "}
-                                    <span className="font-bold tabular-nums text-slate-900">{consumo.kwhMes.toFixed(0)}</span>
-                                    <span className="text-[9px] font-semibold text-slate-500"> kWh/mês</span>
-                                    <span className="text-[9px] text-slate-500 ml-1.5" title={`Fator utilizacao bomba: ${(consumo.fatorMedio * 100).toFixed(0)}% do tempo de sol (HSE medio ${consumo.hseMedio.toFixed(1)}h/dia · floor por temp alvo ${consumo.tempAlvo}°C = ${(consumo.floorByTarget * 100).toFixed(0)}% · escala termica por ΔT(alvo-ambiente))`}>({consumo.horasDiaMedio.toFixed(1)}h bomba/dia · {(consumo.potenciaKW).toFixed(2)} kW)</span>
-                                  </div>
-                                  <div className="relative flex items-center gap-1">
-                                    <div className="text-[11px] font-bold tabular-nums text-amber-700">
-                                      R$ {(consumo.custoMesCents / 100).toFixed(2)}<span className="text-[9px] font-semibold text-amber-600">/mês</span>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setTarifaInputValue((tarifaKwhBRLCents / 100).toFixed(2).replace(".", ","));
-                                        setShowTarifaPopover((v) => !v);
-                                      }}
-                                      title={`Tarifa atual: R$ ${(tarifaKwhBRLCents / 100).toFixed(2)}/kWh. Clique para alterar.`}
-                                      className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 print:hidden"
-                                    >
-                                      💡
-                                    </button>
-                                    {showTarifaPopover && (
-                                      <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-slate-300 rounded-lg shadow-lg p-3 w-[240px] print:hidden">
-                                        <div className="text-[10px] uppercase tracking-wider text-slate-600 font-bold mb-1.5">Tarifa de energia (R$/kWh)</div>
-                                        <input
-                                          type="text"
-                                          value={tarifaInputValue}
-                                          onChange={(e) => setTarifaInputValue(e.target.value)}
-                                          onKeyDown={(e) => { if (e.key === "Enter") saveTarifa(); if (e.key === "Escape") setShowTarifaPopover(false); }}
-                                          autoFocus
-                                          placeholder="0,95"
-                                          className="w-full rounded border border-slate-300 px-2 py-1 text-[12px] font-semibold focus:border-amber-500 focus:outline-none"
-                                        />
-                                        <div className="text-[9px] text-slate-500 mt-1 leading-tight">Tarifa aplicada a todos os orcamentos do tenant.</div>
-                                        <div className="mt-2 flex gap-1.5 justify-end">
-                                          <button
-                                            type="button"
-                                            onClick={() => setShowTarifaPopover(false)}
-                                            disabled={tarifaSaving}
-                                            className="text-[10px] px-2 py-1 rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-700"
-                                          >Cancelar</button>
-                                          <button
-                                            type="button"
-                                            onClick={saveTarifa}
-                                            disabled={tarifaSaving}
-                                            className="text-[10px] px-2 py-1 rounded bg-amber-600 text-white font-bold hover:bg-amber-700 disabled:bg-slate-300"
-                                          >{tarifaSaving ? "Salvando..." : "Salvar"}</button>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* v1.12.89: PAINEL DEBUG (print:hidden) — mostra os valores que vem do
-                                  backend thermal-demand pra diagnosticar saturacao do fator. Remover
-                                  apos validar que o calculo varia conforme esperado. */}
-                              {thermalReport && (
-                                <div className="mt-1 pt-1 border-t border-dashed border-violet-200 text-[6px] text-violet-700 print:hidden leading-[1.15]">
-                                  <div className="font-bold text-violet-800 mb-0.5 text-[7px]">🐛 DEBUG thermal-demand</div>
-                                  <div className="grid grid-cols-4 gap-x-1.5 gap-y-0">
-                                    <div>qPerdas méd: <span className="font-semibold tabular-nums">{thermalReport.qPerdasMediaKwhDia?.toFixed(1)}</span></div>
-                                    <div>qPerdas pico: <span className="font-semibold tabular-nums">{thermalReport.qPerdasPicoKwhDia?.toFixed(1)}</span></div>
-                                    <div>qSolar méd: <span className="font-semibold tabular-nums">{thermalReport.qSolarMediaKwhDia?.toFixed(1) ?? '—'}</span></div>
-                                    <div>Cob solar: <span className="font-semibold tabular-nums">{thermalReport.coberturaSolarMediaPct?.toFixed(0) ?? '—'}%</span></div>
-                                    <div>Fator: <span className={`font-semibold tabular-nums ${(thermalReport.monthly[0]?.fatorUtilizacaoBomba ?? 0) >= 0.99 ? 'text-red-600' : ''}`}>{((thermalReport.monthly[0]?.fatorUtilizacaoBomba ?? 0) * 100).toFixed(0)}%{(thermalReport.monthly[0]?.fatorUtilizacaoBomba ?? 0) >= 0.99 && '⚠'}</span></div>
-                                    <div>HSE: <span className="font-semibold tabular-nums">{((thermalReport.monthly.reduce((s,m)=>s+(m.hseHorasDia||0),0))/(thermalReport.monthly.length||1)).toFixed(1)}h</span></div>
-                                    <div>Capa: <span className="font-semibold">{thermalReport.inputs?.capaTermica ? 'SIM' : 'NÃO'}</span></div>
-                                    <div>Vento: <span className="font-semibold">{thermalReport.inputs?.vento}</span></div>
-                                    <div>Qtd col: <span className="font-semibold tabular-nums">{thermalReport.inputs?.qtdColetores ?? '—'}</span></div>
-                                    <div>Area col: <span className="font-semibold tabular-nums">{thermalReport.inputs?.areaTotalColetorM2?.toFixed(1) ?? '—'}m²</span></div>
-                                    <div>fInst: <span className="font-semibold tabular-nums">{thermalReport.inputs?.fatorInstalacao?.toFixed(2) ?? '—'}</span></div>
-                                    <div>T_alvo: <span className="font-semibold tabular-nums">{thermalReport.inputs?.tempAlvo}°C</span></div>
-                                  </div>
-                                  <div className="mt-0.5 pt-0.5 border-t border-dashed border-violet-200 font-bold text-[6.5px]">Fórmula perdas v1.12.90:</div>
-                                  <div className="grid grid-cols-4 gap-x-1.5 gap-y-0">
-                                    <div>Base: <span className="font-semibold tabular-nums">{thermalReport.inputs?.perdaBaseWm2 ?? '—'}</span> W/m²</div>
-                                    <div>×Vento: <span className="font-semibold tabular-nums">{thermalReport.inputs?.ventoMult?.toFixed(2) ?? '—'}</span></div>
-                                    <div>×Constr: <span className="font-semibold tabular-nums">{thermalReport.inputs?.construcaoMult?.toFixed(2) ?? '—'}</span></div>
-                                    <div>×ΔT: <span className="font-semibold tabular-nums">{thermalReport.inputs?.deltaTBaseAnualMult?.toFixed(2) ?? '—'}</span></div>
-                                    <div>Extras: <span className="font-semibold tabular-nums">{thermalReport.inputs?.extrasKwTotal?.toFixed(1) ?? '0'}kW</span></div>
-                                    <div className="col-span-3">Wm² efetivo: <span className="font-semibold tabular-nums">{((thermalReport.inputs?.perdaBaseWm2 ?? 0) * (thermalReport.inputs?.ventoMult ?? 1) * (thermalReport.inputs?.construcaoMult ?? 1) * (thermalReport.inputs?.deltaTBaseAnualMult ?? 1)).toFixed(0)} W/m²</span></div>
-                                  </div>
-                                  <div className="mt-0.5 pt-0.5 border-t border-dashed border-violet-200 font-bold text-[6.5px]">Bomba v1.12.93:</div>
-                                  <div className="grid grid-cols-4 gap-x-1.5 gap-y-0">
-                                    <div>HSE: <span className="font-semibold tabular-nums">{((thermalReport.monthly.reduce((s,m)=>s+(m.hseHorasDia||0),0))/(thermalReport.monthly.length||1)).toFixed(2)}h</span></div>
-                                    <div>Floor: <span className="font-semibold tabular-nums">{((thermalReport.inputs?.floorFatorBomba ?? 0) * 100).toFixed(0)}%</span></div>
-                                    <div>×Real: <span className="font-semibold tabular-nums">{thermalReport.inputs?.fatorHorasOperacaoReal?.toFixed(2) ?? '—'}</span></div>
-                                    <div>=h/dia: <span className="font-semibold tabular-nums">{thermalReport.bombaHorasDiaMedio?.toFixed(2) ?? '—'}h</span></div>
-                                    <div>Pot elétr: <span className="font-semibold tabular-nums">{thermalReport.bombaPotenciaKW?.toFixed(2) ?? '—'}kW</span></div>
-                                    <div>Rend: <span className="font-semibold tabular-nums">{thermalReport.inputs?.rendimentoBomba?.toFixed(2) ?? '0.65'}</span></div>
-                                    {thermalReport.inputs?.fatorVazao != null && (
-                                      <>
-                                        <div>Vaz bomba: <span className="font-semibold tabular-nums">{thermalReport.inputs?.vazaoBombaM3h?.toFixed(2) ?? '—'}</span></div>
-                                        <div>Vaz solar: <span className="font-semibold tabular-nums">{thermalReport.inputs?.vazaoSolarM3h?.toFixed(2) ?? '—'}</span></div>
-                                        <div className="col-span-4">×Fator vazão: <span className={`font-semibold tabular-nums ${thermalReport.inputs.fatorVazao < 0.85 ? 'text-emerald-600' : thermalReport.inputs.fatorVazao > 1.15 ? 'text-red-600' : ''}`}>{thermalReport.inputs.fatorVazao.toFixed(2)}</span> <span className="text-violet-400">(vazaoSolar/vazaoBomba)</span></div>
-                                      </>
-                                    )}
-                                  </div>
-                                  <div className="text-violet-500 italic mt-0.5 leading-tight">HSP_inclinado ({thermalReport.inputs?.hspInclinadoMedio?.toFixed(2) ?? '—'}h) só em qSolar (oferta), não nas horas da bomba.</div>
-                                  {thermalReport.monthly[0]?.fatorUtilizacaoBomba != null && thermalReport.monthly[0].fatorUtilizacaoBomba >= 0.99 && (
-                                    <div className="mt-0.5 text-red-700 font-semibold text-[6.5px]">
-                                      ⚠ Saturado: qPerdas ({thermalReport.qPerdasMediaKwhDia.toFixed(0)}) ≥ qSolar ({thermalReport.qSolarMediaKwhDia?.toFixed(0)}).
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                      <div className="text-[9px] text-slate-500 mt-1 leading-tight">
-                        {bombaCandidates.length > 0 ? (
-                          <>{bombaCandidates.length} bomba(s) atendem · ordem definida pela regra ✨ · vazão {report.vazaoTotalM3h?.toFixed(2)} m³/h{pipeResult ? ` + altura ${pipeResult.alturaManometricaTotal?.toFixed(2)} mca` : ''}</>
-                        ) : null}
+                      <div className="mt-2 grid grid-cols-3 gap-2">
+                        <StatCompact label="Capacidade" value={`${eq.kcalHNominal?.toLocaleString("pt-BR")} Kcal/h`} />
+                        {eq.kwNominal ? <StatCompact label="Pot. térmica" value={`${eq.kwNominal} kW`} /> : null}
+                        {eq.ratedInputPowerKW ? <StatCompact label="Consumo médio" value={`${eq.ratedInputPowerKW} kW`} /> : null}
+                      </div>
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                        {eq.copMax !== undefined && eq.copMax > 0 && (<div className="rounded bg-slate-50 px-2 py-1.5"><div className="text-[9px] text-slate-500">COP máx</div><div className="font-bold text-slate-700 tabular-nums">{eq.copMax}</div></div>)}
+                        {eq.copAt50Air26 !== undefined && eq.copAt50Air26 > 0 && (<div className="rounded bg-amber-50 px-2 py-1.5"><div className="text-[9px] text-amber-700">Verão 50%</div><div className="font-bold text-amber-900 tabular-nums">{eq.copAt50Air26}</div></div>)}
+                        {eq.copAt50Air15 !== undefined && eq.copAt50Air15 > 0 && (<div className="rounded bg-cyan-50 px-2 py-1.5 ring-1 ring-cyan-200"><div className="text-[9px] text-cyan-700">Inverno 50% ✓</div><div className="font-bold text-cyan-900 tabular-nums">{eq.copAt50Air15}</div></div>)}
+                      </div>
+                      <div className="mt-2 text-xs text-emerald-700">
+                        Carga: <strong>{(eq.loadRatio * 100).toFixed(0)}%</strong>
+                        {eq.isAdequate ? <span className="ml-2 text-emerald-700">✓ Folga adequada</span> : <span className="ml-2 text-amber-700">⚠ Fora da faixa ideal</span>}
+                        {report.timeToHeatInfeasible ? (<span className="ml-2 text-rose-700">⛔ Não aquece nas condições atuais</span>) : report.timeToHeatHours && isFinite(report.timeToHeatHours) ? (<span className="ml-2 text-slate-600">· Aquece em {Math.floor(report.timeToHeatHours)}h{report.degreesPerHour ? ` (${report.degreesPerHour.toFixed(2)} °C/h)` : ""}</span>) : null}
                       </div>
                     </div>
-                  </div>
-
-                  {/* v1.12.29: avisos do Simulador (catalogo do tenant) — bombas sem vazao,
-                      sem bomba que atenda vazaoTotal, regra solarBombaRule nao configurada. */}
-                  {report.warnings && report.warnings.length > 0 && (
-                    <div className="space-y-1.5 print:hidden">
-                      {report.warnings.map((w, i) => (
-                        <div key={i} className={
-                          "rounded px-3 py-2 text-[11px] leading-snug border " +
-                          (w.severity === 'warning'
-                            ? "bg-amber-50 border-amber-300 text-amber-900"
-                            : "bg-slate-50 border-slate-200 text-slate-700")
-                        }>
-                          <span className="font-bold mr-1">{w.severity === 'warning' ? '⚠' : 'ℹ'}</span>
-                          {w.message}
-                        </div>
-                      ))}
+                  ) : (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                      <div className="flex items-center justify-between"><strong>Nenhum equipamento compatível.</strong><button type="button" onClick={() => setShowHeatingRulePicker(true)} className="print:hidden text-violet-700 hover:text-violet-900 text-sm font-bold">✨ Configurar</button></div>
+                      <div className="mt-1 text-xs">Cadastre Bomba de Calor com kcalHNominal e configure a regra de auto-seleção (✨).</div>
                     </div>
                   )}
                 </div>
               </section>
 
-              {/* ============ TITULO BANNER SIMULACAO ============
-                  v1.12.67: mantem cor original no PDF (era forcado branco antes)
-                  v1.12.74: print:mb-1 pra respiro entre banner e gráfico/tabela */}
-              <div className="bg-blue-900 text-white px-5 py-1.5 flex items-center gap-3 print:mb-1">
-                <span className="text-[10px] uppercase tracking-[0.18em] font-bold">Simulação térmica mensal</span>
-                <div className="flex items-center gap-1.5 print:hidden">
-                  <span className="text-[9px] text-blue-200 uppercase tracking-wide">Gráfico:</span>
-                  <select value={selectedMonthIdx} onChange={(e) => setSelectedMonthIdx(Number(e.target.value))}
-                    className="bg-amber-50 border border-amber-200 text-[10px] font-semibold text-slate-900 px-1.5 py-0.5 rounded focus:border-amber-500 focus:outline-none">
-                    {SOLAR_MONTH_NAMES_FULL.map((m, i) => <option key={i} value={i}>{m}</option>)}
-                  </select>
-                </div>
-                <span className="hidden print:inline text-[10px] text-slate-600">— {selectedMonth ? selectedMonth.monthName : ""}</span>
-              </div>
-
-              {/* v5.5 — Espacejador que empurra o grafico+tabela pra baixo se sobrar espaco na folha A4.
-                  Antes ficava acima do banner DIMENSIONAMENTO. Movido pra cá conforme pedido do user. */}
-              <div className="flex-1" />
-
-              {/* ============ GRAFICO + TABELA ============
-                  v1.12.73: print:items-start + print:py-1 pra evitar items-stretch esticando
-                  os cards verticalmente quando ha espaco sobrando — geram espaco branco no fim. */}
-              <section className="grid grid-cols-12 gap-3 px-5 py-3 print:py-1 border-b border-slate-200 avoid-break items-stretch print:items-start">
-                <div className="col-span-7 flex flex-col">
-                  {selectedMonth && (
-                    <SolarChart row={selectedMonth} tempDesejada={tempAguaDesejada} monthName={selectedMonth.monthName} />
-                  )}
-                </div>
-                <div className="col-span-5 flex flex-col">
-                  <div className="border border-slate-200 rounded overflow-hidden h-full flex flex-col print:h-auto">
-                    <table className="w-full text-[9.5px] tabular-nums">
-                      <thead className="bg-slate-100 text-slate-700">
-                        <tr>
-                          <th className="text-left px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">Mês</th>
-                          <th className="text-right px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">Amb.</th>
-                          <th className="text-right px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">1° dia</th>
-                          <th className="text-right px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">2° dia</th>
-                          <th className="text-right px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">3° dia</th>
-                          <th className="text-right px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">4° dia</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {report.monthly.map((r, idx) => (
-                          <tr key={r.monthIndex}
-                            onClick={() => setSelectedMonthIdx(r.monthIndex)}
-                            className={`cursor-pointer transition ${
-                              selectedMonthIdx === r.monthIndex
-                                ? "bg-amber-100 print:bg-amber-100"
-                                : idx % 2 === 0 ? "bg-white" : "bg-slate-50/60"
-                            } hover:bg-amber-50 print:hover:bg-transparent`}>
-                            <td className="px-1.5 py-0.5 font-semibold text-slate-900 text-[9.5px] capitalize">{r.monthName.toLowerCase()}</td>
-                            <td className="px-1.5 py-0.5 text-right text-slate-600">{r.tempAmbiente.toFixed(1).replace(".", ",")}</td>
-                            <td className="px-1.5 py-0.5 text-right font-semibold">{r.tempFinal1d.toFixed(1).replace(".", ",")}</td>
-                            <td className="px-1.5 py-0.5 text-right font-semibold">{r.tempFinal2d.toFixed(1).replace(".", ",")}</td>
-                            <td className="px-1.5 py-0.5 text-right font-semibold">{r.tempFinal3d.toFixed(1).replace(".", ",")}</td>
-                            <td className="px-1.5 py-0.5 text-right font-semibold">{r.tempFinal4d.toFixed(1).replace(".", ",")}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+              {/* PERDA TERMICA MENSAL */}
+              <section className="px-5 py-2 border-b border-slate-200 avoid-break">
+                <SectionLabel>Perda térmica mensal</SectionLabel>
+                <div className="mt-1 rounded-lg border border-slate-200 bg-white overflow-x-auto">
+                  <table className="w-full text-[10px]">
+                    <thead className="bg-slate-50 border-b border-slate-200"><tr><th className="px-2 py-1 text-left font-semibold text-slate-700">Mês</th>{MESES.map((m) => <th key={m} className="px-1 py-1 text-center font-semibold text-slate-700">{m}</th>)}</tr></thead>
+                    <tbody className="divide-y divide-slate-100">
+                      <tr><td className="px-2 py-1 font-medium text-slate-700">Temp ar (°C)</td>{report.monthlyHeatLoss.map((m, i) => <td key={i} className="px-1 py-1 text-center text-slate-600 tabular-nums">{m.tempAr.toFixed(1)}</td>)}</tr>
+                      <tr><td className="px-2 py-1 font-medium text-slate-700">Umidade</td>{report.monthlyHeatLoss.map((m, i) => <td key={i} className="px-1 py-1 text-center text-slate-600 tabular-nums">{(m.humidity * 100).toFixed(0)}%</td>)}</tr>
+                      <tr className="bg-orange-50"><td className="px-2 py-1 font-semibold text-orange-900">Qtotal (kW)</td>{report.monthlyHeatLoss.map((m, i) => { const isCrit = i === report.qtotalMonthCritical; return <td key={i} className={`px-1 py-1 text-center tabular-nums ${isCrit ? "bg-orange-200 font-bold text-orange-900" : "text-orange-900"}`}>{m.qtotalKw.toFixed(1)}</td>; })}</tr>
+                    </tbody>
+                  </table>
                 </div>
               </section>
 
-              {/* ============ FOOTER ============ */}
-              <footer className="px-5 py-2 bg-slate-50 print:bg-white">
-                <div className="grid grid-cols-12 gap-3 items-start">
-                  {/* Observacoes — 7 cols */}
-                  <div className="col-span-7">
-                    <div className="text-[8.5px] uppercase tracking-wide text-slate-500 font-semibold mb-1">Observações</div>
-                    <ol className="text-[8.5px] text-slate-700 leading-tight space-y-0.5 list-decimal list-inside">
-                      <li>Os valores acima são estimativos e podem sofrer variações conforme temperatura ambiente real.</li>
-                      <li>Perda térmica acima do tolerado (sem capa, vento forte) reduz a temperatura final.</li>
-                      <li>Dias frios e nublados podem reiniciar o ciclo de aquecimento.</li>
-                    </ol>
-                  </div>
-
-                  {/* NBR card — movido pra ca, ao lado das Observacoes — 5 cols */}
-                  <div className="col-span-5">
-                    <div className="rounded border border-red-200 overflow-hidden bg-white print:bg-white">
-                      <div className="bg-gradient-to-r from-red-700 via-red-600 to-amber-700 text-white px-2 py-1 print:bg-red-700">
-                        <div className="text-[9.5px] font-bold leading-tight">
-                          NBR 10339:2018 — ABNT
-                        </div>
-                        <div className="text-[8px] text-red-100 leading-tight">
-                          Faixas de temperatura recomendadas por uso
-                        </div>
-                      </div>
-                      <div className="px-1.5 py-1 grid grid-cols-2 gap-x-2 text-[8px] leading-[1.15]">
-                        <div className="flex justify-between">
-                          <span className="text-slate-600">SPA</span>
-                          <span className="font-bold text-slate-900 tabular-nums">36–38°</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-600">Competição</span>
-                          <span className="font-bold text-slate-900 tabular-nums">25–28°</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-600">Recreação</span>
-                          <span className="font-bold text-slate-900 tabular-nums">27–29°</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-600">Bebês/Hidro</span>
-                          <span className="font-bold text-slate-900 tabular-nums">30–34°</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-slate-600">Crianças</span>
-                          <span className="font-bold text-slate-900 tabular-nums">29–32°</span>
-                        </div>
-                        <div className="text-red-700 font-medium">⚠ médico &gt;38°</div>
-                      </div>
+              {/* BANNER SIMULACAO */}
+              <div className="bg-blue-900 text-white px-5 py-1.5 print:mb-1"><span className="text-[10px] uppercase tracking-[0.18em] font-bold">Simulação de consumo mensal</span></div>
+              <section className="grid grid-cols-12 gap-3 px-5 py-3 avoid-break">
+                {report.monthlyConsumption && report.monthlyConsumption.length > 0 ? (
+                  <>
+                    <div className="col-span-7 grid grid-cols-2 gap-2">
+                      <BigStatLegacy label="Consumo anual" value={(report.annualKwh ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} unit="kWh/ano" emphasis="cyan" />
+                      <BigStatLegacy label="Custo médio mensal" value={fmtBRL(Math.round((report.annualCostBRLCents ?? 0) / 12))} unit="por mês" emphasis="orange" />
+                      <BigStatLegacy label="Custo anual" value={fmtBRL(report.annualCostBRLCents ?? 0)} unit="por ano" emphasis="orange" />
+                      <BigStatLegacy label="Aquec. inicial" value={fmtBRL(report.initialHeatingCostBRLCents ?? 0)} unit="1ª vez" emphasis="emerald" />
                     </div>
+                    <div className="col-span-5 rounded-lg border border-slate-200 bg-white overflow-hidden">
+                      <table className="w-full text-[10px]">
+                        <thead className="bg-slate-50 border-b border-slate-200"><tr><th className="px-2 py-1 text-left font-semibold text-slate-700">Mês</th><th className="px-2 py-1 text-right font-semibold text-slate-700">kWh</th><th className="px-2 py-1 text-right font-semibold text-slate-700">R$</th></tr></thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {report.monthlyConsumption.map((m) => { const isCrit = m.monthIndex === report.qtotalMonthCritical; return (<tr key={m.monthIndex} className={isCrit ? "bg-orange-50" : ""}><td className="px-2 py-1 font-medium text-slate-700">{m.monthName}</td><td className="px-2 py-1 text-right text-slate-700 tabular-nums">{m.kwhConsumido.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</td><td className="px-2 py-1 text-right font-semibold text-emerald-700 tabular-nums">{fmtBRL(m.custoBRLCents)}</td></tr>); })}
+                          <tr className="bg-slate-100 font-bold"><td className="px-2 py-1 text-slate-900">Total</td><td className="px-2 py-1 text-right text-slate-900 tabular-nums">{(report.annualKwh ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</td><td className="px-2 py-1 text-right text-emerald-700 tabular-nums">{fmtBRL(report.annualCostBRLCents ?? 0)}</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                ) : (
+                  <div className="col-span-12 text-sm text-slate-500">{eq ? "Equipamento sem ratedInputPowerKW no cadastro — não dá pra estimar consumo." : "Selecione um equipamento pra estimar o consumo."}</div>
+                )}
+              </section>
+
+              {/* FOOTER */}
+              <footer className="mt-auto px-5 py-3 border-t border-slate-200">
+                <div className="grid grid-cols-12 gap-4 items-start">
+                  <div className="col-span-8 text-[9px] text-slate-500 leading-snug">
+                    <div className="font-semibold text-slate-600 uppercase tracking-wide text-[8.5px] mb-0.5">Observações</div>
+                    Dimensionamento conforme NBR 10.339. Capacidade da bomba de calor selecionada para o mês mais frio (crítico) da localidade. Consumo estimado com COP em ar 15°C (inverno) e tarifa de energia configurada no sistema.
+                  </div>
+                  <div className="col-span-4 text-right text-[9px] text-slate-400">
+                    <div className="font-bold text-slate-500 text-[10px]">Tecnikos</div>
+                    <div>Gestão para piscinas</div>
                   </div>
                 </div>
               </footer>
             </>
           ) : (
             <div className="mx-5 my-6 rounded border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500 print:hidden">
-              {uf ? "Clique em Recalcular dimensionamento para gerar o relatorio." : "Selecione UF e cidade para comecar."}
+              {uf ? "Clique em Recalcular para gerar o dimensionamento." : "Selecione UF e cidade para começar."}
             </div>
           )}
         </div>
       </div>
 
-      {/* v1.12.77: removida toolbar de Pre-visualizacao PDF (era redundante — Chrome
-          ja abre Print Preview automatico quando clica Imprimir). */}
-
-      {/* Modal AutoSelect REAL (reusa do orcamento) — abre via icone ✨ ao lado do dropdown.
-          Permite configurar regra de auto-selecao do coletor (filtro de tipo, criterio, ordenacao). */}
-      {showColetorPicker && (
+      {/* Modal AutoSelect — regra da BOMBA DE CALOR (✨). Mesmo componente do orcamento/solar. */}
+      {showHeatingRulePicker && (
         <AutoSelectModal
-          initialRule={coletorRule ?? null}
+          initialRule={heatingRule ?? null}
           catalog={catalog ?? []}
           dimensions={budget.poolDimensions}
           environmentParams={budget.environmentParams}
           heatingReport={report}
           siblingVars={{}}
           sectionItems={[]}
-          itemDescription="Coletor Solar (Simulador Solar)"
-          currentProductName={collectors.find((c) => c.productId === selectedCollectorId)?.modelName ?? null}
-          onClose={() => setShowColetorPicker(false)}
-          onSave={async (rule: AutoSelectRule) => {
-            await onSaveColetorRule(rule);
-            setShowColetorPicker(false);
-          }}
-          onClear={async () => {
-            await onSaveColetorRule(null);
-            setShowColetorPicker(false);
-          }}
+          itemDescription="Bomba de Calor (Simulador)"
+          currentProductName={eq?.modelName ?? null}
+          onClose={() => setShowHeatingRulePicker(false)}
+          onSave={async (rule: AutoSelectRule) => { await onSaveHeatingRule(rule); setShowHeatingRulePicker(false); }}
+          onClear={async () => { await onSaveHeatingRule(null); setShowHeatingRulePicker(false); }}
         />
       )}
 
-      {/* Modal AutoSelect da Bomba hidraulica (v5.7). Usa o mesmo componente do
-          orcamento. Template prefereido: "🚰 Bomba do Coletor Solar (vazao do
-          simulador)" — vazaoM3h >= vazaoSolarM3h (vem de report.vazaoTotalM3h). */}
-      {showBombaPicker && (
-        <AutoSelectModal
-          initialRule={bombaRule ?? null}
-          catalog={catalog ?? []}
-          dimensions={budget.poolDimensions}
-          environmentParams={budget.environmentParams}
-          heatingReport={report}
-          siblingVars={{}}
-          sectionItems={[]}
-          itemDescription="Bomba do Coletor Solar (Simulador Solar)"
-          currentProductName={report?.bombaRecomendada ?? null}
-          onClose={() => setShowBombaPicker(false)}
-          onSave={async (rule: AutoSelectRule) => {
-            await onSaveBombaRule(rule);
-            setShowBombaPicker(false);
-          }}
-          onClear={async () => {
-            await onSaveBombaRule(null);
-            setShowBombaPicker(false);
-          }}
-        />
-      )}
-
-      {/* v1.12.63: modal de regras solares (acessado pelo botao ⚙ Regras no Diagrama de Instalacao). */}
-      <SolarRulesModal
-        open={showSolarRulesModal}
-        onClose={() => setShowSolarRulesModal(false)}
-        onChanged={async () => {
-          await reloadActiveRule();
-          // Force recompute do report pra refletir novas regras
-          if (selectedCollectorId !== undefined) {
-            onRecompute(undefined, selectedCollectorId);
-          }
-        }}
-      />
-
-      {/* CSS Print: A4 portrait, 1 pagina garantida.
-          - color-adjust: exact preserva fundos escuros do header/banner
-          - tamanhos compactos pra todo conteudo caber em ~270mm de altura util
-          - blocos com avoid-break nao podem quebrar entre paginas */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           @page { size: A4 portrait; margin: 0; }

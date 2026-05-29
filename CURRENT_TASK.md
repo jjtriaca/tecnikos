@@ -1,37 +1,32 @@
 # TAREFA ATUAL
 
-## Prod: v1.12.95 | Local: v1.12.95 + mudancas NAO deployadas (sessao 215)
+## Prod: v1.12.96 | Local: A+B+C prontos (C compila + `next build` OK). C NAO deployada.
 
-## EM ANDAMENTO (sessao 215): Aba Bomba de Calor = clone visual da Solar + auto-selecao configuravel
-Diretriz: Trocador = Bomba (UMA aba), clone visual FIEL da Solar (datasheet A4, zoom, print). So calculos mudam.
-Escolha da bomba de calor: auto-selecao CONFIGURAVEL (tela ✨), espelhando o coletor solar. Sem hardcode.
-Bomba de agua/circulacao, tubulacao, MCA: CONGELADO (ficam como estao).
+## SESSAO 215: Aba Bomba de Calor = clone visual da Solar + auto-selecao configuravel
+- ✅ **A — Cadastro** vazao min/max no produto Bomba de Calor (deployado v1.12.96).
+- ✅ **B — Backend auto-selecao** heatingRule + GET/POST /pool-budgets/heating/rule;
+     fetchBombaCalorCandidates aplica filterPoolType/filterDescription (sem regra = fallback). (deployado v1.12.96)
+- ✅ **C — Aba visual (CODIGO PRONTO — tsc + next build OK — aguardando deploy)**:
+     `BombaCalorTab` reescrita como datasheet de BOMBA (HeatingSimulatorModal.tsx ~3259, ~554 linhas):
+     toolbar (zoom + Recalcular + Imprimir) + folha A4 "Dimensionamento para Bomba de Calor" + Cliente/Obra +
+     Dimensoes (read-only) + Configuracao (capa/vento/cidade/uf/temp inicial/final/tipo piscina/construcao) +
+     HeaderImageBlock + Dimensionamento (KPIs calor kcal/h · kW · BTU + card Equipamento: select de candidates +
+     COP 3 condicoes + ✨ AutoSelectModal da heatingRule + tabela perda termica mensal) + Simulacao (consumo
+     anual/medio/inicial + tabela mensal) + footer NBR + print `bomba-pdf-*` (reusado verbatim, 1 pagina).
+     Wire: parent passa report(HeatingReport)/candidates/changeEquipment/changingEquipment/config setters/
+     headerImage solar/heatingRule/saveHeatingRule; inline antiga (577 linhas) REMOVIDA; zoom key "bomba:manualZoom".
+     `saveHeatingRule`: POST /heating/rule + reload candidatos + recompute report (reflete a regra na selecao).
 
-### Progresso (3 partes):
-- ✅ **A — Cadastro** (tsc OK): vazao minima + maxima no produto Bomba de Calor (technicalSpecs
-     vazaoMinM3h/vazaoMaxM3h). So dados; selecao da bomba de circulacao por curva usando isso = FUTURO.
-     `frontend/src/app/(dashboard)/products/page.tsx` (card 🔥 Aquecimento, gated /bomba de calor/i).
-- ✅ **B — Backend auto-selecao** (backend tsc OK): `getHeatingRule`/`setHeatingRule`
-     (Company.systemConfig.pool.heatingRule) + `fetchBombaCalorCandidates` aplica filterPoolType/
-     filterDescription (SEM regra = fallback hardcode atual, nao quebra). Capacidade kcal/h segue no
-     selectEquipment. Endpoints `GET/POST /pool-budgets/heating/rule`.
-     `backend/src/pool-budget/heating-budget.service.ts` + `pool-budget.controller.ts`.
-- ⏳ **C — Aba visual (FALTA, o grosso)**: `BombaCalorTab` (HeatingSimulatorModal.tsx ~3259) hoje e CLONE
-     SOLAR (titulo "Coletor Solar", coletores/baterias, zoom key "solar:manualZoom", props solares,
-     report: SolarReport). Adaptar pra bomba: Dimensionamento kW/kcal/BTU; Equipamento + COP + ✨ apontando
-     pra regra de B (carregar/salvar GET/POST /heating/rule + popular vars no AutoSelectModal); Simulacao
-     consumo. Titulo -> "Dimensionamento para Bomba de Calor"; zoom key -> "bomba:manualZoom".
-     Wire no parent: remover inline (~805) e inserir <BombaCalorTab/> com props de bomba. Print herda solar.
-     Fonte da logica de bomba pronta = a aba INLINE antiga (805) tem COP/kcal/BTU/equipamento/consumo.
-
-### Fechar: `tsc` + `next build` + **PERGUNTAR antes de deploy** (deploy bumpa pra v1.12.96).
+## PROXIMO: **PERGUNTAR deploy** -> v1.12.97. Pool SEM preview: validar visual EM PROD pos-deploy.
+### Validar em prod (aba Bomba de Calor do Simulador):
+- Datasheet A4 aparece (titulo "Dimensionamento para Bomba de Calor"); Recalcular; trocar equipamento (dropdown);
+  ✨ abre regra de auto-selecao da bomba; Imprimir gera 1 pagina; numeros (calor kcal/h, COP, consumo) batem.
 
 ## Notas
-- Aba Trocador REMOVIDA na v1.12.95 (deploy feito). HEAD v1.12.94 tinha 4 abas (solar|bomba|trocador|comparativo).
-- Plano (parcialmente desatualizado): [memory/plano_aba_bomba_calor.md](memory/plano_aba_bomba_calor.md)
-- Sessao 214 (fechada): 19 releases. [memory/sessao_214_summary.md](memory/sessao_214_summary.md)
+- Tholz X23 validado: kcalHNominal = cap Ar26/Turbo (BTU÷3,9683); copMax/copAt50Air26/copAt50Air15 batem com datasheet.
+  WINTER_CAPACITY_FACTOR=0.85 (datasheet sugere ~0.71 Ar15/Ar26; calibrado p/ TAB006 — NAO mexer sem analise).
+- Plano: [memory/plano_aba_bomba_calor.md](memory/plano_aba_bomba_calor.md). Sessao 214: [memory/sessao_214_summary.md](memory/sessao_214_summary.md)
 
 ## Outros pendentes
-- Remover painel debug violeta apos validacao final.
-- Aguardando Solis: comportamento com 7+ baterias.
-- Roadmap: usar vazao min/max pra selecionar bomba de circulacao por curva; defaults tubulacao configuraveis.
+- Remover painel debug violeta apos validacao final. Aguardando Solis (7+ baterias).
+- Roadmap: usar vazao min/max p/ selecionar bomba de circulacao por curva; defaults tubulacao configuraveis.
