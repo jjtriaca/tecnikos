@@ -322,6 +322,10 @@ interface ProductForm {
   specKcalHNominal: string;    // kcal/h nominal (capacidade real, alimenta auto-select preciso)
   specKwNominal: string;       // kW termico (capacidade)
   specBtuH: string;            // BTU/h (capacidade)
+  // Vazao de agua que a bomba de calor exige no trocador (janela min/max). Usada pra
+  // selecionar a bomba de circulacao pela curva (vazao alvo dentro de [min, max]).
+  specVazaoMinM3h: string;     // m3/h vazao minima de agua na bomba de calor
+  specVazaoMaxM3h: string;     // m3/h vazao maxima de agua na bomba de calor
   specRatedInputPowerKW: string; // kW consumo eletrico medio (em 15°C ambiente)
   specCopMax: string;          // COP maximo em condicao ideal (marketing — ar 26°C, carga baixa)
   specCopAt50Air26: string;    // COP em 50% carga, ar 26°C (verao tipico)
@@ -398,6 +402,8 @@ const EMPTY_FORM: ProductForm = {
   specKcalHNominal: "",
   specKwNominal: "",
   specBtuH: "",
+  specVazaoMinM3h: "",
+  specVazaoMaxM3h: "",
   specRatedInputPowerKW: "",
   specCopMax: "",
   specCopAt50Air26: "",
@@ -467,6 +473,8 @@ function productToForm(p: Product): ProductForm {
     specKcalHNominal: numericSpecToStr(p.technicalSpecs?.kcalHNominal),
     specKwNominal: numericSpecToStr(p.technicalSpecs?.kwNominal),
     specBtuH: numericSpecToStr(p.technicalSpecs?.btuH),
+    specVazaoMinM3h: numericSpecToStr(p.technicalSpecs?.vazaoMinM3h),
+    specVazaoMaxM3h: numericSpecToStr(p.technicalSpecs?.vazaoMaxM3h),
     specRatedInputPowerKW: numericSpecToStr(p.technicalSpecs?.ratedInputPowerKW),
     specCopMax: numericSpecToStr(p.technicalSpecs?.copMax),
     specCopAt50Air26: numericSpecToStr(p.technicalSpecs?.copAt50Air26),
@@ -545,6 +553,8 @@ function buildTechnicalSpecs(f: ProductForm, existing?: Record<string, any>): Re
   setOrUnset("kcalHNominal", f.specKcalHNominal);
   setOrUnset("kwNominal", f.specKwNominal);
   setOrUnset("btuH", f.specBtuH);
+  setOrUnset("vazaoMinM3h", f.specVazaoMinM3h);
+  setOrUnset("vazaoMaxM3h", f.specVazaoMaxM3h);
   setOrUnset("ratedInputPowerKW", f.specRatedInputPowerKW);
   setOrUnset("copMax", f.specCopMax);
   setOrUnset("copAt50Air26", f.specCopAt50Air26);
@@ -2283,6 +2293,27 @@ export default function ProductsPage() {
                       </div>
                     </div>
 
+                    {/* Vazao de agua exigida pela bomba de calor (janela min/max). So aparece
+                        pra Bomba de Calor. Alimenta a selecao futura da bomba de circulacao pela curva. */}
+                    {/bomba\s*de\s*calor/i.test(form.poolType) && (
+                      <>
+                        <h5 className="text-[11px] font-bold text-slate-500 uppercase mb-2 mt-2">Vazao de agua (m³/h)</h5>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 max-w-md">
+                          <div>
+                            <FieldLabel required={currentRequiredSpecs.has('vazaoMinM3h')} help="Vazao MINIMA de agua que deve passar pela bomba de calor (trocador). Abaixo disso o equipamento corta / nao troca calor direito. Usada pra selecionar a bomba de circulacao pela curva: a vazao escolhida fica dentro de [minima, maxima].">
+                              Vazao minima
+                            </FieldLabel>
+                            <input type="number" step="0.1" min="0" value={form.specVazaoMinM3h} onChange={(e) => setField("specVazaoMinM3h", e.target.value)} placeholder="Ex: 4" className={inputClass} />
+                          </div>
+                          <div>
+                            <FieldLabel required={currentRequiredSpecs.has('vazaoMaxM3h')} help="Vazao MAXIMA de agua suportada pela bomba de calor (trocador). Acima disso a perda de carga sobe demais. Usada pra selecionar a bomba de circulacao pela curva: a vazao escolhida fica dentro de [minima, maxima].">
+                              Vazao maxima
+                            </FieldLabel>
+                            <input type="number" step="0.1" min="0" value={form.specVazaoMaxM3h} onChange={(e) => setField("specVazaoMaxM3h", e.target.value)} placeholder="Ex: 7" className={inputClass} />
+                          </div>
+                        </div>
+                      </>
+                    )}
                     {/* Consumo eletrico */}
                     <h5 className="text-[11px] font-bold text-slate-500 uppercase mb-2 mt-2">Consumo eletrico</h5>
                     <div className="grid grid-cols-1 sm:grid-cols-1 gap-4 mb-4 max-w-sm">

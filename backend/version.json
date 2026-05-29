@@ -1,5 +1,5 @@
 {
-  "version": "1.12.95",
-  "codename": "v1.12.95: aba Trocador removida (Trocador=Bomba, aba unica); BombaCalorTab = clone do SolarTab ainda DESLIGADO (codigo morto) — conteudo/calculos de bomba pendentes",
-  "releasedAt": "2026-05-29T19:15:52.059Z"
+  "version": "1.12.96",
+  "codename": "v1.12.96: cadastro bomba de calor ganha vazao min/max (so dados) + auto-selecao CONFIGURAVEL da bomba de calor (regra heatingRule + endpoints /heating/rule; sem regra = fallback atual). Aba visual da bomba (parte C) ainda pendente.",
+  "releasedAt": "2026-05-29T20:02:26.904Z"
 }

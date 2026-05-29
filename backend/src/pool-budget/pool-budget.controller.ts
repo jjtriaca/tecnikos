@@ -95,6 +95,21 @@ export class PoolBudgetController {
     return this.heatingBudget.selectEquipmentOverride(id, user.companyId, body?.productId ?? null, body?.quantity ?? 1);
   }
 
+  @ApiOperation({ summary: 'Retorna a regra de auto-selecao da bomba de calor do tenant' })
+  @Get('heating/rule')
+  getHeatingRule(@CurrentUser() user: AuthenticatedUser) {
+    return this.heatingBudget.getHeatingRule(user.companyId).then((rule) => ({ rule }));
+  }
+
+  @ApiOperation({ summary: 'Salva a regra de auto-selecao da bomba de calor no tenant (body.rule pode ser null)' })
+  @Post('heating/rule')
+  setHeatingRule(
+    @Body() body: { rule: any | null },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.heatingBudget.setHeatingRule(user.companyId, body?.rule ?? null);
+  }
+
   // ============ Simulador Solar (Fase 4) ============
 
   @ApiOperation({ summary: 'Lista coletores solares aplicando a regra do tenant (vazia se sem regra)' })

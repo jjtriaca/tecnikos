@@ -826,27 +826,72 @@ export class HeatingBudgetService {
     };
   }
 
-  /** Busca produtos com poolType=Bomba de Calor + technicalSpecs.kcalHNominal preenchido. */
+  /** Regra de auto-selecao da bomba de calor (Company.systemConfig.pool.heatingRule).
+   *  Espelha a regra do coletor solar: filterPoolType / filterDescription escolhem
+   *  quais produtos do catalogo entram como candidatos. A escolha do MODELO por
+   *  capacidade (kcalHNominal >= demanda) continua no selectEquipment. */
+  async getHeatingRule(companyId: string): Promise<any | null> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    const rule = (company?.systemConfig as any)?.pool?.heatingRule;
+    return rule && typeof rule === 'object' ? rule : null;
+  }
+
+  async setHeatingRule(companyId: string, rule: any | null): Promise<{ rule: any | null }> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    const cfg = (company?.systemConfig ?? {}) as Record<string, any>;
+    const pool = (cfg.pool ?? {}) as Record<string, any>;
+    if (rule === null) delete pool.heatingRule;
+    else pool.heatingRule = rule;
+    cfg.pool = pool;
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { systemConfig: cfg as any },
+    });
+    return { rule };
+  }
+
+  /** Busca candidatos a bomba de calor. Com regra cadastrada (heatingRule), filtra o
+   *  catalogo por filterPoolType / filterDescription (igual ao coletor solar). Sem regra,
+   *  cai no comportamento legado: poolType ~ Bomba/Aquecedor. A capacidade (kcalHNominal)
+   *  segue obrigatoria — produto sem ela nao vira candidato. */
   private async fetchBombaCalorCandidates(companyId: string): Promise<Parameters<HeatingService['selectEquipment']>[0]> {
-    // poolType pode variar (Bomba de Calor, Bomba de calor, Aquecedor por bomba)
-    // Filtramos broadly por poolType ILIKE %bomba% OR %aquecedor%
+    const rule = await this.getHeatingRule(companyId);
+    const filterPoolType = String((rule as any)?.filterPoolType ?? '').trim();
+    const filterDescription = String((rule as any)?.filterDescription ?? '').trim();
+    const hasRuleFilter = filterPoolType.length > 0 || filterDescription.length > 0;
     const products = await this.prisma.product.findMany({
-      where: {
-        companyId,
-        deletedAt: null,
-        OR: [
-          { poolType: { contains: 'Bomba', mode: 'insensitive' } },
-          { poolType: { contains: 'Aquecedor', mode: 'insensitive' } },
-        ],
-      },
+      where: hasRuleFilter
+        ? { companyId, deletedAt: null }
+        : {
+            companyId,
+            deletedAt: null,
+            OR: [
+              { poolType: { contains: 'Bomba', mode: 'insensitive' } },
+              { poolType: { contains: 'Aquecedor', mode: 'insensitive' } },
+            ],
+          },
       select: {
         id: true,
         description: true,
         model: true,
+        poolType: true,
         technicalSpecs: true,
       },
     });
+    const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
     return products
+      .filter((p) => {
+        if (!hasRuleFilter) return true;
+        if (filterPoolType && norm(p.poolType ?? '') !== norm(filterPoolType)) return false;
+        if (filterDescription && !norm(p.description ?? '').includes(norm(filterDescription))) return false;
+        return true;
+      })
       .map((p) => {
         const specs = (p.technicalSpecs ?? {}) as Record<string, any>;
         const kcalH = Number(specs.kcalHNominal);

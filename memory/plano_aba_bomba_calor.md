@@ -22,15 +22,23 @@ metadata:
 > ⚠️ O arquivo irmao [plano_aba_trocador_calor.md](plano_aba_trocador_calor.md) esta SUPERSEDED — descrevia
 > uma aba Trocador separada com layout proprio. NAO seguir aquele. Seguir ESTE.
 
-## Estado atual (inicio sessao 215)
+## Estado atual (ATUALIZADO v1.12.95 — pos-crash, confirmado em prod)
 
-- **Versao alinhada: v1.12.94** (local == prod, confirmado via `/api/health`).
-- **Nada foi escrito em codigo ainda** — so reconhecimento + design completo (este doc).
-- A aba bomba que esta **VIVA em prod** e a JSX inline antiga (estilo NAO-datasheet) dentro do
-  `HeatingSimulatorModal.tsx`. Ela e a referencia AUTORITATIVA dos DADOS de bomba de calor,
-  mas NAO do visual desejado.
-- Existe uma `BombaCalorTab` MORTA (byte-copy do SolarTab com assinatura/props SOLAR) que precisa
-  ser SUBSTITUIDA pela versao nova.
+> ⚠️ CORRECAO: a sessao que escreveu este plano TRAVOU no meio. As linhas abaixo do design
+> original assumiam "nada escrito" — FALSO. Estado real verificado e deployado em v1.12.95:
+
+- **Versao em prod: v1.12.95** (local == prod, confirmado via `/api/health`).
+- ✅ Aba **Trocador REMOVIDA** (TabKey/botao/invocacao). NAO estava removida antes do crash —
+  foi a sessao do crash que removeu (o HEAD v1.12.94 tinha 4 abas: solar|bomba|trocador|comparativo).
+- ⚠️ `function BombaCalorTab` (~3259) = **clone do SolarTab** com SO os print ids renomeados
+  (solar-pdf->bomba-pdf). Ainda renderiza conteudo SOLAR (titulo "Dimensionamento para Coletor
+  Solar", coletores/baterias), zoom key ainda "solar:manualZoom". E **CODIGO MORTO** —
+  `<BombaCalorTab/>` nao e invocado em lugar nenhum.
+- ❌ **Wire NAO feito.** A aba "bomba" VIVA continua sendo a **JSX inline antiga** (~805).
+  Ela e a referencia AUTORITATIVA dos DADOS de bomba (COP/kcal/BTU/equipamento), mas NAO do visual datasheet.
+- ❌ Conteudo/calculos de bomba dentro do BombaCalorTab: **0% adaptado** (ainda e solar puro).
+- Proximo: encher BombaCalorTab com o conteudo de bomba (fonte = inline antiga) + titulo/zoom-key + wire
+  (remover inline ~805). Reconferir numeros de linha — o arquivo agora tem ~5869 linhas.
 
 ## Arquivo central
 
