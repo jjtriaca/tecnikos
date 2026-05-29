@@ -338,6 +338,14 @@ interface ProductForm {
   specEficiencia: string;            // UI em % (0..100); storage como fracao 0..1
   specClasseEficiencia: string;      // 'A'..'E' (Classificacao PBE — Procel)
   specPressaoFuncionamentokPa: string; // kPa (Pressao de Funcionamento — Procel)
+  // Trocador de Calor — specs que alimentam a aba Trocador do Simulador.
+  // Capacidade reusa o campo "Kcal/h nominal" acima (kcalHNominal).
+  specTrocadorMaterial: string;        // 'INOX' | 'TITANIO' | '' (informativo + resistencia)
+  specTrocadorEficiencia: string;      // UI em % (0..100); storage como fracao 0..1 (eficiencia de troca)
+  specTrocadorVazaoPrimariaM3h: string;   // m³/h lado quente (caldeira / bomba de calor)
+  specTrocadorVazaoSecundariaM3h: string; // m³/h lado piscina (alvo da bomba secundaria)
+  specTrocadorPerdaCargaMca: string;   // mca — perda de carga interna do trocador (entra no MCA)
+  specTrocadorPressaoMaxMca: string;   // mca — pressao maxima de trabalho do lado primario
   // Specs especificas por tipo de equipamento (F6.2 — agregadas pelo Simulador)
   specQtdJatos: string;            // Hidromassagem/SPA — qtde de jatos do kit
   specCascataComprimentoCm: string; // Cascata — comprimento do bocal em cm
@@ -402,6 +410,12 @@ const EMPTY_FORM: ProductForm = {
   specEficiencia: "",
   specClasseEficiencia: "",
   specPressaoFuncionamentokPa: "",
+  specTrocadorMaterial: "",
+  specTrocadorEficiencia: "",
+  specTrocadorVazaoPrimariaM3h: "",
+  specTrocadorVazaoSecundariaM3h: "",
+  specTrocadorPerdaCargaMca: "",
+  specTrocadorPressaoMaxMca: "",
   specQtdJatos: "",
   specCascataComprimentoCm: "",
   specBordaAlturaQuedaM: "",
@@ -464,6 +478,19 @@ function productToForm(p: Product): ProductForm {
     specKwhPorM2: numericSpecToStr(p.technicalSpecs?.kwhPorM2 ?? p.technicalSpecs?.kwhM2),
     specClasseEficiencia: typeof p.technicalSpecs?.classeEficiencia === 'string' ? p.technicalSpecs.classeEficiencia : "",
     specPressaoFuncionamentokPa: numericSpecToStr(p.technicalSpecs?.pressaoFuncionamentokPa),
+    specTrocadorMaterial: typeof p.technicalSpecs?.trocadorMaterial === 'string' ? p.technicalSpecs.trocadorMaterial : "",
+    specTrocadorVazaoPrimariaM3h: numericSpecToStr(p.technicalSpecs?.vazaoPrimariaM3h),
+    specTrocadorVazaoSecundariaM3h: numericSpecToStr(p.technicalSpecs?.vazaoSecundariaM3h),
+    specTrocadorPerdaCargaMca: numericSpecToStr(p.technicalSpecs?.perdaCargaTrocadorMca),
+    specTrocadorPressaoMaxMca: numericSpecToStr(p.technicalSpecs?.pressaoMaxTrocadorMca),
+    // Eficiencia de troca do trocador: fracao 0..1 → UI em %. Ex: 0.85 → "85"
+    specTrocadorEficiencia: (() => {
+      const v = p.technicalSpecs?.trocadorEficiencia;
+      if (v == null) return "";
+      const n = Number(v);
+      if (!Number.isFinite(n)) return "";
+      return String(Math.round(n * 1000) / 10);
+    })(),
     // Eficiencia: storage como fracao 0..1 → UI em % (0..100). Ex: 0.732 → "73.2"
     specEficiencia: (() => {
       const v = p.technicalSpecs?.eficiencia;
@@ -537,6 +564,21 @@ function buildTechnicalSpecs(f: ProductForm, existing?: Record<string, any>): Re
   } else {
     const pct = parseFloat(f.specEficiencia.replace(",", "."));
     if (Number.isFinite(pct)) merged.eficiencia = Math.round(pct * 10) / 1000; // 73.2 → 0.732
+  }
+  // Trocador de Calor
+  setOrUnset("vazaoPrimariaM3h", f.specTrocadorVazaoPrimariaM3h);
+  setOrUnset("vazaoSecundariaM3h", f.specTrocadorVazaoSecundariaM3h);
+  setOrUnset("perdaCargaTrocadorMca", f.specTrocadorPerdaCargaMca);
+  setOrUnset("pressaoMaxTrocadorMca", f.specTrocadorPressaoMaxMca);
+  // trocadorMaterial eh string (INOX/TITANIO/'')
+  if (f.specTrocadorMaterial.trim() === "") delete merged.trocadorMaterial;
+  else merged.trocadorMaterial = f.specTrocadorMaterial.trim().toUpperCase();
+  // trocadorEficiencia: UI em % → storage como fracao 0..1. Ex: 85 → 0.85
+  if (f.specTrocadorEficiencia.trim() === "") {
+    delete merged.trocadorEficiencia;
+  } else {
+    const tpct = parseFloat(f.specTrocadorEficiencia.replace(",", "."));
+    if (Number.isFinite(tpct)) merged.trocadorEficiencia = Math.round(tpct * 10) / 1000;
   }
   setOrUnset("qtdJatos", f.specQtdJatos);
   setOrUnset("cascataComprimentoCm", f.specCascataComprimentoCm);
@@ -2352,6 +2394,58 @@ export default function ProductsPage() {
                     <p className="mt-2 text-[11px] text-slate-500">
                       <strong>Obrigatorios pro Simulador Solar</strong>: Area, Producao Especifica e Eficiencia. <strong>Informativos</strong> (vao pro PDF): Classificacao e Pressao. Todos os campos espelham a <a href="https://www.gov.br/inmetro/pt-br/assuntos/avaliacao-da-conformidade/programa-brasileiro-de-etiquetagem/tabelas-de-eficiencia-energetica/equipamentos-de-aquecimento-solar-de-agua" target="_blank" rel="noopener" className="underline text-cyan-700">etiqueta Procel/Inmetro PBE</a>.
                     </p>
+
+                    {/* Trocador de Calor — specs que alimentam a aba Trocador do Simulador.
+                        Transfere calor de uma fonte externa (caldeira/bomba de calor) pra
+                        agua da piscina. Capacidade reusa o campo "Kcal/h nominal" do topo. */}
+                    <h5 className="text-[11px] font-bold text-slate-500 uppercase mb-2 mt-4">♨️ Trocador de Calor</h5>
+                    <p className="mb-3 text-[11px] text-slate-500">
+                      <strong>Capacidade</strong> usa o campo <strong>Kcal/h nominal</strong> la em cima. Os campos abaixo alimentam a aba <strong>Trocador</strong> do Simulador (vazoes pra dimensionar a bomba do lado da piscina e perda de carga interna).
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <FieldLabel required={currentRequiredSpecs.has('trocadorMaterial')} help="Material da serpentina/feixe do trocador. INOX 316 resiste a cloro (piscina tratada). TITANIO resiste a agua salina (piscina de sal). Informativo — vai pro PDF do orcamento.">
+                          Material
+                        </FieldLabel>
+                        <select value={form.specTrocadorMaterial} onChange={(e) => setField("specTrocadorMaterial", e.target.value)} className={inputClass}>
+                          <option value="">— Nao informado —</option>
+                          <option value="INOX">Inox 316 (agua tratada/cloro)</option>
+                          <option value="TITANIO">Titanio (agua salina)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <FieldLabel required={currentRequiredSpecs.has('trocadorEficiencia')} help="Eficiencia de troca termica (%) — quanto do calor do lado quente passa pra agua da piscina. Trocadores tipicos ficam entre 80% e 95%. Default do Simulador = 85% se vazio.">
+                          Eficiencia de troca (%)
+                        </FieldLabel>
+                        <input type="number" step="0.1" min="0" max="100" value={form.specTrocadorEficiencia} onChange={(e) => setField("specTrocadorEficiencia", e.target.value)} placeholder="Ex: 85" className={inputClass} />
+                      </div>
+                      <div>
+                        <FieldLabel required={currentRequiredSpecs.has('pressaoMaxTrocadorMca')} help="Pressao maxima de trabalho do lado primario (fonte quente) em mca. Limite que o trocador aguenta. Informativo + checagem de compatibilidade com a bomba.">
+                          Pressao maxima (mca)
+                        </FieldLabel>
+                        <input type="number" step="0.5" min="0" value={form.specTrocadorPressaoMaxMca} onChange={(e) => setField("specTrocadorPressaoMaxMca", e.target.value)} placeholder="Ex: 30" className={inputClass} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
+                      <div>
+                        <FieldLabel required={currentRequiredSpecs.has('vazaoPrimariaM3h')} help="Vazao do lado PRIMARIO (fonte quente — caldeira ou retorno da bomba de calor) em m³/h, na condicao nominal. Usado pra calcular a troca termica real.">
+                          Vazao primaria (m³/h)
+                        </FieldLabel>
+                        <input type="number" step="0.1" min="0" value={form.specTrocadorVazaoPrimariaM3h} onChange={(e) => setField("specTrocadorVazaoPrimariaM3h", e.target.value)} placeholder="Ex: 5" className={inputClass} />
+                      </div>
+                      <div>
+                        <FieldLabel required={currentRequiredSpecs.has('vazaoSecundariaM3h')} help="Vazao do lado SECUNDARIO (agua da piscina) em m³/h, na condicao nominal. E o ALVO da bomba secundaria que o Simulador vai dimensionar.">
+                          Vazao secundaria (m³/h)
+                        </FieldLabel>
+                        <input type="number" step="0.1" min="0" value={form.specTrocadorVazaoSecundariaM3h} onChange={(e) => setField("specTrocadorVazaoSecundariaM3h", e.target.value)} placeholder="Ex: 6" className={inputClass} />
+                      </div>
+                      <div>
+                        <FieldLabel required={currentRequiredSpecs.has('perdaCargaTrocadorMca')} help="Perda de carga interna do trocador no lado da piscina (mca) na vazao nominal. O Simulador soma isso na altura manometrica total pra dimensionar a bomba (igual faz com as baterias de coletor). Default = 2 mca se vazio.">
+                          Perda de carga interna (mca)
+                        </FieldLabel>
+                        <input type="number" step="0.1" min="0" value={form.specTrocadorPerdaCargaMca} onChange={(e) => setField("specTrocadorPerdaCargaMca", e.target.value)} placeholder="Ex: 2" className={inputClass} />
+                      </div>
+                    </div>
                   </CollapsibleCard>
 
                   <CollapsibleCard title="⚡ Eletrico — Bombas, Motores, Equipamentos" defaultOpen={blocksWithRequired.has('eletrico')}>
@@ -2590,6 +2684,16 @@ export const PRODUCT_SPECS_GROUPED: Array<{ block: string; group: string; specs:
     { key: 'copCurveB', label: 'COP B (carga)' },
     { key: 'copCurveC', label: 'COP C (intercepto)' },
   ]},
+  // Mesmo block 'aquecimento' (campos ficam no mesmo CollapsibleCard) — group separado
+  // so pra organizar o seletor de campos obrigatorios por tipo.
+  { block: 'aquecimento', group: '♨️ Trocador de Calor', specs: [
+    { key: 'trocadorMaterial', label: 'Material (inox/titanio)' },
+    { key: 'trocadorEficiencia', label: 'Eficiencia de troca (%)' },
+    { key: 'vazaoPrimariaM3h', label: 'Vazao primaria (m³/h)' },
+    { key: 'vazaoSecundariaM3h', label: 'Vazao secundaria (m³/h)' },
+    { key: 'perdaCargaTrocadorMca', label: 'Perda de carga interna (mca)' },
+    { key: 'pressaoMaxTrocadorMca', label: 'Pressao maxima (mca)' },
+  ]},
   { block: 'coletorSolar', group: '⛅ Coletor Solar (Procel/Inmetro)', specs: [
     { key: 'areaM2', label: 'Area externa (m²)' },
     { key: 'kwhPorM2', label: 'Producao especifica (kWh/mes·m²)' },
@@ -2643,6 +2747,12 @@ export const SPEC_KEY_TO_FORM_FIELD: Record<string, string> = {
   eficiencia: 'specEficiencia',
   classeEficiencia: 'specClasseEficiencia',
   pressaoFuncionamentokPa: 'specPressaoFuncionamentokPa',
+  trocadorMaterial: 'specTrocadorMaterial',
+  trocadorEficiencia: 'specTrocadorEficiencia',
+  vazaoPrimariaM3h: 'specTrocadorVazaoPrimariaM3h',
+  vazaoSecundariaM3h: 'specTrocadorVazaoSecundariaM3h',
+  perdaCargaTrocadorMca: 'specTrocadorPerdaCargaMca',
+  pressaoMaxTrocadorMca: 'specTrocadorPressaoMaxMca',
   potenciaCv: 'specPotenciaCv',
   voltagem: 'specVoltagem',
   amperagem: 'specAmperagem',

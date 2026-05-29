@@ -202,6 +202,25 @@ interface SolarCollectorCandidate {
   missingSpecs?: string[];
 }
 
+// Candidato a trocador de calor (aba Trocador). Espelha TrocadorCandidate do backend
+// (trocador-budget.service.ts). Specs vem do cadastro do produto (technicalSpecs).
+interface TrocadorCandidate {
+  productId: string;
+  modelName: string;
+  capacidadeKcalH: number;
+  material: string | null;       // INOX | TITANIO | null
+  eficiencia: number;            // fracao 0..1 (0 = nao cadastrada → usa default 0.85)
+  vazaoPrimariaM3h: number;
+  vazaoSecundariaM3h: number;
+  perdaCargaMca: number;
+  pressaoMaxMca: number;
+  salePriceCents?: number;
+  imageUrl?: string | null;
+  missingSpecs?: string[];
+  poolType?: string | null;
+  model?: string | null;
+}
+
 interface SolarMonthlyRow {
   monthIndex: number;
   monthName: string;
@@ -252,7 +271,7 @@ interface SolarReport {
   warnings?: Array<{ severity: 'warning' | 'info'; message: string }>;
 }
 
-type TabKey = "solar" | "bomba" | "comparativo";
+type TabKey = "solar" | "bomba" | "trocador" | "comparativo";
 
 export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog }: Props) {
   // v1.12.88: difere chamadas a onSaved pro momento de fechar o modal.
@@ -788,6 +807,9 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
           </TabButton>
           <TabButton active={activeTab === "bomba"} onClick={() => setActiveTab("bomba")}>
             🔥 Bomba de Calor
+          </TabButton>
+          <TabButton active={activeTab === "trocador"} onClick={() => setActiveTab("trocador")}>
+            ♨️ Trocador
           </TabButton>
           <TabButton active={activeTab === "comparativo"} onClick={() => setActiveTab("comparativo")}>
             📊 Comparativo
@@ -1415,6 +1437,24 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
               bombaRule={solarBombaRule}
               onSaveColetorRule={saveSolarColetorRule}
               onSaveBombaRule={saveSolarBombaRule}
+            />
+          )}
+
+          {activeTab === "trocador" && (
+            <TrocadorTab
+              budget={budget}
+              uf={uf}
+              cidade={cidade}
+              setUf={setUf}
+              setCidade={setCidade}
+              availableUfs={cities}
+              availableCities={availableCities}
+              capaTermica={capaTermica}
+              setCapaTermica={setCapaTermica}
+              vento={vento}
+              setVento={setVento}
+              tempAguaDesejada={tempAguaDesejada}
+              setTempAguaDesejada={setTempAguaDesejada}
             />
           )}
 
@@ -3252,6 +3292,625 @@ function SolarTab({
         @media print { .solar-screen-wrapper { zoom: 1 !important; } }
       ` }} />
     </>
+  );
+}
+
+// ============ Aba Trocador de Calor (Etapa 1: dimensoes + config compartilhados) ============
+// Espelha o pattern visual da aba Solar reutilizando os sub-componentes (SectionLabel, Stat,
+// ConfigFieldBig, BigHighlightInput). Diferenca do Solar: sem coletor/baterias/orientacao/HSE.
+// Selecao do trocador, dimensionamento termico, bomba secundaria e print vem nas proximas etapas.
+
+function TrocadorTab({
+  budget,
+  uf, cidade, setUf, setCidade, availableUfs, availableCities,
+  capaTermica, setCapaTermica, vento, setVento,
+  tempAguaDesejada, setTempAguaDesejada,
+}: {
+  budget: BudgetForHeating;
+  uf: string;
+  cidade: string;
+  setUf: (v: string) => void;
+  setCidade: (v: string) => void;
+  availableUfs: HeatingCity[];
+  availableCities: string[];
+  capaTermica: boolean;
+  setCapaTermica: (v: boolean) => void;
+  vento: string;
+  setVento: (v: string) => void;
+  tempAguaDesejada: number;
+  setTempAguaDesejada: (n: number) => void;
+}) {
+  const dims = budget.poolDimensions ?? {};
+  const area = Number(dims.area) || 0;
+  const volume = Number(dims.volume) || 0;
+  const len = Number(dims.length) || 0;
+  const wid = Number(dims.width) || 0;
+  const profMin = Number(dims.depthMin ?? dims.profundidadeMinima) || 0;
+  const profMax = Number(dims.depthMax ?? dims.profundidadeMaxima ?? dims.depth) || 0;
+
+  const initTempIni = Number((budget.environmentParams as any)?.temperaturaAguaInicial) || 22;
+  const [temperaturaInicial, setTemperaturaInicial] = useState<number>(initTempIni);
+
+  // Etapa 2: candidatos a trocador (dropdown) + dados do produto cadastrado.
+  const [trocadors, setTrocadors] = useState<TrocadorCandidate[]>([]);
+  const [loadingTroc, setLoadingTroc] = useState(true);
+  const [selectedTrocadorId, setSelectedTrocadorId] = useState<string | null>(null);
+  // Etapa 3: parametros de instalacao (ficam no Simulador, nao no produto).
+  const [qtdTrocadores, setQtdTrocadores] = useState<number>(1);
+  const [horasUsoDia, setHorasUsoDia] = useState<number>(4);
+
+  // Etapa 4: demanda termica (qPerdas) — reusa o motor unificado thermal-demand.
+  // Envia so os parametros de demanda (sem coletor/bomba) → report traz apenas
+  // quanto calor a piscina perde por dia/mes. A oferta do trocador vem na Etapa 5.
+  type ThermalDemandReport = {
+    monthly: Array<{ monthIndex: number; monthName: string; tempAmbiente: number; qPerdasKwhDia: number; qPerdasKwhMes: number }>;
+    qPerdasMediaKwhDia: number;
+    qPerdasMediaKwhMes: number;
+    qPerdasPicoKwhDia: number;
+  };
+  const [thermalReport, setThermalReport] = useState<ThermalDemandReport | null>(null);
+  const [loadingThermal, setLoadingThermal] = useState(false);
+
+  // Etapa 6: bomba secundaria (lado piscina). Reusa o motor de auto-select da
+  // bomba solar (mesma regra configuravel + curva), mas com vazao-alvo =
+  // vazaoSecundaria do trocador × qtd. Selecao default = primeiro candidato;
+  // operador pode trocar no dropdown (so local — persistencia vem na Etapa 8).
+  type BombaCandidate = {
+    productId: string;
+    description: string;
+    salePriceCents: number;
+    poolType: string | null;
+    imageUrl: string | null;
+    vazaoM3h: number;
+    pressaoTrabalhoMca: number;
+    potenciaCv: number | null;
+    hasPumpCurve: boolean;
+    indicator: { value: number; label: string; groupLabel?: string; color: string; unit: string } | null;
+  };
+  const [bombaCandidates, setBombaCandidates] = useState<BombaCandidate[]>([]);
+  const [loadingBomba, setLoadingBomba] = useState(false);
+  const [selectedBombaId, setSelectedBombaId] = useState<string | null>(null);
+  const [bombaManual, setBombaManual] = useState(false);
+
+  // Etapa 7: tubulacao do lado piscina do trocador (stateless — nao persiste).
+  const [pipeComprimento, setPipeComprimento] = useState<number>(10);
+  const [pipeDesnivel, setPipeDesnivel] = useState<number>(0);
+  const [pipeResult, setPipeResult] = useState<any | null>(null);
+  const [pipeRecomputing, setPipeRecomputing] = useState(false);
+
+  useEffect(() => {
+    let cancel = false;
+    setLoadingTroc(true);
+    api.get<TrocadorCandidate[]>("/pool-budgets/trocador/candidates")
+      .then((list) => {
+        if (cancel) return;
+        const arr = Array.isArray(list) ? list : [];
+        setTrocadors(arr);
+        // Default = ultimo (maior capacidade, lista vem ordenada ascendente).
+        setSelectedTrocadorId((prev) => prev ?? (arr.length ? arr[arr.length - 1].productId : null));
+      })
+      .catch(() => { if (!cancel) setTrocadors([]); })
+      .finally(() => { if (!cancel) setLoadingTroc(false); });
+    return () => { cancel = true; };
+  }, [budget.id]);
+
+  // Etapa 4: recalcula a demanda termica quando os inputs criticos mudam.
+  // So manda parametros de demanda — sem qtdColetores/potenciaCv, o motor pula
+  // os blocos de oferta solar e bomba e devolve apenas as perdas (qPerdas).
+  useEffect(() => {
+    if (!budget.id) { setThermalReport(null); return; }
+    let cancelled = false;
+    setLoadingThermal(true);
+    const t = setTimeout(() => {
+      api.post<ThermalDemandReport>(`/pool-budgets/${budget.id}/thermal-demand`, {
+        tempAlvo: Number(tempAguaDesejada),
+        tempInicial: Number.isFinite(temperaturaInicial) ? temperaturaInicial : undefined,
+        capaTermica,
+        vento: (["FRACO", "MODERADO", "FORTE"].includes(vento) ? vento : "MODERADO") as "FRACO" | "MODERADO" | "FORTE",
+        areaPiscinaM2: area || undefined,
+        volumeM3: volume || undefined,
+      })
+        .then((r) => { if (!cancelled) setThermalReport(r); })
+        .catch(() => { if (!cancelled) setThermalReport(null); })
+        .finally(() => { if (!cancelled) setLoadingThermal(false); });
+    }, 300);
+    return () => { cancelled = true; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [budget.id, tempAguaDesejada, temperaturaInicial, capaTermica, vento, area, volume]);
+
+  const selectedTrocador = trocadors.find((t) => t.productId === selectedTrocadorId) ?? null;
+  const eficFrac = selectedTrocador && selectedTrocador.eficiencia > 0 ? selectedTrocador.eficiencia : 0.85;
+  const eficIsDefault = !selectedTrocador || selectedTrocador.eficiencia <= 0;
+  const materialLabel = selectedTrocador?.material === "INOX" ? "Inox 316"
+    : selectedTrocador?.material === "TITANIO" ? "Titânio" : "—";
+
+  const fmt = (n: number) => n.toFixed(2).replace(".", ",");
+  const fmtInt = (n: number) => Math.round(n).toLocaleString("pt-BR");
+
+  // Etapa 5: oferta termica do trocador.
+  // Potencia efetiva de troca (kW) = capacidade nominal (kcal/h) × eficiencia / 860
+  // (1 kWh = 860 kcal). Energia entregue/dia = potencia × horas de uso × qtd.
+  const KCAL_H_PER_KW = 860;
+  const potenciaUnitKW = selectedTrocador && selectedTrocador.capacidadeKcalH > 0
+    ? (selectedTrocador.capacidadeKcalH * eficFrac) / KCAL_H_PER_KW
+    : 0;
+  const potenciaTotalKW = potenciaUnitKW * qtdTrocadores;
+  const ofertaKwhDia = potenciaTotalKW * horasUsoDia;
+  const ofertaKwhMes = ofertaKwhDia * 30;
+  const demandaMediaDia = thermalReport?.qPerdasMediaKwhDia ?? 0;
+  const demandaPicoDia = thermalReport?.qPerdasPicoKwhDia ?? 0;
+  const coberturaMediaPct = demandaMediaDia > 0 ? (ofertaKwhDia / demandaMediaDia) * 100 : 0;
+  const coberturaPicoPct = demandaPicoDia > 0 ? (ofertaKwhDia / demandaPicoDia) * 100 : 0;
+  // Horas/dia que o trocador precisaria rodar pra cobrir o mes mais frio.
+  const horasNecessariasPico = potenciaTotalKW > 0 ? demandaPicoDia / potenciaTotalKW : 0;
+  // Status baseado na cobertura do pico (mes critico, geralmente inverno).
+  const ofertaStatus: { label: string; tone: "ok" | "warn" | "bad" } =
+    coberturaPicoPct >= 110 ? { label: "Atende com folga o ano todo", tone: "ok" }
+    : coberturaPicoPct >= 100 ? { label: "Atende o ano todo", tone: "ok" }
+    : coberturaPicoPct >= 90 ? { label: "Aperta no mês mais frio", tone: "warn" }
+    : { label: "Insuficiente no inverno", tone: "bad" };
+
+  // Etapa 6/7: vazao-alvo da bomba secundaria = vazao secundaria × qtd.
+  const vazaoSecTotal = (selectedTrocador && selectedTrocador.vazaoSecundariaM3h > 0 ? selectedTrocador.vazaoSecundariaM3h : 0) * qtdTrocadores;
+  // Perda de carga interna do proprio trocador (default 2,0 mca) — entra aditiva
+  // na altura manometrica da tubulacao (Etapa 7), igual as baterias do solar.
+  const perdaInternaTroc = selectedTrocador && selectedTrocador.perdaCargaMca > 0 ? selectedTrocador.perdaCargaMca : 2.0;
+
+  // Etapa 7: recalcula a tubulacao do lado piscina (stateless). A perda interna
+  // do trocador entra aditiva na altura manometrica total.
+  async function recomputeTrocadorPipe(overrides?: { comprimentoM?: number; desnivelM?: number; diametroMm?: number | null }) {
+    const comp = overrides?.comprimentoM ?? pipeComprimento;
+    const desn = overrides?.desnivelM ?? pipeDesnivel;
+    if (!budget.id || vazaoSecTotal <= 0 || comp <= 0 || desn < 0) { setPipeResult(null); return; }
+    setPipeRecomputing(true);
+    try {
+      const body: any = {
+        comprimentoM: comp,
+        desnivelM: desn,
+        vazaoM3h: vazaoSecTotal,
+        perdaInternaMca: perdaInternaTroc,
+      };
+      if (overrides && "diametroMm" in overrides && overrides.diametroMm) body.diametroMm = overrides.diametroMm;
+      const r = await api.post<{ inputs: any; result: any }>(`/pool-budgets/${budget.id}/trocador-pipe/recompute`, body);
+      setPipeResult(r.result);
+    } catch {
+      // silencia — vazao 0 ou trocador sem specs
+    } finally {
+      setPipeRecomputing(false);
+    }
+  }
+
+  // Auto-recalcula a tubulacao quando vazao/perda interna mudam (trocador ou qtd).
+  useEffect(() => {
+    if (!budget.id || vazaoSecTotal <= 0 || pipeComprimento <= 0) { setPipeResult(null); return; }
+    const t = setTimeout(() => { recomputeTrocadorPipe(); }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [budget.id, vazaoSecTotal, perdaInternaTroc]);
+
+  // Altura pra bomba = altura manometrica total da tubulacao (perda dinamica +
+  // perda interna do trocador + desnivel). Sem pipe calculado, usa so a perda interna.
+  const alturaParaBomba = pipeResult?.alturaManometricaTotal != null ? pipeResult.alturaManometricaTotal : perdaInternaTroc;
+
+  useEffect(() => {
+    if (!budget.id || vazaoSecTotal <= 0) { setBombaCandidates([]); setSelectedBombaId(null); return; }
+    let cancelled = false;
+    setLoadingBomba(true);
+    const t = setTimeout(() => {
+      api.get<{ candidates: BombaCandidate[] }>(`/pool-budgets/${budget.id}/trocador-bomba-candidates?vazao=${vazaoSecTotal}&altura=${alturaParaBomba}`)
+        .then((res) => {
+          if (cancelled) return;
+          const list = res?.candidates ?? [];
+          setBombaCandidates(list);
+          if (list.length === 0) { setSelectedBombaId(null); return; }
+          // Default = primeiro candidato da regra, salvo se escolha manual ainda valida.
+          setSelectedBombaId((prev) => (bombaManual && prev && list.some((c) => c.productId === prev)) ? prev : list[0].productId);
+        })
+        .catch(() => { if (!cancelled) { setBombaCandidates([]); setSelectedBombaId(null); } })
+        .finally(() => { if (!cancelled) setLoadingBomba(false); });
+    }, 300);
+    return () => { cancelled = true; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [budget.id, vazaoSecTotal, alturaParaBomba]);
+
+  const selectedBomba = bombaCandidates.find((b) => b.productId === selectedBombaId) ?? null;
+  const indicatorColorClass = (c: string) =>
+    c === "emerald" ? "text-emerald-600" : c === "green" ? "text-green-600"
+    : c === "lime" ? "text-lime-600" : c === "yellow" ? "text-yellow-600"
+    : c === "orange" ? "text-orange-500" : c === "amber" ? "text-amber-600"
+    : c === "red" ? "text-red-600" : "text-slate-600";
+
+  return (
+    <div className="space-y-4">
+      <Section title="Dimensionamento para Trocador de Calor" icon="♨️">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Dimensoes da piscina — read-only, vem do cadastro do orcamento */}
+          <div className="flex flex-col">
+            <SectionLabel>Dimensões da piscina</SectionLabel>
+            <div className="mt-1 grid grid-cols-2 gap-1">
+              <Stat label="Comp." value={`${fmt(len)} m`} />
+              <Stat label="Larg." value={`${fmt(wid)} m`} />
+              <Stat label="Prof. mín" value={`${fmt(profMin)} m`} />
+              <Stat label="Prof. máx" value={`${fmt(profMax)} m`} />
+            </div>
+            <div className="mt-1 grid grid-cols-2 gap-1">
+              <Stat label="Área" value={`${fmt(area)} m²`} highlight />
+              <Stat label="Volume" value={`${fmt(volume)} m³`} highlight />
+            </div>
+            <div className="mt-1.5 text-[10px] text-slate-500">
+              Dimensões vêm do cadastro do orçamento. Para simular cenários, edite os dados da obra.
+            </div>
+          </div>
+
+          {/* Configuracao do aquecimento — editavel */}
+          <div className="flex flex-col">
+            <SectionLabel>Configuração do aquecimento</SectionLabel>
+            <div className="mt-1 space-y-1">
+              <div className="grid grid-cols-2 gap-1">
+                <ConfigFieldBig label="Capa térmica" manual>
+                  <select value={capaTermica ? "SIM" : "NAO"} onChange={(e) => setCapaTermica(e.target.value === "SIM")}
+                    className="w-full bg-transparent text-[10.5px] font-bold leading-[1.1] text-emerald-900 focus:outline-none h-[14px] -mt-0.5">
+                    <option value="SIM">Sim</option>
+                    <option value="NAO">Não</option>
+                  </select>
+                </ConfigFieldBig>
+                <ConfigFieldBig label="Vento" manual>
+                  <select value={vento} onChange={(e) => setVento(e.target.value)}
+                    className="w-full bg-transparent text-[10.5px] font-bold leading-[1.1] text-emerald-900 focus:outline-none h-[14px] -mt-0.5 capitalize">
+                    <option value="FRACO">Fraco</option>
+                    <option value="MODERADO">Moderado</option>
+                    <option value="FORTE">Forte</option>
+                  </select>
+                </ConfigFieldBig>
+              </div>
+              <div className="grid grid-cols-2 gap-1">
+                <ConfigFieldBig label="Cidade" manual>
+                  <select value={cidade} onChange={(e) => setCidade(e.target.value)} disabled={!uf}
+                    className="w-full bg-transparent text-[10.5px] font-bold leading-[1.1] text-emerald-900 focus:outline-none disabled:opacity-50 h-[14px] -mt-0.5">
+                    <option value="">{uf ? "Capital" : "Selecione UF"}</option>
+                    {availableCities.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </ConfigFieldBig>
+                <ConfigFieldBig label="Estado" manual>
+                  <select value={uf} onChange={(e) => { setUf(e.target.value); setCidade(""); }}
+                    className="w-full bg-transparent text-[10.5px] font-bold leading-[1.1] text-emerald-900 focus:outline-none h-[14px] -mt-0.5">
+                    <option value="">--</option>
+                    {availableUfs.map((u) => <option key={u.uf} value={u.uf}>{u.uf}</option>)}
+                  </select>
+                </ConfigFieldBig>
+              </div>
+              <div className="grid grid-cols-2 gap-1">
+                <BigHighlightInput label="Temp. inicial" value={temperaturaInicial} onChange={setTemperaturaInicial} unit="°C" min={5} max={40} manual />
+                <BigHighlightInput label="Temp. final" value={tempAguaDesejada} onChange={setTempAguaDesejada} unit="°C" min={20} max={40} manual />
+              </div>
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Trocador de calor" icon="🔧">
+        {loadingTroc ? (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+            Carregando trocadores cadastrados…
+          </div>
+        ) : trocadors.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-4 py-5 text-center text-[12px] text-amber-800 leading-relaxed">
+            Nenhum trocador de calor cadastrado.<br />
+            Cadastre um produto com <b>Tipo</b> contendo <b>"Trocador"</b> em <b>Produtos</b> e preencha as specs
+            (capacidade Kcal/h, vazões, eficiência) na seção <b>♨️ Trocador de Calor</b> do cadastro.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Esquerda: selecao do modelo + specs do produto */}
+            <div className="flex flex-col">
+              <SectionLabel>Modelo do trocador</SectionLabel>
+              <div className="mt-1">
+                <SelectCard
+                  label="Modelo selecionado"
+                  fullWidth
+                  value={selectedTrocadorId ?? ""}
+                  options={trocadors.map((t) => ({ v: t.productId, l: (t.missingSpecs?.length ? "⚠ " : "") + t.modelName }))}
+                  onChange={setSelectedTrocadorId}
+                />
+              </div>
+              {selectedTrocador?.missingSpecs?.length ? (
+                <div className="mt-1 text-[10px] text-amber-700 leading-snug">
+                  ⚠ Cadastro incompleto — falta: {selectedTrocador.missingSpecs.map((k) => k === "kcalHNominal" ? "capacidade (Kcal/h)" : k === "vazaoSecundariaM3h" ? "vazão secundária" : k).join(", ")}. Edite o produto em Produtos.
+                </div>
+              ) : null}
+              <div className="mt-2 grid grid-cols-2 gap-1">
+                <Stat label="Capacidade" value={selectedTrocador && selectedTrocador.capacidadeKcalH > 0 ? `${fmtInt(selectedTrocador.capacidadeKcalH)} kcal/h` : "—"} highlight />
+                <Stat label="Material" value={materialLabel} />
+                <Stat label="Eficiência troca" value={`${Math.round(eficFrac * 100)}%${eficIsDefault ? " (padrão)" : ""}`} />
+                <Stat label="Pressão máx" value={selectedTrocador && selectedTrocador.pressaoMaxMca > 0 ? `${fmt(selectedTrocador.pressaoMaxMca)} mca` : "—"} />
+                <Stat label="Vazão primária" value={selectedTrocador && selectedTrocador.vazaoPrimariaM3h > 0 ? `${fmt(selectedTrocador.vazaoPrimariaM3h)} m³/h` : "—"} />
+                <Stat label="Vazão secundária" value={selectedTrocador && selectedTrocador.vazaoSecundariaM3h > 0 ? `${fmt(selectedTrocador.vazaoSecundariaM3h)} m³/h` : "—"} highlight />
+                <Stat label="Perda de carga interna" value={selectedTrocador && selectedTrocador.perdaCargaMca > 0 ? `${fmt(selectedTrocador.perdaCargaMca)} mca` : "2,00 mca (padrão)"} />
+              </div>
+            </div>
+
+            {/* Direita: parametros de instalacao (qtd + horas de uso) */}
+            <div className="flex flex-col">
+              <SectionLabel>Instalação</SectionLabel>
+              <div className="mt-1 grid grid-cols-2 gap-1">
+                <div className="rounded border border-emerald-300 bg-emerald-50 px-1.5 py-0.5 flex flex-col justify-center overflow-hidden" style={{ height: '32px' }}>
+                  <div className="text-[7px] uppercase tracking-tight text-emerald-700 font-semibold leading-[1.05]" title="Trocadores em paralelo">Qtd. (paralelo)</div>
+                  <div className="flex items-center gap-1.5 h-[14px]">
+                    <button type="button" onClick={() => setQtdTrocadores((q) => Math.max(1, q - 1))}
+                      className="w-4 h-4 shrink-0 rounded border border-emerald-300 bg-white text-emerald-800 text-[11px] font-bold leading-none flex items-center justify-center hover:bg-emerald-100">−</button>
+                    <span className="text-[11px] font-bold text-emerald-900 tabular-nums min-w-[12px] text-center">{qtdTrocadores}</span>
+                    <button type="button" onClick={() => setQtdTrocadores((q) => Math.min(20, q + 1))}
+                      className="w-4 h-4 shrink-0 rounded border border-emerald-300 bg-white text-emerald-800 text-[11px] font-bold leading-none flex items-center justify-center hover:bg-emerald-100">+</button>
+                  </div>
+                </div>
+                <BigHighlightInput label="Horas de uso/dia" value={horasUsoDia} onChange={setHorasUsoDia} unit="h" min={1} max={24} manual />
+              </div>
+              <div className="mt-2 grid grid-cols-1 gap-1">
+                <Stat label="Capacidade total (× qtd)" value={selectedTrocador && selectedTrocador.capacidadeKcalH > 0 ? `${fmtInt(selectedTrocador.capacidadeKcalH * qtdTrocadores)} kcal/h` : "—"} highlight />
+              </div>
+              <div className="mt-1.5 text-[10px] text-slate-500 leading-snug">
+                Vários trocadores em paralelo somam capacidade e área de troca. <b>Horas/dia</b> = tempo que a fonte de calor (caldeira/bomba) fica ativa — a bomba secundária liga junto. O dimensionamento da oferta e da bomba vem nas próximas etapas.
+              </div>
+            </div>
+          </div>
+        )}
+      </Section>
+
+      <Section title="Demanda térmica da piscina" icon="📉">
+        {loadingThermal && !thermalReport ? (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+            Calculando demanda térmica…
+          </div>
+        ) : !thermalReport ? (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center text-[12px] text-slate-500 leading-relaxed">
+            Não foi possível calcular a demanda térmica. Verifique as dimensões e o clima do orçamento.
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-3 gap-1">
+              <Stat label="Perda média/dia" value={`${fmt(thermalReport.qPerdasMediaKwhDia)} kWh`} highlight />
+              <Stat label="Perda média/mês" value={`${fmtInt(thermalReport.qPerdasMediaKwhMes)} kWh`} />
+              <Stat label="Pico — mês crítico" value={`${fmt(thermalReport.qPerdasPicoKwhDia)} kWh/dia`} highlight />
+            </div>
+            <div className="mt-1.5 text-[10px] text-slate-500 leading-snug">
+              Energia que a piscina perde por dia, integrada em 24h, considerando capa térmica, vento, ΔT (temperatura final − ambiente) e o clima de <b>{cidade || uf || "capital"}</b>. O trocador precisa repor essa energia durante as horas de uso.
+            </div>
+          </>
+        )}
+      </Section>
+
+      <Section title="Oferta térmica do trocador" icon="🔥">
+        {!selectedTrocador || selectedTrocador.capacidadeKcalH <= 0 ? (
+          <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-4 py-5 text-center text-[12px] text-amber-800 leading-relaxed">
+            Selecione um trocador com <b>capacidade (Kcal/h)</b> cadastrada para calcular a oferta térmica.
+          </div>
+        ) : !thermalReport ? (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+            Calculando oferta × demanda…
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-4 gap-1">
+              <Stat label="Potência de troca" value={`${fmt(potenciaTotalKW)} kW`} highlight />
+              <Stat label="Entrega/dia" value={`${fmt(ofertaKwhDia)} kWh`} highlight />
+              <Stat label="Cobertura média" value={`${Math.round(coberturaMediaPct)}%`} />
+              <Stat label="Cobertura no pico" value={`${Math.round(coberturaPicoPct)}%`} highlight />
+            </div>
+            <div className={`mt-2 rounded-md px-3 py-2 text-[12px] font-semibold flex flex-wrap items-center gap-x-2 gap-y-0.5 ${
+              ofertaStatus.tone === "ok" ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+              : ofertaStatus.tone === "warn" ? "bg-amber-50 text-amber-800 border border-amber-200"
+              : "bg-red-50 text-red-800 border border-red-200"
+            }`}>
+              <span>{ofertaStatus.tone === "ok" ? "✓" : ofertaStatus.tone === "warn" ? "⚠" : "✗"}</span>
+              <span>{ofertaStatus.label}</span>
+              <span className="font-normal text-[11px] opacity-80">
+                — no mês mais frio o trocador precisa rodar {horasNecessariasPico > 24 ? "mais de 24" : fmt(horasNecessariasPico)} h/dia (configurado: {horasUsoDia} h/dia)
+              </span>
+            </div>
+            <div className="mt-1.5 text-[10px] text-slate-500 leading-snug">
+              Oferta = capacidade nominal {qtdTrocadores > 1 ? <>× <b>{qtdTrocadores}</b> trocadores </> : ""}× eficiência de troca (<b>{Math.round(eficFrac * 100)}%</b>) ÷ 860 (kcal→kWh), entregue em <b>{horasUsoDia} h/dia</b>. A cobertura compara essa entrega com a demanda diária — <b>≥ 100% no pico</b> significa que o trocador dá conta até no mês mais frio. Mensalmente: oferta ≈ {fmtInt(ofertaKwhMes)} kWh × demanda ≈ {fmtInt(thermalReport.qPerdasMediaKwhMes)} kWh.
+            </div>
+          </>
+        )}
+      </Section>
+
+      <Section title="Tubulação (lado piscina)" icon="🚰">
+        {!selectedTrocador || vazaoSecTotal <= 0 ? (
+          <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-4 py-5 text-center text-[12px] text-amber-800 leading-relaxed">
+            Cadastre a <b>vazão secundária (m³/h)</b> do trocador para dimensionar a tubulação.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex flex-col">
+              <SectionLabel>Comprimento e desnível</SectionLabel>
+              <div className="mt-1 grid grid-cols-2 gap-2">
+                <label className="flex flex-col gap-0.5">
+                  <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Comprimento total</span>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number" min={0} max={500} step={1}
+                      value={pipeComprimento || ""}
+                      onChange={(e) => setPipeComprimento(Number(e.target.value))}
+                      onBlur={() => recomputeTrocadorPipe({ comprimentoM: pipeComprimento })}
+                      className="w-full rounded border border-slate-300 px-2 py-1 text-sm font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    />
+                    <span className="text-[11px] text-slate-500 font-semibold">m</span>
+                  </div>
+                </label>
+                <label className="flex flex-col gap-0.5">
+                  <span className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">Desnível</span>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number" min={0} max={50} step={0.5}
+                      value={pipeDesnivel || ""}
+                      onChange={(e) => setPipeDesnivel(Number(e.target.value))}
+                      onBlur={() => recomputeTrocadorPipe({ desnivelM: pipeDesnivel })}
+                      className="w-full rounded border border-slate-300 px-2 py-1 text-sm font-bold text-slate-900 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    />
+                    <span className="text-[11px] text-slate-500 font-semibold">m</span>
+                  </div>
+                </label>
+              </div>
+              <div className="mt-1.5 text-[10px] text-slate-500 leading-snug">
+                Ida + volta da casa de máquinas até a piscina. O sistema escolhe o diâmetro ideal (velocidade ≤ 2,5 m/s) e soma a perda interna do trocador (<b>{fmt(perdaInternaTroc)} mca</b>).
+              </div>
+            </div>
+            <div className="flex flex-col">
+              <SectionLabel>Perda de carga</SectionLabel>
+              {pipeRecomputing ? (
+                <div className="mt-1 text-[11px] text-slate-500 italic">Calculando…</div>
+              ) : pipeResult ? (() => {
+                const velocidadeAlta = (pipeResult.velocidade ?? 0) >= 2.5;
+                return (
+                  <>
+                    <div className="mt-1 grid grid-cols-2 gap-1">
+                      <Stat label="Altura manométrica" value={`${fmt(pipeResult.alturaManometricaTotal ?? 0)} mca`} highlight />
+                      <Stat label="Tubo" value={`${pipeResult.diametroDnMm ?? "—"} mm ${pipeResult.material ?? "PVC"}`} />
+                      <Stat label="Velocidade" value={`${fmt(pipeResult.velocidade ?? 0)} m/s`} />
+                      <Stat label="Diâmetro" value={pipeResult.diametroAutoPicked ? "automático" : "manual"} />
+                    </div>
+                    <div className="mt-1.5 text-[10px] text-slate-500 leading-snug">
+                      = {fmt(pipeResult.perdaDinamica ?? 0)} mca tubulação
+                      {(pipeResult.perdaInternaExtraMca ?? 0) > 0 ? <> + {fmt(pipeResult.perdaInternaExtraMca)} mca trocador</> : null}
+                      {" "}+ {fmt(pipeDesnivel)} m desnível.
+                    </div>
+                    {velocidadeAlta ? (
+                      <div className="mt-2 rounded bg-red-100 border border-red-300 px-2 py-1.5 text-[11px] font-bold text-red-800 text-center">
+                        ⚠ Velocidade {fmt(pipeResult.velocidade)} m/s acima de 2,5 m/s — aumente o comprimento/diâmetro.
+                      </div>
+                    ) : null}
+                  </>
+                );
+              })() : (
+                <div className="mt-1 text-[11px] text-slate-500 italic">Preencha comprimento e desnível para calcular.</div>
+              )}
+            </div>
+          </div>
+        )}
+      </Section>
+
+      <Section title="Bomba secundária (lado piscina)" icon="🌀">
+        {!selectedTrocador || vazaoSecTotal <= 0 ? (
+          <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-4 py-5 text-center text-[12px] text-amber-800 leading-relaxed">
+            Cadastre a <b>vazão secundária (m³/h)</b> do trocador para dimensionar a bomba que circula a água da piscina.
+          </div>
+        ) : loadingBomba ? (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+            Buscando bombas que atendem {fmt(vazaoSecTotal)} m³/h…
+          </div>
+        ) : bombaCandidates.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-4 py-5 text-center text-[12px] text-amber-800 leading-relaxed">
+            Nenhuma bomba do catálogo atende vazão ≥ <b>{fmt(vazaoSecTotal)} m³/h</b>. Verifique a regra de bomba e o cadastro das curvas (pumpCurve) dos produtos.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex flex-col">
+              <SectionLabel>Bomba recomendada</SectionLabel>
+              <div className="mt-1">
+                <SelectCard
+                  label="Modelo da bomba"
+                  fullWidth
+                  value={selectedBombaId ?? ""}
+                  options={bombaCandidates.map((b) => ({ v: b.productId, l: `${b.description}${b.potenciaCv != null ? ` · ${fmt(b.potenciaCv)} cv` : ""} · ${fmt(b.vazaoM3h)} m³/h` }))}
+                  onChange={(id) => { setSelectedBombaId(id); setBombaManual(true); }}
+                />
+              </div>
+              {bombaManual ? (
+                <div className="mt-1 text-[10px] text-emerald-700 leading-snug">
+                  Escolha manual.{" "}
+                  <button type="button" onClick={() => { setBombaManual(false); if (bombaCandidates[0]) setSelectedBombaId(bombaCandidates[0].productId); }} className="underline hover:text-emerald-900">Voltar ao automático</button>
+                </div>
+              ) : (
+                <div className="mt-1 text-[10px] text-slate-500 leading-snug">
+                  Sugestão automática pela regra de bomba. {bombaCandidates.length} modelo(s) atendem — você pode trocar no dropdown.
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col">
+              <SectionLabel>Dados da bomba</SectionLabel>
+              <div className="mt-1 grid grid-cols-2 gap-1">
+                <Stat label="Vazão-alvo" value={`${fmt(vazaoSecTotal)} m³/h`} highlight />
+                <Stat label="Vazão da bomba" value={selectedBomba ? `${fmt(selectedBomba.vazaoM3h)} m³/h` : "—"} highlight />
+                <Stat label="Potência" value={selectedBomba?.potenciaCv != null ? `${fmt(selectedBomba.potenciaCv)} cv` : "—"} />
+                <Stat label="Pressão" value={selectedBomba ? `${fmt(selectedBomba.pressaoTrabalhoMca)} mca` : "—"} />
+              </div>
+              {selectedBomba?.indicator ? (
+                <div className={`mt-2 text-[11px] font-bold ${indicatorColorClass(selectedBomba.indicator.color)}`}>
+                  {selectedBomba.indicator.groupLabel ? `${selectedBomba.indicator.groupLabel}: ` : ""}
+                  {selectedBomba.indicator.value.toFixed(Math.abs(selectedBomba.indicator.value) < 10 ? 1 : 0).replace(".", ",")}{selectedBomba.indicator.unit} ({selectedBomba.indicator.label})
+                </div>
+              ) : null}
+              <div className="mt-1.5 text-[10px] text-slate-500 leading-snug">
+                Vazão-alvo = vazão secundária do trocador{qtdTrocadores > 1 ? <> × <b>{qtdTrocadores}</b></> : ""}. Altura considerada = <b>{fmt(alturaParaBomba)} mca</b> (altura manométrica total da tubulação{pipeResult ? "" : " — preencha a tubulação acima"}).
+              </div>
+            </div>
+          </div>
+        )}
+      </Section>
+
+      <Section title="Simulação térmica mensal" icon="📅">
+        {!thermalReport || !thermalReport.monthly?.length ? (
+          <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+            {loadingThermal ? "Calculando demanda mensal…" : "Preencha as dimensões e a configuração para simular a demanda mês a mês."}
+          </div>
+        ) : (() => {
+          const MESES_ABR = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+          const maxScale = Math.max(...thermalReport.monthly.map((m) => m.qPerdasKwhMes), ofertaKwhMes, 1);
+          const ofertaPct = (ofertaKwhMes / maxScale) * 100;
+          const temOferta = ofertaKwhMes > 0 && potenciaTotalKW > 0;
+          const mesPico = thermalReport.monthly.reduce((a, b) => (b.qPerdasKwhMes > a.qPerdasKwhMes ? b : a), thermalReport.monthly[0]);
+          const mesBaixo = thermalReport.monthly.reduce((a, b) => (b.qPerdasKwhMes < a.qPerdasKwhMes ? b : a), thermalReport.monthly[0]);
+          return (
+            <div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-slate-500 mb-2">
+                <span className="flex items-center gap-1"><span className="inline-block w-3 h-2 rounded-sm bg-blue-400" /> Demanda da piscina</span>
+                {temOferta ? <span className="flex items-center gap-1"><span className="inline-block w-3 h-0.5 bg-orange-500" /> Oferta do trocador ({fmtInt(ofertaKwhMes)} kWh/mês · {horasUsoDia} h/dia)</span> : null}
+              </div>
+              <div className="overflow-hidden rounded-lg border border-slate-200">
+                <table className="w-full text-[10px] tabular-nums">
+                  <thead className="bg-slate-100 text-slate-700">
+                    <tr>
+                      <th className="text-left px-2 py-1 font-semibold uppercase tracking-wide text-[8.5px]">Mês</th>
+                      <th className="text-right px-2 py-1 font-semibold uppercase tracking-wide text-[8.5px]">Amb.</th>
+                      <th className="text-right px-2 py-1 font-semibold uppercase tracking-wide text-[8.5px]">Demanda kWh/mês</th>
+                      <th className="text-left px-2 py-1 font-semibold uppercase tracking-wide text-[8.5px] w-[38%]">Demanda × oferta</th>
+                      <th className="text-right px-2 py-1 font-semibold uppercase tracking-wide text-[8.5px]">Horas/dia nec.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {thermalReport.monthly.map((m, idx) => {
+                      const demDia = m.qPerdasKwhDia;
+                      const horasNec = potenciaTotalKW > 0 ? demDia / potenciaTotalKW : 0;
+                      const cobre = temOferta && ofertaKwhMes >= m.qPerdasKwhMes;
+                      const barW = (m.qPerdasKwhMes / maxScale) * 100;
+                      const barColor = !temOferta ? "bg-blue-400" : cobre ? "bg-emerald-400" : horasNec <= 24 ? "bg-amber-400" : "bg-red-400";
+                      const horasColor = !temOferta ? "text-slate-400" : horasNec <= horasUsoDia ? "text-emerald-700" : horasNec <= 24 ? "text-amber-700" : "text-red-700";
+                      return (
+                        <tr key={m.monthIndex} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50/60"}>
+                          <td className="px-2 py-0.5 font-semibold text-slate-900">{MESES_ABR[m.monthIndex] ?? m.monthName.slice(0, 3)}</td>
+                          <td className="px-2 py-0.5 text-right text-slate-600">{Math.round(m.tempAmbiente)}°C</td>
+                          <td className="px-2 py-0.5 text-right font-semibold text-slate-900">{fmtInt(m.qPerdasKwhMes)}</td>
+                          <td className="px-2 py-0.5">
+                            <div className="relative h-3 bg-slate-100 rounded-sm">
+                              <div className={`h-3 rounded-sm ${barColor}`} style={{ width: `${Math.max(2, barW)}%` }} />
+                              {temOferta ? <div className="absolute -top-0.5 -bottom-0.5 w-0.5 bg-orange-500" style={{ left: `${ofertaPct}%` }} title={`Oferta: ${fmtInt(ofertaKwhMes)} kWh/mês`} /> : null}
+                            </div>
+                          </td>
+                          <td className={`px-2 py-0.5 text-right font-bold ${horasColor}`}>{!temOferta ? "—" : horasNec > 24 ? ">24 h" : `${horasNec.toFixed(1).replace(".", ",")} h`}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-2 text-[10px] text-slate-500 leading-snug">
+                Demanda varia com o clima — pico em <b>{mesPico.monthName}</b> ({fmtInt(mesPico.qPerdasKwhMes)} kWh/mês) e mínimo em <b>{mesBaixo.monthName}</b> ({fmtInt(mesBaixo.qPerdasKwhMes)} kWh/mês). A oferta do trocador é constante (não depende do sol) — a linha laranja marca o que ele entrega nos <b>{horasUsoDia} h/dia</b> configurados. "Horas/dia nec." é quanto ele precisa rodar em cada mês: <span className="text-emerald-700 font-semibold">verde</span> cabe no configurado, <span className="text-amber-700 font-semibold">amarelo</span> exige mais horas, <span className="text-red-700 font-semibold">vermelho</span> passa de 24 h/dia (precisa de mais capacidade ou trocadores em paralelo).
+              </div>
+            </div>
+          );
+        })()}
+      </Section>
+    </div>
   );
 }
 

@@ -43,12 +43,17 @@ export interface PipeHeadLossInputs {
   coletoresPorBateria?: number;     // N coletores em serie dentro da bateria
   batPorRamo?: number;              // B baterias em serie (paralelas nao somam)
   perdaPorColetorMca?: number;      // default 0.20 (mca por coletor a vazao nominal)
+  // v1.12.94: perda de carga interna generica de um equipamento em serie na
+  // tubulacao (ex: trocador de calor, ~1-3 mca a vazao nominal). Aditiva direto
+  // na altura manometrica, igual as baterias do solar. Solar nao passa -> 0.
+  perdaInternaExtraMca?: number;
 }
 
 export interface PipeHeadLossResult {
   alturaManometricaTotal: number; // MCA (perdaDinamica + perdaBaterias + desnivel)
   perdaDinamica: number; // MCA (atrito na tubulacao externa)
   perdaBateriasMca: number; // MCA (perda interna nos coletores em serie)
+  perdaInternaExtraMca: number; // MCA (perda interna de equipamento em serie, ex: trocador)
   velocidade: number; // m/s
   reynolds: number;
   atritoF: number;
@@ -246,8 +251,12 @@ export class PipeHeadLossService {
     const perdaUnitaria = inputs.perdaPorColetorMca ?? 0.20;
     const perdaBateriasMca = coletPorBat * batSerie * perdaUnitaria;
 
-    // Altura manometrica total = perda dinamica + perda baterias + desnivel geometrico
-    const alturaManometricaTotal = perdaDinamica + perdaBateriasMca + inputs.desnivelM;
+    // v1.12.94: perda interna de equipamento em serie (ex: trocador de calor).
+    // Aditiva direto na altura manometrica. Solar nao passa -> 0.
+    const perdaInternaExtra = inputs.perdaInternaExtraMca ?? 0;
+
+    // Altura manometrica total = perda dinamica + perda baterias + perda interna extra + desnivel geometrico
+    const alturaManometricaTotal = perdaDinamica + perdaBateriasMca + perdaInternaExtra + inputs.desnivelM;
 
     // Aviso de velocidade alta (Solis alerta >=2.5 m/s)
     let aviso: string | null = null;
@@ -259,6 +268,7 @@ export class PipeHeadLossService {
       alturaManometricaTotal: Number(alturaManometricaTotal.toFixed(3)),
       perdaDinamica: Number(perdaDinamica.toFixed(3)),
       perdaBateriasMca: Number(perdaBateriasMca.toFixed(3)),
+      perdaInternaExtraMca: Number(perdaInternaExtra.toFixed(3)),
       velocidade: Number(velocidade.toFixed(3)),
       reynolds: Math.round(reynolds),
       atritoF: Number(atritoF.toFixed(5)),

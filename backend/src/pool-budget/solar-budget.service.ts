@@ -680,7 +680,34 @@ export class SolarBudgetService {
     const solarReport = env.solarReport as Record<string, any> | undefined;
     const vazaoSolarM3h = Number(solarReport?.vazaoTotalM3h) || 0;
     const alturaTelhadoMca = Number(env.alturaTelhadoM) || 0;
-    if (vazaoSolarM3h <= 0) return []; // sem solarReport, nada a sugerir
+    // Nucleo compartilhado: mesma regra + interpolacao pra Solar e Trocador.
+    return this.listBombaCandidatesByFlow(companyId, vazaoSolarM3h, alturaTelhadoMca);
+  }
+
+  /**
+   * v1.12.94 (Etapa 6 Trocador): nucleo reutilizavel da selecao de bomba.
+   * Recebe a vazao-alvo e a altura manometrica direto (em vez de ler do
+   * solarReport), pra que Solar e Trocador usem a MESMA regra configuravel
+   * (getSolarBombaRule) + interpolacao de pumpCurve. O Trocador passa
+   * vazaoAlvo = vazaoSecundaria × qtd e altura = perda interna do trocador.
+   */
+  async listBombaCandidatesByFlow(
+    companyId: string,
+    vazaoAlvoM3h: number,
+    alturaMca: number,
+  ): Promise<Array<{
+    productId: string;
+    description: string;
+    salePriceCents: number;
+    poolType: string | null;
+    imageUrl: string | null;
+    vazaoM3h: number;
+    pressaoTrabalhoMca: number;
+    potenciaCv: number | null;
+    hasPumpCurve: boolean;
+    indicator: { value: number; label: string; groupLabel: string; color: string; unit: string } | null;
+  }>> {
+    if (vazaoAlvoM3h <= 0) return []; // sem vazao-alvo, nada a sugerir
 
     const bombaRule = await this.getSolarBombaRule(companyId);
     if (!bombaRule) return [];
@@ -709,7 +736,9 @@ export class SolarBudgetService {
     );
     if (withCurve.length === 0) return [];
 
-    const baseVars = { vazaoSolarM3h, alturaTelhadoMca };
+    // Mantem os nomes de variavel da regra (vazaoSolarM3h/alturaTelhadoMca) por
+    // compatibilidade — a regra de bomba foi escrita com esses identificadores.
+    const baseVars = { vazaoSolarM3h: vazaoAlvoM3h, alturaTelhadoMca: alturaMca };
 
     // Aplica where (filtro de criterio) e orderBy da regra. filterByWhere/orderCandidates
     // ja interpolam pumpCurve quando candidato tem curva cadastrada (v1.12.41).
@@ -719,8 +748,8 @@ export class SolarBudgetService {
     return ordered.map((p: any) => {
       const specs = (p.technicalSpecs ?? {}) as Record<string, any>;
       const hasPumpCurve = Array.isArray(p.pumpCurve) && (p.pumpCurve as any[]).length >= 2;
-      const interp = hasPumpCurve && alturaTelhadoMca > 0
-        ? interpolatePumpCurve(p.pumpCurve, alturaTelhadoMca)
+      const interp = hasPumpCurve && alturaMca > 0
+        ? interpolatePumpCurve(p.pumpCurve, alturaMca)
         : null;
       const vazaoEfetiva = interp ? interp.vazaoInterpolada : Number(specs.vazaoM3h) || 0;
       const pressaoEfetiva = interp ? interp.shutOffHead : Number(specs.pressaoTrabalhoMca) || 0;

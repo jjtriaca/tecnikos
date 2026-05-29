@@ -19,8 +19,10 @@ import { PoolBudgetService } from './pool-budget.service';
 import { HeatingBudgetService } from './heating-budget.service';
 import { HeatingService } from './heating.service';
 import { SolarBudgetService } from './solar-budget.service';
+import { TrocadorBudgetService } from './trocador-budget.service';
 import { ThermalDemandService } from './thermal-demand.service';
 import { SolarPipeDto } from './dto/solar-pipe.dto';
+import { TrocadorPipeDto } from './dto/trocador-pipe.dto';
 import { CreatePoolBudgetDto } from './dto/create-pool-budget.dto';
 import { UpdatePoolBudgetDto } from './dto/update-pool-budget.dto';
 import { QueryPoolBudgetDto } from './dto/query-pool-budget.dto';
@@ -42,6 +44,7 @@ export class PoolBudgetController {
     private readonly heatingBudget: HeatingBudgetService,
     private readonly heating: HeatingService,
     private readonly solarBudget: SolarBudgetService,
+    private readonly trocadorBudget: TrocadorBudgetService,
     private readonly thermalDemand: ThermalDemandService,
   ) {}
 
@@ -98,6 +101,39 @@ export class PoolBudgetController {
   @Get('solar/collectors')
   listSolarCollectors(@CurrentUser() user: AuthenticatedUser) {
     return this.solarBudget.listSolarCollectors(user.companyId);
+  }
+
+  // ============ Simulador Trocador de Calor ============
+
+  @ApiOperation({ summary: 'Lista trocadores de calor (poolType ~ Trocador) pro dropdown do Simulador' })
+  @Get('trocador/candidates')
+  listTrocadorCandidates(@CurrentUser() user: AuthenticatedUser) {
+    return this.trocadorBudget.listTrocadorCandidates(user.companyId);
+  }
+
+  @ApiOperation({ summary: 'Bomba secundaria pro Trocador: candidatos que atendem a vazao-alvo (vazaoSecundaria × qtd) + altura. Reusa a regra de bomba do Solar. v1.12.94.' })
+  @Get(':id/trocador-bomba-candidates')
+  listTrocadorBombaCandidates(
+    @Param('id') _id: string,
+    @Query('vazao') vazao: string,
+    @Query('altura') altura: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const v = Number(vazao) || 0;
+    const a = Number(altura) || 0;
+    return this.solarBudget
+      .listBombaCandidatesByFlow(user.companyId, v, a)
+      .then((candidates) => ({ candidates }));
+  }
+
+  @ApiOperation({ summary: 'Recalcula a perda de carga da tubulacao do lado piscina do trocador (perda interna do trocador entra aditiva). Stateless. v1.12.94.' })
+  @Post(':id/trocador-pipe/recompute')
+  recomputeTrocadorPipe(
+    @Param('id') _id: string,
+    @Body() body: TrocadorPipeDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.trocadorBudget.computeTrocadorPipe(user.companyId, body);
   }
 
   // ============ Regras de auto-selecao (config do tenant) ============
