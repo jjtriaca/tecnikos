@@ -1,5 +1,5 @@
 {
-  "version": "1.12.90",
-  "codename": "thermal-demand substitui Tabela78 inflada (1500W/m2 absurdo) por formula simplificada calibrada: base(capa) × vento × construcao × ΔT + extras. Realista (250-500 W/m2). heating.service intocado pra bomba de calor",
-  "releasedAt": "2026-05-28T20:41:36.201Z"
+  "version": "1.12.91",
+  "codename": "Indice Solarimetrico Ajustado na bomba: horasDia = HSE × fatorInstalacao × fator × 1.3. Floor 0.85 (controlador diferencial). Orientacao/inclinacao do telhado agora afeta horas reais de operacao",
+  "releasedAt": "2026-05-29T13:57:11.157Z"
 }

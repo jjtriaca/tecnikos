@@ -71,6 +71,21 @@ const EXTRAS_KW_REF = {
   bordaInfinitaPorMetro: 2.0,     // ~2 kW por metro linear
 };
 
+// v1.12.91: floor minimo do fator de utilizacao da bomba.
+// Modela controlador diferencial padrao (liga quando T_coletor > T_piscina + ΔT_min,
+// desliga quando volta a equalizar). Bomba opera ~85% do HSE independente da
+// cobertura solar (mesmo quando piscina ja atingiu alvo, controlador continua
+// circulando enquanto coletor estiver mais quente).
+// Sem floor, em meses de verao com qSolar >> qPerdas, fator caia pra 30-40%
+// gerando 1-2h/dia de operacao — irrealista pra instalacoes brasileiras.
+const FLOOR_FATOR_BOMBA = 0.85;
+
+// v1.12.91: multiplicador "horas reais de operacao" sobre o HSP_inclinado.
+// HSP (Horas de Sol Pleno) eh sol DIRETO equivalente — bomba opera tambem em
+// horas de luminosidade DIFUSA (manha cedo, tarde com sol baixo), por isso o
+// total real eh ~1.3x o HSP. Tipico de instalacoes brasileiras.
+const FATOR_HORAS_OPERACAO_REAL = 1.3;
+
 export interface ThermalDemandInputs {
   // Reusa HeatingInputs como base — todos os campos de perdas, extras, uso, clima
   heating: HeatingInputs;
@@ -155,6 +170,10 @@ export interface ThermalDemandReport {
     construcaoMult?: number;
     deltaTBaseAnualMult?: number;
     extrasKwTotal?: number;
+    // v1.12.91: Indice Solarimetrico Ajustado
+    hspInclinadoMedio?: number;
+    floorFatorBomba?: number;
+    fatorHorasOperacaoReal?: number;
   };
 }
 
@@ -418,15 +437,29 @@ export class ThermalDemandService {
         out.coberturaSolarPct = round1(cobertura);
 
         if (potenciaKW != null) {
-          // Bomba opera enquanto coletor estiver mais quente que piscina.
-          // Modelo: horasDia = HSE × min(1, qPerdas/qSolar)
-          //  - qSolar >= qPerdas → bomba opera fracao necessaria do sol
-          //  - qSolar  < qPerdas → bomba opera o sol inteiro (limitado por HSE)
+          // v1.12.91: Indice Solarimetrico Ajustado (padrao fotovoltaico) +
+          // controlador diferencial padrao.
+          //
+          //  HSP_inclinado = HSE_horizontal × fatorInstalacao(orientacao, inclinacao, lat)
+          //   - Norte ideal: HSP = HSE × 1.0
+          //   - Sul (pessima): HSP = HSE × 0.2
+          //   Orientacao ruim → menos sol util → bomba opera menos horas.
+          //
+          //  fatorBase = min(1, qPerdas/qSolar)
+          //   - Sistema dimensionado: 0.4-0.7 (verao) a 1.0 (inverno)
+          //
+          //  FLOOR 0.85 = controlador diferencial nao para mesmo com piscina quente
+          //
+          //  FATOR_HORAS_REAL 1.3 = bomba opera tambem em horas com sol difuso
+          //   (manha cedo, tarde) alem do HSP equivalente.
+          const fatorInst = fatorInstalacao; // do escopo externo (calculado em compute)
+          const hsp = hse * fatorInst;
           const fatorBase = qSolarKwhDia > 0 ? Math.min(1, qPerdasKwhDia / qSolarKwhDia) : 1;
-          const horasDia = hse * fatorBase;
+          const fator = Math.max(FLOOR_FATOR_BOMBA, fatorBase);
+          const horasDia = hsp * fator * FATOR_HORAS_OPERACAO_REAL;
           const consumoKwhMes = potenciaKW * horasDia * 30;
 
-          out.fatorUtilizacaoBomba = round2(fatorBase);
+          out.fatorUtilizacaoBomba = round2(fator);
           out.bombaHorasDia = round2(horasDia);
           out.bombaConsumoKwhMes = round1(consumoKwhMes);
         }
@@ -485,9 +518,15 @@ export class ThermalDemandService {
         ventoMult: VENTO_MULT[String(inputs.heating.vento).toUpperCase()] ?? 1.0,
         construcaoMult: CONSTRUCAO_MULT[String(inputs.heating.tipoConstrucao).toUpperCase()] ?? 1.0,
         deltaTBaseAnualMult: round2(
-          monthlyLoss.reduce((s, m, i) => s + Math.max(0, inputs.heating.tempAguaDesejada - m.tempAr) / DELTA_T_BASE, 0) / 12
+          monthlyLoss.reduce((s, m) => s + Math.max(0, inputs.heating.tempAguaDesejada - m.tempAr) / DELTA_T_BASE, 0) / 12
         ),
         extrasKwTotal: round1(monthlyLoss[0]?.qsExtrasKw ?? 0),
+        // v1.12.91: Indice Solarimetrico Ajustado + fatores de operacao
+        hspInclinadoMedio: monthly.length > 0
+          ? round2(monthly.reduce((s, m) => s + (m.hseHorasDia ?? 0) * fatorInstalacao, 0) / monthly.length)
+          : undefined,
+        floorFatorBomba: FLOOR_FATOR_BOMBA,
+        fatorHorasOperacaoReal: FATOR_HORAS_OPERACAO_REAL,
       },
     };
   }
