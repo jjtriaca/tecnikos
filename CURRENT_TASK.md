@@ -1,52 +1,30 @@
 # TAREFA ATUAL
 
-## Versao em prod: v1.12.93 (sessao 214 fechada — 29/05/2026)
+## Versao em prod: v1.12.95 (alinhada local == prod)
 
-Sessao 214 entregou **19 releases** em 8 temas. Foco principal: modelo fisico de consumo eletrico da bomba do Simulador Solar (7 iteracoes ate calibrar), thermal-demand.service unificado, PDF fixes finais, perda das baterias no MCA, fix capa/vento, fix scroll. Detalhes em [memory/sessao_214_summary.md](memory/sessao_214_summary.md).
+## EM ANDAMENTO (sessao 215): Aba Bomba de Calor = clone visual da aba Solar
+Diretriz: Trocador = Bomba -> UMA aba, CLONE VISUAL FIEL da Solar (datasheet A4, zoom, print). SO os calculos mudam.
 
-**Modelo de consumo da bomba** (referencia completa): [memory/modelo_consumo_bomba_solar.md](memory/modelo_consumo_bomba_solar.md). Constantes em `backend/src/pool-budget/thermal-demand.service.ts`.
+### O que a sessao anterior (crash) deixou — confirmado em prod v1.12.95:
+- OK  Aba **Trocador REMOVIDA** (TabKey/botao/invocacao) — merge Trocador->Bomba.
+- ATENCAO  `function BombaCalorTab` (~3259) = **clone do SolarTab**; so renomeou print ids (solar-pdf->bomba-pdf).
+  Ainda mostra conteudo SOLAR (titulo "Dimensionamento para Coletor Solar", coletores/baterias),
+  zoom key ainda "solar:manualZoom". E **codigo morto** (ninguem invoca `<BombaCalorTab/>`).
+- FALTA  Wire NAO feito: aba "bomba" viva = JSX **inline antiga** (~805), intacta e funcional.
+- FALTA  Conteudo/calculos de bomba: **0% adaptado**.
 
-## Pendentes pra sessao 215
+### PROXIMO PASSO (o grosso que falta):
+1. Encher `BombaCalorTab` com conteudo de BOMBA (COP/BTU/kcal/equipamento) — fonte = aba inline atual.
+2. Trocar titulo p/ "Dimensionamento para Bomba de Calor" + zoom key "bomba:manualZoom".
+3. Wire: trocar inline (~805) por `<BombaCalorTab/>` e ajustar props.
+4. `npx tsc --noEmit` + `next build` + **PERGUNTAR antes de deploy**.
 
-### **Principal: Aba Trocador de Calor (estilo aba Solar)**
+Plano: [memory/plano_aba_bomba_calor.md](memory/plano_aba_bomba_calor.md)
+(ATENCAO: o plano dizia "nada escrito ainda" e "trocador ja removido" — AMBOS desatualizados; ver acima.)
 
-Criar nova aba **"Trocador"** no Simulador (`HeatingSimulatorModal.tsx`), replicando o pattern visual e funcional da aba **Solar**, modificando apenas os campos especificos.
+## Outros pendentes
+- Remover painel debug violeta apos validacao final dos numeros.
+- Aguardando Solis: comportamento com 7+ baterias (3 ramos paralelos).
+- Roadmap: defaults de tubulacao configuraveis em Config > Piscina; autoSelectRule.followProductLine.
 
-**Campos que NAO fazem sentido no Trocador (esconder/remover):**
-- Coletor selecionado (modelo, area, eficiencia)
-- Qtd coletores + coletores por bateria + baterias em serie/paralelo
-- Orientacao + inclinacao do telhado
-- Diagrama de baterias
-- Cobertura piscina × coletores
-- Fator instalacao (sem coletor)
-- Indicador solar (HSE, radSol)
-
-**Campos novos especificos do Trocador:**
-- Modelo do trocador (capacidade kcal/h × cv da fonte)
-- Vazao primaria (caldeira / bomba calor)
-- Vazao secundaria (piscina)
-- Pressao maxima
-- Material (inox / titanio)
-- Eficiencia de troca (~80-95%)
-- Fonte de calor (caldeira gas / bomba de calor)
-
-**Campos compartilhados (manter igual):**
-- Dimensoes piscina + tipo
-- Configuracao aquecimento (capa, vento, ΔT, tipo construcao)
-- Tubulacao + perda de carga (com perda das baterias adaptada — trocador tambem tem perda interna)
-- Bomba recomendada (mesma logica vazao + altura manometrica)
-- Simulacao termica mensal (mesmo motor thermal-demand)
-- Consumo eletrico (mesmo motor + fator vazao)
-- Tarifa kWh (popover 💡)
-- Print PDF (mesma estrutura)
-
-### Outros pendentes
-- **Remover painel debug violeta** apos validacao final dos numeros
-- **Aguardando Solis:** confirmar comportamento com 7+ baterias (3 ramos paralelos)
-- **Legado sessao 209:** SQL `update-solis-procel-sls.sql` manual, configurar regra do Coletor Solar no SLS
-- **Roadmap:** Defaults de tubulacao configuraveis em Configuracoes > Piscina, autoSelectRule.followProductLine
-
-## Sessoes anteriores
-- **Sessao 213** (v1.12.74): NFS-e Reenviar + Solar Rules cadastraveis + PDF profissional 1 pagina
-- **Sessao 212** (v1.12.59): Bomba auto-select + formula vazao Solis + diagrama de instalacao
-- **Sessao 211** (v1.12.39): Modulo Piscina — etapas custom, Simulador Solar com calculadora hidraulica
+## Sessao 214 (fechada): 19 releases v1.12.75 -> v1.12.94. Ver memory/sessao_214_summary.md.

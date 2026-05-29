@@ -1,11 +1,19 @@
 ---
 name: plano_aba_trocador_calor
-description: Plano de implementacao da aba Trocador de Calor no Simulador, replicando estrutura da aba Solar. Mapeia campos compartilhados, especificos, removidos. Guia pra sessao 215.
+description: SUPERSEDED/REJEITADO. Plano de uma aba Trocador SEPARADA com layout proprio — o usuario rejeitou. Bomba de Calor = Trocador de Calor (mesma coisa), aba unica clone visual da Solar. Seguir plano_aba_bomba_calor.
 metadata:
   type: project
 ---
 
 # Plano: Aba Trocador de Calor
+
+> ⚠️ **SUPERSEDED / REJEITADO PELO USUARIO (sessao 215).**
+> Este plano propunha uma aba "Trocador" SEPARADA, com layout proprio e campos novos.
+> O usuario corrigiu: **"trocador de calor e bomba de calor e a mesma coisa"** — existe
+> UMA SO aba de aquecimento alternativo ("bomba"), e ela deve ser **CLONE VISUAL FIEL da aba Solar**;
+> SO os calculos mudam. O codigo morto da aba Trocador ja foi removido.
+> **Seguir [plano_aba_bomba_calor.md](plano_aba_bomba_calor.md), NAO este.**
+> Mantido apenas como referencia historica dos calculos de trocador (oferta termica, perda interna, bomba secundaria).
 
 **Inicio sessao 215.**
 
