@@ -53,6 +53,7 @@ interface HeatingCandidate {
   modelName: string;
   kcalHNominal: number;
   kwNominal?: number;
+  imageUrl?: string | null;
 }
 
 interface MonthlyConsumption {
@@ -853,6 +854,12 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
               catalog={catalog ?? []}
               heatingRule={heatingRule}
               onSaveHeatingRule={saveHeatingRule}
+              cascataHorasSemana={cascataHorasSemana}
+              onChangeCascataHoras={touchAndSetCascata}
+              hidromassagemHorasSemana={hidromassagemHorasSemana}
+              onChangeHidroHoras={touchAndSetHidro}
+              bordaInfinitaHorasAtivaDia={bordaInfinitaHorasAtivaDia}
+              onChangeBordaHoras={touchAndSetBorda}
             />
           )}
 
@@ -2743,6 +2750,8 @@ function BombaCalorTab({
   onRecompute,
   headerImage, headerImageUploading, onUploadHeaderImage, onRemoveHeaderImage,
   catalog, heatingRule, onSaveHeatingRule,
+  cascataHorasSemana, onChangeCascataHoras, hidromassagemHorasSemana, onChangeHidroHoras,
+  bordaInfinitaHorasAtivaDia, onChangeBordaHoras,
 }: {
   budget: BudgetForHeating;
   report: HeatingReport | null;
@@ -2777,6 +2786,12 @@ function BombaCalorTab({
   catalog: CatalogConfig[];
   heatingRule: AutoSelectRule | null;
   onSaveHeatingRule: (rule: AutoSelectRule | null) => void | Promise<void>;
+  cascataHorasSemana: number;
+  onChangeCascataHoras: (n: number) => void;
+  hidromassagemHorasSemana: number;
+  onChangeHidroHoras: (n: number) => void;
+  bordaInfinitaHorasAtivaDia: number;
+  onChangeBordaHoras: (n: number) => void;
 }) {
   const dims = (budget.poolDimensions ?? {}) as any;
   const dispArea = Number(dims.area) || 0;
@@ -2964,12 +2979,41 @@ function BombaCalorTab({
                       <BigHighlightInput label="Temp. inicial" value={tempIniDisplay} onChange={(n) => setTempAguaInicial(n)} unit="°C" min={5} max={40} manual={cfgManual} />
                       <BigHighlightInput label="Temp. final" value={tempAguaDesejada} onChange={(n) => setTempAguaDesejada(n)} unit="°C" min={20} max={40} manual={cfgManual} />
                     </div>
+                    {(() => {
+                      const ed = report?.extrasDetected;
+                      if (!ed) return null;
+                      const cards: React.ReactNode[] = [];
+                      if (ed.cascata.status !== "NAO_IDENTIFICADA") cards.push(<ExtraImpactCard key="casc" icon="🌊" title="Cascata" extra={ed.cascata} horasValue={cascataHorasSemana} onChangeHoras={onChangeCascataHoras} />);
+                      if (ed.hidromassagem.status !== "NAO_IDENTIFICADA") cards.push(<ExtraImpactCard key="hidro" icon="💦" title="SPA" extra={ed.hidromassagem} horasValue={hidromassagemHorasSemana} onChangeHoras={onChangeHidroHoras} />);
+                      if (ed.bordaInfinita.status !== "NAO_IDENTIFICADA") cards.push(<ExtraImpactCard key="borda" icon="🏞" title="Borda infinita" extra={ed.bordaInfinita} horasValue={bordaInfinitaHorasAtivaDia} onChangeHoras={onChangeBordaHoras} hoursLabel="h/dia" />);
+                      if (cards.length === 0) return null;
+                      return (
+                        <div className="mt-1">
+                          <div className="text-[8.5px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Extras (impacto no calor)</div>
+                          <div className="flex flex-wrap gap-1.5">{cards}</div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
             </div>
             <div className="col-span-4">
-              <HeaderImageBlock imageUrl={headerImage} uploading={headerImageUploading} onUpload={onUploadHeaderImage} onRemove={onRemoveHeaderImage} />
+              {(() => {
+                const selProd = candidates.find((c) => c.productId === eq?.productId);
+                const productImg = selProd?.imageUrl ?? null;
+                if (productImg) {
+                  return (
+                    <div className="w-full aspect-square print:aspect-auto print:h-[52mm] rounded border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={productImg} alt={eq?.modelName ?? "Bomba de Calor"} className="w-full h-full object-contain" />
+                    </div>
+                  );
+                }
+                return (
+                  <HeaderImageBlock imageUrl={headerImage} uploading={headerImageUploading} onUpload={onUploadHeaderImage} onRemove={onRemoveHeaderImage} />
+                );
+              })()}
             </div>
           </section>
 

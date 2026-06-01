@@ -1,5 +1,5 @@
 {
-  "version": "1.12.97",
-  "codename": "v1.12.97: aba Bomba de Calor reescrita como datasheet A4 (clone visual da Solar) — toolbar/zoom/print bomba-pdf 1 pagina, Cliente/Obra, Dimensoes, Configuracao, Dimensionamento (calor kcal/h + Equipamento + COP + ✨ regra heatingRule), Simulacao de consumo. So os calculos mudam vs solar.",
-  "releasedAt": "2026-05-29T20:37:30.445Z"
+  "version": "1.12.98",
+  "codename": "v1.12.98: aba Bomba de Calor — datasheet mostra imagem do produto selecionado (listCandidates devolve imageUrl) + cards de Cascata/SPA/Borda infinita (impacto kW + horas) na Configuracao, no espaco da orientacao/inclinacao.",
+  "releasedAt": "2026-06-01T17:17:34.734Z"
 }

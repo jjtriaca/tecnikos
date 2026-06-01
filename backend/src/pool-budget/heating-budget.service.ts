@@ -287,13 +287,19 @@ export class HeatingBudgetService {
    * Lista candidatos disponiveis pra dropdown de selecao manual (F6.x).
    * Retorna todos os Bomba de Calor / Aquecedor com kcalHNominal preenchido.
    */
-  async listCandidates(companyId: string): Promise<Array<{ productId: string; modelName: string; kcalHNominal: number; kwNominal?: number }>> {
+  async listCandidates(companyId: string): Promise<Array<{ productId: string; modelName: string; kcalHNominal: number; kwNominal?: number; imageUrl?: string | null }>> {
     const list = await this.fetchBombaCalorCandidates(companyId);
+    const ids = list.map((c) => c.productId);
+    const imgs = ids.length
+      ? await this.prisma.product.findMany({ where: { id: { in: ids } }, select: { id: true, imageUrl: true } })
+      : [];
+    const imgMap = new Map(imgs.map((p) => [p.id, p.imageUrl] as const));
     return list.map((c) => ({
       productId: c.productId,
       modelName: c.modelName,
       kcalHNominal: c.kcalHNominal,
       kwNominal: c.kwNominal,
+      imageUrl: imgMap.get(c.productId) ?? null,
     }));
   }
 
