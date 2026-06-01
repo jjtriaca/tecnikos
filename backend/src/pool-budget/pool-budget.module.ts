@@ -12,6 +12,9 @@ import { SolarBudgetService } from './solar-budget.service';
 import { TrocadorBudgetService } from './trocador-budget.service';
 import { ThermalDemandService } from './thermal-demand.service';
 import { PipeHeadLossService } from './pipe-head-loss.service';
+import { GravityFlowService } from './gravity-flow.service';
+import { ReservoirVolumeService } from './reservoir-volume.service';
+import { BordaInfinitaService } from './borda-infinita.service';
 import { AuditModule } from '../common/audit/audit.module';
 import { CodeGeneratorService } from '../common/code-generator.service';
 
@@ -29,8 +32,11 @@ import { CodeGeneratorService } from '../common/code-generator.service';
     TrocadorBudgetService,
     ThermalDemandService,
     PipeHeadLossService,
+    GravityFlowService,
+    ReservoirVolumeService,
+    BordaInfinitaService,
     CodeGeneratorService,
   ],
-  exports: [PoolBudgetService, PoolFormulaService, HeatingService, HeatingBudgetService, ClimateDataService, SolarService, SolarBudgetService, TrocadorBudgetService, ThermalDemandService, PipeHeadLossService],
+  exports: [PoolBudgetService, PoolFormulaService, HeatingService, HeatingBudgetService, ClimateDataService, SolarService, SolarBudgetService, TrocadorBudgetService, ThermalDemandService, PipeHeadLossService, GravityFlowService, ReservoirVolumeService, BordaInfinitaService],
 })
 export class PoolBudgetModule {}

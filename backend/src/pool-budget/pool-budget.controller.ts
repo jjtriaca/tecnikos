@@ -21,6 +21,7 @@ import { HeatingService } from './heating.service';
 import { SolarBudgetService } from './solar-budget.service';
 import { TrocadorBudgetService } from './trocador-budget.service';
 import { ThermalDemandService } from './thermal-demand.service';
+import { BordaInfinitaService } from './borda-infinita.service';
 import { SolarPipeDto } from './dto/solar-pipe.dto';
 import { TrocadorPipeDto } from './dto/trocador-pipe.dto';
 import { CreatePoolBudgetDto } from './dto/create-pool-budget.dto';
@@ -30,6 +31,7 @@ import { CreateBudgetItemDto, UpdateBudgetItemDto } from './dto/budget-item.dto'
 import { HeatingSimulateDto } from './dto/heating-simulate.dto';
 import { SolarSimulateDto, SolarRecomputeDto } from './dto/solar-simulate.dto';
 import { CreateSolarRuleDto, UpdateSolarRuleDto } from './dto/solar-rule.dto';
+import { BordaInfinitaSimulateDto } from './dto/borda-infinita-simulate.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -46,6 +48,7 @@ export class PoolBudgetController {
     private readonly solarBudget: SolarBudgetService,
     private readonly trocadorBudget: TrocadorBudgetService,
     private readonly thermalDemand: ThermalDemandService,
+    private readonly bordaInfinita: BordaInfinitaService,
   ) {}
 
   // ============ Simulador de Aquecimento ============
@@ -75,6 +78,13 @@ export class PoolBudgetController {
   @Post('heating/simulate')
   simulateHeating(@Body() dto: HeatingSimulateDto, @CurrentUser() user: AuthenticatedUser) {
     return this.heatingBudget.simulate(user.companyId, dto as any);
+  }
+
+  @ApiOperation({ summary: 'Sistema de Borda Infinita — dimensiona tubo de gravidade (Manning) + volume do master, sem salvar' })
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post('borda-infinita/simulate')
+  simulateBordaInfinita(@Body() dto: BordaInfinitaSimulateDto) {
+    return this.bordaInfinita.compute(dto);
   }
 
   @ApiOperation({ summary: 'Lista candidatos disponiveis (Bomba de Calor/Aquecedor) pra dropdown' })

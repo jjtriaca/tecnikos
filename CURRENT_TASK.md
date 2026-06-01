@@ -1,33 +1,42 @@
 # TAREFA ATUAL
 
-## Prod: v1.12.97 (alinhado local == prod). Aba Bomba de Calor (A+B+C) DEPLOYADA — validar visual em prod.
+## Prod: v1.12.98 (alinhado local == prod). Sessao 215 ENCERRADA — proxima frente: Sistema de Borda Infinita.
 
-## SESSAO 215: Aba Bomba de Calor = clone visual da Solar + auto-selecao configuravel — CONCLUIDA (deploy feito)
-- ✅ **A** vazao min/max no cadastro Bomba de Calor (technicalSpecs vazaoMinM3h/vazaoMaxM3h).
-- ✅ **B** auto-selecao configuravel: heatingRule + GET/POST /pool-budgets/heating/rule;
-     fetchBombaCalorCandidates aplica filterPoolType/filterDescription (sem regra = fallback hardcode).
-- ✅ **C** `BombaCalorTab` reescrita como datasheet A4 de bomba (HeatingSimulatorModal.tsx ~3259, ~554 linhas):
-     toolbar (zoom+Recalcular+Imprimir) + A4 "Dimensionamento para Bomba de Calor" + Cliente/Obra +
-     Dimensoes (read-only) + Configuracao (capa/vento/cidade/uf/temp inicial-final/tipo piscina-construcao) +
-     HeaderImageBlock + Dimensionamento (calor kcal/h·kW·BTU + Equipamento select+COP 3 cond.+ ✨ regra +
-     tabela perda termica) + Simulacao consumo (anual/medio/inicial + tabela mensal) + footer NBR +
-     print bomba-pdf-* (1 pagina). zoom key "bomba:manualZoom". saveHeatingRule recarrega candidatos + recomputa.
+## CONCLUIDO na sessao 215 (Aba Bomba de Calor — clone visual da Solar)
+- ✅ **A** (v1.12.96) vazao min/max no cadastro Bomba de Calor.
+- ✅ **B** (v1.12.96) auto-selecao configuravel: heatingRule + GET/POST /pool-budgets/heating/rule.
+- ✅ **C** (v1.12.97) `BombaCalorTab` = datasheet A4 de bomba (HeatingSimulatorModal.tsx ~3259):
+     toolbar/zoom/print bomba-pdf 1 pagina, Cliente/Obra, Dimensoes, Configuracao, Dimensionamento
+     (calor + Equipamento + COP + ✨ regra), Simulacao consumo, footer NBR.
+- ✅ **C2** (v1.12.98) imagem do produto selecionado no datasheet + cards Cascata/SPA/Borda (ExtraImpactCard) na Configuracao.
 
-## VALIDAR EM PROD (Pool sem preview) — aba Bomba de Calor do Simulador de Aquecimento:
-1. Datasheet A4 aparece (titulo "Dimensionamento para Bomba de Calor").
-2. Editar UF/capa/vento/temp -> Recalcular atualiza.
-3. Trocar equipamento pelo dropdown (▼) + qtd.
-4. ✨ abre AutoSelectModal -> configurar regra da bomba de calor (filtro tipo/descricao) -> salva e re-seleciona.
-5. Imprimir -> 1 pagina A4 (header azul, sem 2a pagina branca).
-6. Numeros batem (calor kcal/h, COP, consumo mensal/anual).
-> Se algo visual/numero estiver errado, ajustar e redeployar (fluxo normal do Pool).
+## VALIDACAO DO MOTOR DE AQUECIMENTO (01/06)
+- Diferenca vs planilha Tholz TAB006 era INPUTS (vento Forte vs Moderado; cidade Primavera do Leste, mais
+  fria, vs MT-generico/Cuiaba; extras cascata/SPA), NAO bug. Formula validada. Usuario confirmou mudando vento.
+- Auto-selecao bomba: filtrar por TIPO (poolType "Bomba de calor"), nao so descricao (produtos Tholz = "Trocador").
 
-## Notas
-- Tholz X23 validado: kcalHNominal = cap Ar26/Turbo (BTU÷3,9683); copMax/copAt50Air26/copAt50Air15 batem.
-  WINTER_CAPACITY_FACTOR=0.85 (datasheet sugere ~0.71 Ar15/Ar26; calibrado p/ TAB006 — NAO mexer sem analise).
-- Plano (concluido): [memory/plano_aba_bomba_calor.md](memory/plano_aba_bomba_calor.md)
+## FRENTE ATUAL: SISTEMA DE BORDA INFINITA — FASE 1 CODE-COMPLETE (typecheck FE+BE OK) — pendente deploy (sessao 216)
+**Plano completo:** [memory/plano_sistema_borda_infinita.md](memory/plano_sistema_borda_infinita.md)
+Multi-linha no orcamento (estilo "Dimensoes"): linhas MASTER/SLAVE; captacao = reservatorio OU canaleta+ralos;
+caimento = desnivel/comprimento; curvas roubam caimento; topologia estrela. Objetivo: numeros prontos -> FASE 2 (aquecimento).
+Checklist FASE 1:
+- ✅ Estudo volume reservatorio: [study_borda_infinita_reservatorio.md](memory/study_borda_infinita_reservatorio.md).
+- ✅ Estudo tubulacao gravidade (Manning): [study_borda_infinita_tubulacao_gravidade.md](memory/study_borda_infinita_tubulacao_gravidade.md).
+- ✅ Modelo de linha + 3 decisoes travadas (desnivel / curvas roubam caimento / estrela) — sessao 216.
+- ✅ **`backend/src/pool-budget/gravity-flow.service.ts`** (Injectable, irmao do pipe-head-loss): Manning tubo
+  parcial + `sizeGravityPipe` (dimensiona DN). VERIFICADO numericamente (meio-cheio=0,5×cheio; 8m->DN150).
+- ✅ **`reservoir-volume.service.ts`**: volume do master (surge + banhistas + 450 L/m) + ALERTA (bomba puxa direto -> cavitacao/transbordo se baixo). VERIFICADO (4×8 -> rec 3,6 / min 1,6 m³).
+- ✅ **`borda-infinita.service.ts`** (orquestrador: compoe gravity+reservoir; 3 modos de captacao + totais) + `dto/borda-infinita-simulate.dto.ts` + endpoint **`POST /pool-budgets/borda-infinita/simulate`** + registrado no module. Typecheck OK + smoke-test 4 cenarios (reservatorio/DIRETO/curvas/master BAIXO) VERDE.
+- ✅ Storage: `poolDimensions.bordaInfinita[]` (JSON livre — modal salva via PUT /pool-budgets/:id; sem model Prisma, sem migration).
+- ✅ Frontend: `components/pool/BordaInfinitaModal.tsx` (multi-linha, calculo ao vivo, alerta do master) + gatilho "🌊 Sistema de Borda Infinita" logo abaixo do bloco de Dimensoes em `quotes/pool/[id]`. (Campo antigo `environmentParams.bordaInfinitaM` MANTIDO ate FASE 2.)
+- ⬜ DEPLOY (perguntar antes) — `bash scripts/deploy-remote.sh`.
+- ⬜ FASE 2: integrar volume/evaporacao no Simulador de Aquecimento (religar do `bordaInfinita[]` novo; aposentar `bordaInfinitaM`).
 
-## Outros pendentes
-- Conferir valores Tholz JA cadastrados no SLS vs datasheet (kcalHNominal/COP/vazao).
+## Outros pendentes (menores)
+- Conferir valores Tholz JA cadastrados no SLS vs datasheet (kcal/h/COP/vazao).
 - Remover painel debug violeta apos validacao final. Aguardando Solis (7+ baterias).
-- Roadmap: usar vazao min/max p/ selecionar bomba de circulacao por curva; defaults tubulacao configuraveis.
+- Melhoria: template auto-select "Bomba de Calor" filtrar por Tipo (poolType) em vez de descricao.
+- Roadmap: vazao min/max -> bomba de circulacao por curva; defaults tubulacao configuraveis.
+
+## Sessoes anteriores
+- Sessao 214 (v1.12.94): modelo consumo bomba solar calibrado, thermal-demand unificado, PDF fixes.
