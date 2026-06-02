@@ -1,6 +1,6 @@
 # TAREFA ATUAL
 
-## Prod: v1.13.02 (alinhado local == prod). Sessao 216 — Sistema de Borda Infinita FASE 1 NO AR (secao inline colapsavel, tela de EDICAO).
+## Prod: v1.13.03 (alinhado local == prod). Sessao 216 — Sistema de Borda Infinita FASE 1 NO AR (secao inline colapsavel, tela de EDICAO).
 
 ## CONCLUIDO na sessao 215 (Aba Bomba de Calor — clone visual da Solar)
 - ✅ **A** (v1.12.96) vazao min/max no cadastro Bomba de Calor.
@@ -15,7 +15,7 @@
   fria, vs MT-generico/Cuiaba; extras cascata/SPA), NAO bug. Formula validada. Usuario confirmou mudando vento.
 - Auto-selecao bomba: filtrar por TIPO (poolType "Bomba de calor"), nao so descricao (produtos Tholz = "Trocador").
 
-## FRENTE ATUAL: SISTEMA DE BORDA INFINITA — FASE 1 DEPLOYED em prod (v1.13.02) (sessao 216)
+## FRENTE ATUAL: SISTEMA DE BORDA INFINITA — FASE 1 DEPLOYED em prod (v1.13.03) (sessao 216)
 **Plano completo:** [memory/plano_sistema_borda_infinita.md](memory/plano_sistema_borda_infinita.md)
 Multi-linha no orcamento (estilo "Dimensoes"): linhas MASTER/SLAVE; captacao = reservatorio OU canaleta+ralos;
 caimento = desnivel/comprimento; curvas roubam caimento; topologia estrela. Objetivo: numeros prontos -> FASE 2 (aquecimento).
@@ -32,8 +32,12 @@ Checklist FASE 1:
 - ✅ DEPLOY **v1.12.99** (01/06) — 1a versao. Backend e2e via curl com token (DN150, master OK). Bug de foco no modal (componentes aninhados) corrigido ANTES do deploy.
 - ✅ DEPLOY **v1.13.01** (01/06) — placement fix: sistema movido pra tela de EDICAO (estava na de detalhe, lugar errado); modal virou controlado.
 - ✅ DEPLOY **v1.13.02** (01/06) — modal -> SECAO INLINE colapsavel (campos compactos, igual tabela Dimensoes) + removida a borda antiga escalar. Net -134 linhas.
+- ✅ DEPLOY **v1.13.03** (01/06) — campos maiores + "?" HelpHint em cada campo (Filme traz padrao 3-7mm/6mm). Master: opcao "Cisterna pronta (plastica)" (sem dims -> so recomenda volume) + sugestao de COMPLEMENTAR com cisterna plastica quando o reservatorio nao atinge o volume. Backend: masterCisternaPronta no DTO + orquestrador.
 - ⬜ FASE 2 (RECOMENDADO ASAP): integrar volume/evaporacao no Simulador de Aquecimento (religar do `bordaInfinita[]` novo). **Aquecimento esta SEM efeito de borda agora** (UI antiga removida, nova ainda nao plugada no heating). Numeros ja prontos no report (volumeTermicoExtraM3 / areaEvaporacaoExtraM2).
 - ⚠ PENDENTE validar a TELA em prod (modulo Piscina = teste em prod; preview local nao renderiza tela de tenant).
+
+## PENDENCIA SYSTEM-WIDE
+- ⚠ **Auditoria de responsividade MOBILE de TODO o sistema** (pedido do usuario 02/06). Conferir cada tela/modal/tabela/form em ~375px e em redimensionamento — nada pode "quebrar"; linhas densas rolam (flex-nowrap+overflow-x-auto) ou usam grid responsivo. Regra gravada no CLAUDE.md ("Responsividade / Mobile"). Spawn task criado.
 
 ## Outros pendentes (menores)
 - Conferir valores Tholz JA cadastrados no SLS vs datasheet (kcal/h/COP/vazao).

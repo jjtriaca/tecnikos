@@ -31,6 +31,24 @@ export const BORDA_TRANSBORDO = {
   WEIR_EXP: 1.5,
   // Largura tipica da canaleta (pra area de evaporacao quando aberta), quando nao informada.
   CANALETA_WIDTH_DEFAULT_M: 0.15,
+  // Fator de surge: a drenagem (ralos+tubo) eh dimensionada pro PICO de ondas/banhistas (crianças),
+  // nao so o filme estavel. Norma: tubo da calha >= 125% da recirculacao. Uso intenso -> 2 a 4x.
+  // O VOLUME do surge eh absorvido pelo reservatorio master (ver reservoir-volume.service).
+  SURGE_FACTOR_DEFAULT: 2.0,
+};
+
+// Capacidade de UM ralo (grelha) — escoa MENOS que a boca aberta de um tubo de mesmo
+// diametro: a grelha funciona como VERTEDOR (lamina baixa) ou ORIFICIO (lamina alta), com
+// area livre parcial (barras) + entupimento. Regra de drenagem: area livre da grelha deve
+// ser 1,5-2x a area do tubo. Q_ralo = min(vertedor, orificio) × fator_entupimento.
+// Ver memory/study_borda_infinita_tubulacao_gravidade.md (secao Ralos).
+export const RALO = {
+  ORIFICE_C: 0.67,        // coeficiente de orificio (grate inlet em sag)
+  WEIR_C: 1.66,           // coeficiente de vertedor (SI; ~3.0 em unidades US)
+  GRATE_FREE_RATIO: 0.5,  // fracao da area do bore que eh realmente aberta (barras da grelha)
+  CLOG_FACTOR: 0.8,       // margem de entupimento/detritos
+  DEFAULT_HEAD_M: 0.05,   // lamina d'agua tipica sobre o ralo na canaleta (5 cm)
+  DEFAULT_DIAM_MM: 100,   // diametro de ralo assumido quando nao informado
 };
 
 export interface BordaLineResult {
@@ -43,6 +61,9 @@ export interface BordaLineResult {
   evaporaSuperficieM2?: number; // superficie aberta do reservatorio/canaleta (evapora)
   reservatorioVolumeM3?: number; // volume do mini-reservatorio (modo RESERVATORIO)
   tubo?: GravityPipeResult | null; // dimensionamento do tubo de gravidade (modos RESERVATORIO/CANALETA)
+  ralosSugeridos?: number; // nº de ralos sugerido pra canaleta (CANALETA)
+  raloCapacidadeM3h?: number; // capacidade de cada ralo (m³/h) — menor que tubo aberto
+  drenagemDesignM3h?: number; // vazao de projeto da drenagem = transbordo × surge (dimensiona ralos+tubo)
   // MASTER
   masterVolume?: MasterVolumeResult;
   aviso?: string | null;
@@ -77,6 +98,19 @@ export class BordaInfinitaService {
     return BORDA_TRANSBORDO.FLOW_AT_6MM_M3H_PER_M * Math.pow(filme / 6, BORDA_TRANSBORDO.WEIR_EXP);
   }
 
+  /** Capacidade de UM ralo (m³/h): min(vertedor, orificio) × entupimento. Ver RALO. */
+  private raloCapacityM3h(diamMm: number, headM = RALO.DEFAULT_HEAD_M): number {
+    const D = Math.max(diamMm, 1) / 1000;
+    const h = Math.max(headM, 0.005);
+    const g = 9.81;
+    const perim = Math.PI * D;
+    const areaFree = ((Math.PI * D * D) / 4) * RALO.GRATE_FREE_RATIO;
+    const qWeir = RALO.WEIR_C * perim * Math.pow(h, 1.5); // m³/s (vertedor)
+    const qOrif = RALO.ORIFICE_C * areaFree * Math.sqrt(2 * g * h); // m³/s (orificio)
+    const q = Math.min(qWeir, qOrif) * RALO.CLOG_FACTOR;
+    return Number((q * 3600).toFixed(1)); // m³/h
+  }
+
   private reservoirVolume(line: BordaLineDto): number {
     const c = line.reservComprM ?? 0;
     const l = line.reservLargM ?? 0;
@@ -100,6 +134,7 @@ export class BordaInfinitaService {
     const lines = Array.isArray(dto.lines) ? dto.lines : [];
     const fillTarget = dto.fillTargetRatio;
     const manningN = dto.manningN;
+    const surge = Math.max(dto.surgeFactor ?? BORDA_TRANSBORDO.SURGE_FACTOR_DEFAULT, 1);
 
     const lineResults: BordaLineResult[] = [];
     const avisos: string[] = [];
@@ -132,8 +167,16 @@ export class BordaInfinitaService {
       let reservatorioVolumeM3 = 0;
       let evaporaSuperficieM2 = 0;
       let tubo: GravityPipeResult | null = null;
+      let ralosSugeridos: number | undefined;
+      let raloCapacidadeM3h: number | undefined;
+      let drenagemDesignM3h: number | undefined;
       let lineAviso: string | null = null;
 
+      // Drenagem (ralos + tubo) dimensionada pro SURGE de ondas/banhistas (crianças) —
+      // tem que esvaziar a canaleta rapido pra nao transbordar, nao so o filme estavel.
+      if (captacao === 'RESERVATORIO' || captacao === 'CANALETA') {
+        drenagemDesignM3h = Number((transbordoM3h * surge).toFixed(2));
+      }
       if (captacao === 'RESERVATORIO') {
         reservatorioVolumeM3 = this.reservoirVolume(line);
         volumeReservatoriosM3 += reservatorioVolumeM3;
@@ -142,14 +185,19 @@ export class BordaInfinitaService {
           areaEvaporacaoM2 += evaporaSuperficieM2;
         }
         tubo = this.gravity.sizeGravityPipe({
-          vazaoTransbordoM3h: transbordoM3h,
+          vazaoTransbordoM3h: drenagemDesignM3h ?? transbordoM3h,
           desnivelM: line.tuboDesnivelM,
           comprimentoTuboM: line.tuboComprimentoM,
           curvas90Qty: line.curvas90Qty,
           fillTargetRatio: fillTarget,
+          fatorSegurancaPct: 0,
           manningN,
         });
       } else if (captacao === 'CANALETA') {
+        // Ralos: cada ralo (grelha) escoa MENOS que a boca de um tubo aberto. Sugere a quantidade.
+        const raloDiam = line.raloDiamMm && line.raloDiamMm > 0 ? line.raloDiamMm : RALO.DEFAULT_DIAM_MM;
+        raloCapacidadeM3h = this.raloCapacityM3h(raloDiam);
+        ralosSugeridos = raloCapacidadeM3h > 0 ? Math.max(1, Math.ceil((drenagemDesignM3h ?? transbordoM3h) / raloCapacidadeM3h)) : 1;
         if (line.canaletaAberta && line.canaletaComprM) {
           evaporaSuperficieM2 = Number(
             (line.canaletaComprM * BORDA_TRANSBORDO.CANALETA_WIDTH_DEFAULT_M).toFixed(2),
@@ -157,11 +205,12 @@ export class BordaInfinitaService {
           areaEvaporacaoM2 += evaporaSuperficieM2;
         }
         tubo = this.gravity.sizeGravityPipe({
-          vazaoTransbordoM3h: transbordoM3h,
+          vazaoTransbordoM3h: drenagemDesignM3h ?? transbordoM3h,
           desnivelM: line.tuboDesnivelM,
           comprimentoTuboM: line.tuboComprimentoM,
           curvas90Qty: line.curvas90Qty,
           fillTargetRatio: fillTarget,
+          fatorSegurancaPct: 0,
           manningN,
         });
       }
@@ -179,6 +228,9 @@ export class BordaInfinitaService {
         evaporaSuperficieM2: evaporaSuperficieM2 || undefined,
         reservatorioVolumeM3: captacao === 'RESERVATORIO' ? reservatorioVolumeM3 : undefined,
         tubo,
+        ralosSugeridos,
+        raloCapacidadeM3h,
+        drenagemDesignM3h,
         aviso: lineAviso,
       });
     });

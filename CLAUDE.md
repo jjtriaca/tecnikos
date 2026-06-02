@@ -135,6 +135,14 @@ Ao trabalhar com Meta (WhatsApp) ou Focus NFe:
 - Visual: text-[10px], bg-slate-100, hover:bg-green-100
 - TODOS os placeholders devem ter texto exemplo realista (NUNCA vazio)
 
+### Responsividade / Mobile (System-Wide — OBRIGATORIO)
+- TODA UI nova DEVE funcionar em telas pequenas (mobile) e em QUALQUER redimensionamento — NUNCA "quebrar" o layout (campos pulando de linha de forma baguncada, conteudo estourando a viewport).
+- Linhas densas / muitos campos (estilo tabela/Excel): usar `flex-nowrap` + `overflow-x-auto` (rola na horizontal) OU grid responsivo. A linha SE AJUSTA (scroll), NAO quebra.
+- Usar prefixos responsivos do Tailwind (`sm:`/`md:`/`lg:`) pra adaptar colunas/tamanhos. Pensar mobile-first.
+- Modais/tabelas/forms: validar mentalmente em ~375px de largura. Conteudo largo = scroll INTERNO do container, nao estoura a tela.
+- Ao criar/editar QUALQUER tela: ja conferir o comportamento responsivo ANTES de dar como pronto.
+- **Pendencia permanente:** auditoria de responsividade mobile de TODO o sistema (registrada em CURRENT_TASK).
+
 ### Tenant Isolation (CRITICO)
 - Toda query Prisma DEVE filtrar por `companyId`
 - JWT contem `tenantSlug` — PrismaService resolve o schema correto

@@ -76,6 +76,7 @@ export default function NewPoolBudgetPage() {
     // Sistema de Borda Infinita (multi-linha) — guardado em poolDimensions.bordaInfinita
     bordaInfinita: [] as BordaLine[],
     bordaInfinitaBathers: undefined as number | undefined,
+    bordaInfinitaSurge: undefined as number | undefined,
   });
 
   // Cidades-climaticas pra dropdown (carregadas via API)
@@ -160,6 +161,7 @@ export default function NewPoolBudgetPage() {
           escavacaoM3: b.poolDimensions?.escavacaoM3 ?? 0,
           bordaInfinita: (b.poolDimensions?.bordaInfinita as BordaLine[]) || [],
           bordaInfinitaBathers: b.poolDimensions?.bordaInfinitaBathers ?? undefined,
+          bordaInfinitaSurge: b.poolDimensions?.bordaInfinitaSurge ?? undefined,
           // Environment
           temperaturaMediaLocal: b.environmentParams?.temperaturaMediaLocal ?? b.environmentParams?.temperatura ?? 22,
           velocidadeVento: b.environmentParams?.velocidadeVento || "MODERADO",
@@ -317,6 +319,7 @@ export default function NewPoolBudgetPage() {
           escavacaoM3,
           bordaInfinita: form.bordaInfinita || [],
           bordaInfinitaBathers: form.bordaInfinitaBathers ?? null,
+          bordaInfinitaSurge: form.bordaInfinitaSurge ?? null,
         },
         environmentParams: {
           temperaturaMediaLocal: form.temperaturaMediaLocal,
@@ -687,7 +690,8 @@ export default function NewPoolBudgetPage() {
           poolVolumeM3={totals.volume}
           lines={form.bordaInfinita}
           bathers={form.bordaInfinitaBathers}
-          onChange={(lines, bathers) => setForm({ ...form, bordaInfinita: lines, bordaInfinitaBathers: bathers })}
+          surge={form.bordaInfinitaSurge}
+          onChange={(lines, bathers, surge) => setForm({ ...form, bordaInfinita: lines, bordaInfinitaBathers: bathers, bordaInfinitaSurge: surge })}
         />
 
         {/* Parametros de aquecimento — Simulador de Aquecimento (F6.1) */}

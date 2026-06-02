@@ -61,6 +61,7 @@ export class BordaInfinitaSimulateDto {
   @IsOptional() @IsNumber() @Min(0) nBathers?: number;
   @IsOptional() @IsNumber() @Min(0) fillTargetRatio?: number; // enchimento alvo do tubo (default 0.5)
   @IsOptional() @IsNumber() @Min(0) manningN?: number; // override raro de rugosidade
+  @IsOptional() @IsNumber() @Min(1) surgeFactor?: number; // fator de surge (ondas/banhistas) sobre a recirculacao pra dimensionar drenagem (default 2)
 
   @IsArray()
   @ValidateNested({ each: true })

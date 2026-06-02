@@ -133,6 +133,40 @@ de mercado (6"–8" pra transbordo de borda infinita).
   `backend/src/pool-budget/gravity-flow.service.ts` (`@Injectable`, irmao do pipe-head-loss): `manningPartialFull(D, y, S, n)`,
   `solveFillForFlow(...)` e `sizeGravityPipe(inputs)`. Verificado numericamente (meio-cheio=0,5×cheio; tabela de referencia; 8m->DN150).
 
+## 8. Ralos da canaleta — quantidade sugerida (capacidade < tubo aberto)
+Um RALO (grelha) escoa MENOS que a boca aberta de um tubo de mesmo diametro — a grelha funciona
+como VERTEDOR (lamina baixa) ou ORIFICIO (lamina alta), com area livre parcial (barras) + entupimento.
+NAO eh escoamento de tubo de secao cheia (Manning). Regra de drenagem (industria): a area livre da
+grelha deve ser **1,5-2× a area do tubo** conectado.
+- **Q_ralo = min(Q_vertedor, Q_orificio) × fator_entupimento** (m³/s):
+  - Vertedor: `Q = Cw · P · h^1.5` (Cw=1,66 SI; P=π·D; h=lamina sobre o ralo).
+  - Orificio: `Q = Co · A_livre · sqrt(2·g·h)` (Co=0,67; A_livre=π·D²/4 × 0,5 da grelha).
+  - Fator entupimento 0,8; carga `h` default 5 cm (lamina tipica na canaleta).
+- **nº ralos = teto(vazao_transbordo ÷ Q_ralo)**.
+- VERIFICADO: Ø100mm @5cm = **7,5 m³/h/ralo** (vs tubo DN100 aberto ~12-24 m³/h -> ralo escoa ~metade);
+  Ø75mm = 4,2 m³/h; Ø50mm = 1,9. Borda 8 m @6mm (20,74 m³/h) -> 3 ralos de 100mm ou 5 de 75mm.
+- Implementado em `backend/src/pool-budget/borda-infinita.service.ts` (const `RALO` + `raloCapacityM3h` +
+  sugestao no ramo CANALETA). Frontend mostra "Ralos: Nx Ø..mm (~X m³/h cada)" + aviso se informado < sugerido.
+- **Recomendar conferir a ficha tecnica do fabricante do ralo** (valores reais variam por modelo de grelha).
+- Fontes ralo: Norwood/EJCO grate flow calculators (orificio Co=0,67 / vertedor Cw=3,0 US); regra
+  "grate free area 1,5-2× pipe" (Zurn/Josam floor drain guides); Tigre "Calhas de Piso e Grelhas".
+
+## 9. Dimensionamento da DRENAGEM pro SURGE (ondas/banhistas) — NAO pelo filme estavel
+**Criterio-chave (usuario 02/06):** quando criancas brincam, as ONDAS enchem a canaleta; os RALOS + TUBOS
+tem que escoar rapido pra nao transbordar. Entao a DRENAGEM (ralos + tubo de gravidade) eh dimensionada
+pela vazao de PICO (surge), NAO pela vazao de transbordo estavel (filme de 6mm).
+- **Q_drenagem = Q_transbordo × fator_surge.** Norma de piscina (US Recommended Standards): tubo da calha
+  perimetral >= **125% da recirculacao**; e o **VOLUME** do surge (>= 1 gal/ft² ≈ 4 cm × area) eh absorvido
+  pelo reservatorio MASTER — NAO pelo tubo (nao da pra "esvaziar instantaneo" so com tubo; eh tubo
+  generoso PRO PICO + volume de reserva no master).
+- Default **fator_surge = 2,0** (acima do minimo de norma 1,25×); criancas/uso intenso -> 2 a 4×. Configuravel
+  (`dto.surgeFactor` / input "Fator de surge" na UI).
+- **Ralos:** nº = teto(Q_drenagem ÷ Q_ralo). **Tubo:** `sizeGravityPipe(Q_drenagem, fatorSeg=0)`.
+- A bomba/recirculacao continua na Q_transbordo ESTAVEL (so a drenagem usa o surge).
+- VERIFICADO: borda 8m @6mm = 20,74 m³/h; surge 2× -> drenagem 41,48 -> 6 ralos de 100mm (vs 3 sem surge); tubo p/ 41,48.
+- Implementado: `BORDA_TRANSBORDO.SURGE_FACTOR_DEFAULT` + `drenagemDesignM3h` em borda-infinita.service.
+- Fonte: [Recommended Standards for Swimming Pool Design (SD)](https://doh.sd.gov/media/q1cligob/standardsforswimmingpooldesign.pdf) — gutter piping >= 125% recirc; surge >= 1 gal/ft².
+
 ## Fontes
 - [Manning Equation / Storm Drain Pipe Sizing — Calichi](https://calichi.com/blog/storm-drain-pipe-sizing-mannings/)
 - [Gravity Flow in Pipes — Manning Formula (PDH Academy, PDF)](https://pdhacademy.com/wp-content/uploads/2022/12/Gravity_Flow_in_Pipes.pdf)
