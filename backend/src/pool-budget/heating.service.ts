@@ -71,6 +71,10 @@ export interface HeatingInputs {
   bordaInfinitaAlturaM?: number;
   bordaInfinitaVazaoLminPorM?: number;
   bordaInfinitaHorasAtivaDia?: number;
+  // Superficie aberta dos reservatorios/canaletas/master da borda (m²) — agua parada,
+  // exposta, SEM capa. Evapora como superficie de piscina (somada ao calor a repor).
+  // Alimentada pelo Sistema de Borda Infinita (FASE 2). Diferente do filme que cai.
+  bordaSuperficieAbertaM2?: number;
 
   // Operacao
   horasFuncionamentoDia?: number; // default 15
@@ -229,6 +233,11 @@ export interface HeatingReport {
   // cascata/hidromassagem/borda com nome do produto + horas/sem editavel,
   // ou avisos quando produto tem informacao faltando)
   extrasDetected?: ExtrasDetected;
+
+  // FASE 2 — Borda Infinita: agua dos reservatorios somada ao volume a aquecer.
+  // inputs.volumeM3 ja eh o TOTAL (piscina + borda); estes expoem a quebra pro front/PDF.
+  bordaVolumeExtraM3?: number; // m³ de agua dos reservatorios da borda (massa termica extra)
+  bordaSuperficieAbertaM2?: number; // m² de superficie aberta da borda que evapora
 }
 
 // ============ SERVICE ============
@@ -346,6 +355,10 @@ export class HeatingService {
     // proporcionalmente. 24h = sempre ligada, sem reducao.
     const tempoBordaFactor = Math.max(0, Math.min(1, horasAtivaDia / 24));
 
+    // Superficie aberta dos reservatorios da borda (FASE 2): agua parada exposta, sem capa.
+    // Evapora como a propria piscina (mesma fisica, area diferente, 24h — a agua fica la).
+    const bordaSuperficieAbertaM2 = Number(inputs.bordaSuperficieAbertaM2) || 0;
+
     const result: MonthlyHeatLoss[] = [];
     for (let m = 0; m < 12; m++) {
       const tempAr = city.tempMonthly[m];
@@ -382,8 +395,20 @@ export class HeatingService {
             3600)
         : 0;
 
-      // Extras (hidromassagem + cascata fixos) + borda (varia por mes)
-      const extrasMesKw = extrasFixosKw + qsBordaKw;
+      // Superficie aberta dos reservatorios da borda: agua parada, exposta, sem capa,
+      // sem fator de filme/vazao (nao eh lamina) e sempre ativa. Evapora como a piscina.
+      const qsSuperficieKw = bordaSuperficieAbertaM2 > 0
+        ? (BETA_INV *
+            WATER_PROPS.densityKgPerL *
+            WATER_PROPS.latentHeatKjPerKg *
+            ventoFactor *
+            deltaP *
+            bordaSuperficieAbertaM2 /
+            3600)
+        : 0;
+
+      // Extras (hidromassagem + cascata fixos) + borda lamina + borda superficie (varia por mes)
+      const extrasMesKw = extrasFixosKw + qsBordaKw + qsSuperficieKw;
 
       // Outras perdas (TAB006 R17): 20% sobre evaporacao principal
       const qsExtraKw = qsKw * OTHER_LOSSES_FACTOR;

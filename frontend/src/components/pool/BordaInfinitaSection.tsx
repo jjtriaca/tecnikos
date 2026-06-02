@@ -348,8 +348,8 @@ export function BordaInfinitaSection({
                 <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                   {[
                     ["Vazão de bomba", `${report.totals.vazaoBombaSugeridaM3h} m³/h`, ""],
-                    ["Volume térmico extra", `${report.totals.volumeTermicoExtraM3} m³`, "piscina + reservatórios (FASE 2)"],
-                    ["Área de evaporação", `${report.totals.areaEvaporacaoExtraM2} m²`, "lâminas + superfícies abertas"],
+                    ["Volume térmico extra", `${report.totals.volumeTermicoExtraM3} m³`, "✓ somado ao volume total da piscina"],
+                    ["Área de evaporação", `${report.totals.areaEvaporacaoExtraM2} m²`, "✓ entra no aquecimento (lâminas + superfícies)"],
                     ["Borda total", `${report.totals.bordaTotalLengthM} m`, ""],
                   ].map(([l, v, h]) => (
                     <div key={l} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">

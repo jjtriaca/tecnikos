@@ -104,6 +104,8 @@ type Budget = {
   rejectedReason: string | null;
   cancelledAt: string | null;
   cancelledReason: string | null;
+  frozenAt: string | null;
+  frozenByName: string | null;
   createdAt: string;
   clientPartner: { id: string; name: string; document?: string | null; phone?: string | null; email?: string | null };
   items: BudgetItem[];
@@ -338,6 +340,13 @@ export default function PoolBudgetDetailPage() {
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [confirmAction, setConfirmAction] = useState<null | "approve" | "reject" | "cancel" | "delete">(null);
   const [showSaveAsTemplate, setShowSaveAsTemplate] = useState(false);
+  // Duplicar orcamento (popup: titulo /N editavel + atualizar precos)
+  const [showDuplicate, setShowDuplicate] = useState(false);
+  const [dupTitle, setDupTitle] = useState("");
+  const [dupUpdatePrices, setDupUpdatePrices] = useState(false);
+  const [dupBusy, setDupBusy] = useState(false);
+  // Aviso ao Editar um cadastrado (recomenda duplicar pra manter historico)
+  const [showEditWarn, setShowEditWarn] = useState(false);
   const [showEditHeader, setShowEditHeader] = useState(false);
   const [showPaymentTerms, setShowPaymentTerms] = useState(false);
   const [showHeatingSimulator, setShowHeatingSimulator] = useState(false);
@@ -552,6 +561,11 @@ export default function PoolBudgetDetailPage() {
   }, []);
 
   const isLocked = budget?.status === "APROVADO" || budget?.status === "CANCELADO";
+  // Cadastrado (congelado): lock REVERSIVEL de edicao (botao Cadastrar). Diferente do lock
+  // PERMANENTE de APROVADO/CANCELADO. Congela edicao + recalculo; status (aprovar/rejeitar/
+  // cancelar) segue normal. Descongela via "Editar".
+  const isFrozen = !!budget?.frozenAt;
+  const isEditLocked = isLocked || isFrozen;
   // Agrupamento por poolSection direto (string). Etapa padrao do enum e
   // etapa custom CUSTOM_* sao indistinguiveis aqui. v1.12.20.
   const itemsBySection = useMemo(() => {
@@ -634,6 +648,60 @@ export default function PoolBudgetDetailPage() {
     }
   }
 
+  async function registerBudget() {
+    try {
+      await api.post(`/pool-budgets/${id}/register`, {});
+      toast("Orcamento cadastrado. Edicao e recalculo congelados — clique Editar para alterar.", "success");
+      await load();
+    } catch (err: any) {
+      toast(err?.payload?.message || "Erro ao cadastrar orcamento", "error");
+    }
+  }
+
+  async function unregisterBudget() {
+    setShowEditWarn(false);
+    try {
+      await api.post(`/pool-budgets/${id}/unregister`, {});
+      toast("Orcamento liberado para edicao.", "success");
+      await load();
+    } catch (err: any) {
+      toast(err?.payload?.message || "Erro ao liberar orcamento", "error");
+    }
+  }
+
+  // Titulo da copia: incrementa o /N final, ou embute o codigo + /2 na 1a vez. Editavel no popup.
+  function nextVersionTitle(title: string, code: string | null): string {
+    const base = (title ?? "").trim();
+    const m = base.match(/^(.*?)\s*\/\s*(\d+)\s*$/);
+    if (m) return `${m[1].trim()}/${Number(m[2]) + 1}`;
+    return `${base}${code ? ` ${code}` : ""}/2`;
+  }
+
+  function openDuplicate() {
+    if (!budget) return;
+    setDupTitle(nextVersionTitle(budget.title, budget.code));
+    setDupUpdatePrices(false);
+    setShowDuplicate(true);
+  }
+
+  async function doDuplicate() {
+    if (!budget) return;
+    setDupBusy(true);
+    try {
+      const created = await api.post<{ id: string }>(`/pool-budgets/${id}/duplicate`, {
+        title: dupTitle.trim() || undefined,
+        updatePrices: dupUpdatePrices,
+      });
+      toast("Orcamento duplicado!", "success");
+      setShowDuplicate(false);
+      router.push(`/quotes/pool/${created.id}`);
+    } catch (err: any) {
+      toast(err?.payload?.message || "Erro ao duplicar orcamento", "error");
+    } finally {
+      setDupBusy(false);
+    }
+  }
+
   async function performAction(reason?: string) {
     if (!confirmAction) return;
     try {
@@ -684,6 +752,29 @@ export default function PoolBudgetDetailPage() {
                 Ver obra
               </Link>
             )}
+            {/* Cadastrar (congelar): finaliza o orcamento — bloqueia edicao+recalculo, libera PDF */}
+            {!isEditLocked && (budget.status === "RASCUNHO" || budget.status === "ENVIADO") && (
+              <button onClick={registerBudget}
+                className="rounded-md bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700"
+                title="Finaliza e CONGELA o orcamento (bloqueia edicao e recalculo automatico) e libera a impressao do PDF">
+                🔒 Cadastrar
+              </button>
+            )}
+            {/* Cadastrado: Editar (descongela) + Imprimir PDF (em breve) */}
+            {isFrozen && !isLocked && (
+              <>
+                <button onClick={() => setShowEditWarn(true)}
+                  className="rounded-md bg-amber-500 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-600"
+                  title="Libera o orcamento para edicao de novo (descongela)">
+                  ✏️ Editar
+                </button>
+                <button disabled
+                  className="rounded-md border border-slate-300 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-400 cursor-not-allowed"
+                  title="Geracao de PDF do orcamento — em breve">
+                  🖨️ Imprimir PDF
+                </button>
+              </>
+            )}
             {!isLocked && (budget.status === "RASCUNHO" || budget.status === "ENVIADO") && (
               <button onClick={() => setConfirmAction("approve")}
                 className="rounded-md bg-green-600 px-3 py-1 text-xs font-semibold text-white hover:bg-green-700">
@@ -708,6 +799,12 @@ export default function PoolBudgetDetailPage() {
                 Excluir
               </button>
             )}
+            {/* Duplicar — sempre disponivel (inclusive cadastrado/aprovado): forma recomendada de revisar mantendo o historico */}
+            <button onClick={openDuplicate}
+              className="rounded-md border border-violet-300 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-700 hover:bg-violet-100"
+              title="Cria uma copia deste orcamento (mantem o historico), com opcao de atualizar os precos">
+              ⧉ Duplicar
+            </button>
             {!isLocked && budget.items.length > 0 && (
               <button onClick={() => setShowSaveAsTemplate(true)}
                 className="rounded-md border border-indigo-300 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
@@ -729,6 +826,7 @@ export default function PoolBudgetDetailPage() {
             <div className="flex items-center gap-2 min-w-0">
               <span className="text-base font-bold text-slate-900 truncate">{budget.title}</span>
               <span className={`shrink-0 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${status.cls}`}>{status.label}</span>
+              {isFrozen && <span className="shrink-0 inline-flex rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700">🔒 Cadastrado</span>}
             </div>
             <span className="text-xs text-slate-500">
               <span className="font-mono">{budget.code || "—"}</span> · {budget.clientPartner?.name}
@@ -747,7 +845,8 @@ export default function PoolBudgetDetailPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <h1 className="text-xl md:text-2xl font-bold text-slate-900 truncate">{budget.title}</h1>
                   <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${status.cls}`}>{status.label}</span>
-                  {!isLocked && (
+                  {isFrozen && <span className="inline-flex items-center rounded-full border border-blue-300 bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700" title={`Cadastrado${budget.frozenByName ? ` por ${budget.frozenByName}` : ""} — edição e recálculo congelados`}>🔒 Cadastrado</span>}
+                  {!isEditLocked && (
                     <Link href={`/quotes/pool/new?edit=${budget.id}`}
                       className="text-[11px] text-slate-500 hover:text-cyan-700 hover:bg-cyan-50 px-2 py-0.5 rounded border border-slate-200"
                       title="Editar tudo (cliente, dimensoes, clima, capa, validade)">
@@ -781,35 +880,35 @@ export default function PoolBudgetDetailPage() {
               </div>
 
               {/* Dimensoes — clicavel */}
-              <div onClick={() => !isLocked && router.push(`/quotes/pool/new?edit=${budget.id}`)}
+              <div onClick={() => !isEditLocked && router.push(`/quotes/pool/new?edit=${budget.id}`)}
                 className={"relative rounded-xl border border-cyan-200 bg-gradient-to-br from-cyan-50 to-blue-50 p-3 overflow-hidden shadow-sm transition " +
-                  (!isLocked ? "cursor-pointer hover:border-cyan-400 hover:shadow" : "")}
-                title={!isLocked ? "Clique pra editar dimensoes" : ""}>
+                  (!isEditLocked ? "cursor-pointer hover:border-cyan-400 hover:shadow" : "")}
+                title={!isEditLocked ? "Clique pra editar dimensoes" : ""}>
                 <div className="absolute -top-2 -right-2 text-3xl opacity-10">📐</div>
                 <div className="relative">
                   <div className="text-[10px] font-semibold uppercase tracking-wider text-cyan-700 flex items-center justify-between">
                     Dimensoes da Piscina
-                    {!isLocked && <span className="text-[10px] text-cyan-600/60 normal-case">✏️</span>}
+                    {!isEditLocked && <span className="text-[10px] text-cyan-600/60 normal-case">✏️</span>}
                   </div>
                   <div className="mt-0.5 text-base font-bold text-cyan-900 tabular-nums">
                     {budget.poolDimensions?.length}×{budget.poolDimensions?.width}×{budget.poolDimensions?.depth} m
                   </div>
                   <div className="text-[10px] text-cyan-700/70 tabular-nums">
-                    Area {budget.poolDimensions?.area?.toFixed(1)} m² · Vol {budget.poolDimensions?.volume?.toFixed(1)} m³
+                    Area {budget.poolDimensions?.area?.toFixed(1)} m² · Vol {(((Number(budget.poolDimensions?.volume) || 0) + (Number(budget.poolDimensions?.bordaVolumeExtraM3) || 0))).toFixed(1)} m³{Number(budget.poolDimensions?.bordaVolumeExtraM3) > 0 ? " (c/ borda infinita)" : ""}
                   </div>
                 </div>
               </div>
 
               {/* Validade — clicavel */}
-              <div onClick={() => !isLocked && router.push(`/quotes/pool/new?edit=${budget.id}`)}
+              <div onClick={() => !isEditLocked && router.push(`/quotes/pool/new?edit=${budget.id}`)}
                 className={"relative rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-3 overflow-hidden shadow-sm transition " +
-                  (!isLocked ? "cursor-pointer hover:border-amber-400 hover:shadow" : "")}
-                title={!isLocked ? "Clique pra editar validade" : ""}>
+                  (!isEditLocked ? "cursor-pointer hover:border-amber-400 hover:shadow" : "")}
+                title={!isEditLocked ? "Clique pra editar validade" : ""}>
                 <div className="absolute -top-2 -right-2 text-3xl opacity-10">📅</div>
                 <div className="relative">
                   <div className="text-[10px] font-semibold uppercase tracking-wider text-amber-700 flex items-center justify-between">
                     Validade
-                    {!isLocked && <span className="text-[10px] text-amber-600/60 normal-case">✏️</span>}
+                    {!isEditLocked && <span className="text-[10px] text-amber-600/60 normal-case">✏️</span>}
                   </div>
                   <div className="mt-0.5 text-base font-bold text-amber-900 tabular-nums">{budget.validityDays} dias</div>
                   {budget.expiresAt && (
@@ -994,7 +1093,7 @@ export default function PoolBudgetDetailPage() {
                       </button>
                     )}
                     <div className="flex items-center gap-2">
-                      {!isLocked && (
+                      {!isEditLocked && (
                         <div className="flex items-center gap-0.5">
                           <button
                             onClick={() => moveSection(section, -1)}
@@ -1011,7 +1110,7 @@ export default function PoolBudgetDetailPage() {
                         </div>
                       )}
                       <span className="text-xs text-slate-500">{items.length} linha{items.length !== 1 ? "s" : ""}</span>
-                      {!isLocked && renamingSection !== section && (
+                      {!isEditLocked && renamingSection !== section && (
                         <>
                           <button
                             onClick={() => { setRenamingSection(section); setRenamingValue(secLabel(section)); }}
@@ -1025,7 +1124,7 @@ export default function PoolBudgetDetailPage() {
                           >🗑</button>
                         </>
                       )}
-                      {!isLocked && (
+                      {!isEditLocked && (
                         <button
                           onClick={() => { setAddSection(section); setShowAdd(true); }}
                           className="rounded bg-cyan-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-cyan-700"
@@ -1066,7 +1165,7 @@ export default function PoolBudgetDetailPage() {
                           </td>
                         </tr>
                       ) : items.map((it, idx) => (
-                        <ItemRow key={it.id} item={it} seq={idx + 1} locked={isLocked}
+                        <ItemRow key={it.id} item={it} seq={idx + 1} locked={isEditLocked}
                           isFirst={idx === 0}
                           isLast={idx === items.length - 1}
                           dimensions={budget.poolDimensions}
@@ -1106,7 +1205,7 @@ export default function PoolBudgetDetailPage() {
             })}
 
             {/* Adicionar nova etapa */}
-            {!isLocked && (() => {
+            {!isEditLocked && (() => {
               const availableSections = SECTION_ORDER.filter((s) => !presentSections.includes(s) && !hiddenSections.has(s));
               return (
                 <div className="flex items-center gap-2 pt-2 flex-wrap">
@@ -1293,6 +1392,56 @@ export default function PoolBudgetDetailPage() {
             );
           }}
         />
+      )}
+
+      {/* Modal Duplicar */}
+      {showDuplicate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !dupBusy && setShowDuplicate(false)}>
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-slate-800">⧉ Duplicar orçamento</h3>
+            <p className="mt-1 text-xs text-slate-500">Cria uma cópia editável deste orçamento, ligada a ele no histórico. Quantidades e estrutura são mantidas.</p>
+            <label className="mt-4 block text-xs font-semibold text-slate-600">Descrição (nome da cópia)</label>
+            <input value={dupTitle} onChange={(e) => setDupTitle(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-violet-500"
+              placeholder="Nome da cópia" />
+            <label className="mt-3 flex items-start gap-2 cursor-pointer">
+              <input type="checkbox" checked={dupUpdatePrices} onChange={(e) => setDupUpdatePrices(e.target.checked)} className="mt-0.5" />
+              <span className="text-xs text-slate-600">
+                <b className="text-slate-800">Atualizar preços</b> com o catálogo atual.
+                <span className="block text-slate-400">Desmarcado = mantém os preços deste orçamento. As quantidades não mudam.</span>
+              </span>
+            </label>
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setShowDuplicate(false)} disabled={dupBusy}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50">Cancelar</button>
+              <button onClick={doDuplicate} disabled={dupBusy || !dupTitle.trim()}
+                className="rounded-lg bg-violet-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-violet-700 disabled:opacity-50">
+                {dupBusy ? "Duplicando…" : "Duplicar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Aviso ao Editar um cadastrado — recomenda duplicar, mas aceita continuar */}
+      {showEditWarn && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowEditWarn(false)}>
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-slate-800">✏️ Editar orçamento cadastrado</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              O ideal é <b>Duplicar</b> em vez de editar, para manter o histórico dos orçamentos cadastrados.
+              Se continuar, este orçamento será <b>descongelado</b> e os cálculos automáticos voltam a rodar.
+            </p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button onClick={() => { setShowEditWarn(false); openDuplicate(); }}
+                className="rounded-lg border border-violet-300 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-700 hover:bg-violet-100">⧉ Duplicar</button>
+              <button onClick={() => setShowEditWarn(false)}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50">Cancelar</button>
+              <button onClick={unregisterBudget}
+                className="rounded-lg bg-amber-500 px-4 py-1.5 text-sm font-semibold text-white hover:bg-amber-600">Continuar</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

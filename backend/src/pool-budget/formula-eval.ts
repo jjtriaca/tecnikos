@@ -366,5 +366,13 @@ export function extractDimensionVars(poolDimensions: any): FormulaVars {
     if (first && direct.depth === undefined && typeof first.depth === 'number') direct.depth = first.depth;
   }
 
+  // FASE 2 — soma a agua dos reservatorios da Borda Infinita no volume total da piscina
+  // (decisao do usuario: volume total afeta tudo, inclusive formulas de linha que usam
+  // `volume`). bordaVolumeExtraM3 e gravado em poolDimensions no salvar (pool-budget.service).
+  const bordaExtra = Number(d.bordaVolumeExtraM3);
+  if (Number.isFinite(bordaExtra) && bordaExtra > 0) {
+    direct.volume = (Number(direct.volume) || 0) + bordaExtra;
+  }
+
   return direct;
 }

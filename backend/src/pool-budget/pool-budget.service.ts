@@ -23,6 +23,7 @@ import {
   PoolConditionConfig,
 } from './pool-formula.service';
 import { HeatingBudgetService } from './heating-budget.service';
+import { BordaInfinitaService } from './borda-infinita.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -46,7 +47,42 @@ export class PoolBudgetService {
     private readonly codeGenerator: CodeGeneratorService,
     private readonly formulaService: PoolFormulaService,
     private readonly heatingBudget: HeatingBudgetService,
+    private readonly bordaInfinita: BordaInfinitaService,
   ) {}
+
+  /**
+   * FASE 2 — Enriquece poolDimensions com o volume extra dos reservatorios da Borda
+   * Infinita (`bordaVolumeExtraM3`), pra que TODO consumidor de volume (fórmulas de
+   * linha, base POOL_VOLUME, solar, demanda térmica, aquecimento) inclua a água da
+   * borda no "volume total da piscina" — decisão do usuário (volume total, afeta tudo).
+   *
+   * NAO altera `dims.volume` (volume geométrico da piscina). Só anexa o extra; cada
+   * consumidor soma `dims.volume + bordaVolumeExtraM3`. Idempotente: o front sempre
+   * manda o volume geométrico e a borda é recomputada das linhas. Sem borda -> extra 0.
+   */
+  private enrichPoolDimensions(poolDimensions: any): any {
+    if (!poolDimensions || typeof poolDimensions !== 'object') return poolDimensions;
+    const dims = poolDimensions as Record<string, any>;
+    const lines = Array.isArray(dims.bordaInfinita) ? dims.bordaInfinita : [];
+    if (lines.length === 0) {
+      // Sem borda: zera o extra (limpa valor antigo se a borda foi removida).
+      return dims.bordaVolumeExtraM3 ? { ...dims, bordaVolumeExtraM3: 0 } : dims;
+    }
+    try {
+      const report = this.bordaInfinita.compute({
+        poolAreaM2: Number(dims.area) || 0,
+        poolVolumeM3: Number(dims.volume) || undefined,
+        nBathers: dims.bordaInfinitaBathers != null ? Number(dims.bordaInfinitaBathers) : undefined,
+        surgeFactor: dims.bordaInfinitaSurge != null ? Number(dims.bordaInfinitaSurge) : undefined,
+        lines,
+      });
+      return { ...dims, bordaVolumeExtraM3: report.heatingFeed.volumeTermicoExtraM3 };
+    } catch (e) {
+      // Calculo da borda NUNCA pode derrubar o salvamento do orcamento — degrada pra extra 0.
+      this.logger.warn(`enrichPoolDimensions: falha ao computar volume da borda — usando 0. ${String(e)}`);
+      return { ...dims, bordaVolumeExtraM3: 0 };
+    }
+  }
 
   private async assertModuleActive(companyId: string) {
     const company = await this.prisma.company.findUnique({
@@ -115,6 +151,8 @@ export class PoolBudgetService {
 
     // Se template tem defaults (snapshot v1.10.43+), aplica como base. DTO sobrescreve.
     const tDefaults = (template?.defaults as Record<string, any>) || {};
+    // FASE 2 — anexa bordaVolumeExtraM3 (água dos reservatórios da borda) no poolDimensions.
+    const enrichedDims = this.enrichPoolDimensions(dto.poolDimensions);
     const created = await this.prisma.poolBudget.create({
       data: {
         companyId,
@@ -127,7 +165,7 @@ export class PoolBudgetService {
         description: dto.description,
         notes: dto.notes,
         termsConditions: dto.termsConditions,
-        poolDimensions: dto.poolDimensions as unknown as Prisma.InputJsonValue,
+        poolDimensions: enrichedDims as unknown as Prisma.InputJsonValue,
         environmentParams: envParams as Prisma.InputJsonValue | undefined,
         validityDays: dto.validityDays ?? tDefaults.validityDays ?? 30,
         discountCents: dto.discountCents,
@@ -154,9 +192,9 @@ export class PoolBudgetService {
     if (template) {
       const snapshot = Array.isArray(template.itemsSnapshot) ? (template.itemsSnapshot as any[]) : [];
       if (snapshot.length > 0) {
-        await this.applyItemsSnapshot(created.id, snapshot, dto.poolDimensions);
+        await this.applyItemsSnapshot(created.id, snapshot, enrichedDims);
       } else {
-        await this.applyTemplate(created.id, companyId, template.sections, dto.poolDimensions);
+        await this.applyTemplate(created.id, companyId, template.sections, enrichedDims);
       }
       await this.recalculateTotals(created.id);
     }
@@ -650,8 +688,14 @@ export class PoolBudgetService {
         environmentParams: true,
         heatingReport: true,
         companyId: true,
+        frozenAt: true,
       },
     });
+
+    // CADASTRADO (congelado): nao recalcula — os valores ficam exatamente como foram
+    // cadastrados, imunes a mudancas futuras de formula/feature. Os mutators ja bloqueiam
+    // antes de chegar aqui; este early-return e defesa extra (qualquer caller futuro).
+    if (budget?.frozenAt) return;
 
     // v1.11.85: Sincronia linha → simulador. Se o operador mudou a linha "Bomba de
     // Calor" do orcamento (via auto-select ou catalog picker), o heatingOverride
@@ -666,7 +710,7 @@ export class PoolBudgetService {
         select: {
           discountCents: true, discountPercent: true, taxesPercent: true,
           startDate: true, poolDimensions: true, environmentParams: true,
-          heatingReport: true, companyId: true,
+          heatingReport: true, companyId: true, frozenAt: true,
         },
       });
     }
@@ -685,7 +729,7 @@ export class PoolBudgetService {
           select: {
             discountCents: true, discountPercent: true, taxesPercent: true,
             startDate: true, poolDimensions: true, environmentParams: true,
-            heatingReport: true, companyId: true,
+            heatingReport: true, companyId: true, frozenAt: true,
           },
         });
       } catch (err) {
@@ -1426,12 +1470,13 @@ export class PoolBudgetService {
   ) {
     const budget = await this.prisma.poolBudget.findFirst({
       where: { id, companyId, deletedAt: null },
-      select: { id: true, status: true, environmentParams: true, sectionOrder: true },
+      select: { id: true, status: true, frozenAt: true, environmentParams: true, sectionOrder: true },
     });
     if (!budget) throw new NotFoundException('Orçamento não encontrado');
     if (budget.status === PoolBudgetStatus.APROVADO) {
       throw new BadRequestException('Orçamento aprovado não pode ter etapas alteradas.');
     }
+    this.assertNotFrozen(budget);
 
     const env = (budget.environmentParams ?? {}) as Record<string, any>;
     const current = (env.customSections ?? {}) as Record<string, any>;
@@ -1469,6 +1514,7 @@ export class PoolBudgetService {
         'Orçamento aprovado não pode ser editado. Crie uma nova versão.',
       );
     }
+    this.assertNotFrozen(before);
 
     // Invalida cache do heatingReport quando dimensoes ou environmentParams mudam.
     // Forca recompute na proxima vez (recalculateTotals ou Simulador).
@@ -1485,7 +1531,7 @@ export class PoolBudgetService {
         notes: dto.notes,
         termsConditions: dto.termsConditions,
         poolDimensions: dto.poolDimensions
-          ? (dto.poolDimensions as unknown as Prisma.InputJsonValue)
+          ? (this.enrichPoolDimensions(dto.poolDimensions) as unknown as Prisma.InputJsonValue)
           : undefined,
         environmentParams: dto.environmentParams as Prisma.InputJsonValue | undefined,
         validityDays: dto.validityDays,
@@ -1574,12 +1620,13 @@ export class PoolBudgetService {
 
     const budget = await this.prisma.poolBudget.findFirst({
       where: { id: budgetId, companyId, deletedAt: null },
-      select: { id: true, status: true },
+      select: { id: true, status: true, frozenAt: true },
     });
     if (!budget) throw new NotFoundException('Orçamento não encontrado');
     if (budget.status === PoolBudgetStatus.APROVADO) {
       throw new BadRequestException('Orçamento aprovado — não pode adicionar items');
     }
+    this.assertNotFrozen(budget);
 
     // v1.12.20: auto-link silencioso por descricao foi REMOVIDO. Linha
     // sempre vem livre (sem vinculo) a menos que DTO traga productId/serviceId
@@ -1698,12 +1745,13 @@ export class PoolBudgetService {
 
     const item = await this.prisma.poolBudgetItem.findFirst({
       where: { id: itemId, budget: { companyId, deletedAt: null } },
-      include: { budget: { select: { status: true } } },
+      include: { budget: { select: { status: true, frozenAt: true } } },
     });
     if (!item) throw new NotFoundException('Item não encontrado');
     if (item.budget.status === PoolBudgetStatus.APROVADO) {
       throw new BadRequestException('Orçamento aprovado — não pode editar items');
     }
+    this.assertNotFrozen(item.budget);
 
     // Se formula foi enviada, recalcula qty + qtyCalculated. String vazia = remove formula.
     let effectiveQty = dto.qty ?? item.qty;
@@ -1851,12 +1899,13 @@ export class PoolBudgetService {
 
     const item = await this.prisma.poolBudgetItem.findFirst({
       where: { id: itemId, budget: { companyId, deletedAt: null } },
-      include: { budget: { select: { status: true } } },
+      include: { budget: { select: { status: true, frozenAt: true } } },
     });
     if (!item) throw new NotFoundException('Item não encontrado');
     if (item.budget.status === PoolBudgetStatus.APROVADO) {
       throw new BadRequestException('Orçamento aprovado — não pode remover items');
     }
+    this.assertNotFrozen(item.budget);
 
     await this.prisma.poolBudgetItem.delete({ where: { id: itemId } });
     await this.recalculateTotals(item.budgetId);
@@ -1907,6 +1956,7 @@ export class PoolBudgetService {
     if (budget.status === PoolBudgetStatus.APROVADO) {
       throw new BadRequestException('Orçamento aprovado — não pode aplicar template');
     }
+    this.assertNotFrozen(budget);
     if (budget.items.length > 0) {
       throw new BadRequestException(
         'Orçamento ja tem items. Apague todos antes de aplicar o template Linear, ou crie um orçamento novo.',
@@ -2041,6 +2091,222 @@ export class PoolBudgetService {
   }
 
   // ============== STATUS TRANSITIONS ==============
+
+  /**
+   * Lanca se o orcamento esta CADASTRADO (congelado). Bloqueia EDICAO + recalculo.
+   * As acoes de STATUS (aprovar/rejeitar/cancelar) NAO usam este guard — so a edicao.
+   */
+  private assertNotFrozen(budget: { frozenAt: Date | null }): void {
+    if (budget.frozenAt) {
+      throw new BadRequestException(
+        'Orçamento cadastrado (congelado). Clique em "Editar" para liberar a edição.',
+      );
+    }
+  }
+
+  /**
+   * Cadastrar (congelar): o gestor finaliza o orcamento. Congela edicao + recalculo
+   * automatico (totais/qty/heating/solar) e libera o PDF. Reversivel via unregister.
+   */
+  async register(id: string, companyId: string, user: AuthenticatedUser) {
+    await this.assertModuleActive(companyId);
+    const budget = await this.prisma.poolBudget.findFirst({
+      where: { id, companyId, deletedAt: null },
+      select: { id: true, status: true, frozenAt: true },
+    });
+    if (!budget) throw new NotFoundException('Orçamento não encontrado');
+    if (budget.status === PoolBudgetStatus.CANCELADO || budget.status === PoolBudgetStatus.APROVADO) {
+      throw new BadRequestException(`Orçamento ${budget.status} não pode ser cadastrado.`);
+    }
+    if (budget.frozenAt) return budget; // ja cadastrado — idempotente
+    const updated = await this.prisma.poolBudget.update({
+      where: { id },
+      data: { frozenAt: new Date(), frozenByName: user.email },
+    });
+    this.audit.log({
+      companyId, entityType: 'POOL_BUDGET', entityId: id, action: 'REGISTERED',
+      actorType: 'USER', actorId: user.id, actorName: user.email,
+    });
+    return updated;
+  }
+
+  /**
+   * Editar (descongelar): libera o orcamento pra edicao de novo. Limpa frozenAt.
+   * A partir daqui as edicoes voltam a recalcular (aplicando a logica/features atuais).
+   */
+  async unregister(id: string, companyId: string, user: AuthenticatedUser) {
+    await this.assertModuleActive(companyId);
+    const budget = await this.prisma.poolBudget.findFirst({
+      where: { id, companyId, deletedAt: null },
+      select: { id: true, frozenAt: true },
+    });
+    if (!budget) throw new NotFoundException('Orçamento não encontrado');
+    if (!budget.frozenAt) return budget; // ja editavel — idempotente
+    const updated = await this.prisma.poolBudget.update({
+      where: { id },
+      data: { frozenAt: null, frozenByName: null },
+    });
+    this.audit.log({
+      companyId, entityType: 'POOL_BUDGET', entityId: id, action: 'UNREGISTERED',
+      actorType: 'USER', actorId: user.id, actorName: user.email,
+    });
+    return updated;
+  }
+
+  /** Titulo da copia: incrementa o /N final do titulo, ou embute o codigo + /2 na 1a vez. */
+  private nextVersionTitle(title: string, code: string | null): string {
+    const base = (title ?? '').trim();
+    const m = base.match(/^(.*?)\s*\/\s*(\d+)\s*$/);
+    if (m) return `${m[1].trim()}/${Number(m[2]) + 1}`;
+    return `${base}${code ? ` ${code}` : ''}/2`;
+  }
+
+  /** Precos atuais do catalogo (P:<id> -> salePriceCents, S:<id> -> priceCents) pros itens. */
+  private async fetchCurrentPrices(
+    companyId: string,
+    items: Array<{ productId: string | null; serviceId: string | null }>,
+  ): Promise<Map<string, number>> {
+    const map = new Map<string, number>();
+    const productIds = [...new Set(items.map((i) => i.productId).filter(Boolean))] as string[];
+    const serviceIds = [...new Set(items.map((i) => i.serviceId).filter(Boolean))] as string[];
+    if (productIds.length) {
+      const prods = await this.prisma.product.findMany({
+        where: { id: { in: productIds }, companyId, deletedAt: null },
+        select: { id: true, salePriceCents: true },
+      });
+      prods.forEach((p) => { if (p.salePriceCents != null) map.set(`P:${p.id}`, p.salePriceCents); });
+    }
+    if (serviceIds.length) {
+      const svcs = await this.prisma.service.findMany({
+        where: { id: { in: serviceIds }, companyId, deletedAt: null },
+        select: { id: true, priceCents: true },
+      });
+      svcs.forEach((s) => { if (s.priceCents != null) map.set(`S:${s.id}`, s.priceCents); });
+    }
+    return map;
+  }
+
+  /**
+   * Duplica um orcamento (CÓPIA FIEL: mesmas dimensoes/etapas/linhas/qty). NAO re-roda
+   * auto-select nem formulas — o novo eh um rascunho editavel independente, ligado ao
+   * original via parentBudgetId (historico). Boa pratica: duplicar em vez de editar um
+   * cadastrado. Funciona inclusive sobre orcamento CADASTRADO (a copia nasce descongelada).
+   *
+   * updatePrices=true: refresca unitPriceCents dos itens vinculados com o preco ATUAL do
+   * catalogo (mantendo qty/estrutura). false: mantem os precos do original (snapshot).
+   */
+  async duplicate(
+    id: string,
+    companyId: string,
+    user: AuthenticatedUser,
+    opts: { title?: string; updatePrices?: boolean },
+  ) {
+    await this.assertModuleActive(companyId);
+    const source = await this.prisma.poolBudget.findFirst({
+      where: { id, companyId, deletedAt: null },
+      include: { items: true },
+    });
+    if (!source) throw new NotFoundException('Orçamento não encontrado');
+
+    const title = (opts.title && opts.title.trim()) || this.nextVersionTitle(source.title, source.code);
+    const code = await this.codeGenerator.generateCode(companyId, 'POOL_BUDGET').catch(() => null);
+
+    const created = await this.prisma.poolBudget.create({
+      data: {
+        companyId,
+        code: code ?? undefined,
+        parentBudgetId: source.id,
+        version: (source.version ?? 1) + 1,
+        clientPartnerId: source.clientPartnerId,
+        templateId: source.templateId,
+        printLayoutId: source.printLayoutId,
+        createdByUserId: user.id,
+        title,
+        description: source.description,
+        notes: source.notes,
+        termsConditions: source.termsConditions,
+        poolDimensions: source.poolDimensions as Prisma.InputJsonValue,
+        environmentParams: (source.environmentParams ?? undefined) as Prisma.InputJsonValue | undefined,
+        // Snapshot do simulador + imagem solar (copia fiel do estado; a copia recomputa ao editar).
+        heatingReport: (source.heatingReport ?? Prisma.DbNull) as Prisma.InputJsonValue,
+        solarHeaderImage: source.solarHeaderImage,
+        validityDays: source.validityDays,
+        discountCents: source.discountCents,
+        discountPercent: source.discountPercent,
+        taxesPercent: source.taxesPercent,
+        startDate: source.startDate,
+        equipmentWarranty: source.equipmentWarranty,
+        workWarranty: source.workWarranty,
+        paymentTerms: source.paymentTerms,
+        earlyPaymentDiscountPct: source.earlyPaymentDiscountPct,
+        paymentTermId: source.paymentTermId,
+        sectionOrder: source.sectionOrder,
+        status: PoolBudgetStatus.RASCUNHO,
+        // frozenAt fica null — a copia nasce editavel.
+      },
+    });
+
+    // Copia os itens (verbatim). Se updatePrices, refresca o preco unitario do catalogo.
+    if (source.items.length > 0) {
+      const priceMap = opts.updatePrices ? await this.fetchCurrentPrices(companyId, source.items) : new Map<string, number>();
+      const data = source.items.map((it) => {
+        let unitPriceCents = it.unitPriceCents;
+        if (opts.updatePrices) {
+          const key = it.productId ? `P:${it.productId}` : it.serviceId ? `S:${it.serviceId}` : null;
+          if (key && priceMap.has(key)) unitPriceCents = priceMap.get(key)!;
+        }
+        const totalCents = Math.round((Number(it.qty) || 0) * unitPriceCents);
+        return {
+          budgetId: created.id,
+          catalogConfigId: it.catalogConfigId,
+          productId: it.productId,
+          serviceId: it.serviceId,
+          poolSection: it.poolSection,
+          kind: it.kind,
+          sortOrder: it.sortOrder,
+          slotName: it.slotName,
+          description: it.description,
+          unit: it.unit,
+          qtyCalculated: it.qtyCalculated,
+          qty: it.qty,
+          formulaExpr: it.formulaExpr,
+          cellRef: it.cellRef,
+          unitPriceCents,
+          totalCents,
+          isAutoCalculated: it.isAutoCalculated,
+          isExtra: it.isExtra,
+          manualUnlink: it.manualUnlink,
+          previousQty: it.previousQty,
+          qtyDecimals: it.qtyDecimals,
+          notes: it.notes,
+          autoSelectRule: (it.autoSelectRule ?? Prisma.DbNull) as Prisma.InputJsonValue,
+        };
+      });
+      await this.prisma.poolBudgetItem.createMany({ data });
+    }
+
+    // Totais diretos (mesma formula do recalculateTotals) — SEM re-rodar auto-select/formula.
+    const finalItems = await this.prisma.poolBudgetItem.findMany({
+      where: { budgetId: created.id },
+      select: { totalCents: true },
+    });
+    const subtotalCents = finalItems.reduce((sum, i) => sum + (i.totalCents ?? 0), 0);
+    const discountPctCents = created.discountPercent && created.discountPercent > 0 ? Math.round(subtotalCents * (created.discountPercent / 100)) : 0;
+    const discountFlatCents = created.discountCents && created.discountCents > 0 ? created.discountCents : 0;
+    const taxesCents = created.taxesPercent && created.taxesPercent > 0 ? Math.round(subtotalCents * (created.taxesPercent / 100)) : 0;
+    const totalCents = Math.max(0, subtotalCents - (discountPctCents + discountFlatCents) + taxesCents);
+    const updated = await this.prisma.poolBudget.update({
+      where: { id: created.id },
+      data: { subtotalCents, taxesCents, totalCents },
+    });
+
+    this.audit.log({
+      companyId, entityType: 'POOL_BUDGET', entityId: created.id, action: 'DUPLICATED',
+      actorType: 'USER', actorId: user.id, actorName: user.email,
+      after: { sourceId: source.id, updatePrices: !!opts.updatePrices } as unknown as Record<string, unknown>,
+    });
+    return updated;
+  }
 
   async approve(id: string, companyId: string, user: AuthenticatedUser, approverName?: string) {
     await this.assertModuleActive(companyId);

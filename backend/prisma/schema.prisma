@@ -3574,6 +3574,12 @@ model PoolBudget {
   cancelledByName String?
   cancelledReason String?
 
+  // Cadastrado (congelado): o gestor finaliza o orcamento e clica "Cadastrar". Congela
+  // edicao + recalculo automatico (totais/qty/heating/solar) e libera o PDF. Reversivel
+  // via "Editar" (limpa frozenAt). Diferente do lock PERMANENTE de APROVADO. v1.13.x.
+  frozenAt     DateTime?
+  frozenByName String?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?

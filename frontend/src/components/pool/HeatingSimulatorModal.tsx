@@ -119,6 +119,9 @@ interface HeatingReport {
   initialHeatingCostBRLCents?: number;
   comparativo?: ComparativoFonte[];
   extrasDetected?: ExtrasDetected;
+  // FASE 2 — Borda Infinita: agua dos reservatorios somada ao volume a aquecer.
+  bordaVolumeExtraM3?: number;
+  bordaSuperficieAbertaM2?: number;
 }
 
 interface BudgetForHeating {
@@ -604,7 +607,8 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
     setObservacoes(typeof env.heatingObservacoes === "string" ? env.heatingObservacoes : "");
     // Pre-carrega dados da obra do orcamento (usado no quickMode)
     const dims = budget.poolDimensions ?? {};
-    setQuickVolume(Number(dims.volume) || 0);
+    // FASE 2 — volume inicial do calculo-rapido = piscina + agua dos reservatorios da borda.
+    setQuickVolume((Number(dims.volume) || 0) + (Number((dims as any).bordaVolumeExtraM3) || 0));
     setQuickArea(Number(dims.area) || 0);
     setQuickLength(Number(dims.length) || 0);
     setQuickWidth(Number(dims.width) || 0);
@@ -990,7 +994,9 @@ function SolarTab({
 }) {
   const dims = budget.poolDimensions ?? {};
   const area = Number(dims.area) || 0;
-  const volume = Number(dims.volume) || 0;
+  // FASE 2 — volume total = piscina + agua dos reservatorios da Borda Infinita. Usado como
+  // base do override do recalculo solar (senao o backend perde a borda ao receber o override).
+  const volume = (Number(dims.volume) || 0) + (Number((dims as any).bordaVolumeExtraM3) || 0);
   const len = Number(dims.length) || 0;
   const wid = Number(dims.width) || 0;
   const profMin = Number(dims.depthMin ?? dims.profundidadeMinima) || 0;
@@ -2795,7 +2801,10 @@ function BombaCalorTab({
 }) {
   const dims = (budget.poolDimensions ?? {}) as any;
   const dispArea = Number(dims.area) || 0;
-  const dispVolume = Number(dims.volume) || 0;
+  // FASE 2 — volume mostrado = piscina + agua dos reservatorios da Borda Infinita.
+  const volumeBasinM3 = Number(dims.volume) || 0;
+  const bordaVolumeExtraM3 = Number(report?.bordaVolumeExtraM3) || 0;
+  const dispVolume = Number((volumeBasinM3 + bordaVolumeExtraM3).toFixed(2));
   const dispLen = Number(dims.length) || 0;
   const dispWid = Number(dims.width) || 0;
   const dispProfMin = Number(dims.depthMin ?? dims.profundidadeMinima) || 0;
@@ -2937,6 +2946,11 @@ function BombaCalorTab({
                     <BigHighlightInput label="Área" value={dispArea} onChange={() => {}} unit="m²" min={0} max={9999} manual={false} />
                     <BigHighlightInput label="Volume" value={dispVolume} onChange={() => {}} unit="m³" min={0} max={99999} manual={false} />
                   </div>
+                  {bordaVolumeExtraM3 > 0 && (
+                    <div className="mt-0.5 text-[9px] leading-tight text-cyan-700">
+                      🌊 Volume inclui <b>+{bordaVolumeExtraM3.toFixed(2).replace(".", ",")} m³</b> da borda infinita (piscina {volumeBasinM3.toFixed(2).replace(".", ",")} + reservatórios)
+                    </div>
+                  )}
                 </div>
                 {/* Configuracao (editavel) */}
                 <div className="flex flex-col h-full">
@@ -3621,16 +3635,18 @@ function BigHighlightInput({ label, value, onChange, unit, min, max, manual }: {
   const colors = manual
     ? { border: "border-emerald-300", bg: "bg-emerald-50", labelText: "text-emerald-700", valueText: "text-emerald-900", unitText: "text-emerald-700" }
     : { border: "border-amber-300", bg: "bg-amber-50", labelText: "text-amber-700", valueText: "text-amber-900", unitText: "text-amber-700" };
+  // Exibe no maximo 2 casas (area/volume nao precisam de mais — evita "57,52000000" / float noise).
+  const shown = Number.isFinite(value) ? Math.round(value * 100) / 100 : value;
   return (
     <div className={`rounded border ${colors.border} ${colors.bg} px-1.5 py-0.5 flex flex-col justify-center overflow-hidden`} style={{ height: '32px' }}>
       <div className={`text-[8px] uppercase tracking-wide ${colors.labelText} font-semibold leading-tight`}>{label}</div>
       <div className="flex items-baseline gap-1 leading-tight">
-        <input type="number" min={min} max={max} value={value}
+        <input type="number" min={min} max={max} value={shown}
           onChange={(e) => onChange(Number(e.target.value) || min)}
           disabled={!manual}
           className={`bg-transparent text-[13px] font-bold ${colors.valueText} tabular-nums leading-none focus:outline-none w-full min-w-0 print:hidden disabled:cursor-not-allowed`}
           style={{ height: '14px', padding: 0, margin: 0, border: 0, minHeight: 0 }} />
-        <span className={`hidden print:inline-block text-[13px] font-bold ${colors.valueText} tabular-nums leading-none`}>{value}</span>
+        <span className={`hidden print:inline-block text-[13px] font-bold ${colors.valueText} tabular-nums leading-none`}>{shown}</span>
         <span className={`text-[9.5px] font-semibold ${colors.unitText}`}>{unit}</span>
       </div>
     </div>

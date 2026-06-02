@@ -76,6 +76,22 @@ export interface BordaInfinitaTotals {
   vazaoBombaSugeridaM3h: number;
   volumeTermicoExtraM3: number; // Σ reservatorios + master (entra na massa termica da FASE 2)
   areaEvaporacaoExtraM2: number; // Σ laminas + superficies abertas (entra na evaporacao da FASE 2)
+  areaFilmeExtraM2: number; // Σ laminas que caem (comp × altura) — sem fator
+  areaSuperficieAbertaExtraM2: number; // Σ superficies abertas (reservatorios/canaletas/master destampados)
+}
+
+// Resumo pronto pra alimentar o Simulador de Aquecimento (FASE 2). O HeatingService
+// reusa o modelo de filme escalar (comprimento × altura × vazao × horas), entao
+// agregamos as N bordas em medias PONDERADAS POR COMPRIMENTO (area de filme fica exata:
+// total_len × altura_media = Σ len_i × altura_i). As superficies abertas evaporam como
+// agua parada (modelo de superficie da piscina, sem capa). O volume entra na massa termica.
+export interface BordaHeatingFeed {
+  bordaTotalLengthM: number; // Σ comprimento das laminas
+  alturaQuedaMediaM: number; // altura de queda media (ponderada por comprimento)
+  vazaoMediaLminPorM: number; // vazao media L/min/m (ponderada por comprimento)
+  horasAtivaMediaDia: number; // horas/dia media que a borda fica ligada (ponderada)
+  areaSuperficieAbertaM2: number; // superficies abertas que evaporam (sem as laminas)
+  volumeTermicoExtraM3: number; // Σ reservatorios + master -> soma no volume a aquecer
 }
 
 export interface BordaInfinitaReport {
@@ -83,6 +99,7 @@ export interface BordaInfinitaReport {
   totals: BordaInfinitaTotals;
   master: MasterVolumeResult | null;
   avisos: string[];
+  heatingFeed: BordaHeatingFeed;
 }
 
 @Injectable()
@@ -146,7 +163,12 @@ export class BordaInfinitaService {
     let bordaTotalLengthM = 0;
     let vazaoTransbordoTotalM3h = 0;
     let volumeReservatoriosM3 = 0;
-    let areaEvaporacaoM2 = 0;
+    let areaFilmeM2 = 0; // laminas que caem (comp × altura)
+    let areaSuperficieAbertaM2 = 0; // superficies abertas (reservatorios/canaletas/master destampados)
+    // Acumuladores ponderados por comprimento pra agregar N bordas em escalares (FASE 2).
+    let sumLenAlturaM = 0; // Σ comp × altura -> altura media
+    let sumLenVazaoLmin = 0; // Σ comp × vazao(L/min/m) -> vazao media
+    let sumLenHoras = 0; // Σ comp × horas/dia -> horas media
 
     // Master line (topologia estrela: um master). Usa o primeiro tipo MASTER.
     const masterLine = lines.find((l) => l.tipo === 'MASTER') ?? null;
@@ -160,13 +182,18 @@ export class BordaInfinitaService {
       const altura = Math.max(line.alturaQuedaM ?? 0, 0);
       const perM = this.transbordoM3hPerMeter(line.filmeMm, line.vazaoLminM);
       const transbordoM3h = Number((perM * bordaLen).toFixed(2));
+      const vazaoLminPorM = perM * (1000 / 60); // m³/h/m -> L/min/m (modelo de filme do heating)
+      const horasDia = line.horasDia != null && line.horasDia > 0 ? line.horasDia : 24;
 
       bordaTotalLengthM += bordaLen;
       vazaoTransbordoTotalM3h += transbordoM3h;
+      sumLenAlturaM += bordaLen * altura;
+      sumLenVazaoLmin += bordaLen * vazaoLminPorM;
+      sumLenHoras += bordaLen * horasDia;
 
       // Area da lamina caindo (evaporacao — FASE 2 aplica o FILME_FACTOR).
       const filmeAreaM2 = Number((bordaLen * altura).toFixed(2));
-      areaEvaporacaoM2 += filmeAreaM2;
+      areaFilmeM2 += filmeAreaM2;
 
       let reservatorioVolumeM3 = 0;
       let evaporaSuperficieM2 = 0;
@@ -187,7 +214,7 @@ export class BordaInfinitaService {
         volumeReservatoriosM3 += reservatorioVolumeM3;
         if (line.reservAberto && line.reservComprM && line.reservLargM) {
           evaporaSuperficieM2 = Number((line.reservComprM * line.reservLargM).toFixed(2));
-          areaEvaporacaoM2 += evaporaSuperficieM2;
+          areaSuperficieAbertaM2 += evaporaSuperficieM2;
         }
         tubo = this.gravity.sizeGravityPipe({
           vazaoTransbordoM3h: (drenagemDesignM3h ?? transbordoM3h) / tubos,
@@ -207,7 +234,7 @@ export class BordaInfinitaService {
           evaporaSuperficieM2 = Number(
             (line.canaletaComprM * BORDA_TRANSBORDO.CANALETA_WIDTH_DEFAULT_M).toFixed(2),
           );
-          areaEvaporacaoM2 += evaporaSuperficieM2;
+          areaSuperficieAbertaM2 += evaporaSuperficieM2;
         }
         tubo = this.gravity.sizeGravityPipe({
           vazaoTransbordoM3h: (drenagemDesignM3h ?? transbordoM3h) / tubos,
@@ -253,10 +280,12 @@ export class BordaInfinitaService {
     if (master.aviso) avisos.push(`Reservatorio master: ${master.aviso}`);
 
     // Volume do master que conta na massa termica: usa o real informado, senao o recomendado.
-    const masterVolumeM3 = masterActual ?? master.recomendadoM3;
+    // SO conta se existe uma linha MASTER de fato — sem master, nada de volume fantasma
+    // (computeMasterVolume sempre "recomenda" um volume a partir da area, mesmo sem borda).
+    const masterVolumeM3 = masterLine ? (masterActual ?? master.recomendadoM3) : 0;
     // Superficie do master que evapora (se aberto).
     if (masterLine?.masterAberto && masterLine.masterComprM && masterLine.masterLargM) {
-      areaEvaporacaoM2 += Number((masterLine.masterComprM * masterLine.masterLargM).toFixed(2));
+      areaSuperficieAbertaM2 += Number((masterLine.masterComprM * masterLine.masterLargM).toFixed(2));
     }
 
     if (masterLine) {
@@ -267,18 +296,32 @@ export class BordaInfinitaService {
     }
 
     const volumeTermicoExtraM3 = Number((volumeReservatoriosM3 + masterVolumeM3).toFixed(3));
+    const areaEvaporacaoExtraM2 = Number((areaFilmeM2 + areaSuperficieAbertaM2).toFixed(2));
 
     const totals: BordaInfinitaTotals = {
       bordaTotalLengthM: Number(bordaTotalLengthM.toFixed(2)),
       vazaoTransbordoTotalM3h: Number(vazaoTransbordoTotalM3h.toFixed(2)),
       vazaoBombaSugeridaM3h: Number(vazaoTransbordoTotalM3h.toFixed(2)),
       volumeTermicoExtraM3,
-      areaEvaporacaoExtraM2: Number(areaEvaporacaoM2.toFixed(2)),
+      areaEvaporacaoExtraM2,
+      areaFilmeExtraM2: Number(areaFilmeM2.toFixed(2)),
+      areaSuperficieAbertaExtraM2: Number(areaSuperficieAbertaM2.toFixed(2)),
+    };
+
+    // Resumo pro Simulador de Aquecimento (FASE 2): medias ponderadas por comprimento
+    // (a area de filme fica exata: total_len × altura_media = Σ len_i × altura_i).
+    const heatingFeed: BordaHeatingFeed = {
+      bordaTotalLengthM: Number(bordaTotalLengthM.toFixed(2)),
+      alturaQuedaMediaM: bordaTotalLengthM > 0 ? Number((sumLenAlturaM / bordaTotalLengthM).toFixed(3)) : 0,
+      vazaoMediaLminPorM: bordaTotalLengthM > 0 ? Number((sumLenVazaoLmin / bordaTotalLengthM).toFixed(1)) : 0,
+      horasAtivaMediaDia: bordaTotalLengthM > 0 ? Number((sumLenHoras / bordaTotalLengthM).toFixed(1)) : 24,
+      areaSuperficieAbertaM2: Number(areaSuperficieAbertaM2.toFixed(2)),
+      volumeTermicoExtraM3,
     };
 
     // Ordena pra refletir a ordem das linhas no input.
     lineResults.sort((a, b) => a.index - b.index);
 
-    return { lines: lineResults, totals, master: masterLine ? master : null, avisos };
+    return { lines: lineResults, totals, master: masterLine ? master : null, avisos, heatingFeed };
   }
 }

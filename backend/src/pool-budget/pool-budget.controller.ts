@@ -550,6 +550,43 @@ export class PoolBudgetController {
   }
 
   @ApiOperation({
+    summary: 'Cadastrar (congelar) orçamento',
+    description: 'Finaliza o orçamento: congela edição + recálculo automático (totais/qty/heating/solar) e libera o PDF. Reversível via /unregister (Editar).',
+  })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/register')
+  register(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.register(id, user.companyId, user);
+  }
+
+  @ApiOperation({
+    summary: 'Editar (descongelar) orçamento cadastrado',
+    description: 'Libera o orçamento cadastrado para edição de novo (limpa frozenAt). As edições voltam a recalcular aplicando a lógica atual.',
+  })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/unregister')
+  unregister(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.unregister(id, user.companyId, user);
+  }
+
+  @ApiOperation({
+    summary: 'Duplica o orçamento',
+    description: 'Cria uma cópia fiel (mesmas dimensões/etapas/linhas/qty), ligada ao original (histórico). updatePrices=true refresca os preços com o catálogo atual; false mantém os do original. A cópia nasce como rascunho editável (descongelada).',
+  })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/duplicate')
+  duplicate(
+    @Param('id') id: string,
+    @Body() body: { title?: string; updatePrices?: boolean },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.duplicate(id, user.companyId, user, { title: body?.title, updatePrices: body?.updatePrices });
+  }
+
+  @ApiOperation({
     summary: 'Salva o orcamento atual como modelo (PoolBudgetTemplate)',
     description: 'Captura todos os items + impostos/desconto/garantias/forma pagamento. Se templateId enviado, ATUALIZA o modelo existente (sobrescreve items e defaults). Senao, cria novo.',
   })

@@ -269,7 +269,8 @@ export class ThermalDemandService {
     const inputs: ThermalDemandInputs = {
       heating: {
         areaM2: overrides?.areaPiscinaM2 ?? Number(dims.area) ?? 0,
-        volumeM3: overrides?.volumeM3 ?? Number(dims.volume) ?? 0,
+        // FASE 2 — volume a aquecer inclui a agua dos reservatorios da Borda Infinita.
+        volumeM3: overrides?.volumeM3 ?? ((Number(dims.volume) || 0) + (Number(dims.bordaVolumeExtraM3) || 0)),
         uf: uf as any,
         cidade: cidade ?? undefined,
         tempAguaDesejada: overrides?.tempAlvo ?? Number(env.temperaturaAguaDesejada) ?? 30,

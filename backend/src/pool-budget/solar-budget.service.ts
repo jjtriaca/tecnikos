@@ -237,11 +237,18 @@ export class SolarBudgetService {
     const env = (budget.environmentParams ?? {}) as Record<string, any>;
     const existingSolar = (env.solarOverride ?? {}) as Record<string, any>;
 
+    // CADASTRADO (congelado): devolve o solarReport cacheado sem recomputar/salvar — o
+    // dimensionamento solar fica imune a mudancas de feature ate o gestor clicar "Editar".
+    if (budget.frozenAt && env.solarReport) {
+      return env.solarReport as unknown as SolarReport;
+    }
+
     const params = {
       // v1.12.49: override de area/volume vindo do estado do formulario (sem persistir).
       // Permite operador testar dimensionamento sem precisar salvar o orcamento antes.
       areaPiscinaM2: overrides?.areaPiscinaM2 ?? (Number(dims.area) || 0),
-      volumeM3: overrides?.volumeM3 ?? (Number(dims.volume) || 0),
+      // FASE 2 — volume a aquecer inclui a agua dos reservatorios da Borda Infinita.
+      volumeM3: overrides?.volumeM3 ?? ((Number(dims.volume) || 0) + (Number(dims.bordaVolumeExtraM3) || 0)),
       tempDesejada: overrides?.tempDesejada ?? Number(env.temperaturaAguaDesejada) ?? 30,
       // v1.12.83: capa/vento agora aceitam override do form (antes era so env do banco,
       // que nao reflete mudancas nao salvas no formulario).
@@ -612,9 +619,12 @@ export class SolarBudgetService {
   ): Promise<{ solarOverride: any | null }> {
     const budget = await this.prisma.poolBudget.findFirst({
       where: { id: budgetId, companyId, deletedAt: null },
-      select: { environmentParams: true },
+      select: { environmentParams: true, frozenAt: true },
     });
     if (!budget) throw new NotFoundException('Orcamento nao encontrado');
+    if (budget.frozenAt) {
+      throw new BadRequestException('Orçamento cadastrado (congelado). Clique em "Editar" para alterar o dimensionamento solar.');
+    }
     const env = (budget.environmentParams ?? {}) as Record<string, any>;
     if (override === null) {
       delete env.solarOverride;

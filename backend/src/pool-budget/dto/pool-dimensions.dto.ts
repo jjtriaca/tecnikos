@@ -52,6 +52,16 @@ export class PoolDimensionsDto {
   volume?: number;
 
   @ApiPropertyOptional({
+    description:
+      'FASE 2 — água extra dos reservatórios da Borda Infinita (m³), gravada no salvar. ' +
+      'Somada ao volume nos cálculos de água (aquecimento/solar/fórmulas). Geométrico fica em `volume`.',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  bordaVolumeExtraM3?: number;
+
+  @ApiPropertyOptional({
     description: 'Área de azulejo/revestimento (m²)',
   })
   @IsOptional()

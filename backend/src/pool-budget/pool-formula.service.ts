@@ -55,7 +55,10 @@ export class PoolFormulaService {
 
     const area = dim.area ?? length * width;
     const perimeter = dim.perimeter ?? 2 * (length + width);
-    const volume = dim.volume ?? area * depth;
+    // FASE 2 — volume total inclui a água dos reservatórios da Borda Infinita (massa de
+    // água que também é tratada/aquecida). Geométrico = dim.volume; extra = bordaVolumeExtraM3.
+    const bordaExtra = Number(dim.bordaVolumeExtraM3) || 0;
+    const volume = (dim.volume ?? area * depth) + bordaExtra;
     const wallArea = dim.wallArea ?? perimeter * depth;
     const tileArea = dim.tileArea ?? wallArea + area; // paredes + fundo
 

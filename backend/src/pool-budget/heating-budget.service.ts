@@ -9,6 +9,7 @@
 import {
   Injectable,
   NotFoundException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,6 +17,7 @@ import { HeatingService, HeatingInputs, HeatingReport, TariffInput, ExtrasDetect
 import { UpsertEnergyTariffDto } from './dto/energy-tariff.dto';
 import { HEATING_OPERATION_DEFAULTS, UFCode, VentoLevel, TipoConstrucao, TipoPiscina, UtilizacaoAno, UtilizacaoSemana, CLIMATE_BY_UF, getExtraDefaultHorasSemana, ClimateCity } from './heating-constants';
 import { ClimateDataService } from './climate-data.service';
+import { BordaInfinitaService, BordaHeatingFeed } from './borda-infinita.service';
 
 const DEFAULT_TARIFF: TariffInput = {
   kwhBRLCents: 115, // R$ 1.15/kWh
@@ -45,7 +47,26 @@ export class HeatingBudgetService {
     private readonly prisma: PrismaService,
     private readonly heating: HeatingService,
     private readonly climateData: ClimateDataService,
+    private readonly bordaInfinita: BordaInfinitaService,
   ) {}
+
+  /**
+   * Resumo da Borda Infinita (FASE 2) pro Simulador de Aquecimento, a partir das
+   * linhas salvas em poolDimensions.bordaInfinita[]. Retorna null se nao ha borda.
+   * Reusa o BordaInfinitaService (mesmo motor da secao inline) — single source of truth.
+   */
+  private computeBordaHeatingFeed(dims: Record<string, any>): BordaHeatingFeed | null {
+    const lines = Array.isArray(dims.bordaInfinita) ? dims.bordaInfinita : [];
+    if (lines.length === 0) return null;
+    const report = this.bordaInfinita.compute({
+      poolAreaM2: Number(dims.area) || 0,
+      poolVolumeM3: Number(dims.volume) || undefined,
+      nBathers: dims.bordaInfinitaBathers != null ? Number(dims.bordaInfinitaBathers) : undefined,
+      surgeFactor: dims.bordaInfinitaSurge != null ? Number(dims.bordaInfinitaSurge) : undefined,
+      lines,
+    });
+    return report.heatingFeed;
+  }
 
   /**
    * Constroi ClimateCity a partir do banco (ClimateData) pra passar como override
@@ -155,9 +176,13 @@ export class HeatingBudgetService {
   ): Promise<HeatingReport> {
     const budget = await this.prisma.poolBudget.findFirst({
       where: { id: budgetId, companyId, deletedAt: null },
-      select: { environmentParams: true },
+      select: { environmentParams: true, frozenAt: true },
     });
     if (!budget) throw new NotFoundException('Orcamento nao encontrado');
+    // CADASTRADO (congelado): nao troca equipamento no simulador (mudaria a linha auto-select).
+    if (budget.frozenAt) {
+      throw new BadRequestException('Orçamento cadastrado (congelado). Clique em "Editar" para alterar o equipamento.');
+    }
 
     const env = (budget.environmentParams ?? {}) as Record<string, any>;
     const newEnv = { ...env };
@@ -316,13 +341,21 @@ export class HeatingBudgetService {
     });
     if (!budget) throw new NotFoundException('Orcamento nao encontrado');
 
+    // CADASTRADO (congelado): devolve o report cacheado sem recomputar/salvar — os numeros
+    // do aquecimento ficam imunes a mudancas de feature ate o gestor clicar "Editar".
+    if (budget.frozenAt && budget.heatingReport) {
+      return budget.heatingReport as unknown as HeatingReport;
+    }
+
     // Agrega extras dos produtos vinculados nas linhas das etapas (F6.2):
     // - Hidromassagens (sum qty × qtdJatos)
     // - Cascata (sum qty × cascataComprimentoCm)
     // - Borda infinita (sum qty + specs do primeiro produto)
     const aggregated = this.aggregateExtrasFromItems(budget.items as any);
+    // FASE 2 — Sistema de Borda Infinita (multi-linha): alimenta evaporacao + volume.
+    const bordaFeed = this.computeBordaHeatingFeed((budget.poolDimensions ?? {}) as Record<string, any>);
 
-    const inputs = this.extractInputs(budget, aggregated);
+    const inputs = this.extractInputs(budget, aggregated, bordaFeed);
     // Fase 3: override climatico vem do banco (ClimateData)
     inputs.climateOverride = await this.buildClimateOverride(companyId, inputs.uf, inputs.cidade);
     const tariff = await this.getEnergyTariff(companyId);
@@ -362,6 +395,13 @@ export class HeatingBudgetService {
     // Status dos extras (cascata/hidromassagem/borda) com mensagens user-friendly +
     // impactKw (contribuicao individual no calor necessario)
     report.extrasDetected = this.buildExtrasDetected(aggregated, inputs.tipoPiscina, inputs, report);
+
+    // FASE 2 — transparencia do volume: quanto a borda somou no volume a aquecer
+    // (inputs.volumeM3 ja eh o TOTAL piscina+borda; o front mostra a quebra).
+    if (bordaFeed) {
+      report.bordaVolumeExtraM3 = bordaFeed.volumeTermicoExtraM3;
+      report.bordaSuperficieAbertaM2 = bordaFeed.areaSuperficieAbertaM2;
+    }
 
     await this.prisma.poolBudget.update({
       where: { id: budgetId },
@@ -546,16 +586,24 @@ export class HeatingBudgetService {
   private extractInputs(
     budget: { poolDimensions: any; environmentParams: any },
     aggregated?: AggregatedExtras,
+    bordaFeed?: BordaHeatingFeed | null,
   ): HeatingInputs {
     const dims = (budget.poolDimensions ?? {}) as Record<string, any>;
     const env = (budget.environmentParams ?? {}) as Record<string, any>;
 
     const areaM2 = Number(dims.area ?? 0);
-    const volumeM3 = Number(dims.volume ?? 0);
+    const volumeBasinM3 = Number(dims.volume ?? 0);
 
-    if (!areaM2 || !volumeM3) {
+    if (!areaM2 || !volumeBasinM3) {
       throw new NotFoundException('Dimensoes da piscina (area, volume) nao definidas');
     }
+
+    // FASE 2 — Sistema de Borda Infinita multi-linha tem prioridade sobre o campo escalar
+    // legado (environmentParams.bordaInfinita*). Volume a aquecer = piscina + agua dos
+    // reservatorios da borda (massa termica extra -> tempo/energia de aquecimento sobem).
+    const hasBordaSystem = !!bordaFeed && bordaFeed.bordaTotalLengthM > 0;
+    const bordaVolumeExtraM3 = bordaFeed?.volumeTermicoExtraM3 ?? 0;
+    const volumeM3 = Number((volumeBasinM3 + bordaVolumeExtraM3).toFixed(3));
 
     const uf = this.parseUF(env.uf);
     const cidade = typeof env.cidade === 'string' ? env.cidade : undefined;
@@ -563,15 +611,26 @@ export class HeatingBudgetService {
     // Extras: prioridade linhas (aggregated) > env (manual) > 0
     const hidromassagensQtd = aggregated?.hidromassagensQtd ?? (Number(env.hidromassagensQtd) || 0);
     const cascataLarguraCm = aggregated?.cascataLarguraCm ?? (Number(env.cascataLarguraCm) || 0);
-    const bordaInfinitaM = aggregated?.bordaInfinitaM ?? (Number(env.bordaInfinitaM) || 0);
+    const bordaInfinitaM = hasBordaSystem
+      ? bordaFeed!.bordaTotalLengthM
+      : (aggregated?.bordaInfinitaM ?? (Number(env.bordaInfinitaM) || 0));
     // Horas/semana — env-only por enquanto (linhas nao agregam essa info ainda).
     // Default tratado dentro de heating.service quando undefined.
     const cascataHorasSemana = env.cascataHorasSemana != null ? Number(env.cascataHorasSemana) : undefined;
     const hidromassagemHorasSemana = env.hidromassagemHorasSemana != null ? Number(env.hidromassagemHorasSemana) : undefined;
-    // Borda specs (altura/vazao/horas): linhas > env > defaults do constants
-    const bordaInfinitaAlturaM = aggregated?.bordaInfinitaAlturaM ?? (Number(env.bordaInfinitaAlturaM) || undefined);
-    const bordaInfinitaVazaoLminPorM = aggregated?.bordaInfinitaVazaoLminPorM ?? (Number(env.bordaInfinitaVazaoLminPorM) || undefined);
-    const bordaInfinitaHorasAtivaDia = aggregated?.bordaInfinitaHorasAtivaDia ?? (Number(env.bordaInfinitaHorasAtivaDia) || undefined);
+    // Borda specs (altura/vazao/horas): sistema multi-linha > linhas das etapas > env > defaults.
+    // No sistema multi-linha, sao medias ponderadas por comprimento das bordas (heatingFeed).
+    const bordaInfinitaAlturaM = hasBordaSystem
+      ? bordaFeed!.alturaQuedaMediaM
+      : (aggregated?.bordaInfinitaAlturaM ?? (Number(env.bordaInfinitaAlturaM) || undefined));
+    const bordaInfinitaVazaoLminPorM = hasBordaSystem
+      ? bordaFeed!.vazaoMediaLminPorM
+      : (aggregated?.bordaInfinitaVazaoLminPorM ?? (Number(env.bordaInfinitaVazaoLminPorM) || undefined));
+    const bordaInfinitaHorasAtivaDia = hasBordaSystem
+      ? bordaFeed!.horasAtivaMediaDia
+      : (aggregated?.bordaInfinitaHorasAtivaDia ?? (Number(env.bordaInfinitaHorasAtivaDia) || undefined));
+    // Superficie aberta dos reservatorios (so no sistema multi-linha) — evapora como agua parada.
+    const bordaSuperficieAbertaM2 = hasBordaSystem ? bordaFeed!.areaSuperficieAbertaM2 : 0;
 
     return {
       areaM2,
@@ -594,6 +653,7 @@ export class HeatingBudgetService {
       bordaInfinitaAlturaM,
       bordaInfinitaVazaoLminPorM,
       bordaInfinitaHorasAtivaDia,
+      bordaSuperficieAbertaM2,
       horasFuncionamentoDia: Number(env.horasFuncionamentoDia) || HEATING_OPERATION_DEFAULTS.hoursPerDay,
       taxaFuncionamento: Number(env.taxaFuncionamento) || HEATING_OPERATION_DEFAULTS.taxaFuncionamento,
     };
