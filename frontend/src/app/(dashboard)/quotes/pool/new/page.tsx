@@ -908,6 +908,8 @@ export default function NewPoolBudgetPage() {
           </div>
         </div>
 
+        <CentralAvisos avisos={avisos} />
+
         <div className="flex items-center gap-3">
           <button
             type="submit"

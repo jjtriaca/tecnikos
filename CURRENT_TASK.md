@@ -1,6 +1,6 @@
 # TAREFA ATUAL
 
-## Prod: v1.13.03 (alinhado local == prod). Sessao 216 — Sistema de Borda Infinita FASE 1 NO AR (secao inline colapsavel, tela de EDICAO).
+## Prod: v1.13.05 (alinhado local == prod). Sessao 216 — Sistema de Borda Infinita FASE 1 NO AR + Central de Avisos.
 
 ## CONCLUIDO na sessao 215 (Aba Bomba de Calor — clone visual da Solar)
 - ✅ **A** (v1.12.96) vazao min/max no cadastro Bomba de Calor.
@@ -15,7 +15,7 @@
   fria, vs MT-generico/Cuiaba; extras cascata/SPA), NAO bug. Formula validada. Usuario confirmou mudando vento.
 - Auto-selecao bomba: filtrar por TIPO (poolType "Bomba de calor"), nao so descricao (produtos Tholz = "Trocador").
 
-## FRENTE ATUAL: SISTEMA DE BORDA INFINITA — FASE 1 DEPLOYED em prod (v1.13.03) (sessao 216)
+## FRENTE ATUAL: SISTEMA DE BORDA INFINITA — FASE 1 NO AR (v1.13.05) + Central de Avisos (sessao 216)
 **Plano completo:** [memory/plano_sistema_borda_infinita.md](memory/plano_sistema_borda_infinita.md)
 Multi-linha no orcamento (estilo "Dimensoes"): linhas MASTER/SLAVE; captacao = reservatorio OU canaleta+ralos;
 caimento = desnivel/comprimento; curvas roubam caimento; topologia estrela. Objetivo: numeros prontos -> FASE 2 (aquecimento).
@@ -29,10 +29,8 @@ Checklist FASE 1:
 - ✅ **`borda-infinita.service.ts`** (orquestrador: compoe gravity+reservoir; 3 modos de captacao + totais) + `dto/borda-infinita-simulate.dto.ts` + endpoint **`POST /pool-budgets/borda-infinita/simulate`** + registrado no module. Typecheck OK + smoke-test 4 cenarios (reservatorio/DIRETO/curvas/master BAIXO) VERDE.
 - ✅ Storage: `poolDimensions.bordaInfinita[]` (JSON livre — salvo JUNTO com o form da tela de edicao; sem model Prisma, sem migration).
 - ✅ Frontend: `components/pool/BordaInfinitaSection.tsx` — SECAO INLINE COLAPSAVEL (controlada: lines + onChange -> salva no form; campos COMPACTOS; cabecalho ▶/▼ com resumo + selo "volume master baixo"; calculo ao vivo). Logo abaixo das dimensoes na **tela de EDICAO** `quotes/pool/new?edit=`. Removida da tela de detalhe `[id]`. Borda ANTIGA escalar ("TEM BORDA INFINITA?") REMOVIDA da UI (campos environmentParams.bordaInfinita* mantidos no submit pra nao perder orcamento antigo).
-- ✅ DEPLOY **v1.12.99** (01/06) — 1a versao. Backend e2e via curl com token (DN150, master OK). Bug de foco no modal (componentes aninhados) corrigido ANTES do deploy.
-- ✅ DEPLOY **v1.13.01** (01/06) — placement fix: sistema movido pra tela de EDICAO (estava na de detalhe, lugar errado); modal virou controlado.
-- ✅ DEPLOY **v1.13.02** (01/06) — modal -> SECAO INLINE colapsavel (campos compactos, igual tabela Dimensoes) + removida a borda antiga escalar. Net -134 linhas.
-- ✅ DEPLOY **v1.13.03** (01/06) — campos maiores + "?" HelpHint em cada campo (Filme traz padrao 3-7mm/6mm). Master: opcao "Cisterna pronta (plastica)" (sem dims -> so recomenda volume) + sugestao de COMPLEMENTAR com cisterna plastica quando o reservatorio nao atinge o volume. Backend: masterCisternaPronta no DTO + orquestrador.
+- ✅ Iteracoes UI+features (v1.12.99 -> v1.13.05, 01-02/06): modal -> SECAO INLINE colapsavel estilo Excel (celulas/gridlines, flex-nowrap+scroll); "?" HelpHint por campo; dropdowns (Tipo master / Captacao / Superficie); **SURGE** (drenagem=transbordo×fator default 2× -> dimensiona ralos+tubo, NAO o filme estavel); **RALOS** sugeridos (grelha escoa < tubo aberto: min vertedor/orificio); **MULTIPLOS tubos** (N× DN); **cisterna pronta** com VOLUME informado+validado; **altura de queda em CM** (>140cm avisa); banners de erro VERMELHOS.
+- ✅ **Central de Avisos** (v1.13.05): `components/pool/CentralAvisos.tsx` + `validatePage` em new/page.tsx. Painel no topo agrega erros/avisos de Geral/Dimensoes/Aquecimento/Borda; 🔴 erro / 🟡 aviso; clica -> pula pra secao; CONFIRMA no salvar se ha erro. Reusavel/expansivel pra outros cadastros.
 - ⬜ FASE 2 (RECOMENDADO ASAP): integrar volume/evaporacao no Simulador de Aquecimento (religar do `bordaInfinita[]` novo). **Aquecimento esta SEM efeito de borda agora** (UI antiga removida, nova ainda nao plugada no heating). Numeros ja prontos no report (volumeTermicoExtraM3 / areaEvaporacaoExtraM2).
 - ⚠ PENDENTE validar a TELA em prod (modulo Piscina = teste em prod; preview local nao renderiza tela de tenant).
 
