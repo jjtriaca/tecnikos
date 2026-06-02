@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import PartnerCombobox from "@/components/PartnerCombobox";
-import { BordaInfinitaModal, type BordaLine } from "@/components/pool/BordaInfinitaModal";
+import { BordaInfinitaSection, type BordaLine } from "@/components/pool/BordaInfinitaSection";
 
 type Partner = { id: string; name: string; document?: string | null; phone?: string | null; city?: string | null; state?: string | null };
 type Template = { id: string; name: string; isDefault: boolean };
@@ -21,7 +21,6 @@ export default function NewPoolBudgetPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [layouts, setLayouts] = useState<Layout[]>([]);
   const [saving, setSaving] = useState(false);
-  const [showBorda, setShowBorda] = useState(false);
   // Cliente selecionado (objeto completo) — pra mostrar dados na tela e auto-preencher solicitante/titulo
   const [client, setClient] = useState<Partner | null>(null);
   const [form, setForm] = useState({
@@ -682,31 +681,13 @@ export default function NewPoolBudgetPage() {
 
         </div>
 
-        {/* Sistema de Borda Infinita — logo abaixo das dimensoes */}
-        <button
-          type="button"
-          onClick={() => setShowBorda(true)}
-          className="flex w-full items-center justify-between rounded-xl border border-sky-200 bg-gradient-to-r from-sky-50 to-cyan-50 px-5 py-3 text-left shadow-sm transition hover:border-sky-400 hover:shadow"
-        >
-          <span className="flex flex-wrap items-center gap-x-2 text-sm font-semibold text-sky-800">
-            🌊 Sistema de Borda Infinita
-            <span className="text-[11px] font-normal text-sky-600/70">
-              {form.bordaInfinita && form.bordaInfinita.length > 0
-                ? `${form.bordaInfinita.length} linha(s) — tubo + reservatorios + alerta de volume`
-                : "dimensionar bordas, reservatorios e tubulacao de gravidade (Manning)"}
-            </span>
-          </span>
-          <span className="text-sky-500">›</span>
-        </button>
-
-        <BordaInfinitaModal
-          open={showBorda}
-          onClose={() => setShowBorda(false)}
+        {/* Sistema de Borda Infinita — secao inline, logo abaixo das dimensoes */}
+        <BordaInfinitaSection
           poolAreaM2={totals.area}
           poolVolumeM3={totals.volume}
-          initialLines={form.bordaInfinita}
-          initialBathers={form.bordaInfinitaBathers}
-          onSave={(lines, bathers) => { setForm({ ...form, bordaInfinita: lines, bordaInfinitaBathers: bathers }); toast("Borda infinita aplicada — clique em Salvar pra gravar no orcamento", "success"); }}
+          lines={form.bordaInfinita}
+          bathers={form.bordaInfinitaBathers}
+          onChange={(lines, bathers) => setForm({ ...form, bordaInfinita: lines, bordaInfinitaBathers: bathers })}
         />
 
         {/* Parametros de aquecimento — Simulador de Aquecimento (F6.1) */}
@@ -818,45 +799,11 @@ export default function NewPoolBudgetPage() {
             </div>
           </div>
 
-          {/* === Borda Infinita === */}
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.temBordaInfinita}
-                onChange={(e) => setForm({ ...form, temBordaInfinita: e.target.checked })}
-                className="rounded border-slate-300 text-cyan-600" />
-              <span className="text-[11px] font-semibold text-slate-700 uppercase">💧 Tem borda infinita?</span>
-            </label>
-            {form.temBordaInfinita && (
-              <>
-                <div className="mt-3 grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[10px] text-slate-500 mb-1">Altura queda (m)</label>
-                    <input type="number" step="0.05" min="0.05" max="3" value={form.bordaInfinitaAlturaM}
-                      onChange={(e) => setForm({ ...form, bordaInfinitaAlturaM: parseFloat(e.target.value) || 0.5 })}
-                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                    <div className="text-[9px] text-slate-500 mt-0.5">Canaleta=0.1, cascata pequena=0.5</div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-500 mb-1">Vazao (L/min por metro)</label>
-                    <input type="number" step="5" min="5" max="120" value={form.bordaInfinitaVazaoLminPorM}
-                      onChange={(e) => setForm({ ...form, bordaInfinitaVazaoLminPorM: parseFloat(e.target.value) || 30 })}
-                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                    <div className="text-[9px] text-slate-500 mt-0.5">Tipico 20-40 (bomba 0.5cv)</div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-500 mb-1">Horas/dia ativa</label>
-                    <input type="number" step="1" min="0" max="24" value={form.bordaInfinitaHorasAtivaDia}
-                      onChange={(e) => setForm({ ...form, bordaInfinitaHorasAtivaDia: parseFloat(e.target.value) || 24 })}
-                      className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                    <div className="text-[9px] text-slate-500 mt-0.5">24=sempre. Reduza se bomba desliga</div>
-                  </div>
-                </div>
-                <div className="mt-2 text-[10px] text-slate-500">
-                  Comprimento total da borda = soma das linhas com produto tipo "Borda Infinita" das etapas (configurar nos itens do orcamento).
-                </div>
-              </>
-            )}
-          </div>
+          {/* Borda infinita ANTIGA (escalar) removida v1.13.x — substituida pela secao
+              "Sistema de Borda Infinita" inline (acima das dimensoes -> heating). Campos
+              environmentParams.bordaInfinita* do form sao mantidos (submit) so pra nao
+              perder dados de orcamentos antigos; serao aposentados na FASE 2 (quando o
+              novo sistema alimentar o aquecimento). */}
 
           {/* === Salvar como padrao === */}
           <div className="flex justify-end">

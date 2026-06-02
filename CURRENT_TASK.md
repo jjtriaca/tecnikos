@@ -1,6 +1,6 @@
 # TAREFA ATUAL
 
-## Prod: v1.12.99 (alinhado local == prod). Sessao 216 — Sistema de Borda Infinita FASE 1 NO AR.
+## Prod: v1.13.01 (alinhado local == prod). Sessao 216 — Sistema de Borda Infinita FASE 1 NO AR (tela de EDICAO).
 
 ## CONCLUIDO na sessao 215 (Aba Bomba de Calor — clone visual da Solar)
 - ✅ **A** (v1.12.96) vazao min/max no cadastro Bomba de Calor.
@@ -15,7 +15,7 @@
   fria, vs MT-generico/Cuiaba; extras cascata/SPA), NAO bug. Formula validada. Usuario confirmou mudando vento.
 - Auto-selecao bomba: filtrar por TIPO (poolType "Bomba de calor"), nao so descricao (produtos Tholz = "Trocador").
 
-## FRENTE ATUAL: SISTEMA DE BORDA INFINITA — FASE 1 DEPLOYED em prod (v1.12.99) (sessao 216)
+## FRENTE ATUAL: SISTEMA DE BORDA INFINITA — FASE 1 DEPLOYED em prod (v1.13.01) (sessao 216)
 **Plano completo:** [memory/plano_sistema_borda_infinita.md](memory/plano_sistema_borda_infinita.md)
 Multi-linha no orcamento (estilo "Dimensoes"): linhas MASTER/SLAVE; captacao = reservatorio OU canaleta+ralos;
 caimento = desnivel/comprimento; curvas roubam caimento; topologia estrela. Objetivo: numeros prontos -> FASE 2 (aquecimento).
@@ -27,9 +27,10 @@ Checklist FASE 1:
   parcial + `sizeGravityPipe` (dimensiona DN). VERIFICADO numericamente (meio-cheio=0,5×cheio; 8m->DN150).
 - ✅ **`reservoir-volume.service.ts`**: volume do master (surge + banhistas + 450 L/m) + ALERTA (bomba puxa direto -> cavitacao/transbordo se baixo). VERIFICADO (4×8 -> rec 3,6 / min 1,6 m³).
 - ✅ **`borda-infinita.service.ts`** (orquestrador: compoe gravity+reservoir; 3 modos de captacao + totais) + `dto/borda-infinita-simulate.dto.ts` + endpoint **`POST /pool-budgets/borda-infinita/simulate`** + registrado no module. Typecheck OK + smoke-test 4 cenarios (reservatorio/DIRETO/curvas/master BAIXO) VERDE.
-- ✅ Storage: `poolDimensions.bordaInfinita[]` (JSON livre — modal salva via PUT /pool-budgets/:id; sem model Prisma, sem migration).
-- ✅ Frontend: `components/pool/BordaInfinitaModal.tsx` (multi-linha, calculo ao vivo, alerta do master) + gatilho "🌊 Sistema de Borda Infinita" logo abaixo do bloco de Dimensoes em `quotes/pool/[id]`. (Campo antigo `environmentParams.bordaInfinitaM` MANTIDO ate FASE 2.)
-- ✅ DEPLOY **v1.12.99** (01/06) — health OK. O `next build` no servidor validou TS limpo (rota /quotes/pool/[id]); backend validado e2e via curl com token. Bug de foco no modal (componentes aninhados) pego na revisao e corrigido ANTES do deploy.
+- ✅ Storage: `poolDimensions.bordaInfinita[]` (JSON livre — salvo JUNTO com o form da tela de edicao; sem model Prisma, sem migration).
+- ✅ Frontend: `components/pool/BordaInfinitaModal.tsx` modal CONTROLADO (lines + onSave; calculo ao vivo; alerta do master) + gatilho "🌊 Sistema de Borda Infinita" logo abaixo das dimensoes na **tela de EDICAO** `quotes/pool/new?edit=` (integrado ao form). Removido da tela de detalhe `[id]` (v1.13.01, a pedido do usuario). (Campo antigo `environmentParams.bordaInfinitaM` MANTIDO ate FASE 2.)
+- ✅ DEPLOY **v1.12.99** (01/06) — 1a versao. Backend e2e via curl com token (DN150, master OK). Bug de foco no modal (componentes aninhados) corrigido ANTES do deploy.
+- ✅ DEPLOY **v1.13.01** (01/06) — placement fix: sistema movido pra tela de EDICAO (estava na de detalhe, lugar errado); modal virou controlado. next build no servidor = TS limpo.
 - ⬜ FASE 2: integrar volume/evaporacao no Simulador de Aquecimento (religar do `bordaInfinita[]` novo; aposentar `bordaInfinitaM`).
 - ⚠ PENDENTE validar a TELA em prod (modulo Piscina = teste em prod; preview local nao renderiza tela de tenant).
 
