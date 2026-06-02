@@ -91,8 +91,9 @@ features" (ex: a propria FASE 2 mudando preco de orcamentos ja finalizados).
   (`Math.round(v*100)/100`) — sumiu o "57,52000000" / "59,2679". Valor preciso continua no calculo.
 
 ## PENDENTE
-- 🔴 **DEPLOY das 3 frentes** (FASE 2 + Cadastrar + decimais) — usuario pede pra perguntar antes — ver [[feedback_perguntar_antes_deploy]].
-- 🟡 **PDF do orcamento** (render + botao Imprimir) — proxima frente (Cadastrar ja libera o gatilho).
+- ✅ **DEPLOYED v1.13.08** (02/06/2026) — as 4 frentes (FASE 2 + Cadastrar/Editar + Duplicar + decimais) no ar; migration frozenAt aplicada + sincronizada nos tenants. /health confirmado.
+- 🟡 **PDF do orcamento** (render + botao Imprimir) — PROXIMA FRENTE (Cadastrar ja libera o gatilho; layout dinamico = feature futura, so apos todas as etapas em dia).
+- 🟡 Auditoria responsividade mobile (system-wide, herdada).
 - 🟡 Placeholder `{poolVolume}` de layout de impressao CUSTOM ainda usa volume geometrico (nicho, opt-in).
 - 🟡 Calculo-rapido (simulate) do aquecimento e o sandbox manual usam ainda o campo escalar antigo (hipotetico).
 - 🟡 Auditoria responsividade mobile (pendencia system-wide herdada).

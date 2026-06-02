@@ -18,6 +18,7 @@ import { UpsertEnergyTariffDto } from './dto/energy-tariff.dto';
 import { HEATING_OPERATION_DEFAULTS, UFCode, VentoLevel, TipoConstrucao, TipoPiscina, UtilizacaoAno, UtilizacaoSemana, CLIMATE_BY_UF, getExtraDefaultHorasSemana, ClimateCity } from './heating-constants';
 import { ClimateDataService } from './climate-data.service';
 import { BordaInfinitaService, BordaHeatingFeed } from './borda-infinita.service';
+import { BordaHeatingDemandDto } from './dto/borda-infinita-simulate.dto';
 
 const DEFAULT_TARIFF: TariffInput = {
   kwhBRLCents: 115, // R$ 1.15/kWh
@@ -554,6 +555,83 @@ export class HeatingBudgetService {
     // Fase 3: override climatico vem do banco
     inputs.climateOverride = await this.buildClimateOverride(companyId, inputs.uf, inputs.cidade);
     return this.heating.computeReport(inputs, { candidates, tariff });
+  }
+
+  /**
+   * Previa AO VIVO da demanda termica (kcal/h) COM vs SEM a borda, pro card "Calorias
+   * necessarias" na secao de borda do editor. Computa o calor necessario com a borda
+   * (volume + lamina + superficie aberta) e sem, pra o operador VER o impacto ao mudar
+   * altura/filme/dimensoes da canaleta. NAO toca no banco (so le clima). Reusa o motor.
+   */
+  async computeBordaDemandPreview(companyId: string, dto: BordaHeatingDemandDto): Promise<{
+    comBordaKcalH: number; semBordaKcalH: number; deltaKcalH: number;
+    comBordaKw: number; semBordaKw: number;
+    volumeTermicoExtraM3: number; areaEvaporacaoExtraM2: number; areaSuperficieAbertaM2: number;
+    bordaTotalLengthM: number;
+  }> {
+    const areaM2 = Number(dto.poolAreaM2) || 0;
+    const volumeBasinM3 = Number(dto.poolVolumeM3) || 0;
+    const lines = Array.isArray(dto.lines) ? dto.lines : [];
+
+    const bordaReport = this.bordaInfinita.compute({
+      poolAreaM2: areaM2,
+      poolVolumeM3: volumeBasinM3 || undefined,
+      nBathers: dto.nBathers,
+      surgeFactor: dto.surgeFactor,
+      lines,
+    });
+    const feed = bordaReport.heatingFeed;
+    const baseOut = {
+      volumeTermicoExtraM3: feed.volumeTermicoExtraM3,
+      areaEvaporacaoExtraM2: bordaReport.totals.areaEvaporacaoExtraM2,
+      areaSuperficieAbertaM2: feed.areaSuperficieAbertaM2,
+      bordaTotalLengthM: feed.bordaTotalLengthM,
+    };
+
+    // Sem dimensoes validas nao da pra computar a demanda termica.
+    if (!areaM2 || !volumeBasinM3) {
+      return { comBordaKcalH: 0, semBordaKcalH: 0, deltaKcalH: 0, comBordaKw: 0, semBordaKw: 0, ...baseOut };
+    }
+
+    const uf = this.parseUF(dto.uf);
+    const cidade = typeof dto.cidade === 'string' && dto.cidade.trim() ? dto.cidade : undefined;
+    const climateOverride = await this.buildClimateOverride(companyId, uf, cidade);
+
+    const base: HeatingInputs = {
+      areaM2,
+      volumeM3: volumeBasinM3,
+      uf,
+      cidade,
+      tempAguaDesejada: Number(dto.tempAlvo) || 30,
+      tempAguaInicial: typeof dto.tempInicial === 'number' ? dto.tempInicial : undefined,
+      vento: this.parseVento(dto.vento),
+      tipoConstrucao: this.parseTipoConstrucao(dto.tipoConstrucao),
+      tipoPiscina: this.parseTipoPiscina(dto.tipoPiscina),
+      capaTermica: this.parseBoolean(dto.capa),
+      utilizacaoAno: this.parseUtilizacaoAno(dto.utilizacaoAno),
+      utilizacaoSemana: this.parseUtilizacaoSemana(dto.utilizacaoSemana),
+      climateOverride,
+    };
+
+    const semReport = this.heating.computeReport(base);
+    const comReport = this.heating.computeReport({
+      ...base,
+      volumeM3: Number((volumeBasinM3 + feed.volumeTermicoExtraM3).toFixed(3)),
+      bordaInfinitaM: feed.bordaTotalLengthM,
+      bordaInfinitaAlturaM: feed.alturaQuedaMediaM,
+      bordaInfinitaVazaoLminPorM: feed.vazaoMediaLminPorM,
+      bordaInfinitaHorasAtivaDia: feed.horasAtivaMediaDia,
+      bordaSuperficieAbertaM2: feed.areaSuperficieAbertaM2,
+    });
+
+    return {
+      comBordaKcalH: comReport.calorNecessarioKcalH,
+      semBordaKcalH: semReport.calorNecessarioKcalH,
+      deltaKcalH: comReport.calorNecessarioKcalH - semReport.calorNecessarioKcalH,
+      comBordaKw: comReport.qtotalMaxKw,
+      semBordaKw: semReport.qtotalMaxKw,
+      ...baseOut,
+    };
   }
 
   /**

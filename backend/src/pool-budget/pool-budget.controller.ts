@@ -31,7 +31,7 @@ import { CreateBudgetItemDto, UpdateBudgetItemDto } from './dto/budget-item.dto'
 import { HeatingSimulateDto } from './dto/heating-simulate.dto';
 import { SolarSimulateDto, SolarRecomputeDto } from './dto/solar-simulate.dto';
 import { CreateSolarRuleDto, UpdateSolarRuleDto } from './dto/solar-rule.dto';
-import { BordaInfinitaSimulateDto } from './dto/borda-infinita-simulate.dto';
+import { BordaInfinitaSimulateDto, BordaHeatingDemandDto } from './dto/borda-infinita-simulate.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -85,6 +85,13 @@ export class PoolBudgetController {
   @Post('borda-infinita/simulate')
   simulateBordaInfinita(@Body() dto: BordaInfinitaSimulateDto) {
     return this.bordaInfinita.compute(dto);
+  }
+
+  @ApiOperation({ summary: 'Borda Infinita — previa AO VIVO da demanda termica (kcal/h) COM vs SEM a borda (card de calorias necessarias)' })
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post('borda-infinita/heating-demand')
+  bordaHeatingDemand(@Body() dto: BordaHeatingDemandDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.heatingBudget.computeBordaDemandPreview(user.companyId, dto);
   }
 
   @ApiOperation({ summary: 'Lista candidatos disponiveis (Bomba de Calor/Aquecedor) pra dropdown' })

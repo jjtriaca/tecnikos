@@ -5,6 +5,7 @@ import {
   IsIn,
   IsNumber,
   IsOptional,
+  IsString,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -37,6 +38,7 @@ export class BordaLineDto {
 
   // captacao = CANALETA (com ralos, sem volume relevante)
   @IsOptional() @IsNumber() @Min(0) canaletaComprM?: number;
+  @IsOptional() @IsNumber() @Min(0) canaletaLargM?: number; // largura da canaleta (m) -> area de evaporacao quando aberta
   @IsOptional() @IsNumber() @Min(0) ralosQty?: number;
   @IsOptional() @IsNumber() @Min(0) raloDiamMm?: number;
   @IsOptional() @IsBoolean() canaletaAberta?: boolean;
@@ -64,6 +66,36 @@ export class BordaInfinitaSimulateDto {
   @IsOptional() @IsNumber() @Min(0) fillTargetRatio?: number; // enchimento alvo do tubo (default 0.5)
   @IsOptional() @IsNumber() @Min(0) manningN?: number; // override raro de rugosidade
   @IsOptional() @IsNumber() @Min(1) surgeFactor?: number; // fator de surge (ondas/banhistas) sobre a recirculacao pra dimensionar drenagem (default 2)
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => BordaLineDto)
+  lines!: BordaLineDto[];
+}
+
+/**
+ * Previa AO VIVO da demanda termica (kcal/h) com vs sem a borda — alimenta o card
+ * "Calorias necessarias" na secao de borda do editor. Recebe o contexto de aquecimento
+ * do formulario (clima/temps/capa/vento) + as linhas, e devolve o calor necessario
+ * com a borda e sem, pra o operador VER o impacto ao mudar os parametros.
+ */
+export class BordaHeatingDemandDto {
+  @IsNumber() @Min(0) poolAreaM2!: number;
+  @IsOptional() @IsNumber() @Min(0) poolVolumeM3?: number;
+  @IsOptional() @IsNumber() @Min(0) nBathers?: number;
+  @IsOptional() @IsNumber() @Min(1) surgeFactor?: number;
+
+  // Contexto de aquecimento (espelha o formulario do editor)
+  @IsOptional() @IsString() uf?: string;
+  @IsOptional() @IsString() cidade?: string;
+  @IsOptional() @IsNumber() tempAlvo?: number;
+  @IsOptional() @IsNumber() tempInicial?: number;
+  @IsOptional() @IsBoolean() capa?: boolean;
+  @IsOptional() @IsString() vento?: string;
+  @IsOptional() @IsString() tipoConstrucao?: string;
+  @IsOptional() @IsString() tipoPiscina?: string;
+  @IsOptional() @IsString() utilizacaoAno?: string;
+  @IsOptional() @IsString() utilizacaoSemana?: string;
 
   @IsArray()
   @ValidateNested({ each: true })

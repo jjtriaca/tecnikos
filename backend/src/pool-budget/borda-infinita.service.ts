@@ -231,9 +231,9 @@ export class BordaInfinitaService {
         raloCapacidadeM3h = this.raloCapacityM3h(raloDiam);
         ralosSugeridos = raloCapacidadeM3h > 0 ? Math.max(1, Math.ceil((drenagemDesignM3h ?? transbordoM3h) / raloCapacidadeM3h)) : 1;
         if (line.canaletaAberta && line.canaletaComprM) {
-          evaporaSuperficieM2 = Number(
-            (line.canaletaComprM * BORDA_TRANSBORDO.CANALETA_WIDTH_DEFAULT_M).toFixed(2),
-          );
+          // Area da canaleta aberta que evapora = comprimento × largura (informada OU default).
+          const canalLarg = line.canaletaLargM && line.canaletaLargM > 0 ? line.canaletaLargM : BORDA_TRANSBORDO.CANALETA_WIDTH_DEFAULT_M;
+          evaporaSuperficieM2 = Number((line.canaletaComprM * canalLarg).toFixed(2));
           areaSuperficieAbertaM2 += evaporaSuperficieM2;
         }
         tubo = this.gravity.sizeGravityPipe({

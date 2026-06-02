@@ -26,6 +26,7 @@ export interface BordaLine {
   reservProfM?: number;
   reservAberto?: boolean;
   canaletaComprM?: number;
+  canaletaLargM?: number;
   ralosQty?: number;
   raloDiamMm?: number;
   canaletaAberta?: boolean;
@@ -58,6 +59,17 @@ interface BordaReport {
   master: MasterVol | null; avisos: string[];
 }
 
+// Contexto de aquecimento (vem do formulario do editor) pro card "Calorias necessarias".
+export interface BordaHeatingCtx {
+  uf?: string; cidade?: string; tempAlvo?: number; tempInicial?: number;
+  capa?: boolean; vento?: string; tipoConstrucao?: string; tipoPiscina?: string;
+  utilizacaoAno?: string; utilizacaoSemana?: string;
+}
+interface DemandResult {
+  comBordaKcalH: number; semBordaKcalH: number; deltaKcalH: number;
+  comBordaKw: number; semBordaKw: number;
+}
+
 const parseNum = (v: string): number | undefined => (v === "" ? undefined : Number(v));
 
 const STATUS_COLOR: Record<MasterVol["status"], string> = {
@@ -76,6 +88,7 @@ const H = {
   reserv: "Dimensoes do mini-reservatorio/calha que recebe a lamina (m).",
   reservAberto: "Marque se o reservatorio e aberto (a superficie evapora). Tampado/enterrado = so o volume conta.",
   canaleta: "Comprimento da canaleta (calha) que coleta a agua transbordada (m).",
+  canaletaLarg: "Largura da canaleta (m). Se a canaleta for ABERTA, a area que evapora = comprimento × largura — entra na perda termica do aquecimento. Tipico 0,10 a 0,30 m. Em branco usa 0,15 m.",
   ralos: "Numero de ralos na canaleta que drenam pro master.",
   raloDiam: "Diametro de cada ralo (mm).",
   canaletaAberta: "Marque se a canaleta e aberta (evapora).",
@@ -122,6 +135,7 @@ export function BordaInfinitaSection({
   lines = [],
   bathers,
   surge,
+  heatingCtx,
   onChange,
   onIssuesChange,
 }: {
@@ -130,13 +144,16 @@ export function BordaInfinitaSection({
   lines?: BordaLine[];
   bathers?: number;
   surge?: number;
+  heatingCtx?: BordaHeatingCtx;
   onChange?: (lines: BordaLine[], bathers?: number, surge?: number) => void;
   onIssuesChange?: (issues: { mensagem: string; nivel: "erro" | "aviso" }[]) => void;
 }) {
   const [report, setReport] = useState<BordaReport | null>(null);
+  const [demand, setDemand] = useState<DemandResult | null>(null);
   const [computing, setComputing] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const demandTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const linesKey = JSON.stringify(lines);
   useEffect(() => {
@@ -154,6 +171,26 @@ export function BordaInfinitaSection({
     return () => { if (timer.current) clearTimeout(timer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linesKey, bathers, surge, poolAreaM2, poolVolumeM3]);
+
+  // Demanda termica AO VIVO (card "Calorias necessarias") — COM vs SEM borda. Depende das
+  // linhas + dimensoes + contexto de aquecimento (clima/temps/capa/vento). Pra o operador
+  // mudar altura/filme/canaleta e VER a perda termica mexer (garante que a borda alimenta o calculo).
+  const ctxKey = JSON.stringify(heatingCtx ?? {});
+  useEffect(() => {
+    if (!lines || lines.length === 0 || !heatingCtx || !poolAreaM2 || !poolVolumeM3) { setDemand(null); return; }
+    if (demandTimer.current) clearTimeout(demandTimer.current);
+    demandTimer.current = setTimeout(async () => {
+      try {
+        const res = await api.post<DemandResult>("/pool-budgets/borda-infinita/heating-demand", {
+          poolAreaM2, poolVolumeM3: poolVolumeM3 || undefined, nBathers: bathers || undefined, surgeFactor: surge || undefined,
+          ...heatingCtx, lines,
+        });
+        setDemand(res);
+      } catch { /* silencioso */ }
+    }, 450);
+    return () => { if (demandTimer.current) clearTimeout(demandTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linesKey, ctxKey, bathers, surge, poolAreaM2, poolVolumeM3]);
 
   // Reporta os avisos da borda pra Central de Avisos da pagina (erros do report + faixas).
   useEffect(() => {
@@ -299,6 +336,7 @@ export function BordaInfinitaSection({
                     {cap === "CANALETA" && (
                       <>
                         <NumCell label="Canal. C" hint={H.canaleta} val={line.canaletaComprM} on={(v) => set(idx, { canaletaComprM: v })} w="w-16" />
+                        <NumCell label="Canal. L" hint={H.canaletaLarg} val={line.canaletaLargM} on={(v) => set(idx, { canaletaLargM: v })} ph="0.15" w="w-14" />
                         <NumCell label="Ralos" hint={H.ralos} val={line.ralosQty} on={(v) => set(idx, { ralosQty: v })} step="1" w="w-12" />
                         <NumCell label="Ø ralo" hint={H.raloDiam} val={line.raloDiamMm} on={(v) => set(idx, { raloDiamMm: v })} step="1" w="w-12" />
                         <BoolSelectCell label="Superficie" hint={H.canaletaAberta} w="w-36" val={line.canaletaAberta} on={(v) => set(idx, { canaletaAberta: v })} trueLabel="Aberta (evapora)" falseLabel="Tampada" />
@@ -344,6 +382,24 @@ export function BordaInfinitaSection({
                 <span className="flex items-center gap-1.5">Fator de surge (ondas):<HelpHint text={H.surge} tone="cyan" width={300} />
                   <input type="number" step="0.5" placeholder="2" className="w-16 rounded border border-slate-300 px-2 py-1 text-sm" value={surge ?? ""} onChange={(e) => onChange?.(lines, bathers, parseNum(e.target.value))} /></span>
               </div>
+              {demand && (
+                <div className="rounded-xl border-2 border-orange-300 bg-gradient-to-br from-orange-50 to-amber-50 px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-orange-700">🔥 Calorias necessárias (com a borda)</div>
+                      <div className="text-2xl font-bold text-orange-900 tabular-nums">{demand.comBordaKcalH.toLocaleString("pt-BR")} <span className="text-sm font-semibold">kcal/h</span></div>
+                      <div className="text-[11px] text-orange-700/80 tabular-nums">{demand.comBordaKw.toFixed(1).replace(".", ",")} kW · pior mês</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[11px] text-slate-500">Sem a borda: <b className="tabular-nums">{demand.semBordaKcalH.toLocaleString("pt-BR")}</b> kcal/h</div>
+                      <div className={"text-sm font-bold tabular-nums " + (demand.deltaKcalH > 0 ? "text-orange-700" : "text-slate-500")}>
+                        {demand.deltaKcalH > 0 ? "+" : ""}{demand.deltaKcalH.toLocaleString("pt-BR")} kcal/h da borda
+                      </div>
+                      <div className="text-[10px] text-slate-400">mude altura/filme/canaleta e veja mexer</div>
+                    </div>
+                  </div>
+                </div>
+              )}
               {report && (
                 <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                   {[

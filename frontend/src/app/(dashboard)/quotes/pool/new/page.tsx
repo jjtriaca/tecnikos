@@ -734,6 +734,18 @@ export default function NewPoolBudgetPage() {
             lines={form.bordaInfinita}
             bathers={form.bordaInfinitaBathers}
             surge={form.bordaInfinitaSurge}
+            heatingCtx={{
+              uf: form.uf || undefined,
+              cidade: form.cidade || undefined,
+              tempAlvo: Number(form.temperaturaAguaDesejada) || undefined,
+              tempInicial: form.temperaturaInicialAgua === "" ? undefined : Number(form.temperaturaInicialAgua),
+              capa: form.capaTermica,
+              vento: form.velocidadeVento,
+              tipoConstrucao: form.tipoConstrucao,
+              tipoPiscina: form.tipoPiscina,
+              utilizacaoAno: form.utilizacaoAno,
+              utilizacaoSemana: form.utilizacaoSemana,
+            }}
             onChange={(lines, bathers, surge) => setForm({ ...form, bordaInfinita: lines, bordaInfinitaBathers: bathers, bordaInfinitaSurge: surge })}
             onIssuesChange={setBordaIssues}
           />

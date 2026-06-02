@@ -1,7 +1,11 @@
 # TAREFA ATUAL
 
-## Prod: v1.13.07. 4 frentes CODE-COMPLETE local (type-clean) — AGUARDANDO DEPLOY:
-## (1) FASE 2 Borda Infinita · (2) Cadastrar/Editar (congelar) · (3) Duplicar orcamento · (4) fix decimais Area/Volume.
+## Prod: v1.13.08 (4 frentes NO AR). PENDENTE DEPLOY v1.13.09 (3 itens, type-clean + verificado):
+## NO AR (v1.13.08): (1) FASE 2 Borda · (2) Cadastrar/Editar · (3) Duplicar · (4) fix decimais.
+## 🔴 PENDENTE v1.13.09:
+## - FIX env-merge: editor (PUT :id) sobrescrevia environmentParams e dropava `customSections` (nome de etapa custom sumia). update() agora faz MERGE. Ver [memory/bug-editor-env-replace-drops-keys.md].
+## - Borda: campo LARGURA da canaleta (entra na area de evaporacao real, antes era default 0,15). `canaletaLargM`.
+## - Borda: card "Calorias necessarias" AO VIVO na secao (endpoint `POST borda-infinita/heating-demand` computa demanda COM vs SEM borda). Verificado: canaleta 0,30 vs 0,15 -> +3.522 kcal/h.
 
 ## (3) DUPLICAR ORCAMENTO (NOVO, sessao 217)
 - Botao **⧉ Duplicar** (sempre visivel, inclusive cadastrado/aprovado). Endpoint `POST :id/duplicate {title?, updatePrices?}`.

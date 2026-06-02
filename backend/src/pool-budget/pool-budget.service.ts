@@ -1533,7 +1533,13 @@ export class PoolBudgetService {
         poolDimensions: dto.poolDimensions
           ? (this.enrichPoolDimensions(dto.poolDimensions) as unknown as Prisma.InputJsonValue)
           : undefined,
-        environmentParams: dto.environmentParams as Prisma.InputJsonValue | undefined,
+        // MERGE (nao replace): preserva chaves que o editor NAO gerencia — customSections
+        // (nomes das etapas custom renomeadas) + heatingOverride/solarReport/solarOverride do
+        // simulador. Bug: o editor montava o environmentParams do zero a partir do formulario
+        // e sobrescrevia tudo, dropando o nome renomeado das etapas custom.
+        environmentParams: dto.environmentParams !== undefined
+          ? ({ ...((before.environmentParams as Record<string, any>) ?? {}), ...(dto.environmentParams as Record<string, any>) } as Prisma.InputJsonValue)
+          : undefined,
         validityDays: dto.validityDays,
         discountCents: dto.discountCents,
         discountPercent: dto.discountPercent,
