@@ -4,11 +4,15 @@
 // adiciona linhas MASTER (cisterna principal) e SLAVE (borda). Calcula ao vivo via
 // POST /pool-budgets/borda-infinita/simulate: DN do tubo de gravidade (Manning),
 // volume do reservatorio + ALERTA do master, e os totais (vazao/volume/evaporacao).
-// Salva em poolDimensions.bordaInfinita[]. Ver memory/plano_sistema_borda_infinita.md.
+//
+// CONTROLADO: recebe as linhas (initialLines) + contexto da piscina (area/volume) e
+// devolve as linhas via onSave(lines, bathers). NAO persiste sozinho — o pai decide
+// (form da pagina de edicao salva junto; pagina de detalhe faz PUT). Assim funciona
+// tanto na tela de edicao do orcamento quanto na de detalhe, sem conflito de estado.
+// Ver memory/plano_sistema_borda_infinita.md.
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import { useToast } from "@/components/ui/Toast";
 
 type Captacao = "RESERVATORIO" | "CANALETA" | "DIRETO";
 
@@ -130,19 +134,24 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 }
 
 export function BordaInfinitaModal({
-  budget,
   open,
   onClose,
-  onSaved,
+  poolAreaM2 = 0,
+  poolVolumeM3 = 0,
+  initialLines,
+  initialBathers,
+  onSave,
   locked = false,
 }: {
-  budget: any;
   open: boolean;
   onClose: () => void;
-  onSaved?: () => void | Promise<void>;
+  poolAreaM2?: number;
+  poolVolumeM3?: number;
+  initialLines?: BordaLine[];
+  initialBathers?: number;
+  onSave?: (lines: BordaLine[], bathers?: number) => void | Promise<void>;
   locked?: boolean;
 }) {
-  const { toast } = useToast();
   const [lines, setLines] = useState<BordaLine[]>(defaultLines());
   const [nBathers, setNBathers] = useState<number | undefined>(undefined);
   const [report, setReport] = useState<BordaReport | null>(null);
@@ -150,16 +159,14 @@ export function BordaInfinitaModal({
   const [saving, setSaving] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const poolAreaM2 = Number(budget?.poolDimensions?.area) || 0;
-  const poolVolumeM3 = Number(budget?.poolDimensions?.volume) || 0;
-
-  // Carrega as linhas do orcamento quando abre.
+  // Carrega as linhas ao ABRIR (so depende de `open` pra nao resetar o que o
+  // usuario digita quando o pai re-renderiza com novo ref de initialLines).
   useEffect(() => {
     if (!open) return;
-    const init = budget?.poolDimensions?.bordaInfinita;
-    setLines(Array.isArray(init) && init.length ? init : defaultLines());
-    setNBathers(budget?.poolDimensions?.bordaInfinitaBathers ?? undefined);
-  }, [open, budget?.id]);
+    setLines(Array.isArray(initialLines) && initialLines.length ? initialLines : defaultLines());
+    setNBathers(initialBathers);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Recalcula ao vivo (debounced).
   useEffect(() => {
@@ -200,14 +207,8 @@ export function BordaInfinitaModal({
     if (locked) return;
     try {
       setSaving(true);
-      await api.put(`/pool-budgets/${budget.id}`, {
-        poolDimensions: { ...(budget.poolDimensions || {}), bordaInfinita: lines, bordaInfinitaBathers: nBathers ?? null },
-      });
-      toast("Sistema de borda infinita salvo", "success");
-      await onSaved?.();
+      await onSave?.(lines, nBathers);
       onClose();
-    } catch (e: any) {
-      toast(e?.payload?.message || "Erro ao salvar", "error");
     } finally {
       setSaving(false);
     }
@@ -364,7 +365,7 @@ export function BordaInfinitaModal({
             <button onClick={onClose} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Fechar</button>
             {!locked && (
               <button onClick={save} disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60">
-                {saving ? "Salvando…" : "Salvar"}
+                {saving ? "Salvando…" : "Aplicar"}
               </button>
             )}
           </div>

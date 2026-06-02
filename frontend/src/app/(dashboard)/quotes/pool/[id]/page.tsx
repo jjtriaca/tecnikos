@@ -8,7 +8,6 @@ import { useToast } from "@/components/ui/Toast";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import PartnerCombobox from "@/components/PartnerCombobox";
 import { HeatingSimulatorModal } from "@/components/pool/HeatingSimulatorModal";
-import { BordaInfinitaModal } from "@/components/pool/BordaInfinitaModal";
 
 export type AutoSelectRule = {
   filterPoolType?: string | null;
@@ -342,7 +341,6 @@ export default function PoolBudgetDetailPage() {
   const [showEditHeader, setShowEditHeader] = useState(false);
   const [showPaymentTerms, setShowPaymentTerms] = useState(false);
   const [showHeatingSimulator, setShowHeatingSimulator] = useState(false);
-  const [showBorda, setShowBorda] = useState(false);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const { widths: colWidths, setWidth: setColWidth, reset: resetColWidths } = useColumnWidths();
 
@@ -830,23 +828,6 @@ export default function PoolBudgetDetailPage() {
                 </div>
               </div>
             </div>
-
-            {/* Sistema de Borda Infinita — logo abaixo das Dimensoes */}
-            <button
-              type="button"
-              onClick={() => setShowBorda(true)}
-              className="mt-2.5 flex w-full items-center justify-between rounded-xl border border-sky-200 bg-gradient-to-r from-sky-50 to-cyan-50 px-4 py-2.5 text-left shadow-sm transition hover:border-sky-400 hover:shadow"
-            >
-              <span className="flex flex-wrap items-center gap-x-2 text-sm font-semibold text-sky-800">
-                🌊 Sistema de Borda Infinita
-                <span className="text-[11px] font-normal text-sky-600/70">
-                  {Array.isArray(budget.poolDimensions?.bordaInfinita) && budget.poolDimensions.bordaInfinita.length > 0
-                    ? `${budget.poolDimensions.bordaInfinita.length} linha(s) — tubo + reservatórios + alerta de volume`
-                    : "dimensionar bordas, reservatórios e tubulação de gravidade"}
-                </span>
-              </span>
-              <span className="text-sky-500">›</span>
-            </button>
           </>
         )}
       </div>
@@ -1280,14 +1261,6 @@ export default function PoolBudgetDetailPage() {
         onClose={() => setShowHeatingSimulator(false)}
         onSaved={async () => { await load(); }}
         catalog={catalog}
-      />
-
-      <BordaInfinitaModal
-        budget={budget}
-        open={showBorda}
-        onClose={() => setShowBorda(false)}
-        onSaved={async () => { await load(); }}
-        locked={isLocked}
       />
 
 

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import PartnerCombobox from "@/components/PartnerCombobox";
+import { BordaInfinitaModal, type BordaLine } from "@/components/pool/BordaInfinitaModal";
 
 type Partner = { id: string; name: string; document?: string | null; phone?: string | null; city?: string | null; state?: string | null };
 type Template = { id: string; name: string; isDefault: boolean };
@@ -20,6 +21,7 @@ export default function NewPoolBudgetPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [layouts, setLayouts] = useState<Layout[]>([]);
   const [saving, setSaving] = useState(false);
+  const [showBorda, setShowBorda] = useState(false);
   // Cliente selecionado (objeto completo) — pra mostrar dados na tela e auto-preencher solicitante/titulo
   const [client, setClient] = useState<Partner | null>(null);
   const [form, setForm] = useState({
@@ -72,6 +74,9 @@ export default function NewPoolBudgetPage() {
     bordaInfinitaAlturaM: 0.5,
     bordaInfinitaVazaoLminPorM: 30,
     bordaInfinitaHorasAtivaDia: 24,
+    // Sistema de Borda Infinita (multi-linha) — guardado em poolDimensions.bordaInfinita
+    bordaInfinita: [] as BordaLine[],
+    bordaInfinitaBathers: undefined as number | undefined,
   });
 
   // Cidades-climaticas pra dropdown (carregadas via API)
@@ -154,6 +159,8 @@ export default function NewPoolBudgetPage() {
           radierM2: b.poolDimensions?.radierM2 ?? 0,
           radierEspessura: b.poolDimensions?.radierEspessura ?? 0.20,
           escavacaoM3: b.poolDimensions?.escavacaoM3 ?? 0,
+          bordaInfinita: (b.poolDimensions?.bordaInfinita as BordaLine[]) || [],
+          bordaInfinitaBathers: b.poolDimensions?.bordaInfinitaBathers ?? undefined,
           // Environment
           temperaturaMediaLocal: b.environmentParams?.temperaturaMediaLocal ?? b.environmentParams?.temperatura ?? 22,
           velocidadeVento: b.environmentParams?.velocidadeVento || "MODERADO",
@@ -309,6 +316,8 @@ export default function NewPoolBudgetPage() {
           radierM2,
           radierM3,
           escavacaoM3,
+          bordaInfinita: form.bordaInfinita || [],
+          bordaInfinitaBathers: form.bordaInfinitaBathers ?? null,
         },
         environmentParams: {
           temperaturaMediaLocal: form.temperaturaMediaLocal,
@@ -672,6 +681,33 @@ export default function NewPoolBudgetPage() {
           </p>
 
         </div>
+
+        {/* Sistema de Borda Infinita — logo abaixo das dimensoes */}
+        <button
+          type="button"
+          onClick={() => setShowBorda(true)}
+          className="flex w-full items-center justify-between rounded-xl border border-sky-200 bg-gradient-to-r from-sky-50 to-cyan-50 px-5 py-3 text-left shadow-sm transition hover:border-sky-400 hover:shadow"
+        >
+          <span className="flex flex-wrap items-center gap-x-2 text-sm font-semibold text-sky-800">
+            🌊 Sistema de Borda Infinita
+            <span className="text-[11px] font-normal text-sky-600/70">
+              {form.bordaInfinita && form.bordaInfinita.length > 0
+                ? `${form.bordaInfinita.length} linha(s) — tubo + reservatorios + alerta de volume`
+                : "dimensionar bordas, reservatorios e tubulacao de gravidade (Manning)"}
+            </span>
+          </span>
+          <span className="text-sky-500">›</span>
+        </button>
+
+        <BordaInfinitaModal
+          open={showBorda}
+          onClose={() => setShowBorda(false)}
+          poolAreaM2={totals.area}
+          poolVolumeM3={totals.volume}
+          initialLines={form.bordaInfinita}
+          initialBathers={form.bordaInfinitaBathers}
+          onSave={(lines, bathers) => { setForm({ ...form, bordaInfinita: lines, bordaInfinitaBathers: bathers }); toast("Borda infinita aplicada — clique em Salvar pra gravar no orcamento", "success"); }}
+        />
 
         {/* Parametros de aquecimento — Simulador de Aquecimento (F6.1) */}
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
