@@ -323,7 +323,7 @@ export function BordaInfinitaSection({
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 border-t border-slate-200 px-2 py-1.5 text-[11px] text-slate-700">
                     {r.transbordoM3h != null && <span>Transbordo <b className="tabular-nums">{r.transbordoM3h} m³/h</b></span>}
                     {r.drenagemDesignM3h != null && <span>· drenagem/surge <b className="tabular-nums">{r.drenagemDesignM3h} m³/h</b></span>}
-                    {r.tubo && <span>· Tubo <b className="tabular-nums">{r.tubosQty && r.tubosQty > 1 ? `${r.tubosQty}× ` : ""}DN{r.tubo.diametroMm}</b> ({r.tubo.fillPercentReal}% · {r.tubo.velocidadeMs} m/s · caim. {r.tubo.caimentoPct}%)</span>}
+                    {r.tubo && <span>· Tubo <b className="tabular-nums">{r.tubosQty && r.tubosQty > 1 ? `${r.tubosQty}× ` : ""}DN{r.tubo.diametroMm}</b> {r.tubo.suficiente ? <b className="text-emerald-700">✓ suficiente{r.tubo.fillPercentReal < 35 ? " (folgado, da pra reduzir)" : ""}</b> : <b className="text-red-600">⚠ insuficiente</b>} <span className="text-slate-500">({r.tubo.fillPercentReal}% do tubo no pico · {r.tubo.velocidadeMs} m/s · caim. {r.tubo.caimentoPct}%)</span></span>}
                     {cap === "CANALETA" && r.ralosSugeridos != null && (
                       <span>· Ralos: <b className="tabular-nums">{r.ralosSugeridos}× Ø{line.raloDiamMm || 100}mm</b> (~{r.raloCapacidadeM3h} m³/h cada){line.ralosQty != null && line.ralosQty > 0 && line.ralosQty < r.ralosSugeridos && <span className="text-red-600"> · ⚠ informado {line.ralosQty} {"<"} sugerido</span>}</span>
                     )}

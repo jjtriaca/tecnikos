@@ -1,47 +1,24 @@
 # TAREFA ATUAL
 
-## Prod: v1.13.05 (alinhado local == prod). Sessao 216 — Sistema de Borda Infinita FASE 1 NO AR + Central de Avisos.
+## Prod: v1.13.07 (alinhado local == prod). Sessao 216 ENCERRADA.
 
-## CONCLUIDO na sessao 215 (Aba Bomba de Calor — clone visual da Solar)
-- ✅ **A** (v1.12.96) vazao min/max no cadastro Bomba de Calor.
-- ✅ **B** (v1.12.96) auto-selecao configuravel: heatingRule + GET/POST /pool-budgets/heating/rule.
-- ✅ **C** (v1.12.97) `BombaCalorTab` = datasheet A4 de bomba (HeatingSimulatorModal.tsx ~3259):
-     toolbar/zoom/print bomba-pdf 1 pagina, Cliente/Obra, Dimensoes, Configuracao, Dimensionamento
-     (calor + Equipamento + COP + ✨ regra), Simulacao consumo, footer NBR.
-- ✅ **C2** (v1.12.98) imagem do produto selecionado no datasheet + cards Cascata/SPA/Borda (ExtraImpactCard) na Configuracao.
+## ULTIMA FRENTE (sessao 216, 01-02/06): SISTEMA DE BORDA INFINITA — FASE 1 NO AR + Central de Avisos
+**Resumo completo:** [memory/sessao_216_summary.md](memory/sessao_216_summary.md)
+**Plano:** [memory/plano_sistema_borda_infinita.md](memory/plano_sistema_borda_infinita.md) · **Estudos:** reservatorio + tubulacao gravidade (Manning / ralos / surge).
+- ✅ Backend: `gravity-flow` / `reservoir-volume` / `borda-infinita.service` + endpoint `POST /pool-budgets/borda-infinita/simulate` (tudo VERIFICADO numericamente).
+- ✅ Frontend: `BordaInfinitaSection.tsx` (secao inline estilo Excel, dropdowns, "?", cisterna pronta+volume, surge, ralos, multitubo, altura em CM, tubo ✓suficiente/folgado/⚠insuficiente) + `CentralAvisos.tsx` (painel de avisos no topo+rodape, confirma no salvar se ha erro).
+- ✅ Deployed v1.12.99 -> v1.13.07. Storage: `poolDimensions.bordaInfinita[]` (JSON livre, sem model Prisma).
 
-## VALIDACAO DO MOTOR DE AQUECIMENTO (01/06)
-- Diferenca vs planilha Tholz TAB006 era INPUTS (vento Forte vs Moderado; cidade Primavera do Leste, mais
-  fria, vs MT-generico/Cuiaba; extras cascata/SPA), NAO bug. Formula validada. Usuario confirmou mudando vento.
-- Auto-selecao bomba: filtrar por TIPO (poolType "Bomba de calor"), nao so descricao (produtos Tholz = "Trocador").
-
-## FRENTE ATUAL: SISTEMA DE BORDA INFINITA — FASE 1 NO AR (v1.13.05) + Central de Avisos (sessao 216)
-**Plano completo:** [memory/plano_sistema_borda_infinita.md](memory/plano_sistema_borda_infinita.md)
-Multi-linha no orcamento (estilo "Dimensoes"): linhas MASTER/SLAVE; captacao = reservatorio OU canaleta+ralos;
-caimento = desnivel/comprimento; curvas roubam caimento; topologia estrela. Objetivo: numeros prontos -> FASE 2 (aquecimento).
-Checklist FASE 1:
-- ✅ Estudo volume reservatorio: [study_borda_infinita_reservatorio.md](memory/study_borda_infinita_reservatorio.md).
-- ✅ Estudo tubulacao gravidade (Manning): [study_borda_infinita_tubulacao_gravidade.md](memory/study_borda_infinita_tubulacao_gravidade.md).
-- ✅ Modelo de linha + 3 decisoes travadas (desnivel / curvas roubam caimento / estrela) — sessao 216.
-- ✅ **`backend/src/pool-budget/gravity-flow.service.ts`** (Injectable, irmao do pipe-head-loss): Manning tubo
-  parcial + `sizeGravityPipe` (dimensiona DN). VERIFICADO numericamente (meio-cheio=0,5×cheio; 8m->DN150).
-- ✅ **`reservoir-volume.service.ts`**: volume do master (surge + banhistas + 450 L/m) + ALERTA (bomba puxa direto -> cavitacao/transbordo se baixo). VERIFICADO (4×8 -> rec 3,6 / min 1,6 m³).
-- ✅ **`borda-infinita.service.ts`** (orquestrador: compoe gravity+reservoir; 3 modos de captacao + totais) + `dto/borda-infinita-simulate.dto.ts` + endpoint **`POST /pool-budgets/borda-infinita/simulate`** + registrado no module. Typecheck OK + smoke-test 4 cenarios (reservatorio/DIRETO/curvas/master BAIXO) VERDE.
-- ✅ Storage: `poolDimensions.bordaInfinita[]` (JSON livre — salvo JUNTO com o form da tela de edicao; sem model Prisma, sem migration).
-- ✅ Frontend: `components/pool/BordaInfinitaSection.tsx` — SECAO INLINE COLAPSAVEL (controlada: lines + onChange -> salva no form; campos COMPACTOS; cabecalho ▶/▼ com resumo + selo "volume master baixo"; calculo ao vivo). Logo abaixo das dimensoes na **tela de EDICAO** `quotes/pool/new?edit=`. Removida da tela de detalhe `[id]`. Borda ANTIGA escalar ("TEM BORDA INFINITA?") REMOVIDA da UI (campos environmentParams.bordaInfinita* mantidos no submit pra nao perder orcamento antigo).
-- ✅ Iteracoes UI+features (v1.12.99 -> v1.13.05, 01-02/06): modal -> SECAO INLINE colapsavel estilo Excel (celulas/gridlines, flex-nowrap+scroll); "?" HelpHint por campo; dropdowns (Tipo master / Captacao / Superficie); **SURGE** (drenagem=transbordo×fator default 2× -> dimensiona ralos+tubo, NAO o filme estavel); **RALOS** sugeridos (grelha escoa < tubo aberto: min vertedor/orificio); **MULTIPLOS tubos** (N× DN); **cisterna pronta** com VOLUME informado+validado; **altura de queda em CM** (>140cm avisa); banners de erro VERMELHOS.
-- ✅ **Central de Avisos** (v1.13.05): `components/pool/CentralAvisos.tsx` + `validatePage` em new/page.tsx. Painel no topo agrega erros/avisos de Geral/Dimensoes/Aquecimento/Borda; 🔴 erro / 🟡 aviso; clica -> pula pra secao; CONFIRMA no salvar se ha erro. Reusavel/expansivel pra outros cadastros.
-- ⬜ FASE 2 (RECOMENDADO ASAP): integrar volume/evaporacao no Simulador de Aquecimento (religar do `bordaInfinita[]` novo). **Aquecimento esta SEM efeito de borda agora** (UI antiga removida, nova ainda nao plugada no heating). Numeros ja prontos no report (volumeTermicoExtraM3 / areaEvaporacaoExtraM2).
-- ⚠ PENDENTE validar a TELA em prod (modulo Piscina = teste em prod; preview local nao renderiza tela de tenant).
+## PROXIMA FRENTE (pendente)
+- 🔴 **FASE 2 (RECOMENDADO ASAP):** religar a borda no **Simulador de Aquecimento**. HOJE o aquecimento esta SEM efeito de borda (UI escalar antiga removida; a nova ainda nao alimenta o heating). Numeros prontos no report (`volumeTermicoExtraM3` / `areaEvaporacaoExtraM2`). Entry points em sessao_216_summary.
 
 ## PENDENCIA SYSTEM-WIDE
-- ⚠ **Auditoria de responsividade MOBILE de TODO o sistema** (pedido do usuario 02/06). Conferir cada tela/modal/tabela/form em ~375px e em redimensionamento — nada pode "quebrar"; linhas densas rolam (flex-nowrap+overflow-x-auto) ou usam grid responsivo. Regra gravada no CLAUDE.md ("Responsividade / Mobile"). Spawn task criado.
+- 🟡 Auditoria de responsividade MOBILE de TODO o sistema (regra ja no CLAUDE.md "Responsividade / Mobile"; spawn task criado).
 
 ## Outros pendentes (menores)
-- Conferir valores Tholz JA cadastrados no SLS vs datasheet (kcal/h/COP/vazao).
-- Remover painel debug violeta apos validacao final. Aguardando Solis (7+ baterias).
-- Melhoria: template auto-select "Bomba de Calor" filtrar por Tipo (poolType) em vez de descricao.
-- Roadmap: vazao min/max -> bomba de circulacao por curva; defaults tubulacao configuraveis.
+- Central de Avisos: levar pra outros cadastros + expandir regras de faixa por campo.
+- Conferir valores Tholz JA cadastrados no SLS vs datasheet (kcal/h/COP/vazao). Remover painel debug violeta (aguardando Solis 7+ baterias).
+- Roadmap: vazao min/max -> bomba de circulacao por curva; defaults de tubulacao configuraveis.
 
 ## Sessoes anteriores
-- Sessao 214 (v1.12.94): modelo consumo bomba solar calibrado, thermal-demand unificado, PDF fixes.
+- Sessao 215 (v1.12.94-98): Aba Bomba de Calor (datasheet clone da Solar). Sessao 214 (v1.12.94): consumo bomba solar calibrado + PDF.
