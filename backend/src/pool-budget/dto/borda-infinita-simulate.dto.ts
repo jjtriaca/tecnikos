@@ -52,6 +52,7 @@ export class BordaLineDto {
   @IsOptional() @IsNumber() @Min(0) masterProfM?: number;
   @IsOptional() @IsBoolean() masterAberto?: boolean;
   @IsOptional() @IsBoolean() masterIsTanqueOndeCai?: boolean; // eh o proprio tanque onde a agua cai
+  @IsOptional() @IsBoolean() masterCisternaPronta?: boolean; // usa cisterna plastica pronta -> so recomenda o volume (sem dims)
 }
 
 export class BordaInfinitaSimulateDto {

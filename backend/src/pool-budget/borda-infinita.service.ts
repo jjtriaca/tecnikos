@@ -88,6 +88,7 @@ export class BordaInfinitaService {
   }
 
   private masterActualVolume(line: BordaLineDto): number | null {
+    if (line.masterCisternaPronta) return null; // cisterna pronta -> sem dims, so recomenda o volume (compra-se >= recomendado)
     const c = line.masterComprM ?? 0;
     const l = line.masterLargM ?? 0;
     const p = line.masterProfM ?? 0;
