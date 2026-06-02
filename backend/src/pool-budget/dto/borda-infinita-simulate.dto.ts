@@ -45,6 +45,7 @@ export class BordaLineDto {
   @IsOptional() @IsNumber() @Min(0) tuboComprimentoM?: number;
   @IsOptional() @IsNumber() @Min(0) curvas90Qty?: number;
   @IsOptional() @IsNumber() @Min(0) tuboDesnivelM?: number; // diferenca de altura captacao->master
+  @IsOptional() @IsNumber() @Min(1) tubosQty?: number; // nº de tubos em paralelo (cada um leva drenagem ÷ nº)
 
   // ---- MASTER: cisterna principal ----
   @IsOptional() @IsNumber() @Min(0) masterComprM?: number;
@@ -53,6 +54,7 @@ export class BordaLineDto {
   @IsOptional() @IsBoolean() masterAberto?: boolean;
   @IsOptional() @IsBoolean() masterIsTanqueOndeCai?: boolean; // eh o proprio tanque onde a agua cai
   @IsOptional() @IsBoolean() masterCisternaPronta?: boolean; // usa cisterna plastica pronta -> so recomenda o volume (sem dims)
+  @IsOptional() @IsNumber() @Min(0) masterCisternaVolumeM3?: number; // volume da cisterna pronta informado (valida vs recomendado)
 }
 
 export class BordaInfinitaSimulateDto {

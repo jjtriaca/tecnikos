@@ -32,12 +32,14 @@ export interface BordaLine {
   tuboComprimentoM?: number;
   curvas90Qty?: number;
   tuboDesnivelM?: number;
+  tubosQty?: number;
   masterComprM?: number;
   masterLargM?: number;
   masterProfM?: number;
   masterAberto?: boolean;
   masterIsTanqueOndeCai?: boolean;
   masterCisternaPronta?: boolean;
+  masterCisternaVolumeM3?: number;
 }
 
 interface MasterVol {
@@ -47,7 +49,7 @@ interface MasterVol {
 interface LineResult {
   index: number; tipo: "MASTER" | "SLAVE"; captacao?: Captacao; transbordoM3h?: number; reservatorioVolumeM3?: number;
   tubo?: { diametroMm: number; fillPercentReal: number; velocidadeMs: number; caimentoPct: number; suficiente: boolean; aviso: string | null } | null;
-  ralosSugeridos?: number; raloCapacidadeM3h?: number; drenagemDesignM3h?: number;
+  ralosSugeridos?: number; raloCapacidadeM3h?: number; drenagemDesignM3h?: number; tubosQty?: number;
   masterVolume?: MasterVol; aviso?: string | null;
 }
 interface BordaReport {
@@ -67,7 +69,7 @@ const STATUS_COLOR: Record<MasterVol["status"], string> = {
 
 const H = {
   comprBorda: "Comprimento total da borda infinita por onde a agua transborda (m). Se houver mais de uma borda igual, some os comprimentos nesta linha.",
-  altQueda: "Altura que a lamina d'agua cai da borda ate a calha/reservatorio (m). Quanto maior a queda, mais evaporacao.",
+  altQueda: "Altura que a lamina d'agua cai da borda ate a calha/reservatorio, em CENTIMETROS. Tipico 5 a 100 cm; acima de 140 cm aparece um aviso (confira se nao digitou metros). Quanto maior a queda, mais evaporacao.",
   filme: "Espessura da lamina d'agua sobre a borda (mm). Padrao aceitavel: 3 a 7 mm — 6 mm e o mais usado pro efeito visual. A 6 mm a vazao de transbordo e ~2,6 m³/h por metro de borda.",
   horas: "Horas por dia que a borda fica em operacao (bomba ligada). 24 = sempre ligada; reduza se a bomba desliga em parte do dia.",
   captacao: "Pra onde a agua transbordada vai: Reservatorio (calha com volume) · Canaleta (calha com ralos, sem volume) · Direto (cai direto no master, sem tubo).",
@@ -80,8 +82,10 @@ const H = {
   tuboC: "Comprimento do tubo de gravidade da captacao ate o master (m).",
   curvas: "Numero de curvas 90° no tubo. Cada curva 'rouba' caimento — pode exigir um tubo maior.",
   desnivel: "Diferenca de altura entre a captacao e o master (m). Define o caimento (caimento = desnivel ÷ comprimento).",
+  tubos: "Quantos tubos de gravidade EM PARALELO da captacao ate o master. Em vez de 1 tubo grande, pode usar varios menores — a drenagem se divide e cada tubo eh dimensionado pra drenagem ÷ nº de tubos. Default 1.",
   master: "Dimensoes da cisterna master (m). A bomba do filtro puxa daqui.",
   cisterna: "Use uma cisterna plastica pronta — nao precisa digitar dimensoes; o sistema te diz o volume minimo necessario (compre uma >= esse volume).",
+  cisternaVol: "Volume da cisterna plastica pronta que voce vai usar (m³). O sistema compara com o recomendado: se for >=, some o erro; se for menor, mostra erro em vermelho (risco de cavitacao/transbordo).",
   masterAberto: "Marque se o master e aberto (evapora). Tampado/enterrado = so volume.",
   tanqueOndeCai: "Marque se o master E o proprio tanque onde a agua da borda cai (sem reservatorio intermediario).",
   masterTipo: "Tipo do reservatorio master: Tampado (so o volume conta) · Aberto (a superficie evapora) · Cisterna pronta plastica (nao digita dimensoes — o sistema da o volume minimo necessario).",
@@ -119,6 +123,7 @@ export function BordaInfinitaSection({
   bathers,
   surge,
   onChange,
+  onIssuesChange,
 }: {
   poolAreaM2?: number;
   poolVolumeM3?: number;
@@ -126,6 +131,7 @@ export function BordaInfinitaSection({
   bathers?: number;
   surge?: number;
   onChange?: (lines: BordaLine[], bathers?: number, surge?: number) => void;
+  onIssuesChange?: (issues: { mensagem: string; nivel: "erro" | "aviso" }[]) => void;
 }) {
   const [report, setReport] = useState<BordaReport | null>(null);
   const [computing, setComputing] = useState(false);
@@ -148,6 +154,27 @@ export function BordaInfinitaSection({
     return () => { if (timer.current) clearTimeout(timer.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linesKey, bathers, surge, poolAreaM2, poolVolumeM3]);
+
+  // Reporta os avisos da borda pra Central de Avisos da pagina (erros do report + faixas).
+  useEffect(() => {
+    const issues: { mensagem: string; nivel: "erro" | "aviso" }[] = [];
+    (report?.avisos ?? []).forEach((a) => issues.push({ mensagem: a, nivel: "erro" }));
+    lines.forEach((l, i) => {
+      if (l.tipo === "SLAVE" && l.alturaQuedaM != null && l.alturaQuedaM > 1.4) {
+        issues.push({ mensagem: `Borda ${i + 1}: altura de queda ${Math.round(l.alturaQuedaM * 100)} cm e alta (esperado < 140 cm).`, nivel: "aviso" });
+      }
+    });
+    (report?.lines ?? []).forEach((r) => {
+      if (r.captacao === "CANALETA" && r.ralosSugeridos) {
+        const l = lines[r.index];
+        if (l?.ralosQty != null && l.ralosQty > 0 && l.ralosQty < r.ralosSugeridos) {
+          issues.push({ mensagem: `Borda ${r.index + 1}: ralos informados (${l.ralosQty}) abaixo do sugerido (${r.ralosSugeridos}).`, nivel: "aviso" });
+        }
+      }
+    });
+    onIssuesChange?.(issues);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report, linesKey]);
 
   const update = (next: BordaLine[]) => onChange?.(next, bathers, surge);
   const set = (idx: number, patch: Partial<BordaLine>) => update(lines.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
@@ -208,6 +235,9 @@ export function BordaInfinitaSection({
                   <div className={rowWrap}>
                     <div className={rowInner}>
                       <SelectCell label="Tipo" hint={H.masterTipo} w="w-40" value={cisterna ? "CISTERNA" : line.masterAberto ? "ABERTO" : "TAMPADO"} on={(v) => set(idx, v === "CISTERNA" ? { masterCisternaPronta: true } : { masterCisternaPronta: false, masterAberto: v === "ABERTO" })} options={[["TAMPADO", "Reservatorio tampado"], ["ABERTO", "Reservatorio aberto"], ["CISTERNA", "Cisterna pronta"]]} />
+                      {cisterna && (
+                        <NumCell label="Vol. cisterna (m³)" hint={H.cisternaVol} val={line.masterCisternaVolumeM3} on={(v) => set(idx, { masterCisternaVolumeM3: v })} w="w-24" />
+                      )}
                       {!cisterna && (
                         <>
                           <NumCell label="Compr. (m)" hint={H.master} val={line.masterComprM} on={(v) => set(idx, { masterComprM: v })} />
@@ -217,16 +247,26 @@ export function BordaInfinitaSection({
                       )}
                     </div>
                   </div>
-                  {mv && cisterna && (
+                  {mv && cisterna && mv.actualM3 == null && (
                     <div className="border-t border-slate-200 px-2 py-1.5 text-[11px] text-sky-800">
-                      🛒 Cisterna pronta: compre uma de <b>≥ {mv.recomendadoM3} m³</b>{mv.pctDoVolumePiscina != null && <> ({mv.pctDoVolumePiscina}% do volume da piscina)</>}.
+                      🛒 Cisterna pronta: compre uma de <b>≥ {mv.recomendadoM3} m³</b>{mv.pctDoVolumePiscina != null && <> ({mv.pctDoVolumePiscina}% do volume da piscina)</>}. Informe o volume da cisterna pra validar.
+                    </div>
+                  )}
+                  {mv && cisterna && mv.actualM3 != null && mv.status !== "BAIXO" && (
+                    <div className="border-t border-slate-200 px-2 py-1.5 text-[11px] text-emerald-700">
+                      ✓ Cisterna de <b>{mv.actualM3} m³</b> OK (recomendado ≥ {mv.recomendadoM3} m³).
+                    </div>
+                  )}
+                  {mv && cisterna && mv.actualM3 != null && mv.status === "BAIXO" && (
+                    <div className="border-t border-red-200 bg-red-50 px-2 py-1.5 text-[11px] text-red-700">
+                      ⚠ Cisterna de <b>{mv.actualM3} m³</b> ABAIXO do recomendado (<b>≥ {mv.recomendadoM3} m³</b>) — insuficiente: a bomba pode secar/transbordar. Use uma maior ou complemente.
                     </div>
                   )}
                   {mv && !cisterna && (
                     <div className="border-t border-slate-200 px-2 py-1.5 text-[11px]">
                       <span className={"rounded border px-2 py-0.5 " + STATUS_COLOR[mv.status]}><b>Volume {mv.status}</b> · rec {mv.recomendadoM3} m³ (mín {mv.minimoM3}){mv.actualM3 != null && <> · tem {mv.actualM3} m³</>}{mv.pctDoVolumePiscina != null && <> · {mv.pctDoVolumePiscina}%</>}</span>
                       {mv.status === "BAIXO" && mv.actualM3 != null && deficit > 0 && (
-                        <span className="ml-2 text-amber-700">⚠ Faltam <b>{deficit} m³</b> — complemente com cisterna plástica de <b>≥ {deficit} m³</b>.</span>
+                        <span className="ml-2 text-red-700">⚠ Faltam <b>{deficit} m³</b> — complemente com cisterna plástica de <b>≥ {deficit} m³</b>.</span>
                       )}
                     </div>
                   )}
@@ -244,7 +284,7 @@ export function BordaInfinitaSection({
                 <div className={rowWrap}>
                   <div className={rowInner}>
                     <NumCell label="Compr. borda" hint={H.comprBorda} val={line.bordaLengthM} on={(v) => set(idx, { bordaLengthM: v })} />
-                    <NumCell label="Alt. queda" hint={H.altQueda} val={line.alturaQuedaM} on={(v) => set(idx, { alturaQuedaM: v })} w="w-14" />
+                    <NumCell label="Alt. queda (cm)" hint={H.altQueda} val={line.alturaQuedaM != null ? Math.round(line.alturaQuedaM * 100) : undefined} on={(v) => set(idx, { alturaQuedaM: v != null ? v / 100 : undefined })} step="1" w="w-16" />
                     <NumCell label="Filme mm" hint={H.filme} val={line.filmeMm} on={(v) => set(idx, { filmeMm: v })} step="0.5" ph="6" w="w-12" />
                     <NumCell label="Horas/dia" hint={H.horas} val={line.horasDia} on={(v) => set(idx, { horasDia: v })} step="1" ph="24" w="w-12" />
                     <SelectCell label="Captacao" hint={H.captacao} w="w-32" value={cap} on={(v) => set(idx, { captacao: v as Captacao })} options={[["RESERVATORIO", "Reservatorio"], ["CANALETA", "Canaleta"], ["DIRETO", "Direto"]]} />
@@ -266,6 +306,7 @@ export function BordaInfinitaSection({
                     )}
                     {cap !== "DIRETO" && (
                       <>
+                        <NumCell label="Tubos (nº)" hint={H.tubos} val={line.tubosQty} on={(v) => set(idx, { tubosQty: v })} step="1" ph="1" w="w-12" />
                         <NumCell label="Tubo C" hint={H.tuboC} val={line.tuboComprimentoM} on={(v) => set(idx, { tuboComprimentoM: v })} w="w-16" />
                         <NumCell label="Curvas" hint={H.curvas} val={line.curvas90Qty} on={(v) => set(idx, { curvas90Qty: v })} step="1" w="w-12" />
                         <NumCell label="Desnível" hint={H.desnivel} val={line.tuboDesnivelM} on={(v) => set(idx, { tuboDesnivelM: v })} w="w-14" />
@@ -273,17 +314,22 @@ export function BordaInfinitaSection({
                     )}
                   </div>
                 </div>
+                {line.alturaQuedaM != null && line.alturaQuedaM > 1.4 && (
+                  <div className="border-t border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-700">
+                    ⚠ Altura de queda {Math.round(line.alturaQuedaM * 100)} cm é alta (esperado &lt; 140 cm) — confira se não digitou metros no lugar de cm.
+                  </div>
+                )}
                 {r && (
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 border-t border-slate-200 px-2 py-1.5 text-[11px] text-slate-700">
                     {r.transbordoM3h != null && <span>Transbordo <b className="tabular-nums">{r.transbordoM3h} m³/h</b></span>}
                     {r.drenagemDesignM3h != null && <span>· drenagem/surge <b className="tabular-nums">{r.drenagemDesignM3h} m³/h</b></span>}
-                    {r.tubo && <span>· Tubo <b className="tabular-nums">DN{r.tubo.diametroMm}</b> ({r.tubo.fillPercentReal}% · {r.tubo.velocidadeMs} m/s · caim. {r.tubo.caimentoPct}%)</span>}
+                    {r.tubo && <span>· Tubo <b className="tabular-nums">{r.tubosQty && r.tubosQty > 1 ? `${r.tubosQty}× ` : ""}DN{r.tubo.diametroMm}</b> ({r.tubo.fillPercentReal}% · {r.tubo.velocidadeMs} m/s · caim. {r.tubo.caimentoPct}%)</span>}
                     {cap === "CANALETA" && r.ralosSugeridos != null && (
-                      <span>· Ralos: <b className="tabular-nums">{r.ralosSugeridos}× Ø{line.raloDiamMm || 100}mm</b> (~{r.raloCapacidadeM3h} m³/h cada){line.ralosQty != null && line.ralosQty > 0 && line.ralosQty < r.ralosSugeridos && <span className="text-amber-600"> · ⚠ informado {line.ralosQty} {"<"} sugerido</span>}</span>
+                      <span>· Ralos: <b className="tabular-nums">{r.ralosSugeridos}× Ø{line.raloDiamMm || 100}mm</b> (~{r.raloCapacidadeM3h} m³/h cada){line.ralosQty != null && line.ralosQty > 0 && line.ralosQty < r.ralosSugeridos && <span className="text-red-600"> · ⚠ informado {line.ralosQty} {"<"} sugerido</span>}</span>
                     )}
                     {r.reservatorioVolumeM3 != null && r.reservatorioVolumeM3 > 0 && <span>· Reserv. <b className="tabular-nums">{r.reservatorioVolumeM3} m³</b></span>}
                     {cap === "DIRETO" && <span className="text-slate-400">· cai direto no master</span>}
-                    {r.aviso && <span className="w-full text-amber-600">⚠ {r.aviso}</span>}
+                    {r.aviso && <span className="w-full text-red-600">⚠ {r.aviso}</span>}
                   </div>
                 )}
               </div>
@@ -315,7 +361,7 @@ export function BordaInfinitaSection({
                 </div>
               )}
               {report?.avisos && report.avisos.length > 0 && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-800">
+                <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-[11px] font-medium text-red-700">
                   {report.avisos.map((a, i) => <div key={i}>⚠ {a}</div>)}
                 </div>
               )}

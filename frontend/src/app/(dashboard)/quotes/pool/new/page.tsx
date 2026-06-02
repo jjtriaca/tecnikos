@@ -7,10 +7,41 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import PartnerCombobox from "@/components/PartnerCombobox";
 import { BordaInfinitaSection, type BordaLine } from "@/components/pool/BordaInfinitaSection";
+import { CentralAvisos, type Aviso } from "@/components/pool/CentralAvisos";
 
 type Partner = { id: string; name: string; document?: string | null; phone?: string | null; city?: string | null; state?: string | null };
 type Template = { id: string; name: string; isDefault: boolean };
 type Layout = { id: string; name: string; isDefault: boolean };
+
+// Validacao system-wide da pagina (alem da borda, que reporta via onIssuesChange).
+// Faixas/sanidade dos campos -> alimenta a Central de Avisos.
+function validatePage(form: any): Aviso[] {
+  const out: Aviso[] = [];
+  const add = (secao: string, mensagem: string, nivel: "erro" | "aviso", anchor?: string) =>
+    out.push({ id: `${secao}-${out.length}`, secao, mensagem, nivel, anchor });
+  if (!form.clientPartnerId) add("Geral", "Cliente nao selecionado.", "erro", "sec-topo");
+  if (!form.title) add("Geral", "Titulo do orcamento vazio.", "erro", "sec-topo");
+  const secs: any[] = Array.isArray(form.sections) ? form.sections : [];
+  const anyDim = secs.some((s) => s.length > 0 && s.width > 0 && s.depth > 0);
+  if (!anyDim) add("Dimensoes", "Nenhuma medida da piscina preenchida (comprimento/largura/profundidade).", "erro", "sec-dimensoes");
+  secs.forEach((s, i) => {
+    const n = s.name || `Parte ${i + 1}`;
+    const some = s.length > 0 || s.width > 0 || s.depth > 0;
+    const all = s.length > 0 && s.width > 0 && s.depth > 0;
+    if (some && !all) add("Dimensoes", `${n}: medida incompleta (preencha comprimento, largura e profundidade).`, "erro", "sec-dimensoes");
+    if (all) {
+      if (s.depth > 3) add("Dimensoes", `${n}: profundidade ${s.depth} m acima do tipico (>3 m) — confira a unidade.`, "aviso", "sec-dimensoes");
+      if (s.length > 50 || s.width > 50) add("Dimensoes", `${n}: comprimento/largura acima de 50 m — confira a unidade.`, "aviso", "sec-dimensoes");
+    }
+  });
+  const td = Number(form.temperaturaAguaDesejada);
+  if (td && (td < 20 || td > 40)) add("Aquecimento", `Temperatura desejada ${td} graus fora do tipico (20-40).`, "aviso", "sec-aquecimento");
+  if (form.temperaturaInicialAgua !== "" && form.temperaturaInicialAgua != null) {
+    const ti = Number(form.temperaturaInicialAgua);
+    if (td && ti >= td) add("Aquecimento", `Temperatura inicial (${ti}) >= desejada (${td}) — sem necessidade de aquecer.`, "aviso", "sec-aquecimento");
+  }
+  return out;
+}
 
 export default function NewPoolBudgetPage() {
   const router = useRouter();
@@ -21,6 +52,7 @@ export default function NewPoolBudgetPage() {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [layouts, setLayouts] = useState<Layout[]>([]);
   const [saving, setSaving] = useState(false);
+  const [bordaIssues, setBordaIssues] = useState<{ mensagem: string; nivel: "erro" | "aviso" }[]>([]);
   // Cliente selecionado (objeto completo) — pra mostrar dados na tela e auto-preencher solicitante/titulo
   const [client, setClient] = useState<Partner | null>(null);
   const [form, setForm] = useState({
@@ -273,6 +305,9 @@ export default function NewPoolBudgetPage() {
       toast("Cliente e titulo sao obrigatorios", "error");
       return;
     }
+    if (avisos.some((a) => a.nivel === "erro") && !confirm("⚠ A pagina tem ERROS (veja a Central de avisos no topo) — os calculos vao ficar ERRADOS. Tem certeza que quer salvar assim mesmo?")) {
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -373,6 +408,11 @@ export default function NewPoolBudgetPage() {
     );
   }
 
+  const avisos: Aviso[] = [
+    ...validatePage(form),
+    ...bordaIssues.map((b, i) => ({ id: `borda-${i}`, secao: "Borda Infinita", anchor: "sec-borda", ...b })),
+  ];
+
   return (
     <div className="space-y-4 p-6">
       <div className="flex items-center justify-between">
@@ -388,8 +428,10 @@ export default function NewPoolBudgetPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        <CentralAvisos avisos={avisos} />
+
         {/* Cliente + Titulo */}
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div id="sec-topo" className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h3 className="text-sm font-semibold text-slate-700 mb-4">Dados Principais</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -478,7 +520,7 @@ export default function NewPoolBudgetPage() {
         </div>
 
         {/* Dimensoes da Piscina */}
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div id="sec-dimensoes" className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <h3 className="text-sm font-semibold text-slate-700 mb-4">Dimensoes da Piscina</h3>
 
           {/* Tipo (escolha primeiro porque afeta calculos e tipo de execucao) */}
@@ -685,17 +727,20 @@ export default function NewPoolBudgetPage() {
         </div>
 
         {/* Sistema de Borda Infinita — secao inline, logo abaixo das dimensoes */}
-        <BordaInfinitaSection
-          poolAreaM2={totals.area}
-          poolVolumeM3={totals.volume}
-          lines={form.bordaInfinita}
-          bathers={form.bordaInfinitaBathers}
-          surge={form.bordaInfinitaSurge}
-          onChange={(lines, bathers, surge) => setForm({ ...form, bordaInfinita: lines, bordaInfinitaBathers: bathers, bordaInfinitaSurge: surge })}
-        />
+        <div id="sec-borda">
+          <BordaInfinitaSection
+            poolAreaM2={totals.area}
+            poolVolumeM3={totals.volume}
+            lines={form.bordaInfinita}
+            bathers={form.bordaInfinitaBathers}
+            surge={form.bordaInfinitaSurge}
+            onChange={(lines, bathers, surge) => setForm({ ...form, bordaInfinita: lines, bordaInfinitaBathers: bathers, bordaInfinitaSurge: surge })}
+            onIssuesChange={setBordaIssues}
+          />
+        </div>
 
         {/* Parametros de aquecimento — Simulador de Aquecimento (F6.1) */}
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+        <div id="sec-aquecimento" className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
           <div>
             <h3 className="text-sm font-semibold text-slate-700">🔥 Parametros de aquecimento</h3>
             <p className="text-xs text-slate-500">Usados pelo Simulador de Aquecimento pra calcular kcal/h, dimensionar bomba de calor e estimar consumo/custos.</p>

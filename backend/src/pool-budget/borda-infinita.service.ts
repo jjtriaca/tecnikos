@@ -64,6 +64,7 @@ export interface BordaLineResult {
   ralosSugeridos?: number; // nº de ralos sugerido pra canaleta (CANALETA)
   raloCapacidadeM3h?: number; // capacidade de cada ralo (m³/h) — menor que tubo aberto
   drenagemDesignM3h?: number; // vazao de projeto da drenagem = transbordo × surge (dimensiona ralos+tubo)
+  tubosQty?: number; // nº de tubos de gravidade em paralelo (cada um leva drenagem ÷ nº)
   // MASTER
   masterVolume?: MasterVolumeResult;
   aviso?: string | null;
@@ -122,7 +123,10 @@ export class BordaInfinitaService {
   }
 
   private masterActualVolume(line: BordaLineDto): number | null {
-    if (line.masterCisternaPronta) return null; // cisterna pronta -> sem dims, so recomenda o volume (compra-se >= recomendado)
+    if (line.masterCisternaPronta) {
+      // cisterna pronta: usa o volume informado (valida vs recomendado); sem volume -> so recomenda.
+      return line.masterCisternaVolumeM3 && line.masterCisternaVolumeM3 > 0 ? line.masterCisternaVolumeM3 : null;
+    }
     const c = line.masterComprM ?? 0;
     const l = line.masterLargM ?? 0;
     const p = line.masterProfM ?? 0;
@@ -174,6 +178,7 @@ export class BordaInfinitaService {
 
       // Drenagem (ralos + tubo) dimensionada pro SURGE de ondas/banhistas (crianças) —
       // tem que esvaziar a canaleta rapido pra nao transbordar, nao so o filme estavel.
+      const tubos = Math.max(line.tubosQty ?? 1, 1); // pode usar varios tubos em paralelo (diametros menores)
       if (captacao === 'RESERVATORIO' || captacao === 'CANALETA') {
         drenagemDesignM3h = Number((transbordoM3h * surge).toFixed(2));
       }
@@ -185,7 +190,7 @@ export class BordaInfinitaService {
           areaEvaporacaoM2 += evaporaSuperficieM2;
         }
         tubo = this.gravity.sizeGravityPipe({
-          vazaoTransbordoM3h: drenagemDesignM3h ?? transbordoM3h,
+          vazaoTransbordoM3h: (drenagemDesignM3h ?? transbordoM3h) / tubos,
           desnivelM: line.tuboDesnivelM,
           comprimentoTuboM: line.tuboComprimentoM,
           curvas90Qty: line.curvas90Qty,
@@ -205,7 +210,7 @@ export class BordaInfinitaService {
           areaEvaporacaoM2 += evaporaSuperficieM2;
         }
         tubo = this.gravity.sizeGravityPipe({
-          vazaoTransbordoM3h: drenagemDesignM3h ?? transbordoM3h,
+          vazaoTransbordoM3h: (drenagemDesignM3h ?? transbordoM3h) / tubos,
           desnivelM: line.tuboDesnivelM,
           comprimentoTuboM: line.tuboComprimentoM,
           curvas90Qty: line.curvas90Qty,
@@ -228,6 +233,7 @@ export class BordaInfinitaService {
         evaporaSuperficieM2: evaporaSuperficieM2 || undefined,
         reservatorioVolumeM3: captacao === 'RESERVATORIO' ? reservatorioVolumeM3 : undefined,
         tubo,
+        tubosQty: tubo ? tubos : undefined,
         ralosSugeridos,
         raloCapacidadeM3h,
         drenagemDesignM3h,
