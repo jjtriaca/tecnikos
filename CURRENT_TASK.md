@@ -1,5 +1,11 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.13.13 (03/06) — branding pagina de avaliacao + fix campo Modelo
+## - **Pagina /rate (avaliacao publica):** `rate/layout.tsx` virou server component que resolve slug pelo host + busca branding (mesma infra do /q/, fallback Tecnikos) e renderiza LOGO + NOME da empresa acima do card. + `generateMetadata` (conserta preview do link no WhatsApp). Cliente agora sabe de qual empresa e.
+## - **Bug campo "Modelo" nao limpava:** payload mandava `model: f.model || undefined` -> "" virava undefined -> Prisma ignorava (campo nunca zerava). Fix: `model: f.model?.trim() || null` (products/page.tsx). DTO @IsOptional aceita null.
+## - **Seletor bomba de calor mostrava "X23" (model) em vez do nome:** `heating-budget.service` L1049 tinha prioridade INVERTIDA (`p.model || p.description`). Fix: `p.description?.trim() || p.model?.trim() || p.code` (igual Solar L125/Trocador L73). `model` e campo de AGRUPAMENTO de linha (varios produtos compartilham), NUNCA usar como label. + `code` add ao select. Header do equipamento truncado (nome agora completo/longo) com tooltip.
+## - Relacao dos 2 bugs: ambos no campo `model`. Orcamentos salvos: header "2× X23" se corrige no proximo recalculo; dropdown ja certo.
+
 ## ✅ DEPLOYED v1.13.12 (03/06) — cadastro bomba de calor BRAND-AGNOSTIC. Doc completa: [memory/cadastro_bomba_calor_brand_agnostic.md]
 ## - Auto-converter capacidade kcal/kW/BTU (toggle "🔗", default ON, desmarca pra editar individual) — `syncCapacity` em products/page.tsx.
 ## - Dicas "?" + placeholders apontando o datasheet (cap=secao 18 BTU/condicao/modo; COP="COP a 50% capacidade" Ar15/26; consumo="Potencia de entrada"; vazao="Fluxo de agua" 12~18).

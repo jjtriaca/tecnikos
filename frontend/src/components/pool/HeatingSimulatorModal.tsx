@@ -3066,9 +3066,9 @@ function BombaCalorTab({
                       </div>
                       <div className="mt-1 flex items-center gap-2 flex-wrap">
                         <div className="relative inline-flex items-center">
-                          <button type="button" onClick={() => setShowEquipPicker(!showEquipPicker)} className="flex items-center gap-2 text-lg font-bold text-emerald-900 hover:text-emerald-700 transition text-left print:hidden">
-                            <span>{eq.modelName}</span>
-                            <span className="text-xs text-emerald-700">{showEquipPicker ? "▲" : "▼"}</span>
+                          <button type="button" onClick={() => setShowEquipPicker(!showEquipPicker)} className="flex items-center gap-2 min-w-0 max-w-full text-lg font-bold text-emerald-900 hover:text-emerald-700 transition text-left print:hidden">
+                            <span className="truncate max-w-[240px] sm:max-w-[320px]" title={eq.modelName}>{eq.modelName}</span>
+                            <span className="text-xs text-emerald-700 shrink-0">{showEquipPicker ? "▲" : "▼"}</span>
                           </button>
                           <span className="hidden print:inline text-lg font-bold text-emerald-900">{eq.modelName}</span>
                           {showEquipPicker && (

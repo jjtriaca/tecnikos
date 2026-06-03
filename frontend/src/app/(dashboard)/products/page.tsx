@@ -616,7 +616,9 @@ function formToPayload(f: ProductForm, existingSpecs?: Record<string, any>) {
     barcode: f.barcode || undefined,
     description: f.description,
     brand: f.brand || undefined,
-    model: f.model || undefined,
+    // `|| undefined` apagava o "limpar campo": "" virava undefined e o Prisma ignorava
+    // (campo nunca zerava). `?? null` envia null explicito -> backend grava null -> limpa.
+    model: f.model?.trim() || null,
     unit: f.unit,
     ncm: f.ncm || undefined,
     cest: f.cest || undefined,

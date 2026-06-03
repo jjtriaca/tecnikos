@@ -1026,6 +1026,7 @@ export class HeatingBudgetService {
           },
       select: {
         id: true,
+        code: true,
         description: true,
         model: true,
         poolType: true,
@@ -1046,7 +1047,10 @@ export class HeatingBudgetService {
         if (!kcalH || kcalH <= 0) return null;
         return {
           productId: p.id,
-          modelName: p.model || p.description || 'Modelo sem nome',
+          // Nome do produto (description) tem prioridade — consistente com Solar/Trocador.
+          // `model` e campo de AGRUPAMENTO de linha tecnica (varios produtos compartilham
+          // o mesmo, ex: "X23"), nao identifica o equipamento — nunca usar como label.
+          modelName: p.description?.trim() || p.model?.trim() || p.code || 'Bomba de Calor',
           kcalHNominal: kcalH,
           btuH: Number(specs.btuH) || undefined,
           kwNominal: Number(specs.kwNominal) || undefined,
