@@ -1,13 +1,13 @@
 # TAREFA ATUAL
 
-## ACUMULANDO LOCAL (sem deploy ainda — decisao do usuario) — cadastro bomba de calor brand-agnostic:
+## ✅ DEPLOYED v1.13.12 (03/06) — cadastro bomba de calor BRAND-AGNOSTIC. Doc completa: [memory/cadastro_bomba_calor_brand_agnostic.md]
 ## - Auto-converter capacidade kcal/kW/BTU (toggle "🔗", default ON, desmarca pra editar individual) — `syncCapacity` em products/page.tsx.
 ## - Dicas "?" + placeholders apontando o datasheet (cap=secao 18 BTU/condicao/modo; COP="COP a 50% capacidade" Ar15/26; consumo="Potencia de entrada"; vazao="Fluxo de agua" 12~18).
 ## - DERIVA COP brand-agnostic no calculo de consumo (heating.service): quando NAO ha COP cadastrado, COP = capacidade kW ÷ consumo kW, clamp [2.5, 8]. FALLBACK — equip com COP nao muda (verificado: 40/5.7=7.0; com copAt50=7.5 usa 7.5). Achado: o campo "Consumo medio" era IGNORADO; agora e usado.
 ## - ✅ CONFIG APLICADO (SQL prod, tenant_sls.Company.systemConfig.pool.typeRequiredFields["Bomba de calor"] = ["kcalHNominal","ratedInputPowerKW"]). COP fica OPCIONAL (nunca foi required — o "✓" nos rotulos era DECORATIVO, texto fixo, nao obrigatoriedade). Antes "Bomba de calor" nao tinha NENHUM obrigatorio -> dava pra salvar bomba vazia (foi o caso do 32c). Agora exige capacidade + consumo.
 ## - ✅ AUDITORIA dados maquinas (prod): 6 Tholz X23 (09c/14c/18c/26c/32c/40c) COMPLETAS+CONSISTENTES (BTU=kW×3412, kcal=kW×860 batem; todas com tipoEquipamento=BOMBA_CALOR, vazaoMin/Max, consumo, copAt50Air15/26, copMax). 32c (PRD-00251) estava VAZIA -> preenchida. 3 nao-Tholz (Top+9 XLS-30997, Top+7 XLS-31015, Ultra 19 XLS-31453) seguem 100% VAZIAS (sem datasheet — usuario preenche; passarao a exigir cap+consumo no proximo save).
 ##
-## Prod: v1.13.11 (alinhado local == prod). BUNDLE NO AR:
+## Prod: v1.13.12 (alinhado local == prod). BUNDLE NO AR:
 ## - Cisterna master: mensagem distingue ABAIXO DO MINIMO (vermelho) de abaixo-do-recomendado-acima-do-min (ambar), mostra deficit; so o grave bloqueia.
 ## - Vento: HelpHint "?" + opcoes (editor + simulador) Fraco=abrigado/Moderado=parc.aberto/Forte=exposto. Validacao de campo Inacio Ruaro -> [memory/heating_dimensioning_field_validation.md].
 ## - BOMBA DE CIRCULACAO + TUBOS na aba Bomba de Calor (NOVO): porte do mecanismo solar. Vazao-alvo = bomba de calor selecionada `vazaoMinM3h × qtd`. Avisa se faltar vazao. Backend expos `vazaoMin/MaxM3h` no report.selectedEquipment; reusa endpoints `trocador-pipe/recompute` + `trocador-bomba-candidates` + a regra de bomba do Solar. `TrocadorPumpPipeCard`.
