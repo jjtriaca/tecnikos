@@ -318,6 +318,8 @@ export default function PoolBudgetDetailPage() {
   const [paymentTerms, setPaymentTerms] = useState<PoolPaymentTerm[]>([]);
   const [showAdd, setShowAdd] = useState(false);
   const [addSection, setAddSection] = useState<string | null>(null);
+  // Linha em edicao (abre o mesmo modal de incluir, pre-preenchido). null = modo "adicionar".
+  const [editLineItem, setEditLineItem] = useState<BudgetItem | null>(null);
   // Etapas adicionadas manualmente que ainda nao tem items (pra UI ja ter card vazio)
   const [extraSections, setExtraSections] = useState<string[]>([]);
   // UI: renomeacao inline de etapa (key, valor temporario)
@@ -1177,6 +1179,7 @@ export default function PoolBudgetDetailPage() {
                           tenantPoolTypes={tenantPoolTypes}
                           onUpdate={(patch) => updateItem(it.id, patch)}
                           onRemove={() => removeItem(it.id)}
+                          onEdit={() => { setEditLineItem(it); setAddSection(it.poolSection); setShowAdd(true); }}
                           onMove={(dir) => moveItem(it, dir)}
                         />
                       ))}
@@ -1253,9 +1256,18 @@ export default function PoolBudgetDetailPage() {
           <AddItemModal
             availableSections={availableSections}
             defaultSection={addSection}
-            onClose={() => { setShowAdd(false); setAddSection(null); }}
-            onSubmit={(p) => { addItem(p); setAddSection(null); }}
-            onAddCustomSection={() => { setShowAdd(false); setAddSection(null); setReopenAddLineAfterCustomSection(true); setShowAddSection(true); }}
+            editItem={editLineItem}
+            onClose={() => { setShowAdd(false); setAddSection(null); setEditLineItem(null); }}
+            onSubmit={(p) => {
+              if (editLineItem) {
+                updateItem(editLineItem.id, { poolSection: p.poolSection, kind: p.kind, slotName: p.slotName });
+                setShowAdd(false);
+              } else {
+                addItem({ poolSection: p.poolSection, kind: p.kind, slotName: p.slotName, description: "", unit: "UN", qty: 1, unitPriceCents: 0, isExtra: true });
+              }
+              setAddSection(null); setEditLineItem(null);
+            }}
+            onAddCustomSection={() => { setShowAdd(false); setAddSection(null); setEditLineItem(null); setReopenAddLineAfterCustomSection(true); setShowAddSection(true); }}
           />
         );
       })()}
@@ -1447,7 +1459,7 @@ export default function PoolBudgetDetailPage() {
   );
 }
 
-function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentParams, heatingReport, dias, allItems, catalog, tenantPoolTypes, onUpdate, onRemove, onMove }: {
+function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentParams, heatingReport, dias, allItems, catalog, tenantPoolTypes, onUpdate, onRemove, onEdit, onMove }: {
   item: BudgetItem;
   seq?: number;
   locked: boolean;
@@ -1462,6 +1474,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
   tenantPoolTypes?: string[];
   onUpdate: (patch: Partial<BudgetItem> & { formulaExpr?: string | null }) => void;
   onRemove: () => void;
+  onEdit?: () => void;
   onMove?: (dir: -1 | 1) => void;
 }) {
   const [qty, setQty] = useState(item.qty);
@@ -1744,8 +1757,14 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
                   title="Mover linha pra baixo">▼</button>
               </>
             )}
-            <button onClick={onRemove} className="text-red-400 hover:text-red-600 text-xs ml-1"
-              title="Remover linha">✕</button>
+            <div className="flex flex-col items-center gap-0.5 ml-1">
+              <button onClick={onRemove} className="text-red-400 hover:text-red-600 text-xs leading-none"
+                title="Remover linha">✕</button>
+              {onEdit && (
+                <button onClick={onEdit} className="text-slate-400 hover:text-cyan-600 text-xs leading-none"
+                  title="Editar linha (nome, tipo Produto/Serviço, etapa)">✎</button>
+              )}
+            </div>
           </div>
         )}
       </td>
@@ -1891,42 +1910,37 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
 // Modal simplificado: pede Nome do item + Etapa + Tipo (Produto/Servico).
 // A linha vem sempre livre (sem vinculo, preco 0). Operador edita inline depois
 // ou clica 🔍 pra vincular a Product/Service. v1.12.21.
-function AddItemModal({ availableSections, defaultSection, onClose, onSubmit, onAddCustomSection }: {
+function AddItemModal({ availableSections, defaultSection, editItem, onClose, onSubmit, onAddCustomSection }: {
   availableSections: { key: string; label: string }[];
   defaultSection?: string | null;
+  // Quando presente, o modal entra em modo EDICAO (pre-preenche e o submit ATUALIZA a linha).
+  editItem?: { id: string; slotName?: string | null; description?: string | null; kind?: string; poolSection?: string } | null;
   onClose: () => void;
-  onSubmit: (payload: any) => void;
+  onSubmit: (payload: { poolSection: string; kind: 'PRODUCT' | 'SERVICE'; slotName: string }) => void;
   onAddCustomSection: () => void;
 }) {
-  // Se defaultSection nao existe na lista (ex: foi escondida), cai pra OUTROS.
-  const initialSection = defaultSection && availableSections.some((s) => s.key === defaultSection)
-    ? defaultSection
+  const isEdit = !!editItem;
+  // Edicao: pre-seleciona a etapa do item. Senao a defaultSection. Senao OUTROS.
+  const preferredSection = editItem?.poolSection ?? defaultSection ?? null;
+  const initialSection = preferredSection && availableSections.some((s) => s.key === preferredSection)
+    ? preferredSection
     : (availableSections[0]?.key ?? "OUTROS");
   const [section, setSection] = useState<string>(initialSection);
-  const [name, setName] = useState("");
-  const [kind, setKind] = useState<'PRODUCT' | 'SERVICE'>('PRODUCT');
+  const [name, setName] = useState(editItem ? (editItem.slotName || editItem.description || "") : "");
+  const [kind, setKind] = useState<'PRODUCT' | 'SERVICE'>(editItem?.kind === 'SERVICE' ? 'SERVICE' : 'PRODUCT');
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const nm = name.trim();
     if (!nm) return;
-    onSubmit({
-      poolSection: section,
-      kind,
-      slotName: nm,        // nome do operador vai pra coluna ITEM (slotName)
-      description: "",     // descricao fica vazia — sera "Sem produto"/"Sem servico" placeholder
-      unit: "UN",
-      qty: 1,
-      unitPriceCents: 0,
-      isExtra: true,
-    });
+    onSubmit({ poolSection: section, kind, slotName: nm });
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-        <h3 className="text-lg font-semibold text-slate-900 mb-1">Adicionar item</h3>
-        <p className="text-xs text-slate-500 mb-4">Digite so o nome. Preco e quantidade voce ajusta direto na tabela depois.</p>
+        <h3 className="text-lg font-semibold text-slate-900 mb-1">{isEdit ? "Editar item" : "Adicionar item"}</h3>
+        <p className="text-xs text-slate-500 mb-4">{isEdit ? "Ajuste o nome, o tipo (Produto/Serviço) e a etapa. Preço e quantidade você edita direto na tabela." : "Digite so o nome. Preco e quantidade voce ajusta direto na tabela depois."}</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Nome do item *</label>
@@ -1977,7 +1991,7 @@ function AddItemModal({ availableSections, defaultSection, onClose, onSubmit, on
             </button>
             <button type="submit"
               className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700">
-              Adicionar
+              {isEdit ? "Salvar" : "Adicionar"}
             </button>
           </div>
         </form>

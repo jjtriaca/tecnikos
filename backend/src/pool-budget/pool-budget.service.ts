@@ -546,7 +546,21 @@ export class PoolBudgetService {
     const vars = extractDimensionVars(poolDimensions);
     const itemsToCreate: Prisma.PoolBudgetItemCreateManyInput[] = [];
     let order = 0;
+    // Preserva o cellRef ORIGINAL do snapshot pra formulas entre linhas (qty(LX)/total(LX)/
+    // prod(LX,"spec")) continuarem validas no novo orcamento. Coleta os preservados num Set
+    // e gera fallback UNICO (sem colisao) pros itens sem cellRef (templates antigos).
+    const usedCellRefs = new Set<string>();
+    for (const sit of snapshot) {
+      const r = typeof sit.cellRef === 'string' ? sit.cellRef.trim() : '';
+      if (r) usedCellRefs.add(r);
+    }
     let cellRefSeq = 0;
+    const nextCellRef = (): string => {
+      let r: string;
+      do { cellRefSeq++; r = `L${cellRefSeq}`; } while (usedCellRefs.has(r));
+      usedCellRefs.add(r);
+      return r;
+    };
     for (const it of snapshot) {
       let qty = Number(it.qty) || 0;
       let qtyCalculated: number | null = null;
@@ -562,15 +576,16 @@ export class PoolBudgetService {
       }
       const unitPriceCents = Number(it.unitPriceCents) || 0;
       const totalCents = Math.round(qty * unitPriceCents);
-      cellRefSeq++;
+      const cellRef = typeof it.cellRef === 'string' && it.cellRef.trim() ? it.cellRef.trim() : nextCellRef();
       itemsToCreate.push({
         budgetId,
         poolSection: it.poolSection,
+        kind: it.kind === 'SERVICE' ? 'SERVICE' : 'PRODUCT',
         sortOrder: typeof it.sortOrder === 'number' ? it.sortOrder : order++,
         slotName: it.slotName ?? null,
         description: it.description || '(sem descricao)',
         unit: it.unit || 'UN',
-        cellRef: `L${cellRefSeq}`,
+        cellRef,
         qty,
         qtyCalculated,
         formulaExpr: it.formulaExpr || null,
@@ -2456,6 +2471,8 @@ export class PoolBudgetService {
           orderBy: [{ poolSection: 'asc' }, { sortOrder: 'asc' }],
           select: {
             poolSection: true,
+            kind: true,
+            cellRef: true,
             sortOrder: true,
             slotName: true,
             description: true,
@@ -2463,6 +2480,7 @@ export class PoolBudgetService {
             qty: true,
             unitPriceCents: true,
             formulaExpr: true,
+            autoSelectRule: true,
           },
         },
       },
@@ -2474,6 +2492,12 @@ export class PoolBudgetService {
       poolSection: it.poolSection,
       sortOrder: it.sortOrder,
       slotName: it.slotName,
+      // kind (PRODUCT/SERVICE) — pra a linha do novo orcamento ja vir com o tipo certo.
+      kind: it.kind,
+      // cellRef ORIGINAL — ESSENCIAL pra preservar formulas que referenciam outras linhas
+      // (qty(L7), total(L5), prod(L5,"spec")). Sem isso o applyItemsSnapshot regenerava L1,L2...
+      // e a referencia apontava pra outra linha -> formula "perdia funcao" no novo orcamento.
+      cellRef: it.cellRef,
       description: it.description,
       unit: it.unit,
       qty: it.qty,
