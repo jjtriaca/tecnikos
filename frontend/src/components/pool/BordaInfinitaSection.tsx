@@ -295,9 +295,15 @@ export function BordaInfinitaSection({
                     </div>
                   )}
                   {mv && cisterna && mv.actualM3 != null && mv.status === "BAIXO" && (
-                    <div className="border-t border-red-200 bg-red-50 px-2 py-1.5 text-[11px] text-red-700">
-                      ⚠ Cisterna de <b>{mv.actualM3} m³</b> ABAIXO do recomendado (<b>≥ {mv.recomendadoM3} m³</b>) — insuficiente: a bomba pode secar/transbordar. Use uma maior ou complemente.
-                    </div>
+                    mv.actualM3 < mv.minimoM3 ? (
+                      <div className="border-t border-red-200 bg-red-50 px-2 py-1.5 text-[11px] text-red-700">
+                        ⛔ Cisterna de <b>{mv.actualM3} m³</b> está <b>abaixo do mínimo</b> ({mv.minimoM3} m³) — insuficiente: a bomba pode secar/transbordar. Recomendado <b>≥ {mv.recomendadoM3} m³</b> (faltam ~{deficit} m³).
+                      </div>
+                    ) : (
+                      <div className="border-t border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800">
+                        ⚠ Cisterna de <b>{mv.actualM3} m³</b> — acima do mínimo (funciona), mas <b>abaixo do recomendado</b> (≥ {mv.recomendadoM3} m³). Faltam ~<b>{deficit} m³</b> pra ter folga — ideal aumentar ou complementar.
+                      </div>
+                    )
                   )}
                   {mv && !cisterna && (
                     <div className="border-t border-slate-200 px-2 py-1.5 text-[11px]">

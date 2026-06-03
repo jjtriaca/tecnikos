@@ -452,6 +452,8 @@ export class HeatingBudgetService {
       copCurveC: Number(specs.copCurveC) || undefined,
       copNominal: Number(specs.copNominal) || undefined,
       copAt50Capacity: Number(specs.copAt50Capacity) || undefined,
+      vazaoMinM3h: Number(specs.vazaoMinM3h) || undefined,
+      vazaoMaxM3h: Number(specs.vazaoMaxM3h) || undefined,
       quantity: qty,
     };
   }
@@ -516,6 +518,8 @@ export class HeatingBudgetService {
       copCurveC: Number(specs.copCurveC) || undefined,
       copNominal: Number(specs.copNominal) || undefined,
       copAt50Capacity: Number(specs.copAt50Capacity) || undefined,
+      vazaoMinM3h: Number(specs.vazaoMinM3h) || undefined,
+      vazaoMaxM3h: Number(specs.vazaoMaxM3h) || undefined,
       _cellRef: chosen.cellRef ?? undefined,
       quantity: qty,
     };
@@ -1057,6 +1061,8 @@ export class HeatingBudgetService {
           copCurveC: Number(specs.copCurveC) || undefined,
           copNominal: Number(specs.copNominal) || undefined,
           copAt50Capacity: Number(specs.copAt50Capacity) || undefined,
+      vazaoMinM3h: Number(specs.vazaoMinM3h) || undefined,
+      vazaoMaxM3h: Number(specs.vazaoMaxM3h) || undefined,
         };
       })
       .filter((p): p is NonNullable<typeof p> => p !== null);

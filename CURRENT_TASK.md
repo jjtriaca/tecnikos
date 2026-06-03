@@ -1,10 +1,15 @@
 # TAREFA ATUAL
 
-## Prod: v1.13.09. PENDENTE DEPLOY v1.13.10 (2 itens, type-clean):
-## NO AR (v1.13.09): FASE 2 Borda · Cadastrar/Editar · Duplicar · fix decimais · env-merge · largura canaleta · card calorias.
-## 🔴 PENDENTE v1.13.10:
-## - EDITAR LINHA: icone ✎ abaixo do ✕ na linha -> abre AddItemModal em modo EDICAO (nome/tipo Produto-Servico/etapa). Backend updateItem ja aceitava poolSection/kind/slotName.
-## - MODELO preserva formulas: saveAsTemplate agora captura `kind`, `cellRef`, `autoSelectRule` (este NAO era salvo — bug). applyItemsSnapshot PRESERVA o cellRef original (formulas entre linhas qty(LX)/total(LX)/prod(LX) continuam validas no novo orcamento).
+## Prod: v1.13.10. PENDENTE DEPLOY v1.13.11 (BUNDLE, type-clean back+front):
+## - Cisterna master: mensagem distingue ABAIXO DO MINIMO (vermelho, risco) de abaixo-do-recomendado-acima-do-min (ambar, sem folga), mostra deficit; so o caso grave vira aviso bloqueante.
+## - Vento: HelpHint "?" + opcoes enriquecidas (editor + simulador) explicando Fraco=abrigado / Moderado=parc.aberto / Forte=exposto. Validacao de campo Inacio Ruaro -> [memory/heating_dimensioning_field_validation.md].
+## - BOMBA DE CIRCULACAO + TUBOS na aba Bomba de Calor (NOVO): porte do mecanismo solar. Vazao-alvo = bomba de calor selecionada `vazaoMinM3h × qtd` (campos ja existiam no cadastro). Avisa se a bomba de calor nao tem vazao cadastrada. Backend so expos `vazaoMin/MaxM3h` no report.selectedEquipment; reusa endpoints `trocador-pipe/recompute` + `trocador-bomba-candidates`. Componente `TrocadorPumpPipeCard` (efemero — inputs nao persistem nesta v1; usa a mesma regra de bomba do Solar). PENDENTE: persistencia dos inputs do tubo + verificacao runtime (pool=sem preview).
+##
+## v1.13.10 e anteriores TUDO NO AR.
+## v1.13.10: EDITAR LINHA (icone ✎ abaixo do ✕ -> AddItemModal em modo EDICAO: nome/tipo/etapa) +
+## MODELO preserva formulas (saveAsTemplate captura `kind`/`cellRef`/`autoSelectRule` [este era bug — nao salvava]; applyItemsSnapshot PRESERVA cellRef -> formulas entre linhas qty(LX)/prod(LX) seguem validas).
+## ⚠️ Modelos salvos ANTES da v1.13.10 nao tem autoSelectRule/cellRef — RE-SALVAR pra capturar.
+## ⚠️ DEPLOY: `tsc --noEmit` com cache incremental deu FALSE-PASS (onEdit nao desestruturado passou local, quebrou no build do servidor). Verificar pre-deploy com `tsc --noEmit --incremental false` (ou apagar .tsbuildinfo). 1o deploy v1.13.10 abortou no build (prod intacta), fix + redeploy OK.
 
 ## (3) DUPLICAR ORCAMENTO (NOVO, sessao 217)
 - Botao **⧉ Duplicar** (sempre visivel, inclusive cadastrado/aprovado). Endpoint `POST :id/duplicate {title?, updatePrices?}`.

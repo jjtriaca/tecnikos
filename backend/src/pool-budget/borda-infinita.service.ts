@@ -277,7 +277,11 @@ export class BordaInfinitaService {
       nBathers: dto.nBathers,
       actualVolumeM3: masterActual ?? undefined,
     });
-    if (master.aviso) avisos.push(`Reservatorio master: ${master.aviso}`);
+    // So o caso GRAVE (cisterna abaixo do MINIMO) vira aviso vermelho bloqueante na Central.
+    // "Abaixo do recomendado mas acima do minimo" (funciona, so sem folga) e SEM_DADO (ainda
+    // preenchendo) sao mostrados inline na linha do master — nao bloqueiam.
+    const masterHardProblem = master.status === 'BAIXO' && master.actualM3 != null && master.actualM3 < master.minimoM3;
+    if (master.aviso && masterHardProblem) avisos.push(`Reservatorio master: ${master.aviso}`);
 
     // Volume do master que conta na massa termica: usa o real informado, senao o recomendado.
     // SO conta se existe uma linha MASTER de fato — sem master, nada de volume fantasma

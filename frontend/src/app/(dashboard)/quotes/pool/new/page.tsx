@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import PartnerCombobox from "@/components/PartnerCombobox";
 import { BordaInfinitaSection, type BordaLine } from "@/components/pool/BordaInfinitaSection";
+import { HelpHint } from "@/components/ui/HelpHint";
 import { CentralAvisos, type Aviso } from "@/components/pool/CentralAvisos";
 
 type Partner = { id: string; name: string; document?: string | null; phone?: string | null; city?: string | null; state?: string | null };
@@ -805,13 +806,15 @@ export default function NewPoolBudgetPage() {
                   className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
               </div>
               <div>
-                <label className="block text-[10px] text-slate-500 mb-1">Velocidade vento</label>
+                <label className="flex items-center gap-1 text-[10px] text-slate-500 mb-1">Velocidade vento
+                  <HelpHint width={300} text="O VENTO e o fator que MAIS pesa no dimensionamento da bomba de calor — a evaporacao a Moderado e ~40% maior que a Fraco, podendo mudar a quantidade de bombas. Escolha pela exposicao do LOCAL da piscina: Fraco = abrigada por muros/cerca/casa em volta (maioria dos quintais); Moderado = area parcialmente aberta; Forte = muito exposto (sitio, litoral, descampado, cobertura alta); Nulo = praticamente sem vento." />
+                </label>
                 <select value={form.velocidadeVento} onChange={(e) => setForm({ ...form, velocidadeVento: e.target.value })}
                   className="w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm">
-                  <option value="NULO">Nulo</option>
-                  <option value="FRACO">Fraco (~7 km/h)</option>
-                  <option value="MODERADO">Moderado (~15 km/h)</option>
-                  <option value="FORTE">Forte (~22 km/h)</option>
+                  <option value="NULO">Nulo — sem vento</option>
+                  <option value="FRACO">Fraco — abrigado (muros/cerca) ~7 km/h</option>
+                  <option value="MODERADO">Moderado — parc. aberto ~15 km/h</option>
+                  <option value="FORTE">Forte — exposto (sitio/litoral) ~22 km/h</option>
                 </select>
               </div>
               <div>

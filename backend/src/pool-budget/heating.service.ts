@@ -126,6 +126,11 @@ export interface EquipmentSpecs {
   // Legados (compat)
   copNominal?: number;
   copAt50Capacity?: number;
+  // Vazao de agua (m³/h) que deve circular pela bomba de calor/trocador — faixa [min, max].
+  // Usada pra dimensionar a BOMBA DE CIRCULACAO (mesma mecanica do solar). Se ausente, o card
+  // da bomba de circulacao avisa e nao dimensiona. Vem do cadastro (technicalSpecs.vazaoMin/MaxM3h).
+  vazaoMinM3h?: number;
+  vazaoMaxM3h?: number;
 }
 
 export interface MonthlyConsumption {
@@ -456,6 +461,8 @@ export class HeatingService {
       copCurveC?: number;
       copNominal?: number;
       copAt50Capacity?: number;
+      vazaoMinM3h?: number;
+      vazaoMaxM3h?: number;
       /** v1.11.87: quantity pode vir do candidato (extractEquipmentFromOverride passa
        *  N quando operador escolheu Nx unidades). Era hardcoded 1 — bug visivel quando
        *  modelName tem "2x" mas quantity=1 dessincronizava o input do simulador. */

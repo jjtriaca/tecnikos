@@ -8,6 +8,10 @@ import { api, getAccessToken } from "@/lib/api";
 import { useDebounce } from "@/hooks/useDebounce";
 import { AutoSelectModal, type AutoSelectRule, type CatalogConfig } from "@/app/(dashboard)/quotes/pool/[id]/page";
 import SolarRulesModal from "@/components/pool/SolarRulesModal";
+import { HelpHint } from "@/components/ui/HelpHint";
+
+// Dica do vento — fator que MAIS pesa no dimensionamento da bomba de calor.
+const VENTO_HINT = "O VENTO e o que MAIS pesa no dimensionamento da bomba de calor — a evaporacao a Moderado e ~40% maior que a Fraco, podendo mudar a quantidade de bombas. Escolha pela exposicao do LOCAL: Fraco = piscina abrigada por muros/cerca/casa (maioria dos quintais); Moderado = area parcialmente aberta; Forte = muito exposto (sitio, litoral, descampado).";
 
 // ============ Tipos ============
 
@@ -41,6 +45,10 @@ interface SelectedEquipment {
   copAt50Air15?: number;
   copNominal?: number;
   copAt50Capacity?: number;
+  // Vazao de agua (m³/h) recomendada da bomba de calor — faixa [min, max] do cadastro.
+  // Dimensiona a bomba de circulacao. Ausente -> card avisa e nao dimensiona.
+  vazaoMinM3h?: number;
+  vazaoMaxM3h?: number;
   loadRatio: number;
   isAdequate: boolean;
   quantity: number;
@@ -1607,7 +1615,7 @@ function SolarTab({
                         </select>
                         <span className="hidden print:inline-block text-[10.5px] font-bold text-slate-900 leading-[1.1]">{capaTermica ? "Sim" : "Não"}</span>
                       </ConfigFieldBig>
-                      <ConfigFieldBig label="Vento" manual={cfgManual}>
+                      <ConfigFieldBig label="Vento" manual={cfgManual} hint={VENTO_HINT}>
                         <select value={vento} onChange={(e) => setVento(e.target.value)}
                           disabled={!cfgManual}
                           className={`w-full bg-transparent text-[10.5px] font-bold leading-[1.1] focus:outline-none print:hidden h-[14px] -mt-0.5 capitalize disabled:cursor-not-allowed ${cfgManual ? "text-emerald-900" : "text-slate-900"}`}>
@@ -2964,7 +2972,7 @@ function BombaCalorTab({
                         </select>
                         <span className="hidden print:inline-block text-[10.5px] font-bold text-slate-900 leading-[1.1]">{capaTermica ? "Sim" : "Não"}</span>
                       </ConfigFieldBig>
-                      <ConfigFieldBig label="Vento" manual={cfgManual}>
+                      <ConfigFieldBig label="Vento" manual={cfgManual} hint={VENTO_HINT}>
                         <select value={vento} onChange={(e) => setVento(e.target.value)} className="w-full bg-transparent text-[10.5px] font-bold leading-[1.1] focus:outline-none print:hidden h-[14px] -mt-0.5 capitalize text-emerald-900">
                           <option value="FRACO">Fraco</option>
                           <option value="MODERADO">Moderado</option>
@@ -3107,6 +3115,9 @@ function BombaCalorTab({
                   )}
                 </div>
               </section>
+
+              {/* BOMBA DE CIRCULACAO + TUBULACAO — mesma mecanica do Solar, vazao da bomba de calor selecionada */}
+              {report.selectedEquipment && <TrocadorPumpPipeCard budgetId={budget.id} sel={report.selectedEquipment} />}
 
               {/* PERDA TERMICA MENSAL */}
               <section className="px-5 py-2 border-b border-slate-200 avoid-break">
@@ -3357,6 +3368,132 @@ function KV({ label, value }: { label: string; value: string | number }) {
 
 // ============ Componentes do redesign profissional do SolarTab ============
 
+interface TrocadorBombaCandidate {
+  productId: string; description: string; salePriceCents: number; poolType: string | null;
+  imageUrl: string | null; vazaoM3h: number; pressaoTrabalhoMca: number; potenciaCv: number | null;
+  hasPumpCurve: boolean; indicator: { value: number; label: string; color: string; unit: string } | null;
+}
+
+// Bomba de circulacao + tubulacao da aba Bomba de Calor (mesma mecanica do Solar). A vazao-alvo
+// vem da bomba de calor SELECIONADA (vazaoMinM3h × qtd). Sem vazao cadastrada -> avisa e nao dimensiona.
+// Inputs efemeros (nao persistem nesta v1) — recomputam ao vivo via /trocador-pipe/recompute +
+// /trocador-bomba-candidates (mesmos endpoints reutilizaveis do nucleo do Solar).
+function TrocadorPumpPipeCard({ budgetId, sel }: {
+  budgetId: string;
+  sel?: { vazaoMinM3h?: number; vazaoMaxM3h?: number; quantity?: number } | null;
+}) {
+  const qty = Math.max(1, Number(sel?.quantity) || 1);
+  const vMin = Number(sel?.vazaoMinM3h) || 0;
+  const vMax = Number(sel?.vazaoMaxM3h) || 0;
+  const hasVazao = vMin > 0;
+  const vazaoAlvo = Number((vMin * qty).toFixed(2));
+  const vazaoMaxTotal = vMax > 0 ? Number((vMax * qty).toFixed(2)) : 0;
+
+  const [comprimento, setComprimento] = useState<number>(0);
+  const [desnivel, setDesnivel] = useState<number>(0);
+  const [pipeResult, setPipeResult] = useState<any | null>(null);
+  const [pipeBusy, setPipeBusy] = useState(false);
+  const [candidates, setCandidates] = useState<TrocadorBombaCandidate[]>([]);
+  const [selBombaId, setSelBombaId] = useState<string | null>(null);
+  const [candLoading, setCandLoading] = useState(false);
+
+  async function recompute(diametroMm?: number | null) {
+    if (!hasVazao || !comprimento || comprimento <= 0) { setPipeResult(null); return; }
+    setPipeBusy(true);
+    try {
+      const body: Record<string, unknown> = { comprimentoM: comprimento, desnivelM: desnivel || 0, vazaoM3h: vazaoAlvo };
+      if (diametroMm != null) body.diametroMm = diametroMm;
+      const res = await api.post<{ result: any }>(`/pool-budgets/${budgetId}/trocador-pipe/recompute`, body);
+      setPipeResult(res?.result ?? null);
+    } catch { setPipeResult(null); } finally { setPipeBusy(false); }
+  }
+
+  const altura = Number(pipeResult?.alturaManometricaTotal) || 0;
+  useEffect(() => {
+    if (!hasVazao || vazaoAlvo <= 0) { setCandidates([]); return; }
+    let cancelled = false; setCandLoading(true);
+    api.get<{ candidates: TrocadorBombaCandidate[] }>(`/pool-budgets/${budgetId}/trocador-bomba-candidates?vazao=${vazaoAlvo}&altura=${altura}`)
+      .then((res) => { if (cancelled) return; const cs = res?.candidates ?? []; setCandidates(cs); if (cs.length && !cs.some((c) => c.productId === selBombaId)) setSelBombaId(cs[0].productId); })
+      .catch(() => { if (!cancelled) setCandidates([]); })
+      .finally(() => { if (!cancelled) setCandLoading(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [budgetId, vazaoAlvo, altura, hasVazao]);
+
+  if (!hasVazao) {
+    return (
+      <section className="px-5 py-3 border-b border-slate-200 avoid-break">
+        <SectionLabel>🚰 Bomba de circulação + tubulação</SectionLabel>
+        <div className="mt-1 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-[12px] text-amber-900">
+          ⚠ A bomba de calor selecionada não tem <b>vazão de água</b> cadastrada. Preencha a <b>Vazão mínima</b> (e máxima) no cadastro do produto (aba Piscina · aquecimentos) para dimensionar a bomba de circulação e os tubos.
+        </div>
+      </section>
+    );
+  }
+
+  const velAlta = (pipeResult?.velocidade ?? 0) >= 2.5;
+  const dns: number[] = pipeResult?.availableDiametersMm ?? [32, 40, 50, 60, 75];
+  const dnAtual = pipeResult?.diametroDnMm ?? dns.find((d) => d >= 50) ?? dns[0];
+  const selB = candidates.find((c) => c.productId === selBombaId) ?? candidates[0] ?? null;
+
+  return (
+    <section className="px-5 py-3 border-b border-slate-200 avoid-break">
+      <SectionLabel>🚰 Bomba de circulação + tubulação</SectionLabel>
+      <div className="mt-1 text-[10px] text-slate-500">Vazão necessária: <b className="text-slate-800 tabular-nums">{vazaoAlvo} m³/h</b>{qty > 1 ? ` (${vMin} × ${qty} bombas)` : ""}{vazaoMaxTotal > 0 ? ` · faixa até ${vazaoMaxTotal} m³/h` : ""}</div>
+      <div className="mt-1.5 grid grid-cols-1 md:grid-cols-2 gap-2">
+        {/* Tubulacao */}
+        <div className="rounded border border-slate-200 bg-slate-50/50 p-2 space-y-1">
+          <div className="grid grid-cols-2 gap-1.5">
+            <label className="flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold text-slate-500">Comp. (m)
+              <input type="number" step="0.5" min={0} value={comprimento || ""} onChange={(e) => setComprimento(Number(e.target.value) || 0)} onBlur={() => recompute()} placeholder="30" className="flex-1 min-w-0 rounded border border-slate-300 px-1.5 py-0.5 text-[12px] font-semibold h-6 focus:outline-none focus:border-amber-500" />
+            </label>
+            <label className="flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold text-slate-500">Desnív. (m)
+              <input type="number" step="0.5" min={0} value={desnivel || ""} onChange={(e) => setDesnivel(Number(e.target.value) || 0)} onBlur={() => recompute()} placeholder="2" className="flex-1 min-w-0 rounded border border-slate-300 px-1.5 py-0.5 text-[12px] font-semibold h-6 focus:outline-none focus:border-amber-500" />
+            </label>
+          </div>
+          {pipeResult ? (
+            <div className={`rounded border px-2 py-1.5 ${velAlta ? "border-red-400 bg-red-50" : "border-amber-300 bg-amber-50"}`}>
+              <div className="flex items-baseline justify-between gap-2">
+                <div className={`text-[8.5px] uppercase tracking-wider font-bold ${velAlta ? "text-red-800" : "text-amber-800"}`}>Altura manométrica total</div>
+                <div className={`text-base font-bold tabular-nums ${velAlta ? "text-red-900" : "text-amber-900"}`}>{pipeResult.alturaManometricaTotal?.toFixed(2)} <span className="text-[10px] font-semibold">mca</span></div>
+              </div>
+              <div className={`text-[9.5px] mt-0.5 ${velAlta ? "text-red-800" : "text-amber-800"}`}>= {pipeResult.perdaDinamica?.toFixed(2)} mca tubo + {desnivel} m desnível · velocidade <span className={velAlta ? "font-bold text-red-700" : ""}>{pipeResult.velocidade?.toFixed(2)} m/s</span></div>
+              <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                <span className={`text-[10px] uppercase tracking-wider font-bold ${velAlta ? "text-red-800" : "text-amber-800"}`}>📏 {pipeResult.material ?? "PVC"}</span>
+                <select value={dnAtual} onChange={(e) => recompute(Number(e.target.value))} className={`text-xs font-bold rounded border px-2 py-0.5 bg-white ${velAlta ? "border-red-400 text-red-900" : "border-amber-400 text-amber-900"} focus:outline-none`}>{dns.map((d) => <option key={d} value={d}>{d} mm DN</option>)}</select>
+                {pipeResult.diametroAutoPicked ? <span className="text-[9px] uppercase tracking-wider text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">auto</span> : <button type="button" onClick={() => recompute(null)} className="text-[10px] underline text-slate-500 hover:text-slate-700">↺ automático</button>}
+              </div>
+              {velAlta && <div className="mt-1.5 rounded bg-red-100 border border-red-300 px-2 py-1 text-[10px] font-bold text-red-800 text-center uppercase tracking-wide">⚠ Velocidade {pipeResult.velocidade?.toFixed(2)} m/s acima de 2,5 — aumente o diâmetro</div>}
+            </div>
+          ) : <div className="text-[10px] text-slate-500 italic">{pipeBusy ? "Calculando…" : "Preencha comprimento + desnível para escolher o tubo e calcular a altura manométrica."}</div>}
+        </div>
+        {/* Bomba */}
+        <div className="rounded border border-slate-200 bg-white p-2">
+          <div className="text-[9px] uppercase tracking-wider font-bold text-slate-500 mb-1">Bomba de circulação recomendada</div>
+          {candidates.length === 0 ? (
+            <div className="text-[11px] text-slate-600 leading-tight">{candLoading ? "Carregando candidatos…" : `Nenhuma bomba do catálogo atende vazão ≥ ${vazaoAlvo} m³/h${altura > 0 ? ` e ${altura.toFixed(1)} mca` : ""}. Cadastre bombas compatíveis (com curva) ou ajuste a regra de bomba na aba Solar (✨).`}</div>
+          ) : (
+            <>
+              <select value={selBombaId ?? ""} onChange={(e) => setSelBombaId(e.target.value || null)} className="w-full rounded border border-slate-300 bg-amber-50 px-2 py-1 text-[12px] font-semibold">
+                {candidates.map((c) => { const parts = [c.description]; if (c.potenciaCv != null) parts.push(`${c.potenciaCv} cv`); parts.push(`${c.vazaoM3h.toFixed(1)} m³/h`); parts.push(`${c.pressaoTrabalhoMca.toFixed(1)} mca`); if (c.hasPumpCurve) parts.push("📈 curva"); return <option key={c.productId} value={c.productId}>{parts.join(" · ")}</option>; })}
+              </select>
+              {selB && (
+                <div className="mt-1.5 flex items-center gap-x-3 gap-y-0.5 flex-wrap text-[11px] text-slate-700">
+                  <span>Vazão <b className="tabular-nums">{selB.vazaoM3h.toFixed(1)} m³/h</b></span>
+                  <span>Pressão <b className="tabular-nums">{selB.pressaoTrabalhoMca.toFixed(1)} mca</b></span>
+                  {selB.potenciaCv != null && <span><b className="tabular-nums">{selB.potenciaCv} cv</b></span>}
+                  {vazaoMaxTotal > 0 && selB.vazaoM3h > vazaoMaxTotal && <span className="text-amber-600 font-semibold">⚠ acima da vazão máx ({vazaoMaxTotal})</span>}
+                  {altura > 0 && selB.pressaoTrabalhoMca < altura && <span className="text-red-600 font-semibold">⚠ pressão &lt; {altura.toFixed(1)} mca</span>}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="text-[9px] uppercase tracking-[0.15em] text-slate-500 font-semibold border-b border-slate-200 pb-0.5">
@@ -3569,13 +3706,13 @@ function ConfigField({ label, children }: { label: string; children: React.React
 
 // v5.5 — Mesmo padrao compacto do Stat/SelectCard (Dimensoes) — label 7px, valor 10.5px, padding mínimo.
 // Cor cinza (auto/disabled) ou verde (manual/editavel) baseado em prop manual.
-function ConfigFieldBig({ label, children, manual }: { label: string; children: React.ReactNode; manual?: boolean }) {
+function ConfigFieldBig({ label, children, manual, hint }: { label: string; children: React.ReactNode; manual?: boolean; hint?: string }) {
   const colors = manual
     ? { border: "border-emerald-300", bg: "bg-emerald-50", label: "text-emerald-700" }
     : { border: "border-slate-200", bg: "bg-white", label: "text-slate-500" };
   return (
     <div className={`rounded border px-1.5 py-0.5 leading-tight overflow-hidden flex flex-col justify-center ${colors.border} ${colors.bg}`} style={{ height: '32px' }}>
-      <div className={`text-[7px] uppercase tracking-tight font-semibold leading-[1.05] ${colors.label}`} title={label}>{label}</div>
+      <div className={`flex items-center gap-0.5 text-[7px] uppercase tracking-tight font-semibold leading-[1.05] ${colors.label}`} title={label}>{label}{hint && <HelpHint text={hint} width={300} />}</div>
       <div className="flex items-center">{children}</div>
     </div>
   );

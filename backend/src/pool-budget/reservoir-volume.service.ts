@@ -102,10 +102,10 @@ export class ReservoirVolumeService {
         : null;
     } else if (actual < minimo) {
       status = 'BAIXO';
-      aviso = `Volume ${actual.toFixed(2)} m³ ABAIXO DO MINIMO (${minimo.toFixed(2)} m³). Risco: a bomba puxa direto do master e vai puxar ar/secar (cavitacao), ou o surge transborda pro esgoto quando a bomba para. Recomendado ~${recomendado.toFixed(2)} m³.`;
+      aviso = `Cisterna de ${actual.toFixed(2)} m³ esta ABAIXO DO MINIMO (${minimo.toFixed(2)} m³ — faltam ~${(minimo - actual).toFixed(2)} m³). Risco: a bomba puxa direto do master e pode secar (cavitacao), ou o surge transborda quando a bomba para. Recomendado ~${recomendado.toFixed(2)} m³.`;
     } else if (actual < recomendado) {
       status = 'BAIXO';
-      aviso = `Volume ${actual.toFixed(2)} m³ abaixo do recomendado (~${recomendado.toFixed(2)} m³ / ${(recomendado * 1000).toFixed(0)} L). Acima do minimo, mas sem margem pra banhistas/uso intenso — a bomba puxa direto, entao deixe folga.`;
+      aviso = `Cisterna de ${actual.toFixed(2)} m³ — acima do minimo (funciona), mas abaixo do recomendado de ~${recomendado.toFixed(2)} m³ (${(recomendado * 1000).toFixed(0)} L; faltam ~${(recomendado - actual).toFixed(2)} m³). Sem folga pra banhistas/uso intenso — ideal aumentar ou complementar.`;
     } else if (actual > recomendado * RESERVOIR_VOLUME.OVERSIZE_FACTOR) {
       status = 'ALTO';
       aviso = `Volume ${actual.toFixed(2)} m³ muito acima do recomendado (~${recomendado.toFixed(2)} m³) — superdimensionado (custo e massa termica extra pra aquecer). Confira.`;
