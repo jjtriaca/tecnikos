@@ -43,8 +43,24 @@ Doc completa: [cadastro_bomba_calor_brand_agnostic.md](cadastro_bomba_calor_bran
 - **Auditoria dados (prod tenant_sls):** 6 Tholz X23 completas+consistentes (BTU=kW×3412, kcal=kW×860);
   X23-32c (PRD-00251) estava VAZIA → preenchida; 3 nao-Tholz (Top+9/Top+7/Ultra19) seguem vazias.
 
+## v1.13.13 — Branding pagina de avaliacao + fix campo Modelo
+- **Pagina /rate (avaliacao publica):** `rate/layout.tsx` virou server component — resolve slug pelo
+  host + busca branding (mesma infra do /q/, fallback Tecnikos) e renderiza LOGO + NOME da empresa
+  acima do card; + `generateMetadata` (conserta preview do link no WhatsApp). Verificado na prod:
+  `/api/public/tenant/sls/branding` retorna companyName "SLS" + logo custom (icon-512 = 200 png).
+- **Bug "Modelo" nao limpava (products/page.tsx):** payload mandava `model: f.model || undefined` →
+  "" virava undefined → Prisma ignora → campo nunca zerava. Fix: `model: f.model?.trim() || null`
+  (DTO @IsOptional aceita null; service grava data.model direto). PADRAO DE RISCO: `|| undefined`
+  em payload de UPDATE impede limpar campo.
+- **Seletor bomba de calor mostrava "X23" (model) em vez do nome (heating-budget.service L1049):**
+  prioridade INVERTIDA `p.model || p.description`. Fix: `p.description?.trim() || p.model?.trim() ||
+  p.code` (igual Solar L125 / Trocador L73) + `code` add ao select. `model` e campo de AGRUPAMENTO
+  de linha (varios produtos compartilham, ex "X23") — NUNCA usar como label de equipamento. Header
+  do equipamento truncado (nome agora completo) com tooltip. Orcamentos salvos: header se corrige no
+  proximo recalculo, dropdown ja certo.
+
 ## Estado no fim da sessao
-- **Prod = v1.13.12**, alinhado com local. Tudo desta sessao NO AR.
+- **Prod = v1.13.13**, alinhado com local. Tudo desta sessao NO AR.
 - 🟡 Pendencias abertas: (1) inputs do tubo da bomba de circulacao nao persistem + validar runtime;
   (2) preencher 3 bombas nao-Tholz vazias; (3) auditoria responsividade MOBILE system-wide;
   (4) PDF do orcamento (botao Imprimir hoje desabilitado "em breve"); (5) remover painel debug
