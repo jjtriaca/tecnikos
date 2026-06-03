@@ -1,9 +1,17 @@
 # TAREFA ATUAL
 
-## Prod: v1.13.10. PENDENTE DEPLOY v1.13.11 (BUNDLE, type-clean back+front):
-## - Cisterna master: mensagem distingue ABAIXO DO MINIMO (vermelho, risco) de abaixo-do-recomendado-acima-do-min (ambar, sem folga), mostra deficit; so o caso grave vira aviso bloqueante.
-## - Vento: HelpHint "?" + opcoes enriquecidas (editor + simulador) explicando Fraco=abrigado / Moderado=parc.aberto / Forte=exposto. Validacao de campo Inacio Ruaro -> [memory/heating_dimensioning_field_validation.md].
-## - BOMBA DE CIRCULACAO + TUBOS na aba Bomba de Calor (NOVO): porte do mecanismo solar. Vazao-alvo = bomba de calor selecionada `vazaoMinM3h × qtd` (campos ja existiam no cadastro). Avisa se a bomba de calor nao tem vazao cadastrada. Backend so expos `vazaoMin/MaxM3h` no report.selectedEquipment; reusa endpoints `trocador-pipe/recompute` + `trocador-bomba-candidates`. Componente `TrocadorPumpPipeCard` (efemero — inputs nao persistem nesta v1; usa a mesma regra de bomba do Solar). PENDENTE: persistencia dos inputs do tubo + verificacao runtime (pool=sem preview).
+## ACUMULANDO LOCAL (sem deploy ainda — decisao do usuario) — cadastro bomba de calor brand-agnostic:
+## - Auto-converter capacidade kcal/kW/BTU (toggle "🔗", default ON, desmarca pra editar individual) — `syncCapacity` em products/page.tsx.
+## - Dicas "?" + placeholders apontando o datasheet (cap=secao 18 BTU/condicao/modo; COP="COP a 50% capacidade" Ar15/26; consumo="Potencia de entrada"; vazao="Fluxo de agua" 12~18).
+## - DERIVA COP brand-agnostic no calculo de consumo (heating.service): quando NAO ha COP cadastrado, COP = capacidade kW ÷ consumo kW, clamp [2.5, 8]. FALLBACK — equip com COP nao muda (verificado: 40/5.7=7.0; com copAt50=7.5 usa 7.5). Achado: o campo "Consumo medio" era IGNORADO; agora e usado.
+## - ✅ CONFIG APLICADO (SQL prod, tenant_sls.Company.systemConfig.pool.typeRequiredFields["Bomba de calor"] = ["kcalHNominal","ratedInputPowerKW"]). COP fica OPCIONAL (nunca foi required — o "✓" nos rotulos era DECORATIVO, texto fixo, nao obrigatoriedade). Antes "Bomba de calor" nao tinha NENHUM obrigatorio -> dava pra salvar bomba vazia (foi o caso do 32c). Agora exige capacidade + consumo.
+## - ✅ AUDITORIA dados maquinas (prod): 6 Tholz X23 (09c/14c/18c/26c/32c/40c) COMPLETAS+CONSISTENTES (BTU=kW×3412, kcal=kW×860 batem; todas com tipoEquipamento=BOMBA_CALOR, vazaoMin/Max, consumo, copAt50Air15/26, copMax). 32c (PRD-00251) estava VAZIA -> preenchida. 3 nao-Tholz (Top+9 XLS-30997, Top+7 XLS-31015, Ultra 19 XLS-31453) seguem 100% VAZIAS (sem datasheet — usuario preenche; passarao a exigir cap+consumo no proximo save).
+##
+## Prod: v1.13.11 (alinhado local == prod). BUNDLE NO AR:
+## - Cisterna master: mensagem distingue ABAIXO DO MINIMO (vermelho) de abaixo-do-recomendado-acima-do-min (ambar), mostra deficit; so o grave bloqueia.
+## - Vento: HelpHint "?" + opcoes (editor + simulador) Fraco=abrigado/Moderado=parc.aberto/Forte=exposto. Validacao de campo Inacio Ruaro -> [memory/heating_dimensioning_field_validation.md].
+## - BOMBA DE CIRCULACAO + TUBOS na aba Bomba de Calor (NOVO): porte do mecanismo solar. Vazao-alvo = bomba de calor selecionada `vazaoMinM3h × qtd`. Avisa se faltar vazao. Backend expos `vazaoMin/MaxM3h` no report.selectedEquipment; reusa endpoints `trocador-pipe/recompute` + `trocador-bomba-candidates` + a regra de bomba do Solar. `TrocadorPumpPipeCard`.
+## 🟡 PENDENTE bomba de circulacao: (1) inputs do tubo NAO persistem (efemero — resetam ao reabrir); (2) VERIFICAR RUNTIME na prod (pool=sem preview — testar cadastrando vazao numa bomba de calor).
 ##
 ## v1.13.10 e anteriores TUDO NO AR.
 ## v1.13.10: EDITAR LINHA (icone ✎ abaixo do ✕ -> AddItemModal em modo EDICAO: nome/tipo/etapa) +
@@ -44,7 +52,7 @@
 
 ## Outros pendentes (menores)
 - Central de Avisos: levar pra outros cadastros + expandir regras de faixa por campo.
-- Conferir valores Tholz JA cadastrados no SLS vs datasheet (kcal/h/COP/vazao). Remover painel debug violeta (aguardando Solis 7+ baterias).
+- ✅ Conferido: 6 Tholz X23 vs datasheet (kcal/COP/vazao OK). Pendente ainda: remover painel debug violeta (aguardando Solis 7+ baterias); preencher 3 nao-Tholz vazias.
 - Roadmap: vazao min/max -> bomba de circulacao por curva; defaults de tubulacao configuraveis.
 
 ## Sessoes anteriores

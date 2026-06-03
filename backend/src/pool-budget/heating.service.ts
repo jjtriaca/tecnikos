@@ -756,8 +756,17 @@ export class HeatingService {
         report.degreesPerHour = time.degreesPerHour;
         report.timeToHeatInfeasible = time.isInfeasible;
         // COP usado nos calculos de consumo: prioriza ar 15°C (inverno BR, conservador).
-        // copAt50Capacity (legado) tipicamente ja eh o valor de ar 15°C.
-        report.copEstimated = sel.copAt50Air15 ?? sel.copAt50Capacity ?? sel.copNominal ?? 0;
+        // BRAND-AGNOSTIC: quando NAO ha COP preciso cadastrado, DERIVA do par universal
+        // capacidade÷consumo (potencia de entrada) — esses 2 dados todo datasheet/manual traz.
+        // Clampeado em [2.5, 8] pra absorver o descasamento de condicao (capacidade nominal vem
+        // em ar 26°C, consumo em ar 15°C) e ficar numa faixa fisica conservadora (segura pro custo).
+        // FALLBACK: so age quando faltam os COPs cadastrados — equipamentos com COP nao mudam.
+        const capKwForCop = sel.kwNominal ?? (sel.kcalHNominal ? sel.kcalHNominal / CONVERSIONS.KWH_TO_KCAL : 0);
+        const consumoKwForCop = sel.ratedInputPowerKW ?? (sel.consumoMedioW ? sel.consumoMedioW / 1000 : undefined);
+        const copDerivado = consumoKwForCop && consumoKwForCop > 0 && capKwForCop > 0
+          ? Math.max(2.5, Math.min(8, capKwForCop / consumoKwForCop))
+          : undefined;
+        report.copEstimated = sel.copAt50Air15 ?? sel.copAt50Capacity ?? sel.copNominal ?? copDerivado ?? 0;
 
         // 5. Consumo + custo (modelo TAB006: carga mensal × COP polinomial)
         if (options.tariff) {
@@ -768,8 +777,11 @@ export class HeatingService {
               A: sel.copCurveA,
               B: sel.copCurveB,
               C: sel.copCurveC,
-              copMax: sel.copMax,
-              copAt50: sel.copAt50Air15 ?? sel.copAt50Capacity ?? sel.copNominal,
+              // Sem copMax/copAt50 cadastrado -> usa o COP derivado (capacidade÷consumo) como
+              // COP constante conservador. Se o operador preencher os COPs por condicao, eles
+              // refinam (tem prioridade). A curva A/B/C, se houver, manda em tudo.
+              copMax: sel.copMax ?? copDerivado,
+              copAt50: sel.copAt50Air15 ?? sel.copAt50Capacity ?? sel.copNominal ?? copDerivado,
             };
             const consumption = this.computeMonthlyConsumption(monthly, capacidadeKw, hoursPerDay, options.tariff, copCurve);
             report.monthlyConsumption = consumption;

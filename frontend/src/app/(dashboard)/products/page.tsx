@@ -813,6 +813,9 @@ export default function ProductsPage() {
   const [modalTab, setModalTab] = useState<ModalTab>("geral");
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [form, setForm] = useState<ProductForm>({ ...EMPTY_FORM });
+  // Capacidade (kcal/h · kW · BTU/h) = mesmo valor em 3 unidades. Ligado: preenche um -> os
+  // outros se auto-completam pela conversao. Operador desmarca pra editar individual.
+  const [autoSyncCapacity, setAutoSyncCapacity] = useState(true);
   const [saving, setSaving] = useState(false);
 
   // Equivalents state (within modal)
@@ -1106,6 +1109,26 @@ export default function ProductsPage() {
   const margin = computeMargin(costVal, saleVal);
 
   /* ── Form field helpers ─────────────────────────────── */
+
+  // Auto-conversao de capacidade: kcal/h <-> kW <-> BTU/h (1 kW = 860 kcal/h = 3412 BTU/h).
+  // O operador digita a unidade que o datasheet traz e os outros 2 se preenchem. Quando
+  // autoSyncCapacity esta OFF, edita cada um individualmente (so seta o campo de origem).
+  function syncCapacity(source: 'kcal' | 'kw' | 'btu', raw: string) {
+    const v = parseFloat(String(raw).replace(',', '.'));
+    setForm((prev) => {
+      const next = { ...prev };
+      if (source === 'kcal') next.specKcalHNominal = raw;
+      else if (source === 'kw') next.specKwNominal = raw;
+      else next.specBtuH = raw;
+      if (autoSyncCapacity && Number.isFinite(v) && v > 0) {
+        const kcal = source === 'kcal' ? v : source === 'kw' ? v * 860 : v / 3.9683;
+        if (source !== 'kcal') next.specKcalHNominal = String(Math.round(kcal));
+        if (source !== 'kw') next.specKwNominal = String(Number((kcal / 860).toFixed(2)));
+        if (source !== 'btu') next.specBtuH = String(Math.round(kcal * 3.9683));
+      }
+      return next;
+    });
+  }
 
   function setField<K extends keyof ProductForm>(key: K, value: ProductForm[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -2272,24 +2295,31 @@ export default function ProductsPage() {
                         Identificacao do produto como "coletor solar" / "bomba de calor" /
                         etc agora eh feita pelo Tipo (poolType) — campo livre gerenciavel
                         via ⚙ Gerenciar tipos. Nada filtra por technicalSpecs.tipoEquipamento. */}
+                    <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                      <h5 className="text-[11px] font-bold text-slate-500 uppercase">Capacidade de aquecimento</h5>
+                      <label className="flex items-center gap-1.5 text-[11px] text-slate-600 cursor-pointer select-none" title="Ligado: digite em UMA unidade (a que o datasheet traz) e as outras se preenchem pela conversao. Desmarque pra editar cada uma na mao.">
+                        <input type="checkbox" checked={autoSyncCapacity} onChange={(e) => setAutoSyncCapacity(e.target.checked)} className="accent-cyan-600" />
+                        🔗 Auto-converter (kcal · kW · BTU)
+                      </label>
+                    </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
                       <div>
-                        <FieldLabel required={currentRequiredSpecs.has('kcalHNominal')} tone="cyan" help="Capacidade nominal de aquecimento em Kcal/h — NUMERO PRINCIPAL DO CALCULO. Usado pelo Simulador pra selecionar o modelo (kcalHNominal >= calorNecessarioKcalH). Ex Tholz X23-40C = 34.400 Kcal/h.">
+                        <FieldLabel required={currentRequiredSpecs.has('kcalHNominal')} tone="cyan" help="Capacidade nominal de aquecimento em Kcal/h — numero principal do calculo (o Simulador seleciona o modelo por kcalHNominal >= calor necessario). Com o auto-converter LIGADO, basta preencher kW OU BTU/h que este se completa sozinho. Ex Tholz X23-40C = 34.400 Kcal/h (= 136.500 BTU, ar 26°C Turbo).">
                           Kcal/h nominal ✓
                         </FieldLabel>
-                        <input type="number" step="100" value={form.specKcalHNominal} onChange={(e) => setField("specKcalHNominal", e.target.value)} placeholder="Ex: 34400" className={inputClass} />
+                        <input type="number" step="100" value={form.specKcalHNominal} onChange={(e) => syncCapacity('kcal', e.target.value)} placeholder="Ex: 34400" className={inputClass} />
                       </div>
                       <div>
-                        <FieldLabel required={currentRequiredSpecs.has('kwNominal')} help="Potencia termica equivalente em kW. Apenas INFORMATIVO no relatorio do Simulador. Equivale a Kcal/h ÷ 860.">
-                          kW termico (info)
+                        <FieldLabel required={currentRequiredSpecs.has('kwNominal')} help="Potencia termica em kW (= Kcal/h ÷ 860). Datasheets costumam dar a capacidade em kW ou BTU — preencha aqui e o Kcal/h se completa (auto-converter ligado).">
+                          kW térmico
                         </FieldLabel>
-                        <input type="number" step="0.1" value={form.specKwNominal} onChange={(e) => setField("specKwNominal", e.target.value)} placeholder="Ex: 40" className={inputClass} />
+                        <input type="number" step="0.1" value={form.specKwNominal} onChange={(e) => syncCapacity('kw', e.target.value)} placeholder="Ex: 40" className={inputClass} />
                       </div>
                       <div>
-                        <FieldLabel required={currentRequiredSpecs.has('btuH')} help="Capacidade em BTU/h. Apenas INFORMATIVO no relatorio (comum em datasheets importados). Calculo do Simulador NAO usa este campo — usa Kcal/h nominal. Equivale a Kcal/h × 3.9683.">
-                          BTU/h (info)
+                        <FieldLabel required={currentRequiredSpecs.has('btuH')} help="Capacidade em BTU/h (= Kcal/h × 3,9683). Comum em datasheets (ex: Tholz X23 lista a capacidade em BTU por condicao/modo). Preencha aqui e o Kcal/h se completa.">
+                          BTU/h
                         </FieldLabel>
-                        <input type="number" step="1000" value={form.specBtuH} onChange={(e) => setField("specBtuH", e.target.value)} placeholder="Ex: 140000" className={inputClass} />
+                        <input type="number" step="1000" value={form.specBtuH} onChange={(e) => syncCapacity('btu', e.target.value)} placeholder="Ex: 136500" className={inputClass} />
                       </div>
                     </div>
 
@@ -2300,16 +2330,16 @@ export default function ProductsPage() {
                         <h5 className="text-[11px] font-bold text-slate-500 uppercase mb-2 mt-2">Vazao de agua (m³/h)</h5>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4 max-w-md">
                           <div>
-                            <FieldLabel required={currentRequiredSpecs.has('vazaoMinM3h')} help="Vazao MINIMA de agua que deve passar pela bomba de calor (trocador). Abaixo disso o equipamento corta / nao troca calor direito. Usada pra selecionar a bomba de circulacao pela curva: a vazao escolhida fica dentro de [minima, maxima].">
+                            <FieldLabel required={currentRequiredSpecs.has('vazaoMinM3h')} help="Vazao MINIMA de agua que deve passar pela bomba de calor (trocador). Abaixo disso o equipamento corta / nao troca calor direito. Usada pra dimensionar a bomba de circulacao. No datasheet: linha 'Fluxo de agua (m³/h)' — o primeiro numero da faixa. Ex Tholz X23-40C: Fluxo 12~18 -> minima 12.">
                               Vazao minima
                             </FieldLabel>
-                            <input type="number" step="0.1" min="0" value={form.specVazaoMinM3h} onChange={(e) => setField("specVazaoMinM3h", e.target.value)} placeholder="Ex: 4" className={inputClass} />
+                            <input type="number" step="0.1" min="0" value={form.specVazaoMinM3h} onChange={(e) => setField("specVazaoMinM3h", e.target.value)} placeholder="Ex: 12" className={inputClass} />
                           </div>
                           <div>
-                            <FieldLabel required={currentRequiredSpecs.has('vazaoMaxM3h')} help="Vazao MAXIMA de agua suportada pela bomba de calor (trocador). Acima disso a perda de carga sobe demais. Usada pra selecionar a bomba de circulacao pela curva: a vazao escolhida fica dentro de [minima, maxima].">
+                            <FieldLabel required={currentRequiredSpecs.has('vazaoMaxM3h')} help="Vazao MAXIMA de agua suportada pela bomba de calor (trocador). Acima disso a perda de carga sobe demais. No datasheet: linha 'Fluxo de agua (m³/h)' — o segundo numero da faixa. Ex Tholz X23-40C: Fluxo 12~18 -> maxima 18.">
                               Vazao maxima
                             </FieldLabel>
-                            <input type="number" step="0.1" min="0" value={form.specVazaoMaxM3h} onChange={(e) => setField("specVazaoMaxM3h", e.target.value)} placeholder="Ex: 7" className={inputClass} />
+                            <input type="number" step="0.1" min="0" value={form.specVazaoMaxM3h} onChange={(e) => setField("specVazaoMaxM3h", e.target.value)} placeholder="Ex: 18" className={inputClass} />
                           </div>
                         </div>
                       </>
@@ -2318,7 +2348,7 @@ export default function ProductsPage() {
                     <h5 className="text-[11px] font-bold text-slate-500 uppercase mb-2 mt-2">Consumo eletrico</h5>
                     <div className="grid grid-cols-1 sm:grid-cols-1 gap-4 mb-4 max-w-sm">
                       <div>
-                        <FieldLabel required={currentRequiredSpecs.has('ratedInputPowerKW')} help="Consumo eletrico MEDIO em kW (em ar 15°C, 50% capacidade). Usado pra estimar custo mensal e anual de operacao. Ex Tholz X23-40C = 3.145 kW.">
+                        <FieldLabel required={currentRequiredSpecs.has('ratedInputPowerKW')} help="Consumo eletrico MEDIO em kW. Usado pra estimar custo mensal/anual. No datasheet: linha 'Potencia de entrada nominal (kW)' — costuma vir em FAIXA (min~max); use o MEIO da faixa. Ex Tholz X23-40C: 0,59~5,7 -> medio ~3,145 kW.">
                           Consumo medio (kW)
                         </FieldLabel>
                         <input type="number" step="0.1" value={form.specRatedInputPowerKW} onChange={(e) => setField("specRatedInputPowerKW", e.target.value)} placeholder="Ex: 3.145" className={inputClass} />
@@ -2329,19 +2359,19 @@ export default function ProductsPage() {
                     <h5 className="text-[11px] font-bold text-slate-500 uppercase mb-2 mt-2">COP (Coeficiente de Performance)</h5>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
-                        <FieldLabel required={currentRequiredSpecs.has('copMax')} help="COP MAXIMO em condicao ideal (ar 26°C, carga baixa). Eh o numero de marketing — 'Bomba COP 23' = esse valor. Nao representa operacao tipica.">
+                        <FieldLabel required={currentRequiredSpecs.has('copMax')} help="COP MAXIMO (marketing) em condicao ideal. No datasheet: bloco 'Ar 26°C', linha 'COP' — o MAIOR numero da faixa (ex X23-40C: 7,3~23,0 -> 23,0). Nao representa operacao tipica.">
                           COP maximo (marketing)
                         </FieldLabel>
                         <input type="number" step="0.1" value={form.specCopMax} onChange={(e) => setField("specCopMax", e.target.value)} placeholder="Ex: 23.0" className={inputClass} />
                       </div>
                       <div>
-                        <FieldLabel required={currentRequiredSpecs.has('copAt50Air26')} help="COP em 50% capacidade com ar a 26°C — operacao tipica de verao. Pra Tholz X23-40C = 15.">
+                        <FieldLabel required={currentRequiredSpecs.has('copAt50Air26')} help="COP em 50% capacidade com ar a 26°C — verao. No datasheet: bloco 'Ar 26°C', linha 'COP a 50% de capacidade'. Ex Tholz X23-40C = 15,0.">
                           COP 50% verao (ar 26°C)
                         </FieldLabel>
                         <input type="number" step="0.1" value={form.specCopAt50Air26} onChange={(e) => setField("specCopAt50Air26", e.target.value)} placeholder="Ex: 15.0" className={inputClass} />
                       </div>
                       <div>
-                        <FieldLabel required={currentRequiredSpecs.has('copAt50Air15')} tone="cyan" help="COP em 50% capacidade com ar a 15°C — operacao de inverno BR. USADO PRA CALCULO conservador de consumo no Simulador (fallback). Pra Tholz X23-40C = 7.5.">
+                        <FieldLabel required={currentRequiredSpecs.has('copAt50Air15')} tone="cyan" help="COP em 50% capacidade com ar a 15°C — inverno BR. USADO PRA CALCULO conservador de consumo no Simulador. No datasheet: secao 'Condicoes de desempenho', bloco 'Ar 15°C', linha 'COP a 50% de capacidade'. Ex Tholz X23-40C = 7,5.">
                           COP 50% inverno (ar 15°C) ✓
                         </FieldLabel>
                         <input type="number" step="0.1" value={form.specCopAt50Air15} onChange={(e) => setField("specCopAt50Air15", e.target.value)} placeholder="Ex: 7.5" className={inputClass} />
