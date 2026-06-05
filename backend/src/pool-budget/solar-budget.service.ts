@@ -608,6 +608,22 @@ export class SolarBudgetService {
     return this.setTenantPoolKey(companyId, 'solarBombaRule', rule);
   }
 
+  // Regra da bomba de CIRCULACAO da Bomba de Calor (Trocador) — INDEPENDENTE da do Solar,
+  // mas usa a MESMA formula (listBombaCandidatesByFlow). Armazenada em
+  // Company.systemConfig.pool.trocadorBombaRule. Se vazia, cai pra solarBombaRule (fallback).
+  async getTrocadorBombaRule(companyId: string): Promise<any | null> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    const rule = (company?.systemConfig as any)?.pool?.trocadorBombaRule;
+    return rule && typeof rule === 'object' ? rule : null;
+  }
+
+  async setTrocadorBombaRule(companyId: string, rule: any | null): Promise<{ rule: any | null }> {
+    return this.setTenantPoolKey(companyId, 'trocadorBombaRule', rule);
+  }
+
   // ============ Solar Override (v1.12.52) ============
   // Persiste area/volume manuais em environmentParams.solarOverride. Permite operador
   // testar dimensionamento com area diferente sem alterar poolDimensions (cadastro).
@@ -705,6 +721,7 @@ export class SolarBudgetService {
     companyId: string,
     vazaoAlvoM3h: number,
     alturaMca: number,
+    ruleKey: 'solarBombaRule' | 'trocadorBombaRule' = 'solarBombaRule',
   ): Promise<Array<{
     productId: string;
     description: string;
@@ -719,7 +736,14 @@ export class SolarBudgetService {
   }>> {
     if (vazaoAlvoM3h <= 0) return []; // sem vazao-alvo, nada a sugerir
 
-    const bombaRule = await this.getSolarBombaRule(companyId);
+    // Regra por contexto: Trocador (bomba de calor) usa trocadorBombaRule (INDEPENDENTE da
+    // do Solar). Se nao configurada, cai pra solarBombaRule pra nao quebrar a selecao.
+    let bombaRule = ruleKey === 'trocadorBombaRule'
+      ? await this.getTrocadorBombaRule(companyId)
+      : await this.getSolarBombaRule(companyId);
+    if (!bombaRule && ruleKey === 'trocadorBombaRule') {
+      bombaRule = await this.getSolarBombaRule(companyId);
+    }
     if (!bombaRule) return [];
 
     const products = await this.prisma.product.findMany({
@@ -837,7 +861,7 @@ export class SolarBudgetService {
 
   private async setTenantPoolKey(
     companyId: string,
-    key: 'solarCollectorRule' | 'solarBombaRule',
+    key: 'solarCollectorRule' | 'solarBombaRule' | 'trocadorBombaRule',
     value: any | null,
   ): Promise<{ rule: any | null }> {
     const company = await this.prisma.company.findUnique({

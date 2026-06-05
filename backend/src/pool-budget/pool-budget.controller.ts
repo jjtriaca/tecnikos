@@ -153,8 +153,10 @@ export class PoolBudgetController {
   ) {
     const v = Number(vazao) || 0;
     const a = Number(altura) || 0;
+    // Regra INDEPENDENTE da bomba de circulacao do calor (trocadorBombaRule), com fallback
+    // pra do Solar quando nao configurada — ver listBombaCandidatesByFlow.
     return this.solarBudget
-      .listBombaCandidatesByFlow(user.companyId, v, a)
+      .listBombaCandidatesByFlow(user.companyId, v, a, 'trocadorBombaRule')
       .then((candidates) => ({ candidates }));
   }
 
@@ -198,6 +200,21 @@ export class PoolBudgetController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.solarBudget.setSolarBombaRule(user.companyId, body?.rule ?? null);
+  }
+
+  @ApiOperation({ summary: 'Retorna a regra de auto-selecao da bomba de CIRCULACAO da Bomba de Calor (Trocador) — INDEPENDENTE da do Solar. Fallback pra solarBombaRule quando vazia.' })
+  @Get('heating/bomba-rule')
+  getTrocadorBombaRule(@CurrentUser() user: AuthenticatedUser) {
+    return this.solarBudget.getTrocadorBombaRule(user.companyId).then((rule) => ({ rule }));
+  }
+
+  @ApiOperation({ summary: 'Salva a regra de auto-selecao da bomba de circulacao da Bomba de Calor (body.rule pode ser null pra limpar e voltar ao fallback do Solar).' })
+  @Post('heating/bomba-rule')
+  setTrocadorBombaRule(
+    @Body() body: { rule: any | null },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.solarBudget.setTrocadorBombaRule(user.companyId, body?.rule ?? null);
   }
 
   @ApiOperation({ summary: 'Lista candidatos a bomba do Coletor Solar que passam na regra (ordenados pelo orderBy). v1.12.43.' })

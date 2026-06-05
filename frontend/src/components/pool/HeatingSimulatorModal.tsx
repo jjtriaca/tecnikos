@@ -2841,6 +2841,29 @@ function BombaCalorTab({
   const [showEquipPicker, setShowEquipPicker] = useState(false);
   const [showHeatingRulePicker, setShowHeatingRulePicker] = useState(false);
 
+  // Regra INDEPENDENTE da bomba de CIRCULACAO do calor (Trocador). Usa a MESMA formula do
+  // Solar, mas config propria (/pool-budgets/heating/bomba-rule). Se vazia, backend cai pra
+  // do Solar (fallback). ruleVersion forca o card a re-buscar candidatos ao salvar.
+  const [showTrocadorRulePicker, setShowTrocadorRulePicker] = useState(false);
+  const [trocadorBombaRule, setTrocadorBombaRule] = useState<AutoSelectRule | null>(null);
+  const [trocadorRuleVersion, setTrocadorRuleVersion] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    api.get<{ rule: AutoSelectRule | null }>("/pool-budgets/heating/bomba-rule")
+      .then((r) => { if (!cancelled) setTrocadorBombaRule(r?.rule ?? null); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const saveTrocadorBombaRule = async (rule: AutoSelectRule | null) => {
+    try {
+      await api.post("/pool-budgets/heating/bomba-rule", { rule });
+      setTrocadorBombaRule(rule);
+      setTrocadorRuleVersion((v) => v + 1);
+    } catch (err: any) {
+      alert(`Erro ao salvar regra da bomba de circulação: ${err?.message ?? err}`);
+    }
+  };
+
   // Clona #bomba-pdf-area pra dentro do body (mesmo mecanismo do Solar — resolve
   // IDs duplicados e o problema das 2 paginas do modal fixed+overflow-hidden).
   const createPdfClone = (cloneClassName: string): HTMLElement | null => {
@@ -3058,25 +3081,34 @@ function BombaCalorTab({
                   <Kpi label="Calor necessário (mês crítico)" value={report.calorNecessarioKcalH.toLocaleString("pt-BR")} unit="Kcal/h" accent />
                   <Kpi label="Potência térmica" value={report.qtotalMaxKw.toFixed(1).replace(".", ",")} unit="kW" />
                   <Kpi label="Equivalente" value={report.calorNecessarioBtuH.toLocaleString("pt-BR")} unit="Btu/h" />
+                  {/* Vazão de água necessária (mín–máx) — do cadastro da bomba de calor, SOMADA por qtd
+                      (máquinas em paralelo). Mesma vazão que dimensiona a bomba de circulação. */}
+                  <Kpi label="Vazão de água (mín–máx)" value={(() => {
+                    const q = Math.max(1, eq?.quantity || 1);
+                    const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1).replace(".", ","));
+                    const vmin = Number(eq?.vazaoMinM3h) > 0 ? Number(eq?.vazaoMinM3h) * q : 0;
+                    const vmax = Number(eq?.vazaoMaxM3h) > 0 ? Number(eq?.vazaoMaxM3h) * q : 0;
+                    if (vmin <= 0 && vmax <= 0) return "—";
+                    if (vmax > vmin && vmin > 0) return `${fmt(vmin)} – ${fmt(vmax)}`;
+                    return fmt(vmin || vmax);
+                  })()} unit="m³/h" />
                   <Kpi label="Mês crítico" value={MESES[report.qtotalMonthCritical] ?? "—"} unit="" />
                 </div>
                 {/* Equipamento */}
                 <div className="col-span-7">
                   {eq ? (
-                    <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50 p-3">
+                    <div>
                       <div className="flex items-center justify-between gap-2">
-                        <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700">
-                          {eq.fromOverride ? "Equipamento (manual)" : eq.fromItemCellRef ? "Equipamento da linha" : "Modelo recomendado"}
-                        </div>
-                        <button type="button" onClick={() => setShowHeatingRulePicker(true)} title="Configurar regra de auto-seleção da bomba de calor" className="print:hidden text-violet-700 hover:text-violet-900 text-sm font-bold">✨</button>
+                        <SectionLabel>{eq.fromOverride ? "Bomba de calor (manual)" : eq.fromItemCellRef ? "Bomba de calor (da linha)" : "Bomba de calor selecionada"}</SectionLabel>
+                        <button type="button" onClick={() => setShowHeatingRulePicker(true)} title="Configurar regra de auto-seleção da bomba de calor" className="print:hidden text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300">✨</button>
                       </div>
-                      <div className="mt-1 flex items-center gap-2 flex-wrap">
+                      <div className="mt-1.5 flex items-center gap-2 flex-wrap">
                         <div className="relative inline-flex items-center">
-                          <button type="button" onClick={() => setShowEquipPicker(!showEquipPicker)} className="flex items-center gap-2 min-w-0 max-w-full text-lg font-bold text-emerald-900 hover:text-emerald-700 transition text-left print:hidden">
+                          <button type="button" onClick={() => setShowEquipPicker(!showEquipPicker)} className="flex items-center gap-2 min-w-0 max-w-full rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[13px] font-bold text-slate-900 hover:border-amber-300 transition text-left print:hidden">
                             <span className="truncate max-w-[240px] sm:max-w-[320px]" title={eq.modelName}>{eq.modelName}</span>
-                            <span className="text-xs text-emerald-700 shrink-0">{showEquipPicker ? "▲" : "▼"}</span>
+                            <span className="text-xs text-slate-500 shrink-0">{showEquipPicker ? "▲" : "▼"}</span>
                           </button>
-                          <span className="hidden print:inline text-lg font-bold text-emerald-900">{eq.modelName}</span>
+                          <span className="hidden print:inline text-[13px] font-bold text-slate-900">{eq.modelName}</span>
                           {showEquipPicker && (
                             <div className="absolute z-50 left-0 top-full mt-2 rounded-xl border-2 border-emerald-200 bg-white shadow-xl p-3 max-h-96 overflow-y-auto w-[520px] max-w-[90vw]">
                               <div className="text-[11px] font-semibold uppercase text-slate-500 mb-2">Trocar equipamento</div>
@@ -3097,8 +3129,9 @@ function BombaCalorTab({
                         <EquipmentQuantityInput productId={eq.productId} currentQty={eq.quantity} onChangeQty={(newQty) => changeEquipment(eq.productId, newQty)} disabled={changingEquipment} />
                         {eq.quantity > 1 && (<span className="inline-flex items-center gap-1 bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full text-[10px] font-bold">⚡ {eq.quantity}× EM PARALELO</span>)}
                       </div>
-                      <div className="mt-2 grid grid-cols-3 gap-2">
-                        <StatCompact label="Capacidade" value={`${eq.kcalHNominal?.toLocaleString("pt-BR")} Kcal/h`} />
+                      <div className="mt-1.5 rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm">
+                        <div className="grid grid-cols-3 gap-2">
+                          <StatCompact label="Capacidade" value={`${eq.kcalHNominal?.toLocaleString("pt-BR")} Kcal/h`} />
                         {eq.kwNominal ? <StatCompact label="Pot. térmica" value={`${eq.kwNominal} kW`} /> : null}
                         {eq.ratedInputPowerKW ? <StatCompact label="Consumo médio" value={`${eq.ratedInputPowerKW} kW`} /> : null}
                       </div>
@@ -3111,6 +3144,7 @@ function BombaCalorTab({
                         Carga: <strong>{(eq.loadRatio * 100).toFixed(0)}%</strong>
                         {eq.isAdequate ? <span className="ml-2 text-emerald-700">✓ Folga adequada</span> : <span className="ml-2 text-amber-700">⚠ Fora da faixa ideal</span>}
                         {report.timeToHeatInfeasible ? (<span className="ml-2 text-rose-700">⛔ Não aquece nas condições atuais</span>) : report.timeToHeatHours && isFinite(report.timeToHeatHours) ? (<span className="ml-2 text-slate-600">· Aquece em {Math.floor(report.timeToHeatHours)}h{report.degreesPerHour ? ` (${report.degreesPerHour.toFixed(2)} °C/h)` : ""}</span>) : null}
+                      </div>
                       </div>
                     </div>
                   ) : (
@@ -3132,6 +3166,8 @@ function BombaCalorTab({
                   sel={report.selectedEquipment}
                   operatingHoursPerMonth={report.operatingHoursPerMonth}
                   operatingHoursPerDayAvg={report.operatingHoursPerDayAvg}
+                  onOpenRulePicker={() => setShowTrocadorRulePicker(true)}
+                  ruleVersion={trocadorRuleVersion}
                 />
               )}
 
@@ -3219,6 +3255,25 @@ function BombaCalorTab({
           onClose={() => setShowHeatingRulePicker(false)}
           onSave={async (rule: AutoSelectRule) => { await onSaveHeatingRule(rule); setShowHeatingRulePicker(false); }}
           onClear={async () => { await onSaveHeatingRule(null); setShowHeatingRulePicker(false); }}
+        />
+      )}
+
+      {/* Modal AutoSelect — regra INDEPENDENTE da BOMBA DE CIRCULACAO do calor (✨ no card da
+          bomba de circulação). Mesma formula do Solar, config própria. */}
+      {showTrocadorRulePicker && (
+        <AutoSelectModal
+          initialRule={trocadorBombaRule ?? null}
+          catalog={catalog ?? []}
+          dimensions={budget.poolDimensions}
+          environmentParams={budget.environmentParams}
+          heatingReport={report}
+          siblingVars={{}}
+          sectionItems={[]}
+          itemDescription="Bomba de circulação (Bomba de Calor)"
+          currentProductName={null}
+          onClose={() => setShowTrocadorRulePicker(false)}
+          onSave={async (rule: AutoSelectRule) => { await saveTrocadorBombaRule(rule); setShowTrocadorRulePicker(false); }}
+          onClear={async () => { await saveTrocadorBombaRule(null); setShowTrocadorRulePicker(false); }}
         />
       )}
 
@@ -3405,11 +3460,13 @@ interface TrocadorBombaCandidate {
 // mais, verao menos, e bomba de calor mais potente -> menos horas (atinge o alvo mais
 // rapido). Sem vazao cadastrada -> avisa e nao dimensiona. Reusa /trocador-pipe/recompute
 // + /trocador-bomba-candidates (endpoints do nucleo do Solar).
-function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operatingHoursPerDayAvg }: {
+function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operatingHoursPerDayAvg, onOpenRulePicker, ruleVersion }: {
   budgetId: string;
   sel?: { vazaoMinM3h?: number; vazaoMaxM3h?: number; quantity?: number } | null;
   operatingHoursPerMonth?: number[];
   operatingHoursPerDayAvg?: number;
+  onOpenRulePicker?: () => void;
+  ruleVersion?: number;
 }) {
   const qty = Math.max(1, Number(sel?.quantity) || 1);
   const vMin = Number(sel?.vazaoMinM3h) || 0;
@@ -3490,7 +3547,7 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
       .finally(() => { if (!cancelled) setCandLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [budgetId, vazaoAlvo, alturaSelecao, hasVazao]);
+  }, [budgetId, vazaoAlvo, alturaSelecao, hasVazao, ruleVersion]);
 
   if (!hasVazao) {
     return (
@@ -3573,21 +3630,26 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
       <div className="mt-2.5">
         <SectionLabel>Bomba de circulação recomendada</SectionLabel>
         <div className="mt-1.5">
-          {candidates.length === 0 ? (
-            <div className="text-[11px] text-slate-600 leading-tight">{candLoading ? "Carregando candidatos…" : `Nenhuma bomba do catálogo atende vazão ≥ ${vazaoAlvo} m³/h${alturaSelecao > 0 ? ` e ${alturaSelecao.toFixed(1)} mca (atrito + romper a inércia do desnível)` : ""}. Cadastre bombas compatíveis (com curva) ou ajuste a regra de bomba na aba Solar (✨).`}</div>
-          ) : (
-            <>
-              <select value={selBombaId ?? ""} onChange={(e) => setSelBombaId(e.target.value || null)} className="w-full rounded border border-slate-300 bg-amber-50 px-2 py-1 text-[12px] font-semibold">
-                {candidates.map((c) => { const parts = [c.description]; if (c.potenciaCv != null) parts.push(`${c.potenciaCv} cv`); parts.push(`${c.vazaoM3h.toFixed(1)} m³/h`); parts.push(`${c.pressaoTrabalhoMca.toFixed(1)} mca`); if (c.hasPumpCurve) parts.push("📈 curva"); return <option key={c.productId} value={c.productId}>{parts.join(" · ")}</option>; })}
-              </select>
-              {selB && ((vazaoMaxTotal > 0 && selB.vazaoM3h > vazaoMaxTotal) || (alturaInercia > 0 && selB.pressaoTrabalhoMca < alturaInercia) || (altura > 0 && selB.pressaoTrabalhoMca < altura)) && (
-                <div className="mt-1.5 flex flex-col gap-y-0.5 text-[11px]">
-                  {vazaoMaxTotal > 0 && selB.vazaoM3h > vazaoMaxTotal && <span className="text-amber-600 font-semibold">⚠ acima da vazão máx ({vazaoMaxTotal})</span>}
-                  {alturaInercia > 0 && selB.pressaoTrabalhoMca < alturaInercia && <span className="text-red-600 font-semibold">⚠ não rompe a inércia: {selB.pressaoTrabalhoMca.toFixed(1)} mca &lt; desnível {alturaInercia.toFixed(1)} m — não circula</span>}
-                  {altura > 0 && selB.pressaoTrabalhoMca < altura && <span className="text-red-600 font-semibold">⚠ pressão &lt; atrito {altura.toFixed(1)} mca</span>}
-                </div>
+          <div className="flex items-center gap-1.5">
+            {onOpenRulePicker && (
+              <button type="button" onClick={onOpenRulePicker} title="Configurar a regra de seleção da bomba de circulação — INDEPENDENTE do Solar (usa a mesma fórmula). Sem regra própria, cai pra a do Solar." className="text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300 flex-shrink-0 print:hidden">✨</button>
+            )}
+            <div className="flex-1 min-w-0">
+              {candidates.length === 0 ? (
+                <div className="text-[11px] text-slate-600 leading-tight">{candLoading ? "Carregando candidatos…" : `Nenhuma bomba do catálogo atende vazão ≥ ${vazaoAlvo} m³/h${alturaSelecao > 0 ? ` e ${alturaSelecao.toFixed(1)} mca (atrito + romper a inércia do desnível)` : ""}. Configure a regra no ✨ (ou cadastre bombas compatíveis, com curva).`}</div>
+              ) : (
+                <select value={selBombaId ?? ""} onChange={(e) => setSelBombaId(e.target.value || null)} className="w-full rounded border border-slate-300 bg-amber-50 px-2 py-1 text-[12px] font-semibold">
+                  {candidates.map((c) => { const parts = [c.description]; if (c.potenciaCv != null) parts.push(`${c.potenciaCv} cv`); parts.push(`${c.vazaoM3h.toFixed(1)} m³/h`); parts.push(`${c.pressaoTrabalhoMca.toFixed(1)} mca`); if (c.hasPumpCurve) parts.push("📈 curva"); return <option key={c.productId} value={c.productId}>{parts.join(" · ")}</option>; })}
+                </select>
               )}
-            </>
+            </div>
+          </div>
+          {selB && ((vazaoMaxTotal > 0 && selB.vazaoM3h > vazaoMaxTotal) || (alturaInercia > 0 && selB.pressaoTrabalhoMca < alturaInercia) || (altura > 0 && selB.pressaoTrabalhoMca < altura)) && (
+            <div className="mt-1.5 flex flex-col gap-y-0.5 text-[11px]">
+              {vazaoMaxTotal > 0 && selB.vazaoM3h > vazaoMaxTotal && <span className="text-amber-600 font-semibold">⚠ acima da vazão máx ({vazaoMaxTotal})</span>}
+              {alturaInercia > 0 && selB.pressaoTrabalhoMca < alturaInercia && <span className="text-red-600 font-semibold">⚠ não rompe a inércia: {selB.pressaoTrabalhoMca.toFixed(1)} mca &lt; desnível {alturaInercia.toFixed(1)} m — não circula</span>}
+              {altura > 0 && selB.pressaoTrabalhoMca < altura && <span className="text-red-600 font-semibold">⚠ pressão &lt; atrito {altura.toFixed(1)} mca</span>}
+            </div>
           )}
 
       {/* Card da bomba selecionada — imagem + specs + CONSUMO ELETRICO MENSAL (paridade Solar) */}
