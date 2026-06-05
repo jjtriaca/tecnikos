@@ -2273,6 +2273,7 @@ const FORMULA_VARS = [
   'solarQty',
   'solarNumBaterias',
   'vazaoSolarM3h',
+  'vazaoMaxM3h',
   'hidromassagens', 'cascataCm', 'bordaInfinitaM',
 ] as const;
 const FORMULA_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
@@ -3094,6 +3095,30 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
     },
   },
   {
+    icon: '🚰',
+    label: 'Bomba de circulacao (Bomba de Calor) — vazao + altura/inercia',
+    description: 'Bomba de recirculacao que circula a agua pela bomba de calor (circuito FECHADO). Filtra bombas com vazaoM3h >= vazaoSolarM3h (= vazao min × qtd da bomba de calor, do Simulador) E pressaoTrabalhoMca >= alturaTelhadoMca. No calor a alturaTelhadoMca = a maior entre o ATRITO (operacao) e o DESNIVEL — a bomba precisa vencer o desnivel pra ROMPER A INERCIA e estabelecer a circulacao; depois o sifao ajuda (o desnivel se anula na operacao). Escolhe a menor vazao que atende. Folga ideal 0-50%.',
+    rule: {
+      filterPoolType: 'Bomba',
+      filterCategoria: null,
+      filterDescription: 'Bomba',
+      where: 'vazaoM3h >= vazaoSolarM3h && pressaoTrabalhoMca >= alturaTelhadoMca',
+      orderBy: 'vazaoM3h asc',
+      indicator: {
+        label: 'Folga vazao',
+        expr: '(vazaoM3h - vazaoSolarM3h) / vazaoSolarM3h * 100',
+        unit: '%',
+        levels: [
+          { max: 0, label: 'Insuficiente', color: 'red' },
+          { max: 10, label: 'Justo', color: 'orange' },
+          { max: 50, label: 'Adequado', color: 'emerald' },
+          { max: 150, label: 'Folgado', color: 'yellow' },
+          { max: 99999, label: 'Super-dim.', color: 'red' },
+        ],
+      },
+    },
+  },
+  {
     icon: '🔥',
     label: 'Bomba de Calor (preciso — termodinamico)',
     description: 'Seleciona Bomba de Calor com base no Simulador de Aquecimento. Usa calorNecessarioKcalH calculado por fisica termodinamica + dados climaticos do UF/cidade configurados em "🔥 Aquecimento". Folga ideal 30-70%.',
@@ -3268,6 +3293,24 @@ const INDICATOR_TEMPLATES: Array<{ label: string; preset: { label: string; expr:
         { max: 50, label: 'Adequado', color: 'emerald' },
         { max: 150, label: 'Folgado', color: 'yellow' },
         { max: 9999, label: 'Super-dim.', color: 'red' },
+      ],
+    },
+  },
+  {
+    // Indicador da BOMBA DE CIRCULACAO da Bomba de Calor: a vazao da bomba escolhida deve
+    // ficar DENTRO da faixa [vazaoMin, vazaoMax] da bomba de calor (× qtd). value = QUANTOS %
+    // esta FORA da faixa (mesma ideia do folga% do Solar): NEGATIVO = % abaixo do minimo
+    // (troca de calor insuficiente), 0 = dentro, POSITIVO = % acima do maximo (pressao/erosao).
+    // vazaoSolarM3h = min-alvo, vazaoMaxM3h = max-alvo (do Simulador, × qtd). max(...,0.001) evita /0.
+    label: 'Vazao dentro x fora da faixa (Bomba de Calor)',
+    preset: {
+      label: 'Vazao fora da faixa',
+      expr: 'min(0, (vazaoM3h - vazaoSolarM3h) / max(vazaoSolarM3h, 0.001) * 100) + max(0, (vazaoM3h - vazaoMaxM3h) / max(vazaoMaxM3h, 0.001) * 100)',
+      unit: '%',
+      levels: [
+        { max: -0.001, label: 'Abaixo do minimo', color: 'red' },
+        { max: 0, label: 'Dentro da faixa', color: 'emerald' },
+        { max: 9999, label: 'Acima do maximo', color: 'orange' },
       ],
     },
   },

@@ -149,14 +149,16 @@ export class PoolBudgetController {
     @Param('id') _id: string,
     @Query('vazao') vazao: string,
     @Query('altura') altura: string,
+    @Query('vazaoMax') vazaoMax: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     const v = Number(vazao) || 0;
     const a = Number(altura) || 0;
+    const vmax = Number(vazaoMax) || 0; // vazao MAXIMA-alvo (× qtd) — alimenta indicador "dentro x fora da vazao"
     // Regra INDEPENDENTE da bomba de circulacao do calor (trocadorBombaRule), com fallback
     // pra do Solar quando nao configurada — ver listBombaCandidatesByFlow.
     return this.solarBudget
-      .listBombaCandidatesByFlow(user.companyId, v, a, 'trocadorBombaRule')
+      .listBombaCandidatesByFlow(user.companyId, v, a, 'trocadorBombaRule', vmax)
       .then((candidates) => ({ candidates }));
   }
 

@@ -3267,7 +3267,19 @@ function BombaCalorTab({
           dimensions={budget.poolDimensions}
           environmentParams={budget.environmentParams}
           heatingReport={report}
-          siblingVars={{}}
+          siblingVars={(() => {
+            // Preview do modal usa as MESMAS vars da regra: injeta vazao-alvo (vazaoMin × qtd)
+            // como vazaoSolarM3h E vazaoMax × qtd como vazaoMaxM3h, pros templates "Bomba de
+            // circulacao (Bomba de Calor)" e o indicador "dentro x fora da vazao" preverem
+            // certo (senao pegariam a vazao da solar = 0).
+            const q = Math.max(1, eq?.quantity || 1);
+            const vmin = Number(eq?.vazaoMinM3h) > 0 ? Number(eq?.vazaoMinM3h) * q : 0;
+            const vmax = Number(eq?.vazaoMaxM3h) > 0 ? Number(eq?.vazaoMaxM3h) * q : 0;
+            const out: Record<string, number> = {};
+            if (vmin > 0) out.vazaoSolarM3h = vmin;
+            if (vmax > 0) out.vazaoMaxM3h = vmax;
+            return out;
+          })()}
           sectionItems={[]}
           itemDescription="Bomba de circulação (Bomba de Calor)"
           currentProductName={null}
@@ -3541,13 +3553,13 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
   useEffect(() => {
     if (!hasVazao || vazaoAlvo <= 0) { setCandidates([]); return; }
     let cancelled = false; setCandLoading(true);
-    api.get<{ candidates: TrocadorBombaCandidate[] }>(`/pool-budgets/${budgetId}/trocador-bomba-candidates?vazao=${vazaoAlvo}&altura=${alturaSelecao}`)
+    api.get<{ candidates: TrocadorBombaCandidate[] }>(`/pool-budgets/${budgetId}/trocador-bomba-candidates?vazao=${vazaoAlvo}&altura=${alturaSelecao}&vazaoMax=${vazaoMaxTotal}`)
       .then((res) => { if (cancelled) return; const cs = res?.candidates ?? []; setCandidates(cs); if (cs.length && !cs.some((c) => c.productId === selBombaId)) setSelBombaId(cs[0].productId); })
       .catch(() => { if (!cancelled) setCandidates([]); })
       .finally(() => { if (!cancelled) setCandLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [budgetId, vazaoAlvo, alturaSelecao, hasVazao, ruleVersion]);
+  }, [budgetId, vazaoAlvo, alturaSelecao, vazaoMaxTotal, hasVazao, ruleVersion]);
 
   if (!hasVazao) {
     return (

@@ -722,6 +722,7 @@ export class SolarBudgetService {
     vazaoAlvoM3h: number,
     alturaMca: number,
     ruleKey: 'solarBombaRule' | 'trocadorBombaRule' = 'solarBombaRule',
+    vazaoMaxAlvoM3h = 0,
   ): Promise<Array<{
     productId: string;
     description: string;
@@ -772,7 +773,9 @@ export class SolarBudgetService {
 
     // Mantem os nomes de variavel da regra (vazaoSolarM3h/alturaTelhadoMca) por
     // compatibilidade — a regra de bomba foi escrita com esses identificadores.
-    const baseVars = { vazaoSolarM3h: vazaoAlvoM3h, alturaTelhadoMca: alturaMca };
+    // vazaoMaxM3h (vazao MAXIMA-alvo, da bomba de calor × qtd) alimenta o indicador
+    // "dentro x fora da vazao" do Trocador. Solar nao passa -> 0 (indicador nao usa).
+    const baseVars = { vazaoSolarM3h: vazaoAlvoM3h, vazaoMaxM3h: vazaoMaxAlvoM3h, alturaTelhadoMca: alturaMca };
 
     // Aplica where (filtro de criterio) e orderBy da regra. filterByWhere/orderCandidates
     // ja interpolam pumpCurve quando candidato tem curva cadastrada (v1.12.41).
