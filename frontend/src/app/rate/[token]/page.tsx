@@ -60,6 +60,9 @@ export default function RateTokenPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Branding do tenant (logo + razao social) — mostrado no topo do card (no lugar da estrela).
+  const [branding, setBranding] = useState<{ logoUrl: string | null; razaoSocial: string | null } | null>(null);
+
   // Form state
   const [score, setScore] = useState(0);
   const [hoveredStar, setHoveredStar] = useState(0);
@@ -95,6 +98,19 @@ export default function RateTokenPage() {
     })();
   }, [token]);
 
+  /* ── Load tenant branding (logo + razao social) pelo subdominio ── */
+  useEffect(() => {
+    const host = typeof window !== "undefined" ? window.location.hostname : "";
+    const slug = host.split(":")[0].split(".")[0]?.toLowerCase();
+    if (!slug || ["www", "app", "api", "admin", "static", "cdn", "localhost"].includes(slug)) return;
+    fetch(`/api/public/tenant/${slug}/branding`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => {
+        if (b) setBranding({ logoUrl: b.logos?.icon512 ?? null, razaoSocial: b.razaoSocial ?? b.companyName ?? null });
+      })
+      .catch(() => {});
+  }, []);
+
   /* ── Submit evaluation ── */
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -125,6 +141,21 @@ export default function RateTokenPage() {
     }
   }
 
+  // Cabecalho de marca do tenant (logo + razao social) — no topo do card, no lugar da estrela.
+  const brandHeader = branding?.logoUrl ? (
+    <div className="mb-5 flex flex-col items-center text-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={branding.logoUrl}
+        alt={branding.razaoSocial || "Logo da empresa"}
+        className="mb-2 h-16 w-16 rounded-2xl bg-white object-contain shadow-sm ring-1 ring-slate-200"
+      />
+      {branding.razaoSocial && (
+        <p className="text-base font-bold text-slate-800">{branding.razaoSocial}</p>
+      )}
+    </div>
+  ) : null;
+
   /* ── Loading state ── */
   if (loading) {
     return (
@@ -139,6 +170,7 @@ export default function RateTokenPage() {
   if (error) {
     return (
       <div className="w-full rounded-2xl border border-red-100 bg-white p-8 text-center shadow-sm">
+        {brandHeader}
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-50">
           <svg
             className="h-7 w-7 text-red-400"
@@ -168,6 +200,7 @@ export default function RateTokenPage() {
   if (data.alreadyEvaluated) {
     return (
       <div className="w-full rounded-2xl border border-green-100 bg-white p-8 text-center shadow-sm">
+        {brandHeader}
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-green-50">
           <svg
             className="h-7 w-7 text-green-500"
@@ -197,6 +230,7 @@ export default function RateTokenPage() {
   if (submitted) {
     return (
       <div className="w-full rounded-2xl border border-green-100 bg-white p-8 text-center shadow-sm">
+        {brandHeader}
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-green-50">
           <svg
             className="h-7 w-7 text-green-500"
@@ -229,21 +263,17 @@ export default function RateTokenPage() {
     <div className="w-full rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-8 shadow-sm">
       {/* Header */}
       <div className="mb-6 text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 shadow-sm">
-          <svg
-            className="h-6 w-6 text-white"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            strokeWidth={2.2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
-            />
-          </svg>
-        </div>
+        {branding?.logoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={branding.logoUrl}
+            alt={branding.razaoSocial || "Logo da empresa"}
+            className="mx-auto mb-3 h-16 w-16 rounded-2xl bg-white object-contain shadow-sm ring-1 ring-slate-200"
+          />
+        )}
+        {branding?.razaoSocial && (
+          <p className="text-base font-bold text-slate-800 mb-2">{branding.razaoSocial}</p>
+        )}
         <h1 className="text-xl font-bold text-slate-800 mb-1">
           Avalie o serviço
         </h1>

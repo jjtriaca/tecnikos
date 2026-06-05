@@ -53,6 +53,7 @@ export class TenantBrandingController {
       tenantSlug: tenant.slug,
       tenantName: tenant.name,
       companyName: company?.tradeName || company?.name || tenant.name,
+      razaoSocial: company?.name || null, // razao social (nome legal) — usada na pagina /rate
       hasCustomLogo: hasLogo,
       logos: {
         og: `${baseUrl}/og`,

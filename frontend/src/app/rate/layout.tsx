@@ -96,33 +96,12 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function RateLayout({ children }: { children: React.ReactNode }) {
-  const slug = await resolveTenantSlug();
-  const branding = slug ? await fetchBranding(slug) : null;
-  const companyName = branding?.companyName || null;
-  const logoUrl = branding?.logos?.icon512 || null;
-
+export default function RateLayout({ children }: { children: React.ReactNode }) {
+  // O branding (logo + razao social) agora fica DENTRO do card (rate/[token]/page.tsx),
+  // no lugar da estrela — nao mais aqui acima do card. generateMetadata (OG/favicon) mantem.
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/40">
       <div className="mx-auto flex min-h-screen max-w-lg flex-col items-center justify-center px-4 py-8">
-        {/* Cabecalho de marca do tenant — identifica a empresa pra quem avalia.
-            Server-rendered: aparece instantaneo e persiste nos estados de erro/sucesso.
-            Sem branding resolvido (dominio raiz/custom), mostra titulo neutro. */}
-        <div className="mb-6 flex flex-col items-center text-center">
-          {logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={logoUrl}
-              alt={companyName || "Logo da empresa"}
-              className="mb-3 h-16 w-16 rounded-2xl bg-white object-contain shadow-sm ring-1 ring-slate-200"
-            />
-          ) : null}
-          {companyName ? (
-            <p className="text-lg font-bold text-slate-800">{companyName}</p>
-          ) : (
-            <p className="text-base font-semibold text-slate-600">Avaliacao de Serviço</p>
-          )}
-        </div>
         {children}
       </div>
     </div>
