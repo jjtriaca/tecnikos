@@ -93,6 +93,19 @@ function brazilToday(): string {
   return br.toISOString().slice(0, 10);
 }
 
+// Status do certificado digital (consultado na Focus). nivel: OK (>15 dias),
+// WARN (1-15 dias — amarelo), EXPIRED (<=0 dias, vencido — vermelho).
+export interface CertStatus {
+  configured: boolean;        // false = Focus nao configurado / sem CNPJ -> sem card
+  validoAte?: string;         // ISO da data de validade
+  diasRestantes?: number;
+  nivel?: 'OK' | 'WARN' | 'EXPIRED';
+}
+// Cache em memoria (a consulta a Focus eh lenta; a barra superior consulta em todo page).
+// TTL 1h por empresa. Single-instance: suficiente; reset no restart so re-busca.
+const CERT_STATUS_CACHE = new Map<string, { value: CertStatus; expiresAt: number }>();
+const CERT_STATUS_TTL_MS = 60 * 60 * 1000;
+
 @Injectable()
 export class NfseEmissionService {
   private readonly logger = new Logger(NfseEmissionService.name);
@@ -285,6 +298,55 @@ export class NfseEmissionService {
       focusNfeToken: config.focusNfeToken ? '••••••••' : null,
       focusNfeTokenHomolog: config.focusNfeTokenHomolog ? '••••••••' : null,
     };
+  }
+
+  /**
+   * Status do certificado digital A1 (consulta a Focus, cache 1h). Usado pra mostrar a
+   * validade na tela de Fiscal + o card de aviso na barra superior (amarelo <=15 dias,
+   * vermelho no vencimento). O certificado eh gerido no painel da Focus — aqui so consultamos.
+   */
+  async getCertStatus(companyId: string, force = false): Promise<CertStatus> {
+    const cached = CERT_STATUS_CACHE.get(companyId);
+    if (!force && cached && cached.expiresAt > Date.now()) return cached.value;
+
+    const out: CertStatus = { configured: false };
+    try {
+      const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
+      const resellerToken = await this.saasConfig.get('FOCUS_NFE_RESELLER_TOKEN');
+      const company = await this.prisma.company.findFirst({ select: { cnpj: true } });
+      // Sem Focus configurado / sem CNPJ -> nada a checar (barra nao mostra card).
+      if (config?.focusNfeToken && resellerToken && company?.cnpj) {
+        const env = config.focusNfeEnvironment || 'PRODUCTION';
+        const empresa = await this.focusNfe.getEmpresa(resellerToken, env, company.cnpj);
+        const validoDate = empresa?.certificado_valido_ate ? this.parseCertDate(empresa.certificado_valido_ate) : null;
+        out.configured = true;
+        if (validoDate) {
+          // Diferenca em DIAS DE CALENDARIO (BRT): no dia do vencimento dias=0 -> EXPIRED (vermelho).
+          const nowBr = new Date(Date.now() - 3 * 60 * 60 * 1000);
+          const todayNoon = Date.UTC(nowBr.getUTCFullYear(), nowBr.getUTCMonth(), nowBr.getUTCDate(), 12, 0, 0);
+          const dias = Math.round((validoDate.getTime() - todayNoon) / (24 * 60 * 60 * 1000));
+          out.validoAte = validoDate.toISOString();
+          out.diasRestantes = dias;
+          out.nivel = dias <= 0 ? 'EXPIRED' : dias <= 15 ? 'WARN' : 'OK';
+        }
+      }
+    } catch (err: any) {
+      this.logger.warn(`getCertStatus falhou (companyId=${companyId}): ${err?.message ?? err}`);
+      // Em erro de consulta, nao mostra card (evita falso alarme).
+    }
+    CERT_STATUS_CACHE.set(companyId, { value: out, expiresAt: Date.now() + CERT_STATUS_TTL_MS });
+    return out;
+  }
+
+  /** Parseia a validade do certificado vinda da Focus (DD/MM/YYYY, YYYY-MM-DD ou ISO) -> Date (meio-dia UTC). */
+  private parseCertDate(s: string): Date | null {
+    const t = (s || '').trim();
+    const br = t.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+    if (br) return new Date(Date.UTC(Number(br[3]), Number(br[2]) - 1, Number(br[1]), 12, 0, 0));
+    const iso = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return new Date(Date.UTC(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]), 12, 0, 0));
+    const d = new Date(t);
+    return isNaN(d.getTime()) ? null : d;
   }
 
   /** Get the active token based on environment */

@@ -30,6 +30,14 @@ export class NfseEmissionController {
     return this.nfseService.getConfig(req.user.companyId);
   }
 
+  // Status do certificado digital (validade) — sem @Roles: o card de aviso na barra
+  // superior aparece pra qualquer usuario autenticado. Cache 1h no service.
+  @Get('cert-status')
+  async getCertStatus(@Req() req: any, @Query('force') force?: string) {
+    // force=true (tela de Fiscal) bypassa o cache de 1h e atualiza pra barra superior tambem.
+    return this.nfseService.getCertStatus(req.user.companyId, force === 'true');
+  }
+
   @Put('config')
   @Roles('ADMIN', 'FISCAL')
   async saveConfig(@Req() req: any, @Body() dto: SaveNfseConfigDto) {

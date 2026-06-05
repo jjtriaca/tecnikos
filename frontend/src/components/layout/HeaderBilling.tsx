@@ -19,6 +19,13 @@ interface NfseImportUsage {
   enabled: boolean;
 }
 
+interface CertStatus {
+  configured: boolean;
+  validoAte?: string;
+  diasRestantes?: number;
+  nivel?: "OK" | "WARN" | "EXPIRED";
+}
+
 interface BillingStatus {
   hasSubscription: boolean;
   status?: "ACTIVE" | "PAST_DUE" | "CANCELLED" | "SUSPENDED";
@@ -49,6 +56,7 @@ export default function HeaderBilling() {
   const [usage, setUsage] = useState<UsageData | null>(null);
   const [billing, setBilling] = useState<BillingStatus | null>(null);
   const [nfseUsage, setNfseUsage] = useState<NfseImportUsage | null>(null);
+  const [certStatus, setCertStatus] = useState<CertStatus | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -61,12 +69,16 @@ export default function HeaderBilling() {
     api.get<NfseImportUsage>("/nfse-entrada/import-usage")
       .then(d => { if (mounted) setNfseUsage(d); })
       .catch(() => {});
+    api.get<CertStatus>("/nfse-emission/cert-status")
+      .then(d => { if (mounted) setCertStatus(d); })
+      .catch(() => {});
     const interval = setInterval(() => {
       api.get<UsageData>("/service-orders/usage").then(setUsage).catch(() => {});
       api.get<BillingStatus>("/auth/billing-status").then(setBilling).catch(() => {});
       api.get<NfseImportUsage>("/nfse-entrada/import-usage")
         .then(d => setNfseUsage(d))
         .catch(() => {});
+      api.get<CertStatus>("/nfse-emission/cert-status").then(setCertStatus).catch(() => {});
     }, 5 * 60 * 1000);
     return () => { mounted = false; clearInterval(interval); };
   }, []);
@@ -132,6 +144,30 @@ export default function HeaderBilling() {
               {nfseUsage.used} / {nfseUsage.limit}
             </span>
           </div>
+        </Link>
+      )}
+
+      {/* ── 1c. Aviso de validade do certificado digital (NFS-e) ── amarelo <=15 dias, vermelho vencido ── */}
+      {certStatus && (certStatus.nivel === "WARN" || certStatus.nivel === "EXPIRED") && (
+        <Link
+          href="/settings/fiscal"
+          className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+            certStatus.nivel === "EXPIRED"
+              ? "border-red-300 bg-red-50 text-red-700 hover:bg-red-100 animate-pulse"
+              : "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+          }`}
+          title={
+            certStatus.nivel === "EXPIRED"
+              ? "Certificado digital VENCIDO — a emissao de NFS-e fica bloqueada. Renove o e-CNPJ A1 no painel da Focus NFe."
+              : `Certificado digital vence em ${certStatus.diasRestantes} dia(s). Renove antes de vencer pra nao travar a emissao de NFS-e.`
+          }
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+          </svg>
+          {certStatus.nivel === "EXPIRED"
+            ? ((certStatus.diasRestantes ?? 0) === 0 ? "Cert. vence hoje" : "Cert. vencido")
+            : `Cert. vence ${certStatus.diasRestantes}d`}
         </Link>
       )}
 

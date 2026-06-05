@@ -135,6 +135,7 @@ function editableSnapshot(c: NfseConfig, t: string): string {
 export default function FiscalSettingsPage() {
   const { fiscalEnabled, refresh: refreshFiscal } = useFiscalModule();
   const [config, setConfig] = useState<NfseConfig>(EMPTY_CONFIG);
+  const [certStatus, setCertStatus] = useState<{ configured: boolean; validoAte?: string; diasRestantes?: number; nivel?: "OK" | "WARN" | "EXPIRED" } | null>(null);
   const [fiscal, setFiscal] = useState<FiscalConfig>(EMPTY_FISCAL);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -171,6 +172,7 @@ export default function FiscalSettingsPage() {
 
   const fetchConfig = useCallback(async () => {
     try {
+      api.get<{ configured: boolean; validoAte?: string; diasRestantes?: number; nivel?: "OK" | "WARN" | "EXPIRED" }>("/nfse-emission/cert-status?force=true").then(setCertStatus).catch(() => {});
       const data = await api.get<NfseConfig | null>("/nfse-emission/config");
       if (data) {
         setConfig(data);
@@ -712,6 +714,30 @@ export default function FiscalSettingsPage() {
         {tokenTestResult && (
           <div className={`mt-3 px-3 py-2 rounded-lg text-xs font-medium ${tokenTestResult.valid ? "bg-green-50 border border-green-200 text-green-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
             {tokenTestResult.valid ? "✓ " : "✗ "}{tokenTestResult.message} ({config.focusNfeEnvironment === "HOMOLOGATION" ? "Homologacao" : "Produção"})
+          </div>
+        )}
+
+        {/* Validade do certificado digital A1 (consultada na Focus). O card de aviso aparece tambem na barra superior. */}
+        {certStatus?.configured && certStatus.validoAte && (
+          <div className={`mt-3 px-3 py-2 rounded-lg text-xs font-medium border ${
+            certStatus.nivel === "EXPIRED" ? "bg-red-50 border-red-200 text-red-700" :
+            certStatus.nivel === "WARN" ? "bg-amber-50 border-amber-200 text-amber-700" :
+            "bg-green-50 border-green-200 text-green-700"
+          }`}>
+            {certStatus.nivel === "EXPIRED" ? "⚠ Certificado VENCIDO" : certStatus.nivel === "WARN" ? "⚠ Certificado vence em breve" : "✓ Certificado válido"} até{" "}
+            <strong>{new Date(certStatus.validoAte).toLocaleDateString("pt-BR")}</strong>
+            {typeof certStatus.diasRestantes === "number" && (
+              certStatus.diasRestantes > 0 ? ` — ${certStatus.diasRestantes} dia(s) restante(s)` :
+              certStatus.diasRestantes === 0 ? " — vence hoje" : ` — vencido há ${Math.abs(certStatus.diasRestantes)} dia(s)`
+            )}
+            {(certStatus.nivel === "EXPIRED" || certStatus.nivel === "WARN") && (
+              <span className="block mt-1 font-normal">Renove o e-CNPJ A1 no painel da Focus NFe (app-v2.focusnfe.com.br) → Configurações da empresa.</span>
+            )}
+          </div>
+        )}
+        {certStatus?.configured && !certStatus.validoAte && (
+          <div className="mt-3 px-3 py-2 rounded-lg text-xs font-medium border bg-amber-50 border-amber-200 text-amber-700">
+            ⚠ Empresa encontrada na Focus, mas sem certificado digital instalado. Anexe o e-CNPJ A1 no painel da Focus NFe.
           </div>
         )}
       </div>
