@@ -185,6 +185,7 @@ function ActionsDropdown({
   onRefreshStatus,
   onRetry,
   onCancel,
+  onDelete,
   onToggleDetails,
   isExpanded,
 }: {
@@ -195,6 +196,7 @@ function ActionsDropdown({
   onRefreshStatus: () => void;
   onRetry: () => void;
   onCancel: () => void;
+  onDelete: () => void;
   onToggleDetails: () => void;
   isExpanded: boolean;
 }) {
@@ -239,6 +241,7 @@ function ActionsDropdown({
   const isAuthorized = emission.status === "AUTHORIZED";
   const isRetryable = emission.status === "PROCESSING" || emission.status === "ERROR" || emission.status === "CANCELLING";
   const canRetryEmit = emission.status === "ERROR" && emission.financialEntries.length > 0;
+  const canDelete = emission.status === "ERROR"; // so notas com ERRO (nunca autorizadas) podem ser EXCLUIDAS
 
   const menuItem = (label: string, onClick: () => void, className = "text-slate-700 hover:bg-slate-100") => (
     <button
@@ -270,7 +273,8 @@ function ActionsDropdown({
           {isAuthorized && menuItem("Reenviar Email", onResendEmail)}
           {canRetryEmit && menuItem("Reenviar NFS-e", onRetry, "text-blue-600 hover:bg-blue-50")}
           {isRetryable && menuItem("Consultar Status", onRefreshStatus)}
-          {(isAuthorized || isRetryable) && <div className="my-1 border-t border-slate-100" />}
+          {canDelete && menuItem("Excluir nota", onDelete, "text-red-600 hover:bg-red-50")}
+          {(isAuthorized || isRetryable || canDelete) && <div className="my-1 border-t border-slate-100" />}
           {isAuthorized && menuItem("Cancelar NFS-e", onCancel, "text-red-600 hover:bg-red-50")}
           {isAuthorized && <div className="my-1 border-t border-slate-100" />}
           {menuItem(isExpanded ? "Fechar Detalhes" : "Detalhes", onToggleDetails)}
@@ -349,6 +353,26 @@ export default function NfseSaidaPage() {
       loadEmissions();
     } catch (err: any) {
       toast(err?.message || "Erro ao reenviar NFS-e", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  // Exclui uma nota com ERRO (nunca autorizada). Libera a entrada financeira + o numero do RPS.
+  async function handleDelete(emission: NfseEmission) {
+    if (emission.status !== "ERROR") return;
+    if (!confirm(
+      `Excluir a NFS-e RPS ${emission.rpsNumber}?\n\n` +
+      `Ela esta em ERRO (nunca foi autorizada pela prefeitura), entao e seguro apagar — ` +
+      `a entrada financeira volta para "sem nota". Esta acao nao pode ser desfeita.`,
+    )) return;
+    setActionLoading(emission.id);
+    try {
+      await api.del(`/nfse-emission/emissions/${emission.id}`);
+      toast("Nota com erro excluida.", "success");
+      loadEmissions();
+    } catch (err: any) {
+      toast(err?.message || "Erro ao excluir nota", "error");
     } finally {
       setActionLoading(null);
     }
@@ -601,6 +625,7 @@ export default function NfseSaidaPage() {
                               onRefreshStatus={() => handleRefreshStatus(emission)}
                               onRetry={() => handleRetry(emission)}
                               onCancel={() => handleCancelOpen(emission)}
+                              onDelete={() => handleDelete(emission)}
                               onToggleDetails={() => setExpandedRow(isExpanded ? null : emission.id)}
                               isExpanded={isExpanded}
                             />

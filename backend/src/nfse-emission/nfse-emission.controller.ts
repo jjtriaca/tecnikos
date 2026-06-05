@@ -212,6 +212,17 @@ export class NfseEmissionController {
     return this.nfseService.cancelAttempt(req.user.companyId, id);
   }
 
+  /**
+   * EXCLUI uma emissao com status ERRO (nunca autorizada). Apaga o registro, libera a entrada
+   * financeira e o numero do RPS (quando for o ultimo). NUNCA exclui autorizada/processando.
+   */
+  @Delete('emissions/:id')
+  @Roles('ADMIN', 'FINANCEIRO', 'FISCAL')
+  @UseGuards(FiscalGuard)
+  async deleteErrorEmission(@Req() req: any, @Param('id') id: string) {
+    return this.nfseService.deleteErrorEmission(req.user.companyId, id);
+  }
+
   // ========== PDF ==========
 
   @Get('emissions/:id/pdf')

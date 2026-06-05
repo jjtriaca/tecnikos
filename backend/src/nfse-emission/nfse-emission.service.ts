@@ -1770,4 +1770,48 @@ export class NfseEmissionService {
 
     return this.prisma.nfseEmission.findUnique({ where: { id: emissionId } });
   }
+
+  /**
+   * EXCLUI uma emissao com status ERRO (nunca autorizada na prefeitura — o XML foi rejeitado
+   * ou nem chegou). Apaga o registro, desvincula a(s) entrada(s) financeira(s) (voltam pra
+   * "sem nota", NAO apaga o lancamento) e LIBERA o numero do RPS quando ele eh o ULTIMO da
+   * sequencia (rpsNextNumber-1) — evita buraco e a proxima emissao reusa esse numero.
+   *
+   * SEGURANCA: so status ERRO. NUNCA exclui AUTORIZADA (essa so cancela na prefeitura, mantem
+   * registro) nem PROCESSING (cancelar a tentativa antes). Numeracao na prefeitura: uma RPS
+   * rejeitada nunca foi registrada la, entao excluir/pular eh seguro.
+   */
+  async deleteErrorEmission(companyId: string, emissionId: string) {
+    const emission = await this.prisma.nfseEmission.findFirst({
+      where: { id: emissionId, companyId },
+      include: { financialEntries: { select: { id: true } } },
+    });
+    if (!emission) throw new NotFoundException('NFS-e nao encontrada');
+    if (emission.status !== 'ERROR') {
+      throw new BadRequestException(
+        `So eh possivel EXCLUIR notas com status ERRO (nunca autorizadas). Status atual: ${emission.status}. ` +
+        `Autorizada -> cancelar na prefeitura; Processando -> cancelar a tentativa primeiro.`,
+      );
+    }
+
+    const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
+    const liberaRps = !!config && emission.rpsNumber === config.rpsNextNumber - 1;
+
+    await this.prisma.$transaction([
+      // Desvincula as entradas financeiras (voltam pra "sem nota"; NAO apaga o lancamento).
+      ...emission.financialEntries.map((e) => this.prisma.financialEntry.update({
+        where: { id: e.id },
+        data: { nfseEmissionId: null, nfseStatus: null },
+      })),
+      this.prisma.nfseEmission.delete({ where: { id: emissionId } }),
+      // Libera o numero do RPS so se for o ULTIMO da sequencia (nao mexe se ja ha numero maior
+      // em uso — ai fica um gap, que a prefeitura aceita pra RPS rejeitada).
+      ...(liberaRps
+        ? [this.prisma.nfseConfig.update({ where: { companyId }, data: { rpsNextNumber: emission.rpsNumber } })]
+        : []),
+    ]);
+
+    this.logger.log(`NFS-e com ERRO excluida: RPS ${emission.rpsNumber} ref=${emission.focusNfeRef} (rpsLiberado=${liberaRps})`);
+    return { deleted: true, rpsLiberado: liberaRps, rpsNumber: emission.rpsNumber };
+  }
 }

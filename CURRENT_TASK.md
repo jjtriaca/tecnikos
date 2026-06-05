@@ -1,6 +1,18 @@
 # TAREFA ATUAL
 
-## 📌 Frente "Bomba de recirculacao da Bomba de Calor" — CONCLUIDA + DOCUMENTADA (v1.13.14→v1.13.17). Doc completa: [memory/bomba_recirculacao_calor.md]. Testes PARQUEADOS (usuario vai validar depois). PROXIMA FRENTE: **ajustes no FISCAL** (aguardando specs do usuario — 05/06).
+## 📌 Frente "Bomba de recirculacao da Bomba de Calor" — CONCLUIDA + DOCUMENTADA (v1.13.14→v1.13.17). Doc completa: [memory/bomba_recirculacao_calor.md]. Testes PARQUEADOS (usuario vai validar depois).
+## 📌 Frente ATUAL: **FISCAL (NFS-e)** — v1.13.18 (cert) + v1.13.19 (/rate) NO AR; botao "Excluir nota" SEGURADO no local.
+
+## ✅ DEPLOYED v1.13.19 (05/06) — branding da pagina /rate DENTRO do card
+## - Logo do tenant no LUGAR da estrela azul do card + RAZAO SOCIAL (Company.name, ex "SLS OBRAS LTDA") embaixo. Removido logo/nome que ficava ACIMA do card (rate/layout.tsx). Em todos os estados (form/sucesso/ja-avaliado/erro). Backend `tenant-branding.controller` branding agora devolve `razaoSocial` (companyName seguia = tradeName "SLS"). Pagina busca branding client-side pelo subdominio; generateMetadata (OG) mantido.
+
+## ✅ DEPLOYED v1.13.18 (05/06) — aviso de VALIDADE do certificado digital
+## - Tela Fiscal mostra validade (`certificado_valido_ate` via Focus getEmpresa, token de revenda; cache 1h, `?force=true` na tela atualiza). Card na barra superior (HeaderBilling): AMARELO ≤15 dias, VERMELHO no vencimento/vencido, persiste ate atualizar. Endpoint `GET /nfse-emission/cert-status` (sem @Roles, qualquer user logado).
+
+## 🟡 PENDENTE no LOCAL (segurado a pedido do usuario) — botao "Excluir nota com erro"
+## - 3 arquivos NAO commitados no tree: `nfse-emission.service` (deleteErrorEmission: guard status==ERROR, desliga financialEntries, rollback rpsNextNumber se foi a ultima), `nfse-emission.controller` (DELETE emissions/:id; Roles ADMIN/FINANCEIRO/FISCAL+FiscalGuard), `nfe/saida/page` (item "Excluir nota" no dropdown so p/ status ERROR, confirm + api.del). BUILD JA VALIDADO. So falta o usuario liberar o deploy. Uso: apagar RPS 32 (R$5.430 lancada errada); RPS 33 (R$3.620) e CORRETA, manter.
+
+## 📋 Diagnostico erro 495 (NFS-e) — NAO e codigo Tecnikos: mTLS entre Focus e o gateway nacional (adn.nfse.gov.br). Cert valido ate 26/08/2026 (nao e expiracao). Primavera do Leste (5107040) = cidade em transicao -> Focus roteia Municipal /v2/nfse pro nacional. ACAO: usuario abre chamado na Focus.
 
 ## ✅ DEPLOYED v1.13.17 (05/06) — Bomba de RECIRCULACAO da Bomba de Calor (paridade Solar) + horas por DEMANDA LIQUIDA
 ## - **v1.13.17 (templates da recirc):** (1) template de REGRA "🚰 Bomba de circulacao (Bomba de Calor) — vazao + altura/inercia" em AUTOSELECT_TEMPLATES (where `vazaoM3h >= vazaoSolarM3h && pressaoTrabalhoMca >= alturaTelhadoMca`; a altura ja vem com inercia = max(atrito,desnivel)). (2) template de INDICADOR "Vazao dentro x fora da faixa (Bomba de Calor)" em INDICATOR_TEMPLATES — value = % FORA da faixa [min,max]: negativo=abaixo do min, 0=dentro, positivo=acima do max (igual folga% solar). (3) **threading `vazaoMaxM3h`** (var NOVA): backend `listBombaCandidatesByFlow(...,vazaoMaxAlvoM3h)` baseVars + controller `trocador-bomba-candidates?vazaoMax=` + card URL + siblingVars do modal + allowed-vars FORMULA list. Preview do modal injeta vazaoSolarM3h/vazaoMaxM3h via siblingVars (senao pegava a vazao da solar=0). Tudo ADITIVO.
