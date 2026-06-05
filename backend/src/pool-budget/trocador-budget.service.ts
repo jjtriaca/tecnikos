@@ -149,6 +149,10 @@ export class TrocadorBudgetService {
       // Trocadores em PARALELO compartilham a mesma perda interna (vazao se divide,
       // perda por ramo eh a mesma) — por isso NAO multiplica por qtdTrocadores.
       perdaInternaExtraMca: Number(dto.perdaInternaMca) || 0,
+      // CIRCUITO FECHADO: bomba de calor/trocador trabalham em loop fechado — o desnivel
+      // nao soma como carga estatica (subida equilibrada pela descida no retorno); so o
+      // atrito conta. Diferente do solar (aberto, com valvula ventosa).
+      closedLoop: true,
     };
 
     const result = this.pipeHeadLoss.compute(inputs) as ReturnType<PipeHeadLossService['compute']> & {

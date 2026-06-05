@@ -125,6 +125,12 @@ interface HeatingReport {
   annualKwh?: number;
   annualCostBRLCents?: number;
   initialHeatingCostBRLCents?: number;
+  // Horas de operacao da bomba de calor por mes (demanda-dirigida) — dimensiona o
+  // consumo da bomba de CIRCULACAO. 12 valores (0 em mes inativo). Ver heating.service.
+  operatingHoursPerMonth?: number[];
+  operatingHoursPerDayAvg?: number;
+  // Detalhamento mes a mes (validacao): perda bruta, ganho solar e demanda liquida (kWh/dia).
+  operatingHoursDebug?: { perdaKwhDia: number; ganhoSolarKwhDia: number; demandaLiquidaKwhDia: number; horasDia: number }[];
   comparativo?: ComparativoFonte[];
   extrasDetected?: ExtrasDetected;
   // FASE 2 — Borda Infinita: agua dos reservatorios somada ao volume a aquecer.
@@ -3116,8 +3122,18 @@ function BombaCalorTab({
                 </div>
               </section>
 
-              {/* BOMBA DE CIRCULACAO + TUBULACAO — mesma mecanica do Solar, vazao da bomba de calor selecionada */}
-              {report.selectedEquipment && <TrocadorPumpPipeCard budgetId={budget.id} sel={report.selectedEquipment} />}
+              {/* BOMBA DE CIRCULACAO + TUBULACAO — paridade com o Solar (imagem/specs/consumo mensal).
+                  operatingHoursPerMonth = horas REAIS de operacao da bomba de calor por mes
+                  (demanda-dirigida): inverno mais, verao menos, bomba mais potente -> menos horas.
+                  A bomba de circulacao roda junto com a bomba de calor. */}
+              {report.selectedEquipment && (
+                <TrocadorPumpPipeCard
+                  budgetId={budget.id}
+                  sel={report.selectedEquipment}
+                  operatingHoursPerMonth={report.operatingHoursPerMonth}
+                  operatingHoursPerDayAvg={report.operatingHoursPerDayAvg}
+                />
+              )}
 
               {/* PERDA TERMICA MENSAL */}
               <section className="px-5 py-2 border-b border-slate-200 avoid-break">
@@ -3129,6 +3145,12 @@ function BombaCalorTab({
                       <tr><td className="px-2 py-1 font-medium text-slate-700">Temp ar (°C)</td>{report.monthlyHeatLoss.map((m, i) => <td key={i} className="px-1 py-1 text-center text-slate-600 tabular-nums">{m.tempAr.toFixed(1)}</td>)}</tr>
                       <tr><td className="px-2 py-1 font-medium text-slate-700">Umidade</td>{report.monthlyHeatLoss.map((m, i) => <td key={i} className="px-1 py-1 text-center text-slate-600 tabular-nums">{(m.humidity * 100).toFixed(0)}%</td>)}</tr>
                       <tr className="bg-orange-50"><td className="px-2 py-1 font-semibold text-orange-900">Qtotal (kW)</td>{report.monthlyHeatLoss.map((m, i) => { const isCrit = i === report.qtotalMonthCritical; return <td key={i} className={`px-1 py-1 text-center tabular-nums ${isCrit ? "bg-orange-200 font-bold text-orange-900" : "text-orange-900"}`}>{m.qtotalKw.toFixed(1)}</td>; })}</tr>
+                      {report.operatingHoursDebug && report.operatingHoursDebug.length === 12 && (
+                        <tr className="bg-amber-50"><td className="px-2 py-1 font-medium text-amber-800" title="Ganho solar estimado na superfície da piscina (kWh/dia) = radiação do mês × área × absorção × transmissão da capa. Desconta da perda pra achar a demanda líquida que a bomba de calor precisa cobrir.">☀ Ganho solar (kWh/d)</td>{report.operatingHoursDebug.map((d, i) => <td key={i} className="px-1 py-1 text-center text-amber-700 tabular-nums">{d.ganhoSolarKwhDia.toFixed(0)}</td>)}</tr>
+                      )}
+                      {report.operatingHoursPerMonth && report.operatingHoursPerMonth.length === 12 && (
+                        <tr className="bg-cyan-50"><td className="px-2 py-1 font-semibold text-cyan-900" title="Horas/dia que a bomba de calor (e a bomba de circulação, que roda junto) precisa operar = demanda líquida (perda − ganho solar) ÷ capacidade. Inverno mais, verão com capa perto de zero, bomba maior roda menos. Limitado à janela de funcionamento.">⏱ Horas/dia bomba</td>{report.operatingHoursPerMonth.map((h, i) => <td key={i} className="px-1 py-1 text-center font-semibold text-cyan-900 tabular-nums">{h.toFixed(1)}</td>)}</tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -3371,16 +3393,23 @@ function KV({ label, value }: { label: string; value: string | number }) {
 interface TrocadorBombaCandidate {
   productId: string; description: string; salePriceCents: number; poolType: string | null;
   imageUrl: string | null; vazaoM3h: number; pressaoTrabalhoMca: number; potenciaCv: number | null;
-  hasPumpCurve: boolean; indicator: { value: number; label: string; color: string; unit: string } | null;
+  hasPumpCurve: boolean; indicator: { value: number; label: string; color: string; unit: string; groupLabel?: string } | null;
 }
 
-// Bomba de circulacao + tubulacao da aba Bomba de Calor (mesma mecanica do Solar). A vazao-alvo
-// vem da bomba de calor SELECIONADA (vazaoMinM3h × qtd). Sem vazao cadastrada -> avisa e nao dimensiona.
-// Inputs efemeros (nao persistem nesta v1) — recomputam ao vivo via /trocador-pipe/recompute +
-// /trocador-bomba-candidates (mesmos endpoints reutilizaveis do nucleo do Solar).
-function TrocadorPumpPipeCard({ budgetId, sel }: {
+// Bomba de circulacao + tubulacao da aba Bomba de Calor — PARIDADE com a bomba de
+// recirculacao do Solar: dropdown + card (imagem/specs/preco/indicador) + CONSUMO
+// ELETRICO MENSAL (kWh/mes + R$/mes, tarifa editavel no 💡, tenant global compartilhada
+// com o Solar). A vazao-alvo vem da bomba de calor SELECIONADA (vazaoMinM3h × qtd).
+// A bomba de circulacao roda JUNTO com a bomba de calor, entao o consumo usa as HORAS
+// REAIS de operacao por mes (operatingHoursPerMonth, demanda-dirigida): inverno funciona
+// mais, verao menos, e bomba de calor mais potente -> menos horas (atinge o alvo mais
+// rapido). Sem vazao cadastrada -> avisa e nao dimensiona. Reusa /trocador-pipe/recompute
+// + /trocador-bomba-candidates (endpoints do nucleo do Solar).
+function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operatingHoursPerDayAvg }: {
   budgetId: string;
   sel?: { vazaoMinM3h?: number; vazaoMaxM3h?: number; quantity?: number } | null;
+  operatingHoursPerMonth?: number[];
+  operatingHoursPerDayAvg?: number;
 }) {
   const qty = Math.max(1, Number(sel?.quantity) || 1);
   const vMin = Number(sel?.vazaoMinM3h) || 0;
@@ -3397,6 +3426,42 @@ function TrocadorPumpPipeCard({ budgetId, sel }: {
   const [selBombaId, setSelBombaId] = useState<string | null>(null);
   const [candLoading, setCandLoading] = useState(false);
 
+  // Tarifa de energia (R$/kWh em centavos) — tenant global, MESMA do Solar (💡).
+  const [tarifaKwhBRLCents, setTarifaKwhBRLCents] = useState<number>(95);
+  const [showTarifaPopover, setShowTarifaPopover] = useState(false);
+  const [tarifaInputValue, setTarifaInputValue] = useState<string>("0,95");
+  const [tarifaSaving, setTarifaSaving] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    api.get<{ tarifaKwhBRLCents: number }>("/pool-budgets/solar-tarifa-kwh")
+      .then((r) => {
+        if (cancelled || !Number.isFinite(r?.tarifaKwhBRLCents)) return;
+        setTarifaKwhBRLCents(r.tarifaKwhBRLCents);
+        setTarifaInputValue((r.tarifaKwhBRLCents / 100).toFixed(2).replace(".", ","));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const saveTarifa = async () => {
+    const norm = tarifaInputValue.replace(",", ".").trim();
+    const reais = Number(norm);
+    if (!Number.isFinite(reais) || reais <= 0 || reais > 1000) {
+      alert("Tarifa invalida. Use valor entre R$ 0,01 e R$ 1.000,00.");
+      return;
+    }
+    const cents = Math.round(reais * 100);
+    setTarifaSaving(true);
+    try {
+      const r = await api.patch<{ tarifaKwhBRLCents: number }>("/pool-budgets/solar-tarifa-kwh", { tarifaKwhBRLCents: cents });
+      setTarifaKwhBRLCents(r.tarifaKwhBRLCents);
+      setShowTarifaPopover(false);
+    } catch (err: any) {
+      alert(`Erro ao salvar tarifa: ${err?.message ?? err}`);
+    } finally {
+      setTarifaSaving(false);
+    }
+  };
+
   async function recompute(diametroMm?: number | null) {
     if (!hasVazao || !comprimento || comprimento <= 0) { setPipeResult(null); return; }
     setPipeBusy(true);
@@ -3408,17 +3473,24 @@ function TrocadorPumpPipeCard({ budgetId, sel }: {
     } catch { setPipeResult(null); } finally { setPipeBusy(false); }
   }
 
+  // altura = perda de OPERACAO (atrito; circuito fechado, o sifao cancela a carga estatica
+  // depois que circula). alturaInercia = desnivel: a bomba precisa VENCER o desnivel pra
+  // ROMPER A INERCIA e estabelecer a circulacao (encher a coluna ate o ponto alto). Se a
+  // bomba nao alcanca o desnivel, NAO circula — mesmo em circuito fechado. Por isso a SELECAO
+  // usa max(atrito, desnivel): a bomba tem que dar conta dos dois (rodar + romper a inercia).
   const altura = Number(pipeResult?.alturaManometricaTotal) || 0;
+  const alturaInercia = Number(desnivel) || 0;
+  const alturaSelecao = Math.max(altura, alturaInercia);
   useEffect(() => {
     if (!hasVazao || vazaoAlvo <= 0) { setCandidates([]); return; }
     let cancelled = false; setCandLoading(true);
-    api.get<{ candidates: TrocadorBombaCandidate[] }>(`/pool-budgets/${budgetId}/trocador-bomba-candidates?vazao=${vazaoAlvo}&altura=${altura}`)
+    api.get<{ candidates: TrocadorBombaCandidate[] }>(`/pool-budgets/${budgetId}/trocador-bomba-candidates?vazao=${vazaoAlvo}&altura=${alturaSelecao}`)
       .then((res) => { if (cancelled) return; const cs = res?.candidates ?? []; setCandidates(cs); if (cs.length && !cs.some((c) => c.productId === selBombaId)) setSelBombaId(cs[0].productId); })
       .catch(() => { if (!cancelled) setCandidates([]); })
       .finally(() => { if (!cancelled) setCandLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [budgetId, vazaoAlvo, altura, hasVazao]);
+  }, [budgetId, vazaoAlvo, alturaSelecao, hasVazao]);
 
   if (!hasVazao) {
     return (
@@ -3435,6 +3507,37 @@ function TrocadorPumpPipeCard({ budgetId, sel }: {
   const dns: number[] = pipeResult?.availableDiametersMm ?? [32, 40, 50, 60, 75];
   const dnAtual = pipeResult?.diametroDnMm ?? dns.find((d) => d >= 50) ?? dns[0];
   const selB = candidates.find((c) => c.productId === selBombaId) ?? candidates[0] ?? null;
+
+  // Consumo eletrico mensal da bomba de circulacao (paridade com o Solar). A bomba roda
+  // JUNTO com a bomba de calor, entao usa as HORAS REAIS de operacao por mes (demanda-
+  // dirigida, vindas do backend em operatingHoursPerMonth): inverno mais, verao menos,
+  // e bomba de calor mais potente -> menos horas. P_eletrica_kW = cv × 0.7355 / 0.65
+  // (rendimento medio, MESMA constante do Solar — RENDIMENTO_BOMBA_MEDIO). Consumo medio
+  // mensal = (Σ P × horas_mes × dias_mes) / 12, mesmo padrao do Solar (anual / 12).
+  const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const horasMesArr = Array.isArray(operatingHoursPerMonth) && operatingHoursPerMonth.length === 12
+    ? operatingHoursPerMonth
+    : null;
+  const consumo = selB && selB.potenciaCv != null && selB.potenciaCv > 0 && horasMesArr
+    ? (() => {
+        const potenciaKW = (selB.potenciaCv * 0.7355) / 0.65;
+        let kwhAno = 0;
+        const horasAtivas: number[] = [];
+        for (let i = 0; i < 12; i++) {
+          const h = Number(horasMesArr[i]) || 0;
+          kwhAno += potenciaKW * h * MONTH_DAYS[i];
+          if (h > 0) horasAtivas.push(h);
+        }
+        const kwhMes = kwhAno / 12;
+        const custoMesCents = kwhMes * tarifaKwhBRLCents;
+        const horasDiaMedio = Number(operatingHoursPerDayAvg) > 0
+          ? Number(operatingHoursPerDayAvg)
+          : (horasAtivas.length ? horasAtivas.reduce((s, h) => s + h, 0) / horasAtivas.length : 0);
+        const horasMin = horasAtivas.length ? Math.min(...horasAtivas) : 0;
+        const horasMax = horasAtivas.length ? Math.max(...horasAtivas) : 0;
+        return { potenciaKW, kwhMes, custoMesCents, horasDiaMedio, horasMin, horasMax };
+      })()
+    : null;
 
   return (
     <section className="px-5 py-3 border-b border-slate-200 avoid-break">
@@ -3454,10 +3557,10 @@ function TrocadorPumpPipeCard({ budgetId, sel }: {
           {pipeResult ? (
             <div className={`rounded border px-2 py-1.5 ${velAlta ? "border-red-400 bg-red-50" : "border-amber-300 bg-amber-50"}`}>
               <div className="flex items-baseline justify-between gap-2">
-                <div className={`text-[8.5px] uppercase tracking-wider font-bold ${velAlta ? "text-red-800" : "text-amber-800"}`}>Altura manométrica total</div>
-                <div className={`text-base font-bold tabular-nums ${velAlta ? "text-red-900" : "text-amber-900"}`}>{pipeResult.alturaManometricaTotal?.toFixed(2)} <span className="text-[10px] font-semibold">mca</span></div>
+                <div className={`text-[8.5px] uppercase tracking-wider font-bold ${velAlta ? "text-red-800" : "text-amber-800"}`}>Altura manométrica (bomba)</div>
+                <div className={`text-base font-bold tabular-nums ${velAlta ? "text-red-900" : "text-amber-900"}`} title="Maior entre o atrito (operação) e o desnível (romper a inércia pra começar a circular). A bomba precisa produzir pelo menos isto.">{alturaSelecao.toFixed(2)} <span className="text-[10px] font-semibold">mca</span></div>
               </div>
-              <div className={`text-[9.5px] mt-0.5 ${velAlta ? "text-red-800" : "text-amber-800"}`}>= {pipeResult.perdaDinamica?.toFixed(2)} mca tubo + {desnivel} m desnível · velocidade <span className={velAlta ? "font-bold text-red-700" : ""}>{pipeResult.velocidade?.toFixed(2)} m/s</span></div>
+              <div className={`text-[9.5px] mt-0.5 ${velAlta ? "text-red-800" : "text-amber-800"}`}>= {pipeResult.perdaDinamica?.toFixed(2)} mca de atrito · <span title="Circuito FECHADO (bomba de calor): depois que a água circula, a coluna que sobe é equilibrada pela que desce no retorno (sifão) — o desnível não soma na altura de OPERAÇÃO (a bomba só vence o atrito). MAS pra COMEÇAR a circular a bomba precisa vencer o desnível e ROMPER A INÉRCIA (encher a coluna até o ponto alto); se a bomba não alcança o desnível, não circula. Por isso ela é escolhida pra dar conta dos dois. Diferente do solar (circuito aberto, válvula ventosa).">circuito fechado{desnivel > 0 ? ` — opera no atrito, mas precisa vencer ${desnivel} m pra romper a inércia` : ""}</span> · velocidade <span className={velAlta ? "font-bold text-red-700" : ""}>{pipeResult.velocidade?.toFixed(2)} m/s</span></div>
               <div className="mt-1.5 flex items-center gap-2 flex-wrap">
                 <span className={`text-[10px] uppercase tracking-wider font-bold ${velAlta ? "text-red-800" : "text-amber-800"}`}>📏 {pipeResult.material ?? "PVC"}</span>
                 <select value={dnAtual} onChange={(e) => recompute(Number(e.target.value))} className={`text-xs font-bold rounded border px-2 py-0.5 bg-white ${velAlta ? "border-red-400 text-red-900" : "border-amber-400 text-amber-900"} focus:outline-none`}>{dns.map((d) => <option key={d} value={d}>{d} mm DN</option>)}</select>
@@ -3471,25 +3574,124 @@ function TrocadorPumpPipeCard({ budgetId, sel }: {
         <div className="rounded border border-slate-200 bg-white p-2">
           <div className="text-[9px] uppercase tracking-wider font-bold text-slate-500 mb-1">Bomba de circulação recomendada</div>
           {candidates.length === 0 ? (
-            <div className="text-[11px] text-slate-600 leading-tight">{candLoading ? "Carregando candidatos…" : `Nenhuma bomba do catálogo atende vazão ≥ ${vazaoAlvo} m³/h${altura > 0 ? ` e ${altura.toFixed(1)} mca` : ""}. Cadastre bombas compatíveis (com curva) ou ajuste a regra de bomba na aba Solar (✨).`}</div>
+            <div className="text-[11px] text-slate-600 leading-tight">{candLoading ? "Carregando candidatos…" : `Nenhuma bomba do catálogo atende vazão ≥ ${vazaoAlvo} m³/h${alturaSelecao > 0 ? ` e ${alturaSelecao.toFixed(1)} mca (atrito + romper a inércia do desnível)` : ""}. Cadastre bombas compatíveis (com curva) ou ajuste a regra de bomba na aba Solar (✨).`}</div>
           ) : (
             <>
               <select value={selBombaId ?? ""} onChange={(e) => setSelBombaId(e.target.value || null)} className="w-full rounded border border-slate-300 bg-amber-50 px-2 py-1 text-[12px] font-semibold">
                 {candidates.map((c) => { const parts = [c.description]; if (c.potenciaCv != null) parts.push(`${c.potenciaCv} cv`); parts.push(`${c.vazaoM3h.toFixed(1)} m³/h`); parts.push(`${c.pressaoTrabalhoMca.toFixed(1)} mca`); if (c.hasPumpCurve) parts.push("📈 curva"); return <option key={c.productId} value={c.productId}>{parts.join(" · ")}</option>; })}
               </select>
-              {selB && (
-                <div className="mt-1.5 flex items-center gap-x-3 gap-y-0.5 flex-wrap text-[11px] text-slate-700">
-                  <span>Vazão <b className="tabular-nums">{selB.vazaoM3h.toFixed(1)} m³/h</b></span>
-                  <span>Pressão <b className="tabular-nums">{selB.pressaoTrabalhoMca.toFixed(1)} mca</b></span>
-                  {selB.potenciaCv != null && <span><b className="tabular-nums">{selB.potenciaCv} cv</b></span>}
+              {selB && ((vazaoMaxTotal > 0 && selB.vazaoM3h > vazaoMaxTotal) || (alturaInercia > 0 && selB.pressaoTrabalhoMca < alturaInercia) || (altura > 0 && selB.pressaoTrabalhoMca < altura)) && (
+                <div className="mt-1.5 flex flex-col gap-y-0.5 text-[11px]">
                   {vazaoMaxTotal > 0 && selB.vazaoM3h > vazaoMaxTotal && <span className="text-amber-600 font-semibold">⚠ acima da vazão máx ({vazaoMaxTotal})</span>}
-                  {altura > 0 && selB.pressaoTrabalhoMca < altura && <span className="text-red-600 font-semibold">⚠ pressão &lt; {altura.toFixed(1)} mca</span>}
+                  {alturaInercia > 0 && selB.pressaoTrabalhoMca < alturaInercia && <span className="text-red-600 font-semibold">⚠ não rompe a inércia: {selB.pressaoTrabalhoMca.toFixed(1)} mca &lt; desnível {alturaInercia.toFixed(1)} m — não circula</span>}
+                  {altura > 0 && selB.pressaoTrabalhoMca < altura && <span className="text-red-600 font-semibold">⚠ pressão &lt; atrito {altura.toFixed(1)} mca</span>}
                 </div>
               )}
             </>
           )}
         </div>
       </div>
+
+      {/* Card da bomba selecionada — imagem + specs + CONSUMO ELETRICO MENSAL (paridade Solar) */}
+      {selB && (
+        <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2.5 flex gap-3 items-start shadow-sm">
+          {/* Imagem da bomba (mesma estetica do Solar — quadrada, contain) */}
+          <div className="w-24 h-24 flex-shrink-0 rounded border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center">
+            {selB.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={selB.imageUrl} alt={selB.description} className="w-full h-full object-contain" />
+            ) : (
+              <div className="text-[9px] text-slate-400 text-center px-1">Sem imagem</div>
+            )}
+          </div>
+          {/* Specs + consumo */}
+          <div className="flex-1 min-w-0">
+            <div className="text-[12px] font-bold text-slate-900 leading-tight truncate">{selB.description}</div>
+            <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] text-slate-700">
+              {selB.potenciaCv != null && (
+                <div><span className="text-slate-500">Potência:</span> <span className="font-semibold tabular-nums">{selB.potenciaCv} cv</span></div>
+              )}
+              <div><span className="text-slate-500">Vazão:</span> <span className="font-semibold tabular-nums">{selB.vazaoM3h.toFixed(2)} m³/h</span></div>
+              <div><span className="text-slate-500">Pressão:</span> <span className="font-semibold tabular-nums">{selB.pressaoTrabalhoMca.toFixed(2)} mca</span></div>
+              {selB.salePriceCents > 0 && (
+                <div><span className="text-slate-500">Preço:</span> <span className="font-semibold tabular-nums">R$ {(selB.salePriceCents / 100).toFixed(2)}</span></div>
+              )}
+              {selB.hasPumpCurve && <div className="text-[9px] text-emerald-700 font-semibold">📈 com curva característica</div>}
+              {selB.indicator && (
+                <div className={`text-[10px] font-semibold ${
+                  selB.indicator.color === 'emerald' ? 'text-emerald-600' :
+                  selB.indicator.color === 'green' ? 'text-green-600' :
+                  selB.indicator.color === 'lime' ? 'text-lime-600' :
+                  selB.indicator.color === 'yellow' ? 'text-yellow-600' :
+                  selB.indicator.color === 'orange' ? 'text-orange-500' :
+                  selB.indicator.color === 'amber' ? 'text-amber-600' :
+                  selB.indicator.color === 'red' ? 'text-red-600' :
+                  'text-slate-700'
+                }`}>
+                  {(() => {
+                    const v = selB.indicator.value;
+                    const decimals = Math.abs(v) < 10 ? 1 : 0;
+                    const formatted = v.toFixed(decimals).replace('.', ',');
+                    const group = selB.indicator.groupLabel || 'Dimensionamento';
+                    return `${group}: ${formatted}${selB.indicator.unit} (${selB.indicator.label})`;
+                  })()}
+                </div>
+              )}
+            </div>
+
+            {/* Consumo eletrico mensal estimado (paridade Solar) */}
+            {consumo ? (
+              <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                <div className="text-[10px] text-slate-700 leading-tight">
+                  <span className="text-slate-500">⚡ Consumo médio:</span>{" "}
+                  <span className="font-bold tabular-nums text-slate-900">{consumo.kwhMes.toFixed(0)}</span>
+                  <span className="text-[9px] font-semibold text-slate-500"> kWh/mês</span>
+                  <span className="text-[9px] text-slate-500 ml-1.5" title={`A bomba de circulacao roda junto com a bomba de calor — horas reais de operacao por mes (inverno mais, verao menos; bomba de calor mais potente roda menos pois atinge o alvo mais rapido). Media ${consumo.horasDiaMedio.toFixed(1)} h/dia, varia ${consumo.horasMin.toFixed(1)}–${consumo.horasMax.toFixed(1)} h/dia entre os meses. Potencia eletrica = ${selB.potenciaCv} cv × 0,7355 / 0,65 (rendimento medio) = ${consumo.potenciaKW.toFixed(2)} kW. Consumo medio = media anual / 12.`}>({consumo.horasDiaMedio.toFixed(1)}h/dia médio · {consumo.potenciaKW.toFixed(2)} kW)</span>
+                </div>
+                <div className="relative flex items-center gap-1">
+                  <div className="text-[11px] font-bold tabular-nums text-amber-700">
+                    R$ {(consumo.custoMesCents / 100).toFixed(2)}<span className="text-[9px] font-semibold text-amber-600">/mês</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTarifaInputValue((tarifaKwhBRLCents / 100).toFixed(2).replace(".", ","));
+                      setShowTarifaPopover((v) => !v);
+                    }}
+                    title={`Tarifa atual: R$ ${(tarifaKwhBRLCents / 100).toFixed(2)}/kWh. Clique para alterar.`}
+                    className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 print:hidden"
+                  >
+                    💡
+                  </button>
+                  {showTarifaPopover && (
+                    <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-slate-300 rounded-lg shadow-lg p-3 w-[240px] print:hidden">
+                      <div className="text-[10px] uppercase tracking-wider text-slate-600 font-bold mb-1.5">Tarifa de energia (R$/kWh)</div>
+                      <input
+                        type="text"
+                        value={tarifaInputValue}
+                        onChange={(e) => setTarifaInputValue(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") saveTarifa(); if (e.key === "Escape") setShowTarifaPopover(false); }}
+                        autoFocus
+                        placeholder="0,95"
+                        className="w-full rounded border border-slate-300 px-2 py-1 text-[12px] font-semibold focus:border-amber-500 focus:outline-none"
+                      />
+                      <div className="text-[9px] text-slate-500 mt-1 leading-tight">Tarifa aplicada a todos os orcamentos do tenant.</div>
+                      <div className="mt-2 flex gap-1.5 justify-end">
+                        <button type="button" onClick={() => setShowTarifaPopover(false)} disabled={tarifaSaving} className="text-[10px] px-2 py-1 rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-700">Cancelar</button>
+                        <button type="button" onClick={saveTarifa} disabled={tarifaSaving} className="text-[10px] px-2 py-1 rounded bg-amber-600 text-white font-bold hover:bg-amber-700 disabled:bg-slate-300">{tarifaSaving ? "Salvando..." : "Salvar"}</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-1.5 pt-1.5 border-t border-slate-100 text-[9.5px] text-slate-400 leading-tight">{selB && selB.potenciaCv != null && selB.potenciaCv > 0
+                ? "Estimando as horas de operação da bomba de calor para o consumo elétrico…"
+                : "Cadastre a potência (cv) da bomba para estimar o consumo elétrico mensal."}</div>
+            )}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

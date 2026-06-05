@@ -47,6 +47,12 @@ export interface PipeHeadLossInputs {
   // tubulacao (ex: trocador de calor, ~1-3 mca a vazao nominal). Aditiva direto
   // na altura manometrica, igual as baterias do solar. Solar nao passa -> 0.
   perdaInternaExtraMca?: number;
+  // CIRCUITO FECHADO (bomba de calor): a coluna de agua que SOBE eh equilibrada pela
+  // que DESCE no retorno (sifao) — a carga estatica do desnivel se cancela e a bomba so
+  // vence o ATRITO. Diferente do solar (circuito aberto com valvula ventosa, onde o
+  // desnivel conta como carga estatica). Quando true, o desnivel NAO soma na altura
+  // manometrica (mas ainda conta como atrito do tubo vertical em comprimento + 2×desnivel).
+  closedLoop?: boolean;
 }
 
 export interface PipeHeadLossResult {
@@ -255,8 +261,11 @@ export class PipeHeadLossService {
     // Aditiva direto na altura manometrica. Solar nao passa -> 0.
     const perdaInternaExtra = inputs.perdaInternaExtraMca ?? 0;
 
-    // Altura manometrica total = perda dinamica + perda baterias + perda interna extra + desnivel geometrico
-    const alturaManometricaTotal = perdaDinamica + perdaBateriasMca + perdaInternaExtra + inputs.desnivelM;
+    // Altura manometrica total = perda dinamica + perda baterias + perda interna extra + desnivel geometrico.
+    // CIRCUITO FECHADO (bomba de calor): o desnivel NAO soma (a subida eh equilibrada pela descida
+    // no retorno — sifao); a bomba so vence o atrito. Circuito aberto (solar): desnivel = carga estatica.
+    const cargaEstaticaDesnivel = inputs.closedLoop ? 0 : inputs.desnivelM;
+    const alturaManometricaTotal = perdaDinamica + perdaBateriasMca + perdaInternaExtra + cargaEstaticaDesnivel;
 
     // Aviso de velocidade alta (Solis alerta >=2.5 m/s)
     let aviso: string | null = null;

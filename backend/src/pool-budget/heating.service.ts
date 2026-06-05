@@ -22,6 +22,7 @@ import {
   WINTER_CAPACITY_FACTOR,
   getActiveMonths,
   HEATING_OPERATION_DEFAULTS,
+  POOL_SOLAR_GAIN,
   OTHER_LOSSES_FACTOR,
   pressaoSaturadaPa,
   SAFETY_MARGIN,
@@ -230,6 +231,19 @@ export interface HeatingReport {
   annualKwh?: number;
   annualCostBRLCents?: number;
   initialHeatingCostBRLCents?: number;
+
+  // Horas de operacao da bomba de calor por mes (DEMANDA-DIRIGIDA). A bomba roda o
+  // tempo necessario pra repor a perda termica do mes: carga = qtotalKw / capacidade;
+  // horas/dia = min(24, carga × 24). Inverno (perda maior) -> mais horas; equipamento
+  // mais potente (capacidade maior) -> menos horas (atinge o alvo mais rapido). Mes
+  // inativo (utilizacaoAno verao/inverno) -> 0. Dimensiona o consumo da bomba de
+  // CIRCULACAO, que roda junto com a bomba de calor. Reusa a MESMA capacidade do
+  // modelo de consumo, garantindo consistencia.
+  operatingHoursPerMonth?: number[]; // 12 entries
+  operatingHoursPerDayAvg?: number;  // media sobre os meses ativos
+  // Detalhamento mes a mes (validacao/debug): perda bruta, ganho solar e demanda liquida
+  // (kWh/dia) que geram as horas. Permite conferir a conta no orcamento real.
+  operatingHoursDebug?: { perdaKwhDia: number; ganhoSolarKwhDia: number; demandaLiquidaKwhDia: number; horasDia: number }[];
 
   // Comparativo
   comparativo?: ComparativoFonte[];
@@ -697,7 +711,7 @@ export class HeatingService {
       skipVirtualMultiplier?: boolean;
     },
   ): HeatingReport {
-    const { resolved } = this.getClimateData(inputs.uf, inputs.cidade, inputs.climateOverride);
+    const { city, resolved } = this.getClimateData(inputs.uf, inputs.cidade, inputs.climateOverride);
 
     // 1. Perda termica mensal
     const monthly = this.computeMonthlyHeatLoss(inputs);
@@ -767,6 +781,46 @@ export class HeatingService {
           ? Math.max(2.5, Math.min(8, capKwForCop / consumoKwForCop))
           : undefined;
         report.copEstimated = sel.copAt50Air15 ?? sel.copAt50Capacity ?? sel.copNominal ?? copDerivado ?? 0;
+
+        // 4b. Horas de operacao por mes pela DEMANDA LIQUIDA (perda - ganho solar).
+        // A bomba de calor (e a bomba de CIRCULACAO que roda junto) so opera pra repor a
+        // perda que o SOL nao repos. ganho_dia = radiacao_mes × area × absorcao × coberturaSolar.
+        // demanda_liquida_dia = max(0, perda_dia - ganho_dia). horas/dia = min(janela, demanda/capacidade).
+        // -> inverno (perda alta, sol baixo) = mais horas; verao com capa e alvo baixo (sol repoe
+        //    quase tudo) = perto de zero; alvo maior (ex: 35°C) sobe a perda (ΔT) e volta a exigir
+        //    bomba mesmo no verao; equip mais potente = menos horas. Mes inativo (utilizacaoAno) = 0.
+        const capacidadeKwHoras = sel.kwNominal ?? (sel.kcalHNominal ? sel.kcalHNominal / CONVERSIONS.KWH_TO_KCAL : 0);
+        if (capacidadeKwHoras > 0) {
+          const janelaHoras = Math.min(24, Math.max(1, inputs.horasFuncionamentoDia ?? HEATING_OPERATION_DEFAULTS.hoursPerDay));
+          const areaSuperficie = (inputs.areaM2 || 0) + (inputs.bordaSuperficieAbertaM2 || 0);
+          const radSolMensal = city.radSolMonthly; // kWh/m²/dia por mes (banco) ou undefined
+          const coberturaSolar = inputs.capaTermica ? POOL_SOLAR_GAIN.coverTransmission : 1;
+          const activeSet = new Set(activeMonths);
+          const debug: NonNullable<HeatingReport['operatingHoursDebug']> = [];
+          const horasPorMes = monthly.map((m, idx) => {
+            const perdaDia = m.qtotalKw * 24; // kWh/dia (perda continua)
+            const ganhoDia = radSolMensal && areaSuperficie > 0
+              ? radSolMensal[idx] * areaSuperficie * POOL_SOLAR_GAIN.absorption * coberturaSolar
+              : 0;
+            const demandaLiquidaDia = Math.max(0, perdaDia - ganhoDia);
+            const horasDia = activeSet.has(idx)
+              ? round2(Math.min(janelaHoras, demandaLiquidaDia / capacidadeKwHoras))
+              : 0;
+            debug.push({
+              perdaKwhDia: round1(perdaDia),
+              ganhoSolarKwhDia: round1(ganhoDia),
+              demandaLiquidaKwhDia: round1(demandaLiquidaDia),
+              horasDia,
+            });
+            return horasDia;
+          });
+          report.operatingHoursPerMonth = horasPorMes;
+          const ativos = activeMonths.map((i) => horasPorMes[i]);
+          report.operatingHoursPerDayAvg = ativos.length
+            ? round2(ativos.reduce((s, h) => s + h, 0) / ativos.length)
+            : 0;
+          report.operatingHoursDebug = debug;
+        }
 
         // 5. Consumo + custo (modelo TAB006: carga mensal × COP polinomial)
         if (options.tariff) {

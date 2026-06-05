@@ -584,6 +584,26 @@ export const HEATING_OPERATION_DEFAULTS = {
   taxaFuncionamento: 0.5, // % de operacao em escala (inverter)
 };
 
+// ============ GANHO SOLAR NA SUPERFICIE DA PISCINA ============
+//
+// Usado pra calcular a DEMANDA LIQUIDA de aquecimento (perda - ganho solar). De dia
+// o sol repoe parte (ou toda) a perda termica da agua, entao a bomba de calor (e a
+// bomba de circulacao que roda junto) so precisa operar pra cobrir a diferenca.
+//   ganho_dia (kWh) = radiacao_mes (kWh/m²/dia) × area_superficie (m²) × absorcao × coberturaSolar
+// Constantes calibraveis. radiacao_mes vem da mesma base do Simulador Solar (ClimateData.radSol).
+export const POOL_SOLAR_GAIN = {
+  // Fracao da radiacao incidente que a SUPERFICIE da piscina (agua + fundo) absorve como
+  // calor quando descoberta. Agua + fundo escuro absorvem a maior parte; ~15-20% reflete.
+  // ATENCAO: a piscina NAO eh um coletor solar — o coletor eh preto fosco/seletivo, isolado
+  // e envidracado, projetado pra ganho maximo por m². A piscina ganha bem menos (e ainda
+  // perde rapido — a perda ja eh modelada a parte). Por isso o ganho aqui eh conservador.
+  absorption: 0.8,
+  // Capa TERMICA AZUL (padrao BR): reflete boa parte do sol (azul reflete o azul) — NAO eh
+  // um captador. Transmite ~metade da radiacao pra agua. Bem menos que o coletor preto.
+  // Sem capa = 1.0 (sol total na superficie). Calibravel; visivel na linha "☀ Ganho solar".
+  coverTransmission: 0.5,
+};
+
 // ============ UTILIDADES ============
 
 /**
