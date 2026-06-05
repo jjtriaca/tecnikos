@@ -3541,11 +3541,10 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
 
   return (
     <section className="px-5 py-3 border-b border-slate-200 avoid-break">
-      <SectionLabel>🚰 Bomba de circulação + tubulação</SectionLabel>
-      <div className="mt-1 text-[10px] text-slate-500">Vazão necessária: <b className="text-slate-800 tabular-nums">{vazaoAlvo} m³/h</b>{qty > 1 ? ` (${vMin} × ${qty} bombas)` : ""}{vazaoMaxTotal > 0 ? ` · faixa até ${vazaoMaxTotal} m³/h` : ""}</div>
-      <div className="mt-1.5 grid grid-cols-1 md:grid-cols-2 gap-2">
-        {/* Tubulacao */}
-        <div className="rounded border border-slate-200 bg-slate-50/50 p-2 space-y-1">
+      <SectionLabel>Tubulação — perda de carga</SectionLabel>
+      <div className="mt-1 text-[10px] text-slate-500">Vazão de projeto (bomba de calor): <b className="text-slate-800 tabular-nums">{vazaoAlvo} m³/h</b>{qty > 1 ? ` (${vMin} × ${qty} bombas)` : ""}{vazaoMaxTotal > 0 ? ` · faixa até ${vazaoMaxTotal} m³/h` : ""}</div>
+      {/* Tubulação — largura total (empilhado igual ao Solar) */}
+      <div className="mt-1.5 rounded border border-slate-200 bg-slate-50/50 p-2 space-y-1">
           <div className="grid grid-cols-2 gap-1.5">
             <label className="flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold text-slate-500">Comp. (m)
               <input type="number" step="0.5" min={0} value={comprimento || ""} onChange={(e) => setComprimento(Number(e.target.value) || 0)} onBlur={() => recompute()} placeholder="30" className="flex-1 min-w-0 rounded border border-slate-300 px-1.5 py-0.5 text-[12px] font-semibold h-6 focus:outline-none focus:border-amber-500" />
@@ -3570,9 +3569,10 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
             </div>
           ) : <div className="text-[10px] text-slate-500 italic">{pipeBusy ? "Calculando…" : "Preencha comprimento + desnível para escolher o tubo e calcular a altura manométrica."}</div>}
         </div>
-        {/* Bomba */}
-        <div className="rounded border border-slate-200 bg-white p-2">
-          <div className="text-[9px] uppercase tracking-wider font-bold text-slate-500 mb-1">Bomba de circulação recomendada</div>
+      {/* Bomba recomendada — empilhado igual ao Solar (label + dropdown + card embaixo) */}
+      <div className="mt-2.5">
+        <SectionLabel>Bomba de circulação recomendada</SectionLabel>
+        <div className="mt-1.5">
           {candidates.length === 0 ? (
             <div className="text-[11px] text-slate-600 leading-tight">{candLoading ? "Carregando candidatos…" : `Nenhuma bomba do catálogo atende vazão ≥ ${vazaoAlvo} m³/h${alturaSelecao > 0 ? ` e ${alturaSelecao.toFixed(1)} mca (atrito + romper a inércia do desnível)` : ""}. Cadastre bombas compatíveis (com curva) ou ajuste a regra de bomba na aba Solar (✨).`}</div>
           ) : (
@@ -3589,8 +3589,6 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
               )}
             </>
           )}
-        </div>
-      </div>
 
       {/* Card da bomba selecionada — imagem + specs + CONSUMO ELETRICO MENSAL (paridade Solar) */}
       {selB && (
@@ -3692,6 +3690,8 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
           </div>
         </div>
       )}
+        </div>
+      </div>
     </section>
   );
 }
