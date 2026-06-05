@@ -1,6 +1,7 @@
 # TAREFA ATUAL
 
-## ✅ DEPLOYED v1.13.14 (05/06) — Bomba de RECIRCULACAO da Bomba de Calor (paridade Solar) + horas por DEMANDA LIQUIDA
+## ✅ DEPLOYED v1.13.15 (05/06) — Bomba de RECIRCULACAO da Bomba de Calor (paridade Solar) + horas por DEMANDA LIQUIDA
+## - **v1.13.15:** layout do card EMPILHADO (igual Solar): secao "Tubulacao — perda de carga" (largura total) + secao "Bomba de circulacao recomendada" (dropdown + card embaixo). Antes era grid 2-col. Calculos intactos. ✨ da regra de bomba fica so na aba Solar (regra compartilhada) — espelhar no calor se o usuario pedir.
 ## - **Card recirculacao = igual ao Solar:** imagem + specs (cv/vazao/pressao/preco) + indicador "Dimensionamento: X%" + 💡 tarifa (tenant global, mesma do Solar) + CONSUMO ELETRICO MENSAL = media anual ÷ 12 (`P=cv×0.7355/0.65 × horas_mes × dias`, soma 12 meses /12).
 ## - **Horas reais por mes = DEMANDA LIQUIDA (perda − ganho solar):** `horas/dia = (qtotalKw×24 − ganhoSolar) ÷ capacidade`, cap na janela `horasFuncionamentoDia`. Inverno↑ / verao↓ (capa+alvo baixo → perto de zero) / alvo↑→ΔT↑→mais horas / bomba maior→menos horas. Ganho solar reusa `radSolMonthly` do clima (mesma base do Solar). Constantes `POOL_SOLAR_GAIN` em heating-constants (absorcao 0.8; **capa azul transmite 0.5** — calibravel; capa azul ≠ coletor preto). Backend: `heating.service` computeReport expoe `operatingHoursPerMonth/Avg/Debug`.
 ## - **Validacao visivel:** tabela "Perda termica mensal" ganhou linhas **☀ Ganho solar (kWh/d)** + **⏱ Horas/dia bomba**.
