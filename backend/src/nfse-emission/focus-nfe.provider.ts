@@ -124,6 +124,10 @@ export interface FocusNfsenRequest {
   percentual_total_tributos_simples_nacional?: number; // pTotTribSN — obrigatório para SN
   tributacao_iss: number;     // 1=Operação normal, 2=Imunidade, 3=Isenção, etc.
   tipo_retencao_iss: number;  // 1=Não retido, 2=Retido pelo tomador, etc.
+  // indTotTrib — indicador do valor total aproximado dos tributos (Lei da Transparencia).
+  // 0=Nao informado (default), 1=Informado. OBRIGATORIO no contrato Focus Nacional (consta
+  // na lista de campos obrigatorios do guia do municipio + no JSON de exemplo).
+  indicador_total_tributacao?: string;
   // Para NÃO optantes SN, usar estes campos no lugar de pTotTribSN:
   percentual_total_tributos_federais?: string;
   percentual_total_tributos_estaduais?: string;

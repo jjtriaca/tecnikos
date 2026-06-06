@@ -121,8 +121,17 @@ export class NfseEmissionService {
     private readonly tenantResolver: TenantResolverService,
   ) {}
 
-  /** Map Focus NFe technical errors to user-friendly messages */
-  private mapFocusError(raw: string): string {
+  /**
+   * Traduz erros tecnicos do Focus NFe pra mensagens claras pro usuario.
+   *  - Erros CONHECIDOS: ja retornam escrito o que aconteceu + como resolver.
+   *  - Erros NAO catalogados: caem no fallback, que mostra a ETAPA (parametro `stage`)
+   *    onde o erro ocorreu + o texto cru — assim da pra entender ONDE quebrou mesmo
+   *    sem uma traducao especifica. Sempre que adicionar um novo ponto que grava erro
+   *    do Focus, passe um `stage` descritivo.
+   * @param raw   mensagem crua do Focus / da exception
+   * @param stage etapa do fluxo (ex.: "Emissão", "Cadastro da empresa", "Consulta de status")
+   */
+  private mapFocusError(raw: string, stage?: string): string {
     const msg = raw || '';
     if (/401.*access denied/i.test(msg)) return 'Acesso negado pelo Focus NFe (401). Causas possíveis: (1) token inválido para este ambiente — verifique em Configurações > Fiscal; (2) mensalidade do Focus NFe em atraso — verifique sua conta em app.focusnfe.com.br.';
     if (/município.*não existe|não está ativo no convênio/i.test(msg)) return 'O município informado não está ativo na NFS-e Nacional. Verifique o código IBGE em Configurações > Fiscal.';
@@ -133,7 +142,32 @@ export class NfseEmissionService {
     if (/CNPJ.*inválido|CPF.*inválido/i.test(msg)) return 'CPF/CNPJ do tomador inválido. Verifique o documento no cadastro do parceiro.';
     if (/erro interno|internal.*error/i.test(msg)) return 'Erro temporário do Focus NFe. Aguarde alguns minutos e tente novamente.';
     if (/Unsupported state|unable to authenticate/i.test(msg)) return 'Erro de autenticação interna. Re-salve o token Focus NFe em Configurações > Fiscal.';
-    return msg; // fallback: return original
+    // ── Certificado digital vencido/expirado (≠ do 495 abaixo, que é recusa do cert no TLS).
+    if (/certificad.*(vencid|expirad)|validade.*(vencid|expirad)|certificate.*expired/i.test(msg))
+      return 'Certificado digital vencido. Faça upload de um certificado A1 válido em Configurações > Fiscal.';
+    // ── Empresa nao cadastrada/habilitada no Focus (nunca registrou, ou flag de emissao off).
+    if (/empresa.*(n[aã]o).*(habilitad|cadastrad|encontrad)|n[aã]o.*habilitad.*nfs/i.test(msg))
+      return 'Empresa não habilitada para emissão no Focus NFe. Clique em "Registrar empresa" em Configurações > Fiscal.';
+    // ── Falha de rede/conexao com o Focus (transitorio).
+    if (/timeout|etimedout|econnrefused|econnreset|socket hang up|getaddrinfo|enotfound|network error/i.test(msg))
+      return 'Falha de conexão com o Focus NFe. Aguarde alguns instantes e tente novamente.';
+    // ── Ambiente Nacional (ADN) recusou o certificado no TLS (HTTP 495). Acontece quando a
+    //    empresa esta com "Ambiente da NFSe Nacional" (habilita_nfsen) LIGADO no Focus, mas o
+    //    municipio emite no FORMATO nacional via provedor proprio (Cenario B — ex.: Primavera
+    //    do Leste/MT). O fix de config (Layout NACIONAL + "Registrar empresa") desliga o
+    //    ambiente nacional. Mapear ANTES do generico de DPS abaixo (a msg crua casa os dois).
+    if (/\b495\b|SSL Certificate Error|invalid certificate|certificado.*inv[aá]lid|adn\.nfse\.gov\.br/i.test(msg))
+      return 'O Ambiente Nacional da NFS-e (ADN) recusou o certificado. Este município emite no formato nacional, mas NÃO opera no Ambiente Nacional — a empresa não pode estar com "Ambiente da NFSe Nacional" ativo no Focus. Solução: Configurações > Fiscal > Layout "Nacional" e clique em "Registrar empresa" (isso desliga o ambiente nacional). Se persistir, confirme com a Focus o cenário do município.';
+    // ── Falha generica ao enviar a DPS ao provedor do municipio (ja passou o TLS).
+    if (/erro ao enviar dps|falha.*dps|dps.*rejeitad/i.test(msg))
+      return 'Falha ao enviar a NFS-e nacional (DPS) ao provedor do município. Confira os dados do prestador/tomador e os códigos fiscais em Configurações > Fiscal. Detalhe técnico: ' + msg.slice(0, 220);
+    // ── Campo obrigatorio do layout nacional ausente/invalido (validacao de schema do Focus).
+    if (/obrigat[oó]ri|is required|deve ser informado|n[aã]o pode ser (nulo|vazio)|campo.*(ausente|inv[aá]lido)/i.test(msg))
+      return 'Um campo obrigatório da NFS-e nacional está faltando ou inválido. Confira código de tributação nacional, município (IBGE), inscrição municipal e regime tributário em Configurações > Fiscal. Detalhe: ' + msg.slice(0, 220);
+    // ── Fallback: erro NAO catalogado. Mostra a ETAPA (quando informada) + o texto cru,
+    //    pra ajudar a entender ONDE quebrou mesmo sem uma traducao amigavel especifica.
+    //    (o texto cru tambem ja vai pro log do backend pra suporte).
+    return stage ? `Erro não previsto na etapa "${stage}". Detalhe técnico: ${msg}` : msg;
   }
 
   // ========== TEMPLATE RESOLUTION ==========
@@ -467,13 +501,23 @@ export class NfseEmissionService {
       enviar_email_destinatario: config?.sendEmailToTomador ?? true,
     };
 
-    // Enable NFS-e based on layout
+    // Habilitacao do canal de emissao no Focus, conforme o cenario da Reforma Tributaria:
+    //  - MUNICIPAL (Cenario A): formato proprio -> habilita_nfse.
+    //  - NACIONAL (Cenario B): formato Nacional, mas o municipio NAO opera no Ambiente
+    //    Nacional (ADN). Ex.: Primavera do Leste/MT (provedor Rlz). Guia oficial Focus:
+    //    usar /v2/nfsen + manter "API padrao de NFSe" (habilita_nfse) ATIVA e NAO habilitar
+    //    "Ambiente da NFSe Nacional" (habilita_nfsen). Por isso ligamos habilita_nfse e
+    //    DESLIGAMOS habilita_nfsen EXPLICITAMENTE (false, nao undefined) — precisa reverter
+    //    empresas que tinham o ambiente nacional ligado de tentativas anteriores (era o que
+    //    fazia o Focus rotear pro ADN e dar "495 SSL Certificate Error").
+    //  - Cenario C (NFSe Nacional pura / ADN — MEI) usaria habilita_nfsen=true; ainda nao
+    //    temos tenant nesse cenario. Add flag nfseAmbienteNacional quando surgir.
     if (layout === 'NACIONAL') {
-      empresaData.habilita_nfsen_producao = environment === 'PRODUCTION';
-      empresaData.habilita_nfsen_homologacao = environment === 'HOMOLOGATION';
-      // Enable receiving NFS-e Nacional (serviços tomados)
-      empresaData.habilita_nfsen_recebidas_producao = true;
-      empresaData.habilita_nfsen_recebidas_homologacao = true;
+      empresaData.habilita_nfse = true;
+      empresaData.habilita_nfsen_producao = false;
+      empresaData.habilita_nfsen_homologacao = false;
+      empresaData.habilita_nfsen_recebidas_producao = false;
+      empresaData.habilita_nfsen_recebidas_homologacao = false;
     } else {
       empresaData.habilita_nfse = true;
     }
@@ -529,7 +573,7 @@ export class NfseEmissionService {
       this.logger.error(`Focus NFe empresa registration failed: ${err.message}`);
       return {
         success: false,
-        message: `Erro ao registrar empresa na Focus NFe: ${err.message}`,
+        message: this.mapFocusError(err.message, 'Cadastro da empresa no Focus'),
       };
     }
   }
@@ -567,7 +611,7 @@ export class NfseEmissionService {
     } catch (err: any) {
       return {
         success: false,
-        message: `Erro ao instalar certificado: ${err.message}`,
+        message: this.mapFocusError(err.message, 'Instalação do certificado digital'),
       };
     }
   }
@@ -885,6 +929,16 @@ export class NfseEmissionService {
       // tipo_retencao_iss: 1=Não retido, 2=Retido pelo tomador
       const tipoRetencaoIss = (dto.issRetido ?? false) ? 2 : 1;
 
+      // ── SOLIDEZ: o Layout Nacional EXIGE o codigo do municipio emissor (IBGE 7 digitos) e o
+      //    codigo de tributacao nacional (cTribNac, 6 digitos, SEM pontos). Validar AQUI, antes
+      //    do round-trip com o Focus, da um erro claro pro usuario — em vez de um XML invalido
+      //    (codigo_municipio_emissora=0 / cTribNac vazio) que so quebraria la na frente.
+      const cTribNacClean = (codigoTribNac || '').replace(/\D/g, '');
+      if (!codigoMunicipioNum)
+        throw new BadRequestException('Layout Nacional: configure o Código do Município (IBGE, 7 dígitos) em Configurações > Fiscal antes de emitir.');
+      if (cTribNacClean.length < 6)
+        throw new BadRequestException('Layout Nacional: o Código de Tributação Nacional (cTribNac, 6 dígitos) é obrigatório. Defina-o no Código de Serviço (NFS-e) ou em Configurações > Fiscal.');
+
       // codigo_municipio_prestacao deve ser onde o servico eh prestado.
       // Pra obras (construcao civil cTribNac 07.xx), eh a cidade da obra.
       // Senao, eh a cidade da empresa (config.codigoMunicipio).
@@ -922,7 +976,7 @@ export class NfseEmissionService {
         email_tomador: dto.tomadorEmail || undefined,
         // Serviço
         codigo_municipio_prestacao: codigoMunicipioPrestacao,
-        codigo_tributacao_nacional_iss: codigoTribNac,
+        codigo_tributacao_nacional_iss: cTribNacClean, // 6 digitos sem ponto (validado acima)
         codigo_tributacao_municipal_iss: dto.codigoTributarioMunicipio || config.codigoTributarioMunicipio || undefined,
         codigo_nbs: dto.codigoNbs || undefined,
         descricao_servico: dto.discriminacao || '',
@@ -934,6 +988,10 @@ export class NfseEmissionService {
           : undefined,
         tributacao_iss: tributacaoIss,
         tipo_retencao_iss: tipoRetencaoIss,
+        // indTotTrib OBRIGATORIO (contrato Focus Nacional). "0" = nao informar o valor total
+        // aproximado dos tributos (Lei da Transparencia) — coerente com o JSON de exemplo
+        // oficial do guia do municipio (Primavera do Leste/MT).
+        indicador_total_tributacao: '0',
         // Para não-SN, informar tributos individuais
         ...(!config.optanteSimplesNacional ? {
           percentual_total_tributos_federais: '0.00',
@@ -1083,7 +1141,7 @@ export class NfseEmissionService {
       }
     } catch (error) {
       this.logger.error(`Focus NFe emission failed: ${error.message}`, error.stack);
-      const friendlyError = this.mapFocusError(error.message);
+      const friendlyError = this.mapFocusError(error.message, `Emissão (envio ao Focus, layout ${layout})`);
       await this.prisma.$transaction([
         this.prisma.nfseEmission.update({
           where: { id: emission.id },
@@ -1125,7 +1183,7 @@ export class NfseEmissionService {
       await this.handleAuthorized(emission.id, entryId, payload);
     } else if (payload.status === 'erro_autorizacao') {
       const rawError = payload.erros?.map((e: any) => e.mensagem).join('; ') || 'Erro desconhecido';
-      const errorMsg = this.mapFocusError(rawError);
+      const errorMsg = this.mapFocusError(rawError, 'Retorno do Focus (consulta de status / webhook)');
       await this.prisma.$transaction([
         this.prisma.nfseEmission.update({
           where: { id: emission.id },

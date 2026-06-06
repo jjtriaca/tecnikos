@@ -1,7 +1,13 @@
 # TAREFA ATUAL
 
 ## 📌 Frente "Bomba de recirculacao da Bomba de Calor" — CONCLUIDA + DOCUMENTADA (v1.13.14→v1.13.17). Doc completa: [memory/bomba_recirculacao_calor.md]. Testes PARQUEADOS (usuario vai validar depois).
-## 📌 Frente ATUAL: **FISCAL (NFS-e)** — v1.13.18 (cert) + v1.13.19 (/rate) + v1.13.20 (excluir nota) + v1.13.21 (cron tenant-context) NO AR.
+## 📌 Frente ATUAL: **FISCAL (NFS-e)** — v1.13.18→v1.13.22 NO AR. **v1.13.22 = adequacao ao NACIONAL (Cenario B)**; **TESTE DE CAMPO PENDENTE** (retentar RPS 33 apos Layout Nacional + Registrar empresa). Doc: [memory/nfse-nacional-cenario-b.md].
+
+## ✅ DEPLOYED v1.13.22 (06/06) — NFS-e NACIONAL Cenario B (resolve o 495) + solidez de erros
+## - **Causa do 495**: Primavera do Leste usa FORMATO nacional mas NAO opera no Ambiente Nacional (ADN). `registerEmpresa` em NACIONAL ligava `habilita_nfsen` (ADN) — e o flag ligado fazia o Focus rotear pro ADN ate em MUNICIPAL -> "495 invalid certificate" (recusa no TLS; NAO e validade do cert). Guia Focus: `/v2/nfsen` + `habilita_nfse` ON, `habilita_nfsen` OFF.
+## - **Fix**: (1) registerEmpresa NACIONAL = Cenario B (liga habilita_nfse, desliga habilita_nfsen EXPLICITO); (2) payload ganhou `indicador_total_tributacao` (obrigatorio, faltava); (3) guards NACIONAL (IBGE + cTribNac 6 digitos) + cTribNac limpo; (4) `mapFocusError` +6 erros conhecidos + parametro `stage` (erro nao catalogado mostra a ETAPA: emissao/consulta/cadastro/certificado + texto cru).
+## - **TESTE PENDENTE (3 passos no painel)**: Config>Fiscal Layout="Nacional" -> "Registrar empresa" -> retentar RPS 33. SLS ja tem IBGE 5107040 + cTribNac 070202/140601 + IM (passa nos guards).
+## - Cenario C (ADN puro/MEI) = follow-up (flag nfseAmbienteNacional). Doc: [memory/nfse-nacional-cenario-b.md].
 
 ## ✅ DEPLOYED v1.13.19 (05/06) — branding da pagina /rate DENTRO do card
 ## - Logo do tenant no LUGAR da estrela azul do card + RAZAO SOCIAL (Company.name, ex "SLS OBRAS LTDA") embaixo. Removido logo/nome que ficava ACIMA do card (rate/layout.tsx). Em todos os estados (form/sucesso/ja-avaliado/erro). Backend `tenant-branding.controller` branding agora devolve `razaoSocial` (companyName seguia = tradeName "SLS"). Pagina busca branding client-side pelo subdominio; generateMetadata (OG) mantido.
@@ -15,7 +21,7 @@
 ## ✅ DEPLOYED v1.13.20 (05/06) — botao "Excluir nota com erro"
 ## - `deleteErrorEmission` (SO status==ERROR; desvincula financialEntries -> "sem nota", NAO apaga lancamento; libera rpsNextNumber se for o ultimo da seq, senao deixa gap — prefeitura aceita p/ RPS rejeitada). `DELETE emissions/:id` (Roles ADMIN/FINANCEIRO/FISCAL+FiscalGuard). Front: item "Excluir nota" no dropdown so p/ ERROR (nfe/saida). Uso: RPS 32 (R$5.430 errada) -> excluir; RPS 33 (R$3.620) CORRETA -> manter.
 
-## 📋 Diagnostico erro 495 (NFS-e) — NAO e codigo Tecnikos: mTLS entre Focus e o gateway nacional (adn.nfse.gov.br). Cert valido ate 26/08/2026 (nao e expiracao). Primavera do Leste (5107040) = cidade em transicao -> Focus roteia Municipal /v2/nfse pro nacional. ACAO: usuario abre chamado na Focus.
+## 📋 Erro 495 (NFS-e) — **RESOLVIDO em v1.13.22** (era config de Cenario B, NAO chamado Focus). Ver bloco v1.13.22 + [memory/nfse-nacional-cenario-b.md].
 
 ## ✅ DEPLOYED v1.13.17 (05/06) — Bomba de RECIRCULACAO da Bomba de Calor (paridade Solar) + horas por DEMANDA LIQUIDA
 ## - **v1.13.17 (templates da recirc):** (1) template de REGRA "🚰 Bomba de circulacao (Bomba de Calor) — vazao + altura/inercia" em AUTOSELECT_TEMPLATES (where `vazaoM3h >= vazaoSolarM3h && pressaoTrabalhoMca >= alturaTelhadoMca`; a altura ja vem com inercia = max(atrito,desnivel)). (2) template de INDICADOR "Vazao dentro x fora da faixa (Bomba de Calor)" em INDICATOR_TEMPLATES — value = % FORA da faixa [min,max]: negativo=abaixo do min, 0=dentro, positivo=acima do max (igual folga% solar). (3) **threading `vazaoMaxM3h`** (var NOVA): backend `listBombaCandidatesByFlow(...,vazaoMaxAlvoM3h)` baseVars + controller `trocador-bomba-candidates?vazaoMax=` + card URL + siblingVars do modal + allowed-vars FORMULA list. Preview do modal injeta vazaoSolarM3h/vazaoMaxM3h via siblingVars (senao pegava a vazao da solar=0). Tudo ADITIVO.
