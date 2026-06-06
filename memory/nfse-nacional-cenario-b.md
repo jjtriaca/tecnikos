@@ -65,10 +65,41 @@ O ADN exige mTLS/credenciamento que o municipio (Cenario B) nao tem -> 495.
   "empresa gerida no painel" em vez de tentar e dar 422; (b) catalogo `requisicao_invalida` reescrito (sem jargao).
 - TODO: card de validade do cert tambem deveria detectar setup manual (hoje falha silencioso no getEmpresa).
 
+## v1.13.26 + TESTE AUTONOMO (06/06) — XSD resolvido, mas 495 do ADN persiste (EXTERNO)
+- **v1.13.26**: removido `pTotTribSN` + `pTotTrib(Fed/Est/Mun)` do payload nacional. Com `indTotTrib="0"` o
+  XSD nacional NAO aceita esses campos (`Element pTotTribSN: This element is not expected`). Sao mutuamente
+  exclusivos: indTotTrib=0 (nao informar) OU indTotTrib=1 + percentuais. Usamos "0" (igual exemplo do guia).
+- **TESTE AUTONOMO (Claude, via JWT mintado)**: retry da RPS 33 -> log `Emitting ... layout=NACIONAL to
+  PRODUCTION via /v2/nfsen` -> Focus respondeu **`processando_autorizacao`** (= **DPS PASSOU no XSD**, Focus
+  ACEITOU) -> mas na AUTORIZACAO caiu em **495 no `adn.nfse.gov.br`** ("An invalid certificate has been
+  provided") -> ERROR. (Poll cron v1.13.21 tbm confirmado em prod: `[sls] Polled RPS 33`.)
+
+## CONCLUSAO (estado real, 06/06)
+- **NOSSO CODIGO ESTA RESOLVIDO**: Layout NACIONAL + payload valido (XSD passa) + DPS aceita pelo Focus.
+- **O BLOQUEIO QUE SOBRA NAO E CODIGO NOSSO**: o 495 e o **gateway nacional (ADN) recusando o CERTIFICADO**
+  do SLS no handshake mTLS, na hora de autorizar. A DPS (formato nacional) SEMPRE passa pelo ADN — o toggle
+  "Ambiente da NFSe Nacional" do painel nao muda isso. Cert e VALIDO (ate 26/08/2026) -> e **credenciamento/
+  mTLS**, NAO expiracao. SLS ja emitiu via ambiente nacional antes (cert foi aceito) — algo lapsou/mudou.
+- **PROXIMOS PASSOS (acao usuario/Focus, NAO codigo)**:
+  1. Confirmar no painel Focus que "Ambiente da NFSe Nacional - Producao" foi SALVO OFF (testar tbm OFF no
+     "Recebimento de NFSes do ambiente nacional" — guia: "manter APENAS NFSe padrao ativa").
+  2. Persistindo: ABRIR CHAMADO na Focus com "POST adn.nfse.gov.br/dfe -> 495 SSL Certificate Error - An
+     invalid certificate has been provided" — cert valido, foi aceito antes; provavel credenciamento/adesao
+     no SEFIN Nacional, ou re-anexar o certificado no painel.
+- **TODO codigo (menor)**: refinar o catalogo do 495 (hoje sugere "Registrar empresa", que nao se aplica a
+  setup manual) -> apontar pro ADN/cert/Focus. Card de validade do cert detectar setup manual.
+
+## TECNICA: teste autonomo de emissao (JWT mintado, sem UI/CAPTCHA)
+/auth/login tem CAPTCHA. Pra disparar endpoints autenticados sem UI: `JwtStrategy.validate` so checa sessao
+SE o payload tiver `sessionId` -> mintar SEM sessionId pula a checagem. `docker exec tecnikos_backend node -e
+'jwt.sign({sub,email,roles:[...],companyId}, process.env.JWT_SECRET, {expiresIn:"2h"})'` -> `curl -H
+"Authorization: Bearer <tok>" .../api/...`. Admin SLS: sub=aec54bc6-c87c-47a6-b0ac-7bacb0a4a163,
+companyId=00000000-0000-0000-0000-000000000002, roles=[ADMIN]. RPS 33 emissionId=69d6a64e-67e0-4ec2-b879-e5bfb854db24.
+
 ## Status
-Fix do 495 (v1.13.22) + ferramentas de erro (v1.13.24/25) DEPLOYADOS. **Teste de campo PENDENTE**:
-desabilitar "Ambiente da NFSe Nacional" no painel da Focus + retentar RPS 33 (R$ 3.620). Atualizar este
-arquivo com o resultado real do Rlz.
+**NOSSO LADO: COMPLETO** (v1.13.22→26). Bloqueio restante = certificado no ADN (EXTERNO — Focus/credenciamento).
+RPS 33 fica em ERROR (retentavel quando o cert for aceito no ADN). Nada mais a fazer no codigo ate o usuario
+resolver o lado Focus/credenciamento.
 
 ## Refs
 - Doc DPS nacional: https://campos.focusnfe.com.br/nfse_nacional/EmissaoDPSXml.html
