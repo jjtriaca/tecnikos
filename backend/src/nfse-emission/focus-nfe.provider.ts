@@ -468,7 +468,7 @@ export class FocusNfeProvider {
 
     const result = await response.json().catch(() => null);
     if (!response.ok) {
-      const msg = result?.erros?.[0]?.mensagem || result?.mensagem || `HTTP ${response.status}`;
+      const msg = result?.erros?.[0]?.mensagem || result?.mensagem || `HTTP ${response.status}: ${JSON.stringify(result ?? {}).slice(0, 400)}`;
       this.logger.error(`Focus NFe createEmpresa error: ${msg}`);
       throw new Error(msg);
     }
@@ -490,7 +490,9 @@ export class FocusNfeProvider {
     if (response.status === 404) return null;
     if (!response.ok) {
       const result = await response.json().catch(() => ({}));
-      throw new Error(result?.mensagem || `HTTP ${response.status}`);
+      const msg = result?.erros?.[0]?.mensagem || result?.mensagem || `HTTP ${response.status}: ${JSON.stringify(result ?? {}).slice(0, 400)}`;
+      this.logger.error(`Focus NFe getEmpresa error (CNPJ=${cleanCnpj}): ${msg}`);
+      throw new Error(msg);
     }
 
     return (await response.json()) as FocusEmpresaResponse;
@@ -510,7 +512,7 @@ export class FocusNfeProvider {
 
     const result = await response.json().catch(() => null);
     if (!response.ok) {
-      const msg = result?.erros?.[0]?.mensagem || result?.mensagem || `HTTP ${response.status}`;
+      const msg = result?.erros?.[0]?.mensagem || result?.mensagem || `HTTP ${response.status}: ${JSON.stringify(result ?? {}).slice(0, 400)}`;
       this.logger.error(`Focus NFe updateEmpresa error: ${msg}`);
       throw new Error(msg);
     }

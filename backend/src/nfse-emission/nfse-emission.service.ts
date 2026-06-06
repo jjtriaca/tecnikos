@@ -164,6 +164,10 @@ export class NfseEmissionService {
     // ── Campo obrigatorio do layout nacional ausente/invalido (validacao de schema do Focus).
     if (/obrigat[oó]ri|is required|deve ser informado|n[aã]o pode ser (nulo|vazio)|campo.*(ausente|inv[aá]lido)/i.test(msg))
       return 'Um campo obrigatório da NFS-e nacional está faltando ou inválido. Confira código de tributação nacional, município (IBGE), inscrição municipal e regime tributário em Configurações > Fiscal. Detalhe: ' + msg.slice(0, 220);
+    // ── 422 Unprocessable: a Focus recusou os dados enviados (empresa ou nota). O corpo da
+    //    resposta (exposto pelo provider focus-nfe.provider) traz o campo problematico no Detalhe.
+    if (/\b422\b|unprocessable/i.test(msg))
+      return 'A Focus NFe recusou os dados enviados (422 — não processável). Geralmente é um campo inválido nos dados da empresa (CNPJ, Inscrição Municipal, endereço, regime tributário) ou da nota. Veja o detalhe abaixo pra localizar o campo e corrija em Configurações > Fiscal. Detalhe: ' + msg.slice(0, 260);
     // ── Fallback: erro NAO catalogado. Mostra a ETAPA (quando informada) + o texto cru,
     //    pra ajudar a entender ONDE quebrou mesmo sem uma traducao amigavel especifica.
     //    (o texto cru tambem ja vai pro log do backend pra suporte).
