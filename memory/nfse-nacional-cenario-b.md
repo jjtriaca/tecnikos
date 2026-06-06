@@ -51,8 +51,13 @@ O ADN exige mTLS/credenciamento que o municipio (Cenario B) nao tem -> 495.
 `regimeEspecialTributacao=0`, `naturezaOperacao=1`. -> passa nos guards.
 
 ## Status
-Fix DEPLOYADO v1.13.22. **Teste de campo PENDENTE** (retentar RPS 33 = R$ 3.620 apos os 3 passos acima).
-Atualizar este arquivo com o resultado real do Rlz.
+v1.13.22 (fix do 495) DEPLOYADO. **v1.13.23 = botao "Registrar empresa na Focus" na tela de Fiscal**
+(`settings/fiscal/page.tsx`, ao lado de "Testar Conexao"). **ACHADO**: o endpoint `config/register-empresa`
+(`registerOrUpdateEmpresa`) era ORFAO — NUNCA teve botao na UI. Por isso `habilita_nfse/habilita_nfsen`
+nunca era reaplicado no Focus depois da config inicial; o "Salvar" so grava a config LOCAL (`saveConfig`
+nao chama `registerOrUpdateEmpresa`). Era a peca que faltava pra aplicar o Cenario B. **Teste de campo
+PENDENTE** (Layout Nacional > Salvar > Registrar empresa > retentar RPS 33 = R$ 3.620). Atualizar este
+arquivo com o resultado real do Rlz.
 
 ## Refs
 - Doc DPS nacional: https://campos.focusnfe.com.br/nfse_nacional/EmissaoDPSXml.html

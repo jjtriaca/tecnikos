@@ -1,7 +1,7 @@
 # TAREFA ATUAL
 
 ## 📌 Frente "Bomba de recirculacao da Bomba de Calor" — CONCLUIDA + DOCUMENTADA (v1.13.14→v1.13.17). Doc completa: [memory/bomba_recirculacao_calor.md]. Testes PARQUEADOS (usuario vai validar depois).
-## 📌 Frente ATUAL: **FISCAL (NFS-e)** — v1.13.18→v1.13.22 NO AR. **v1.13.22 = adequacao ao NACIONAL (Cenario B)**; **TESTE DE CAMPO PENDENTE** (retentar RPS 33 apos Layout Nacional + Registrar empresa). Doc: [memory/nfse-nacional-cenario-b.md].
+## 📌 Frente ATUAL: **FISCAL (NFS-e)** — v1.13.18→v1.13.22 NO AR. **v1.13.22 = adequacao ao NACIONAL (Cenario B)**. **v1.13.23 (pendente deploy) = botao "Registrar empresa" na tela de Fiscal** — ACHADO: o endpoint `register-empresa` era ORFAO (sem botao na UI!), por isso `habilita_nfse/nfsen` NUNCA era reaplicado no Focus (config so gravava local). **TESTE PENDENTE**: Layout Nacional > Salvar > Registrar empresa > retentar RPS 33. Doc: [memory/nfse-nacional-cenario-b.md].
 
 ## ✅ DEPLOYED v1.13.22 (06/06) — NFS-e NACIONAL Cenario B (resolve o 495) + solidez de erros
 ## - **Causa do 495**: Primavera do Leste usa FORMATO nacional mas NAO opera no Ambiente Nacional (ADN). `registerEmpresa` em NACIONAL ligava `habilita_nfsen` (ADN) — e o flag ligado fazia o Focus rotear pro ADN ate em MUNICIPAL -> "495 invalid certificate" (recusa no TLS; NAO e validade do cert). Guia Focus: `/v2/nfsen` + `habilita_nfse` ON, `habilita_nfsen` OFF.

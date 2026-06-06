@@ -154,6 +154,8 @@ export default function FiscalSettingsPage() {
   const [savingCode, setSavingCode] = useState(false);
   const [testingToken, setTestingToken] = useState(false);
   const [tokenTestResult, setTokenTestResult] = useState<{ valid: boolean; message: string } | null>(null);
+  const [registeringEmpresa, setRegisteringEmpresa] = useState(false);
+  const [empresaResult, setEmpresaResult] = useState<{ success: boolean; message: string } | null>(null);
   const [codeSearch, setCodeSearch] = useState("");
   const [showCodeDropdown, setShowCodeDropdown] = useState(false);
   const codeSearchRef = useRef<HTMLDivElement>(null);
@@ -714,6 +716,38 @@ export default function FiscalSettingsPage() {
         {tokenTestResult && (
           <div className={`mt-3 px-3 py-2 rounded-lg text-xs font-medium ${tokenTestResult.valid ? "bg-green-50 border border-green-200 text-green-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
             {tokenTestResult.valid ? "✓ " : "✗ "}{tokenTestResult.message} ({config.focusNfeEnvironment === "HOMOLOGATION" ? "Homologacao" : "Produção"})
+          </div>
+        )}
+
+        {/* Registrar/atualizar a empresa na Focus NFe — empurra os dados do prestador + o Layout
+            (MUNICIPAL/NACIONAL) e as flags de habilitacao (habilita_nfse / habilita_nfsen). E o passo
+            que efetivamente APLICA a config no Focus; o "Salvar" so grava local. OBRIGATORIO depois de
+            trocar o Layout (ex.: pra NACIONAL no Cenario B, e isso que desliga o Ambiente Nacional). */}
+        <div className="mt-4 flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={async () => {
+              setRegisteringEmpresa(true); setEmpresaResult(null);
+              try {
+                const result = await api.post<{ success: boolean; message: string }>("/nfse-emission/config/register-empresa", {});
+                setEmpresaResult(result);
+              } catch (err: any) {
+                setEmpresaResult({ success: false, message: err?.message || "Erro ao registrar empresa" });
+              } finally { setRegisteringEmpresa(false); }
+            }}
+            disabled={registeringEmpresa}
+            className="px-4 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            {registeringEmpresa ? "Registrando..." : "Registrar empresa na Focus"}
+          </button>
+          <p className="text-xs text-slate-500 max-w-md">
+            Aplica os dados do prestador e o <strong>Layout</strong> selecionado na Focus NFe.
+            <strong> Salve a configuração antes</strong> e clique aqui sempre que mudar o Layout ou os dados da empresa.
+          </p>
+        </div>
+        {empresaResult && (
+          <div className={`mt-2 px-3 py-2 rounded-lg text-xs font-medium ${empresaResult.success ? "bg-green-50 border border-green-200 text-green-700" : "bg-red-50 border border-red-200 text-red-700"}`}>
+            {empresaResult.success ? "✓ " : "✗ "}{empresaResult.message}
           </div>
         )}
 
