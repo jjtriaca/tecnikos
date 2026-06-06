@@ -1003,22 +1003,14 @@ export class NfseEmissionService {
         descricao_servico: dto.discriminacao || '',
         valor_servico: valorServicos,
         percentual_aliquota_relativa_municipio: aliquota || undefined,
-        // pTotTribSN obrigatório para Simples Nacional
-        percentual_total_tributos_simples_nacional: config.optanteSimplesNacional
-          ? (aliquota || 2) // % aproximado total tributos SN
-          : undefined,
         tributacao_iss: tributacaoIss,
         tipo_retencao_iss: tipoRetencaoIss,
-        // indTotTrib OBRIGATORIO (contrato Focus Nacional). "0" = nao informar o valor total
-        // aproximado dos tributos (Lei da Transparencia) — coerente com o JSON de exemplo
-        // oficial do guia do municipio (Primavera do Leste/MT).
+        // indTotTrib = "0": NAO informar o valor aproximado dos tributos (Lei da Transparencia).
+        // Quando "0", o XSD nacional NAO aceita pTotTribSN nem pTotTribFed/Est/Mun — dava
+        // "Element pTotTribSN: This element is not expected" (caso real Primavera/SLS, v1.13.26).
+        // Por isso NAO enviamos nenhum desses campos. Eles e o indTotTrib sao mutuamente exclusivos:
+        // pra INFORMAR os tributos no futuro, usar indTotTrib="1" + os percentuais (ai sao esperados).
         indicador_total_tributacao: '0',
-        // Para não-SN, informar tributos individuais
-        ...(!config.optanteSimplesNacional ? {
-          percentual_total_tributos_federais: '0.00',
-          percentual_total_tributos_estaduais: '0.00',
-          percentual_total_tributos_municipais: String(aliquota || 0),
-        } : {}),
         // Informações complementares
         ...(dto.infComplementares ? { informacoes_complementares: dto.infComplementares } : {}),
         // Bloco de obra (FLAT, obrigatorio para cTribNac 07.xx — construcao civil)
