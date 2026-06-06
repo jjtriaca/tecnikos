@@ -6,6 +6,8 @@ import { SaasConfigService } from '../common/saas-config.service';
 import { FocusNfeProvider, FocusNfseRequest, FocusNfsenRequest, NfseLayout } from './focus-nfe.provider';
 import { SaveNfseConfigDto, EmitNfseDto, CancelNfseDto, CreateNfseServiceCodeDto, UpdateNfseServiceCodeDto } from './dto/nfse-emission.dto';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
+import { TenantResolverService } from '../tenant/tenant-resolver.service';
+import { runInTenantContext } from '../tenant/tenant-context';
 import { randomUUID } from 'crypto';
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -116,6 +118,7 @@ export class NfseEmissionService {
     private readonly saasConfig: SaasConfigService,
     private readonly focusNfe: FocusNfeProvider,
     private readonly whatsApp: WhatsAppService,
+    private readonly tenantResolver: TenantResolverService,
   ) {}
 
   /** Map Focus NFe technical errors to user-friendly messages */
@@ -1665,26 +1668,41 @@ export class NfseEmissionService {
    */
   @Cron('*/2 * * * *')
   async pollProcessingEmissions(): Promise<void> {
-    const threshold = new Date(Date.now() - 3 * 60 * 1000); // 3 min
-    const stuck = await this.prisma.nfseEmission.findMany({
-      where: {
-        status: 'PROCESSING',
-        createdAt: { lt: threshold },
-      },
-      select: { id: true, companyId: true, focusNfeRef: true, rpsNumber: true },
-      take: 50,
-    });
-
-    if (stuck.length === 0) return;
-
-    this.logger.log(`Polling ${stuck.length} emissoes PROCESSING > 3min`);
-
-    for (const em of stuck) {
+    // CRON roda SEM contexto de request -> precisa iterar os tenants e rodar a query
+    // DENTRO do schema de cada um (igual o webhook). Sem isso, this.prisma cai no schema
+    // `public` (vazio) e nenhuma emissao de tenant e destravada (bug: notas eternas em PROCESSING).
+    const tenants = await this.tenantResolver.getActiveTenants();
+    for (const tenant of tenants) {
       try {
-        await this.refreshStatus(em.companyId, em.id);
-        this.logger.log(`Polled RPS ${em.rpsNumber} ref=${em.focusNfeRef}`);
+        await runInTenantContext(
+          { tenantId: tenant.id, tenantSchema: tenant.schemaName },
+          async () => {
+            const threshold = new Date(Date.now() - 3 * 60 * 1000); // 3 min
+            const stuck = await this.prisma.nfseEmission.findMany({
+              where: {
+                status: 'PROCESSING',
+                createdAt: { lt: threshold },
+              },
+              select: { id: true, companyId: true, focusNfeRef: true, rpsNumber: true },
+              take: 50,
+            });
+
+            if (stuck.length === 0) return;
+
+            this.logger.log(`[${tenant.slug}] Polling ${stuck.length} emissoes PROCESSING > 3min`);
+
+            for (const em of stuck) {
+              try {
+                await this.refreshStatus(em.companyId, em.id);
+                this.logger.log(`[${tenant.slug}] Polled RPS ${em.rpsNumber} ref=${em.focusNfeRef}`);
+              } catch (err: any) {
+                this.logger.warn(`[${tenant.slug}] Polling falhou pra RPS ${em.rpsNumber} ref=${em.focusNfeRef}: ${err.message}`);
+              }
+            }
+          },
+        );
       } catch (err: any) {
-        this.logger.warn(`Polling falhou pra RPS ${em.rpsNumber} ref=${em.focusNfeRef}: ${err.message}`);
+        this.logger.warn(`[${tenant.slug}] pollProcessingEmissions falhou: ${err.message}`);
       }
     }
   }
@@ -1696,39 +1714,52 @@ export class NfseEmissionService {
    */
   @Cron('*/30 * * * *')
   async timeoutStuckEmissions(): Promise<void> {
-    const threshold = new Date(Date.now() - 60 * 60 * 1000); // 1 hora
-    const stuck = await this.prisma.nfseEmission.findMany({
-      where: {
-        status: 'PROCESSING',
-        createdAt: { lt: threshold },
-      },
-      select: { id: true, focusNfeRef: true, rpsNumber: true },
-      take: 50,
-    });
+    // Igual ao poll: iterar tenants e rodar dentro do schema de cada um (CRON sem request).
+    const tenants = await this.tenantResolver.getActiveTenants();
+    for (const tenant of tenants) {
+      try {
+        await runInTenantContext(
+          { tenantId: tenant.id, tenantSchema: tenant.schemaName },
+          async () => {
+            const threshold = new Date(Date.now() - 60 * 60 * 1000); // 1 hora
+            const stuck = await this.prisma.nfseEmission.findMany({
+              where: {
+                status: 'PROCESSING',
+                createdAt: { lt: threshold },
+              },
+              select: { id: true, focusNfeRef: true, rpsNumber: true },
+              take: 50,
+            });
 
-    if (stuck.length === 0) return;
+            if (stuck.length === 0) return;
 
-    this.logger.warn(`Timeout: marcando ${stuck.length} emissoes PROCESSING > 1h como ERROR`);
+            this.logger.warn(`[${tenant.slug}] Timeout: marcando ${stuck.length} emissoes PROCESSING > 1h como ERROR`);
 
-    for (const em of stuck) {
-      const ids = await this.prisma.financialEntry.findMany({
-        where: { nfseEmissionId: em.id },
-        select: { id: true },
-      });
-      await this.prisma.$transaction([
-        this.prisma.nfseEmission.update({
-          where: { id: em.id },
-          data: {
-            status: 'ERROR',
-            errorMessage: '[AUTO TIMEOUT 1h] Webhook Focus nao chegou em 1 hora. Retente a emissao.',
+            for (const em of stuck) {
+              const ids = await this.prisma.financialEntry.findMany({
+                where: { nfseEmissionId: em.id },
+                select: { id: true },
+              });
+              await this.prisma.$transaction([
+                this.prisma.nfseEmission.update({
+                  where: { id: em.id },
+                  data: {
+                    status: 'ERROR',
+                    errorMessage: '[AUTO TIMEOUT 1h] Webhook Focus nao chegou em 1 hora. Retente a emissao.',
+                  },
+                }),
+                ...ids.map((e) => this.prisma.financialEntry.update({
+                  where: { id: e.id },
+                  data: { nfseStatus: 'ERROR' },
+                })),
+              ]);
+              this.logger.log(`[${tenant.slug}] Auto-timeout RPS ${em.rpsNumber} ref=${em.focusNfeRef}`);
+            }
           },
-        }),
-        ...ids.map((e) => this.prisma.financialEntry.update({
-          where: { id: e.id },
-          data: { nfseStatus: 'ERROR' },
-        })),
-      ]);
-      this.logger.log(`Auto-timeout RPS ${em.rpsNumber} ref=${em.focusNfeRef}`);
+        );
+      } catch (err: any) {
+        this.logger.warn(`[${tenant.slug}] timeoutStuckEmissions falhou: ${err.message}`);
+      }
     }
   }
 
