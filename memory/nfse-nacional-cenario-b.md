@@ -50,13 +50,24 @@ O ADN exige mTLS/credenciamento que o municipio (Cenario B) nao tem -> 495.
 `optanteSimplesNacional=true` (codigo_opcao_sn=3 ME/EPP), `inscricaoMunicipal=9648219`,
 `regimeEspecialTributacao=0`, `naturezaOperacao=1`. -> passa nos guards.
 
+## ACHADO CRITICO (v1.13.24/25): SLS e SETUP MANUAL — botao da plataforma NAO se aplica
+- Confirmado no banco: `tenant_sls.NfseConfig.focusNfeCompanyId` VAZIO + `focusNfeToken`/`Homolog` SET.
+  A empresa do SLS foi cadastrada MANUALMENTE no painel da Focus (tokens colados), NUNCA pela plataforma.
+  A EMISSAO funciona (usa o token proprio colado — varias notas autorizadas).
+- Por isso o botao "Registrar empresa" (v1.13.23) NAO funciona pro SLS: usa `getEmpresa`/`updateEmpresa` com
+  o token da PLATAFORMA (FOCUS_NFE_RESELLER_TOKEN), que nem reconhece a empresa -> HTTP 422
+  `["codigo","requisicao_invalida"]`. Mesma razao do card de validade do certificado nunca aparecer.
+- **Pro SLS (e qualquer setup MANUAL), o Cenario B se aplica NO PAINEL DA FOCUS**, NAO pelo nosso botao:
+  app-v2.focusnfe.com.br > empresa SLS > DESABILITAR "Ambiente da NFSe Nacional" (manter NFSe padrao ON).
+  Com nosso Layout=NACIONAL + ambiente nacional OFF no painel -> emite via Rlz (nao ADN).
+- v1.13.24: provider expoe o CORPO do erro do Focus (createEmpresa/getEmpresa/updateEmpresa) — era so "HTTP 422".
+  v1.13.25: (a) `registerOrUpdateEmpresa` DETECTA setup manual (focusNfeCompanyId vazio + token set) e avisa
+  "empresa gerida no painel" em vez de tentar e dar 422; (b) catalogo `requisicao_invalida` reescrito (sem jargao).
+- TODO: card de validade do cert tambem deveria detectar setup manual (hoje falha silencioso no getEmpresa).
+
 ## Status
-v1.13.22 (fix do 495) DEPLOYADO. **v1.13.23 = botao "Registrar empresa na Focus" na tela de Fiscal**
-(`settings/fiscal/page.tsx`, ao lado de "Testar Conexao"). **ACHADO**: o endpoint `config/register-empresa`
-(`registerOrUpdateEmpresa`) era ORFAO — NUNCA teve botao na UI. Por isso `habilita_nfse/habilita_nfsen`
-nunca era reaplicado no Focus depois da config inicial; o "Salvar" so grava a config LOCAL (`saveConfig`
-nao chama `registerOrUpdateEmpresa`). Era a peca que faltava pra aplicar o Cenario B. **Teste de campo
-PENDENTE** (Layout Nacional > Salvar > Registrar empresa > retentar RPS 33 = R$ 3.620). Atualizar este
+Fix do 495 (v1.13.22) + ferramentas de erro (v1.13.24/25) DEPLOYADOS. **Teste de campo PENDENTE**:
+desabilitar "Ambiente da NFSe Nacional" no painel da Focus + retentar RPS 33 (R$ 3.620). Atualizar este
 arquivo com o resultado real do Rlz.
 
 ## Refs

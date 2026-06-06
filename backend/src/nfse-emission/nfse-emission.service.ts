@@ -164,6 +164,12 @@ export class NfseEmissionService {
     // ── Campo obrigatorio do layout nacional ausente/invalido (validacao de schema do Focus).
     if (/obrigat[oó]ri|is required|deve ser informado|n[aã]o pode ser (nulo|vazio)|campo.*(ausente|inv[aá]lido)/i.test(msg))
       return 'Um campo obrigatório da NFS-e nacional está faltando ou inválido. Confira código de tributação nacional, município (IBGE), inscrição municipal e regime tributário em Configurações > Fiscal. Detalhe: ' + msg.slice(0, 220);
+    // ── requisicao_invalida (422) na GESTAO AUTOMATICA da empresa (getEmpresa/registerEmpresa/
+    //    cert-status — usam o token da PLATAFORMA). Acontece quando a empresa foi configurada
+    //    MANUALMENTE no painel da Focus (tokens colados, focusNfeCompanyId vazio) — nesse caso a
+    //    gestao e feita no painel, nao pela plataforma. A EMISSAO usa o token proprio e nao e afetada.
+    if (/requisicao_invalida|requisi[çc][aã]o inv[aá]lida/i.test(msg))
+      return 'A Focus NFe não processou a gestão automática desta empresa (requisicao_invalida). Em geral é porque a empresa foi configurada manualmente no painel da Focus (tokens colados) — nesse caso, ajuste os dados e o ambiente (ex.: "Ambiente da NFSe Nacional") direto no painel da Focus, app-v2.focusnfe.com.br. A emissão de notas usa o token próprio da empresa e não é afetada.';
     // ── 422 Unprocessable: a Focus recusou os dados enviados (empresa ou nota). O corpo da
     //    resposta (exposto pelo provider focus-nfe.provider) traz o campo problematico no Detalhe.
     if (/\b422\b|unprocessable/i.test(msg))
@@ -485,6 +491,17 @@ export class NfseEmissionService {
     const config = await this.prisma.nfseConfig.findUnique({ where: { companyId } });
     const layout = config?.nfseLayout || 'MUNICIPAL';
     const environment = config?.focusNfeEnvironment || 'HOMOLOGATION';
+
+    // ── SETUP MANUAL: empresa configurada direto no painel da Focus (tokens colados, sem
+    //    focusNfeCompanyId). A gestao (dados/ambiente/habilita_*) e feita no painel, NAO pela
+    //    plataforma — o token da plataforma nem reconhece essa empresa (responde "requisicao_invalida").
+    //    Avisar claro em vez de tentar e quebrar com 422 confuso. (Ex.: tenant SLS — Primavera do Leste.)
+    if (!config?.focusNfeCompanyId && (config?.focusNfeToken || config?.focusNfeTokenHomolog)) {
+      return {
+        success: false,
+        message: 'Esta empresa foi configurada manualmente no painel da Focus (tokens colados). Ajuste os dados e o ambiente (ex.: "Ambiente da NFSe Nacional") direto no painel da Focus, em app-v2.focusnfe.com.br — este botão registra empresas criadas pela plataforma. A emissão de notas continua normal.',
+      };
+    }
 
     // Build empresa request
     const empresaData: any = {
