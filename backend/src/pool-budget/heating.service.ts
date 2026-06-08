@@ -607,7 +607,7 @@ export class HeatingService {
     capacidadeTermicaKw: number,
     hoursPerDay: number,
     tariff: TariffInput,
-    copCurve: { A?: number; B?: number; C?: number; copMax?: number; copAt50?: number },
+    copCurve: { A?: number; B?: number; C?: number; copMax?: number; copAt50?: number; copAt50Air15?: number; copAt50Air26?: number },
   ): MonthlyConsumption[] {
     const monthNames = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
     const monthDays = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
@@ -617,8 +617,10 @@ export class HeatingService {
       const cargaRaw = capacidadeTermicaKw > 0 ? m.qtotalKw / capacidadeTermicaKw : 0;
       const carga = Math.max(0, Math.min(1.3, cargaRaw));
 
-      // COP do mes via polinomio quadratico ou fallback linear
-      const copMes = this.copFromCarga(carga, copCurve);
+      // COP do mes via polinomio quadratico ou fallback linear.
+      // v1.13.30: ancora copAt50 ajustada pela TEMPERATURA DO AR do mes (bomba rende mais com ar quente).
+      const copAt50Mes = this.copAt50ForTemp(m.tempAr, copCurve.copAt50Air15, copCurve.copAt50Air26, copCurve.copAt50);
+      const copMes = this.copFromCarga(carga, { ...copCurve, copAt50: copAt50Mes });
 
       // Consumo eletrico medio (kW) = perda termica / COP
       const consumoKwMedio = copMes > 0 ? m.qtotalKw / copMes : m.qtotalKw;
@@ -655,6 +657,21 @@ export class HeatingService {
     const copAt50 = curve.copAt50 ?? 7;
     const ratio = (carga - 0.20) / (1.0 - 0.20);
     return copMax + (copAt50 - copMax) * Math.min(1, ratio);
+  }
+
+  /**
+   * Ancora do COP a 50% de carga ajustada pela TEMPERATURA DO AR do mes.
+   * Bomba de calor rende mais com ar quente (fonte quente). Interpola linear entre
+   * copAt50Air15 (ar 15C, inverno) e copAt50Air26 (ar 26C, verao), com clamp pra faixa fisica.
+   * Sem os dois pontos cadastrados, cai no fallback (sem efeito de temperatura — comportamento antigo).
+   */
+  private copAt50ForTemp(tempAr: number, air15?: number, air26?: number, fallback?: number): number {
+    if (air15 != null && air26 != null && air26 > air15) {
+      const slope = (air26 - air15) / (26 - 15);
+      const t = Math.max(10, Math.min(32, tempAr));
+      return Math.max(2.5, air15 + slope * (t - 15));
+    }
+    return fallback ?? air15 ?? 7;
   }
 
   // ----- 6. Comparativo de custos por fonte -----
@@ -780,7 +797,8 @@ export class HeatingService {
         const copDerivado = consumoKwForCop && consumoKwForCop > 0 && capKwForCop > 0
           ? Math.max(2.5, Math.min(8, capKwForCop / consumoKwForCop))
           : undefined;
-        report.copEstimated = sel.copAt50Air15 ?? sel.copAt50Capacity ?? sel.copNominal ?? copDerivado ?? 0;
+        const avgTempArCop = monthly.reduce((acc, mm) => acc + mm.tempAr, 0) / (monthly.length || 1);
+        report.copEstimated = round1(this.copAt50ForTemp(avgTempArCop, sel.copAt50Air15, sel.copAt50Air26, sel.copAt50Air15 ?? sel.copAt50Capacity ?? sel.copNominal ?? copDerivado)) || 0;
 
         // 4b. Horas de operacao por mes pela DEMANDA LIQUIDA (perda - ganho solar).
         // A bomba de calor (e a bomba de CIRCULACAO que roda junto) so opera pra repor a
@@ -836,6 +854,8 @@ export class HeatingService {
               // refinam (tem prioridade). A curva A/B/C, se houver, manda em tudo.
               copMax: sel.copMax ?? copDerivado,
               copAt50: sel.copAt50Air15 ?? sel.copAt50Capacity ?? sel.copNominal ?? copDerivado,
+              copAt50Air15: sel.copAt50Air15,
+              copAt50Air26: sel.copAt50Air26,
             };
             const consumption = this.computeMonthlyConsumption(monthly, capacidadeKw, hoursPerDay, options.tariff, copCurve);
             report.monthlyConsumption = consumption;

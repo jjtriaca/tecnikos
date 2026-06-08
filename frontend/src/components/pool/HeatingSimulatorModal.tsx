@@ -2852,6 +2852,7 @@ function BombaCalorTab({
   // Solar, mas config propria (/pool-budgets/heating/bomba-rule). Se vazia, backend cai pra
   // do Solar (fallback). ruleVersion forca o card a re-buscar candidatos ao salvar.
   const [showTrocadorRulePicker, setShowTrocadorRulePicker] = useState(false);
+  const [recircConsumo, setRecircConsumo] = useState<{ kwhAno: number; custoAnoCents: number } | null>(null);
   const [trocadorBombaRule, setTrocadorBombaRule] = useState<AutoSelectRule | null>(null);
   const [trocadorRuleVersion, setTrocadorRuleVersion] = useState(0);
   useEffect(() => {
@@ -3145,8 +3146,13 @@ function BombaCalorTab({
                       <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
                         {eq.copMax !== undefined && eq.copMax > 0 && (<div className="rounded bg-slate-50 px-2 py-1.5"><div className="text-[9px] text-slate-500">COP máx</div><div className="font-bold text-slate-700 tabular-nums">{eq.copMax}</div></div>)}
                         {eq.copAt50Air26 !== undefined && eq.copAt50Air26 > 0 && (<div className="rounded bg-amber-50 px-2 py-1.5"><div className="text-[9px] text-amber-700">Verão 50%</div><div className="font-bold text-amber-900 tabular-nums">{eq.copAt50Air26}</div></div>)}
-                        {eq.copAt50Air15 !== undefined && eq.copAt50Air15 > 0 && (<div className="rounded bg-cyan-50 px-2 py-1.5 ring-1 ring-cyan-200"><div className="text-[9px] text-cyan-700">Inverno 50% ✓</div><div className="font-bold text-cyan-900 tabular-nums">{eq.copAt50Air15}</div></div>)}
+                        {eq.copAt50Air15 !== undefined && eq.copAt50Air15 > 0 && (<div className="rounded bg-cyan-50 px-2 py-1.5"><div className="text-[9px] text-cyan-700">Inverno 50%</div><div className="font-bold text-cyan-900 tabular-nums">{eq.copAt50Air15}</div></div>)}
                       </div>
+                      {report.copEstimated && report.copEstimated > 0 ? (
+                        <div className="mt-1.5 rounded bg-cyan-50 px-2 py-1 text-[10px] text-cyan-800">
+                          COP efetivo no clima local: <strong className="tabular-nums">{report.copEstimated.toFixed(1)}</strong> · varia por mês com a temperatura do ar (não fixo no inverno)
+                        </div>
+                      ) : null}
                       <div className="mt-2 text-xs text-emerald-700">
                         Carga: <strong>{(eq.loadRatio * 100).toFixed(0)}%</strong>
                         {eq.isAdequate ? <span className="ml-2 text-emerald-700">✓ Folga adequada</span> : <span className="ml-2 text-amber-700">⚠ Fora da faixa ideal</span>}
@@ -3172,6 +3178,7 @@ function BombaCalorTab({
                   operatingHoursPerDayAvg={report.operatingHoursPerDayAvg}
                   onOpenRulePicker={() => setShowTrocadorRulePicker(true)}
                   ruleVersion={trocadorRuleVersion}
+                  onConsumoChange={setRecircConsumo}
                 />
               )}
                 </div>
@@ -3183,10 +3190,10 @@ function BombaCalorTab({
                 {report.monthlyConsumption && report.monthlyConsumption.length > 0 ? (
                   <>
                     <div className="col-span-7 grid grid-cols-2 gap-2">
-                      <BigStatLegacy label="Consumo anual" value={(report.annualKwh ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} unit="kWh/ano" emphasis="cyan" />
-                      <BigStatLegacy label="Custo médio mensal" value={fmtBRL(Math.round((report.annualCostBRLCents ?? 0) / 12))} unit="por mês" emphasis="orange" />
-                      <BigStatLegacy label="Custo anual" value={fmtBRL(report.annualCostBRLCents ?? 0)} unit="por ano" emphasis="orange" />
-                      <BigStatLegacy label="Aquec. inicial" value={fmtBRL(report.initialHeatingCostBRLCents ?? 0)} unit="1ª vez" emphasis="emerald" />
+                      <BigStatLegacy label="Bomba de calor (ano)" value={(report.annualKwh ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} unit="kWh" emphasis="cyan" />
+                      <BigStatLegacy label="Recirculação (ano)" value={(recircConsumo?.kwhAno ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} unit="kWh" emphasis="cyan" />
+                      <BigStatLegacy label="Consumo TOTAL (ano)" value={((report.annualKwh ?? 0) + (recircConsumo?.kwhAno ?? 0)).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} unit="kWh (bomba+recirc)" emphasis="orange" />
+                      <BigStatLegacy label="Custo total (ano)" value={fmtBRL((report.annualCostBRLCents ?? 0) + (recircConsumo?.custoAnoCents ?? 0))} unit="por ano" emphasis="orange" />
                     </div>
                     <div className="col-span-5 rounded-lg border border-slate-200 bg-white overflow-hidden">
                       <table className="w-full text-[10px]">
@@ -3208,7 +3215,7 @@ function BombaCalorTab({
                 <div className="grid grid-cols-12 gap-4 items-start">
                   <div className="col-span-8 text-[9px] text-slate-500 leading-snug">
                     <div className="font-semibold text-slate-600 uppercase tracking-wide text-[8.5px] mb-0.5">Observações</div>
-                    Dimensionamento conforme NBR 10.339. Capacidade da bomba de calor selecionada para o mês mais frio (crítico) da localidade. Consumo estimado com COP em ar 15°C (inverno) e tarifa de energia configurada no sistema.
+                    Dimensionamento conforme NBR 10.339. Capacidade da bomba de calor selecionada para o mês mais frio (crítico) da localidade. Consumo estimado com COP ajustado pela temperatura média de cada mês (clima local) e tarifa de energia configurada no sistema.
                   </div>
                   <div className="col-span-4 text-right text-[9px] text-slate-400">
                     <div className="font-bold text-slate-500 text-[10px]">Tecnikos</div>
@@ -3457,13 +3464,14 @@ interface TrocadorBombaCandidate {
 // mais, verao menos, e bomba de calor mais potente -> menos horas (atinge o alvo mais
 // rapido). Sem vazao cadastrada -> avisa e nao dimensiona. Reusa /trocador-pipe/recompute
 // + /trocador-bomba-candidates (endpoints do nucleo do Solar).
-function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operatingHoursPerDayAvg, onOpenRulePicker, ruleVersion }: {
+function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operatingHoursPerDayAvg, onOpenRulePicker, ruleVersion, onConsumoChange }: {
   budgetId: string;
   sel?: { vazaoMinM3h?: number; vazaoMaxM3h?: number; quantity?: number } | null;
   operatingHoursPerMonth?: number[];
   operatingHoursPerDayAvg?: number;
   onOpenRulePicker?: () => void;
   ruleVersion?: number;
+  onConsumoChange?: (c: { kwhAno: number; custoAnoCents: number } | null) => void;
 }) {
   const qty = Math.max(1, Number(sel?.quantity) || 1);
   const vMin = Number(sel?.vazaoMinM3h) || 0;
@@ -3551,6 +3559,22 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
     if (hasVazao && comprimento > 0 && !pipeResult) recompute();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasVazao]);
+
+  // v1.13.30: reporta o consumo eletrico anual da bomba de recirculacao pro pai (BombaCalorTab),
+  // que soma com o da bomba de calor (Bomba de calor + Recirculacao = Total). ANTES do return
+  // antecipado abaixo por causa da regra de hooks. Recalcula o consumo da bomba selecionada.
+  useEffect(() => {
+    if (!onConsumoChange) return;
+    const sb = candidates.find((cc) => cc.productId === selBombaId) ?? candidates[0] ?? null;
+    const hMes = Array.isArray(operatingHoursPerMonth) && operatingHoursPerMonth.length === 12 ? operatingHoursPerMonth : null;
+    if (!sb || sb.potenciaCv == null || sb.potenciaCv <= 0 || !hMes) { onConsumoChange(null); return; }
+    const MD = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    const pkW = (sb.potenciaCv * 0.7355) / 0.65;
+    let kwhAno = 0;
+    for (let i = 0; i < 12; i++) kwhAno += pkW * (Number(hMes[i]) || 0) * MD[i];
+    onConsumoChange({ kwhAno: Math.round(kwhAno), custoAnoCents: Math.round(kwhAno * tarifaKwhBRLCents) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidates, selBombaId, operatingHoursPerMonth, tarifaKwhBRLCents]);
 
   if (!hasVazao) {
     return (
