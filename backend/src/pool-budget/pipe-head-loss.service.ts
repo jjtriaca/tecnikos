@@ -171,7 +171,7 @@ export class PipeHeadLossService {
    * v1.12.35: escolhe o MENOR diametro da lista que mantem velocidade <= 2,5 m/s.
    * Se nenhum atende (vazao muito alta), retorna o maior + aviso de subdimensionamento.
    */
-  pickOptimalDiameter(material: PipeMaterial, vazaoM3h: number, availableDiametersMm: number[]): {
+  pickOptimalDiameter(material: PipeMaterial, vazaoM3h: number, availableDiametersMm: number[], maxVelocidadeMs: number = VELOCIDADE_MAX_MS): {
     diametroMm: number;
     velocidade: number;
     suficiente: boolean;
@@ -186,7 +186,7 @@ export class PipeHeadLossService {
       const diM = diMm / 1000;
       const areaM2 = (Math.PI * Math.pow(diM, 2)) / 4;
       const velocidade = vazaoM3s / areaM2;
-      if (velocidade < VELOCIDADE_MAX_MS) {
+      if (velocidade < maxVelocidadeMs) {
         return { diametroMm: dnMm, velocidade, suficiente: true };
       }
     }

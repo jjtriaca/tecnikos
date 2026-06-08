@@ -334,6 +334,51 @@ export function interpolatePumpCurve(
 }
 
 /**
+ * Ponto de operacao de uma bomba num circuito FECHADO dominado por atrito (trocador/
+ * bomba de calor): intersecao da curva da bomba (altura cai com a vazao) com a curva de
+ * resistencia do sistema a = kResist * vazao^2 (atrito cresce com vazao²). Retorna a vazao
+ * REAL entregue (onde a bomba equilibra a perda do tubo) + shut-off head.
+ *
+ * Diferente de interpolatePumpCurve (vazao numa altura FIXA — certo pro Solar, circuito
+ * aberto com altura estatica; errado pro trocador, onde a perda varia com a vazao²).
+ */
+export function pumpOperatingPoint(
+  pumpCurve: unknown,
+  kResist: number,
+): { vazaoInterpolada: number; shutOffHead: number } | null {
+  if (!Array.isArray(pumpCurve) || pumpCurve.length < 2) return null;
+  if (!Number.isFinite(kResist) || kResist <= 0) return null;
+  const points: Array<{ v: number; a: number }> = [];
+  for (const p of pumpCurve) {
+    if (!p || typeof p !== 'object') continue;
+    const v = Number((p as any).vazaoM3h);
+    const a = Number((p as any).alturaMca);
+    if (Number.isFinite(v) && Number.isFinite(a) && v >= 0 && a >= 0) points.push({ v, a });
+  }
+  if (points.length < 2) return null;
+  points.sort((p1, p2) => p1.v - p2.v);
+  const shutOff = Math.max(...points.map((p) => p.a));
+  const maxV = points[points.length - 1].v;
+  // f(v) = altura_bomba(v) - kResist*v^2 : positivo em vazao baixa, negativo em vazao alta.
+  for (let i = 0; i < points.length - 1; i++) {
+    const p1 = points[i];
+    const p2 = points[i + 1];
+    const f1 = p1.a - kResist * p1.v * p1.v;
+    const f2 = p2.a - kResist * p2.v * p2.v;
+    if (f1 >= 0 && f2 <= 0) {
+      const denom = f1 - f2;
+      const t = denom !== 0 ? f1 / denom : 0;
+      const vop = p1.v + t * (p2.v - p1.v);
+      return { vazaoInterpolada: Math.max(0, vop), shutOffHead: shutOff };
+    }
+  }
+  // Sem cruzamento: bomba nao vence nem na vazao minima -> 0; senao entrega ao menos a vazao max da curva.
+  const f0 = points[0].a - kResist * points[0].v * points[0].v;
+  if (f0 < 0) return { vazaoInterpolada: 0, shutOffHead: shutOff };
+  return { vazaoInterpolada: maxV, shutOffHead: shutOff };
+}
+
+/**
  * Extrai specs numericos do candidato + sobrescreve com valores interpolados da
  * pumpCurve quando aplicavel (v1.12.41). Quando candidato tem pumpCurve cadastrada
  * e baseVars.alturaTelhadoMca > 0, substitui:
@@ -355,7 +400,16 @@ function extractCandidateSpecs(
     if (Number.isFinite(n)) specVars[k] = n;
   }
   const alturaAlvo = Number(baseVars.alturaTelhadoMca);
-  if (Number.isFinite(alturaAlvo) && alturaAlvo > 0) {
+  const frictionK = Number((baseVars as any).frictionKResist);
+  if (Number.isFinite(frictionK) && frictionK > 0) {
+    // Circuito fechado (trocador): vazao no PONTO DE OPERACAO (curva da bomba x resistencia do tubo ∝ vazao²).
+    const op = pumpOperatingPoint(candidate.pumpCurve, frictionK);
+    if (op) {
+      specVars.vazaoM3h = op.vazaoInterpolada;
+      specVars.pressaoTrabalhoMca = op.shutOffHead;
+    }
+  } else if (Number.isFinite(alturaAlvo) && alturaAlvo > 0) {
+    // Circuito aberto (solar): vazao na altura estatica alvo (comportamento original).
     const interp = interpolatePumpCurve(candidate.pumpCurve, alturaAlvo);
     if (interp) {
       specVars.vazaoM3h = interp.vazaoInterpolada;

@@ -21,7 +21,7 @@ import {
   SYSTEM_DEFAULT_SOLAR_RULES,
 } from './solar-rules';
 import { CreateSolarRuleDto, UpdateSolarRuleDto } from './dto/solar-rule.dto';
-import { filterByWhere, orderCandidates, evaluateIndicator, interpolatePumpCurve } from './auto-select.helper';
+import { filterByWhere, orderCandidates, evaluateIndicator, interpolatePumpCurve, pumpOperatingPoint } from './auto-select.helper';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
@@ -775,7 +775,13 @@ export class SolarBudgetService {
     // compatibilidade — a regra de bomba foi escrita com esses identificadores.
     // vazaoMaxM3h (vazao MAXIMA-alvo, da bomba de calor × qtd) alimenta o indicador
     // "dentro x fora da vazao" do Trocador. Solar nao passa -> 0 (indicador nao usa).
-    const baseVars = { vazaoSolarM3h: vazaoAlvoM3h, vazaoMaxM3h: vazaoMaxAlvoM3h, alturaTelhadoMca: alturaMca };
+    // Trocador (circuito fechado, atrito cresce com vazao²): coef de resistencia K = perda / vazaoProjeto².
+    // Com ele, a selecao usa o PONTO DE OPERACAO (curva da bomba x K·v²) em vez da vazao numa altura fixa.
+    // Solar (circuito aberto, altura estatica) NAO passa K -> mantem o comportamento original.
+    const frictionKResist = ruleKey === 'trocadorBombaRule' && vazaoAlvoM3h > 0 && alturaMca > 0
+      ? alturaMca / (vazaoAlvoM3h * vazaoAlvoM3h)
+      : 0;
+    const baseVars = { vazaoSolarM3h: vazaoAlvoM3h, vazaoMaxM3h: vazaoMaxAlvoM3h, alturaTelhadoMca: alturaMca, frictionKResist };
 
     // Aplica where (filtro de criterio) e orderBy da regra. filterByWhere/orderCandidates
     // ja interpolam pumpCurve quando candidato tem curva cadastrada (v1.12.41).
@@ -785,8 +791,10 @@ export class SolarBudgetService {
     return ordered.map((p: any) => {
       const specs = (p.technicalSpecs ?? {}) as Record<string, any>;
       const hasPumpCurve = Array.isArray(p.pumpCurve) && (p.pumpCurve as any[]).length >= 2;
-      const interp = hasPumpCurve && alturaMca > 0
-        ? interpolatePumpCurve(p.pumpCurve, alturaMca)
+      const interp = hasPumpCurve
+        ? (frictionKResist > 0
+            ? pumpOperatingPoint(p.pumpCurve, frictionKResist)
+            : (alturaMca > 0 ? interpolatePumpCurve(p.pumpCurve, alturaMca) : null))
         : null;
       const vazaoEfetiva = interp ? interp.vazaoInterpolada : Number(specs.vazaoM3h) || 0;
       const pressaoEfetiva = interp ? interp.shutOffHead : Number(specs.pressaoTrabalhoMca) || 0;

@@ -115,7 +115,8 @@ export class TrocadorBudgetService {
       joelho90Qty: 10,
       teQty: 4,
       registroQty: 1,
-      valvulaQty: 1,
+      valvulaQty: 0,
+      maxVelocidadeMs: 2.0,
     };
 
     const material = (dto.material ?? tenantDefaults.material ?? HARDCODED_DEFAULTS.material) as PipeMaterial;
@@ -130,7 +131,8 @@ export class TrocadorBudgetService {
     if (dto.diametroMm) {
       diametroMm = dto.diametroMm;
     } else {
-      autoPickInfo = this.pipeHeadLoss.pickOptimalDiameter(material, vazaoM3h, availableDiameters);
+      const maxVel = Number(tenantDefaults.maxVelocidadeMs ?? HARDCODED_DEFAULTS.maxVelocidadeMs) || HARDCODED_DEFAULTS.maxVelocidadeMs;
+      autoPickInfo = this.pipeHeadLoss.pickOptimalDiameter(material, vazaoM3h, availableDiameters, maxVel);
       diametroMm = autoPickInfo.diametroMm;
     }
 
