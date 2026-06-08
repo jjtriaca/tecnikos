@@ -206,18 +206,29 @@ export class NfseEntradaParserService {
     const emit = infNfse.emit || {};
     const toma = dps.toma || {};
     const serv = dps.serv || {};
-    const valores = dps.valores || infNfse.valores || {};
-    const tributos = serv.trib || {};
-    const obra = dps.obra || {};
+    // No layout nacional, os codigos do servico ficam dentro de serv.cServ
+    // (cTribNac/xDescServ/cNBS), NAO direto em serv.
+    const cServ = serv.cServ || {};
+    const obra = serv.obra || dps.obra || {};
+    // Valores aparecem em DOIS niveis distintos no layout nacional:
+    //  - infNFSe.valores: totais da nota (vBC, pAliqAplic, vISSQN, vLiq)
+    //  - infDPS.valores:  vServPrest.vServ (valor do servico) + bloco trib (tribMun/tribFed)
+    // O parser antigo lia tudo de "serv" (errado) -> valor/impostos vinham nulos.
+    const nfseValores = infNfse.valores || {};
+    const dpsValores = dps.valores || {};
+    const trib = dpsValores.trib || {};
+    const tribMun = trib.tribMun || {};
+    const piscofins = this.dig(trib, 'tribFed', 'piscofins') || {};
+    // Valor do servico: infDPS.valores.vServPrest.vServ (fallback p/ totais da NFS-e)
+    const vServ = this.dig(dpsValores, 'vServPrest', 'vServ');
 
-    // cTribNac -> Item LC 116 rough mapping
-    const cTribNac = this.str(serv.cTribNac);
+    const cTribNac = this.str(cServ.cTribNac);
 
     return {
       layout: 'NACIONAL',
       numero: this.str(infNfse.nNFSe),
-      codigoVerificacao: this.str(infNfse.cLocEmi), // Nacional uses cLocEmi
-      dataEmissao: this.str(infNfse.dEmi) || this.str(dps.dhEmi),
+      codigoVerificacao: null,
+      dataEmissao: this.str(dps.dhEmi) || this.str(infNfse.dhProc),
       competencia: this.str(dps.dCompet) ? this.str(dps.dCompet)!.substring(0, 7) : null,
       // Prestador (= emitente)
       prestadorCnpjCpf: this.str(emit.CNPJ) || this.str(emit.CPF),
@@ -229,32 +240,33 @@ export class NfseEntradaParserService {
       tomadorCnpj: this.str(toma.CNPJ) || this.str(toma.CPF),
       // Service
       itemListaServico: null, // Nacional uses cTribNac, not Item LC 116 directly
-      codigoCnae: this.str(serv.cNBS),
-      codigoTribMunicipio: this.str(serv.cTribMun),
+      codigoCnae: this.str(cServ.cNBS),
+      codigoTribMunicipio: this.str(cServ.cTribMun),
       codigoTribNacional: cTribNac,
-      discriminacao: this.str(serv.xDescServ),
-      municipioServico: this.str(serv.cLocPrestacao || dps.cLocEmi),
+      discriminacao: this.str(cServ.xDescServ),
+      municipioServico: this.str(serv.locPrest?.cLocPrestacao) || this.str(dps.cLocEmi),
       naturezaOperacao: null, // Nacional doesn't use naturezaOperacao
       exigibilidadeIss: null,
       // Values
-      valorServicosCents: this.toCents(serv.vServPrest || serv.vServ),
-      valorDeducoesCents: this.toCents(serv.vDed),
-      baseCalculoCents: this.toCents(tributos.vBCISS || serv.vBC),
-      aliquotaIss: this.toFloat(tributos.pAliq),
-      issRetido: tributos.tpRetISSQN === 1 || tributos.tpRetISSQN === '1',
-      valorIssCents: this.toCents(tributos.vISSQN || valores.vISSQN),
-      valorPisCents: this.toCents(tributos.vPIS || valores.vPIS),
-      valorCofinsCents: this.toCents(tributos.vCOFINS || valores.vCOFINS),
-      valorInssCents: this.toCents(tributos.vINSS),
-      valorIrCents: this.toCents(tributos.vIR),
-      valorCsllCents: this.toCents(tributos.vCSLL),
-      outrasRetCents: this.toCents(tributos.vOutrasRet),
-      descontoIncondCents: this.toCents(serv.vDescIncond),
-      descontoCondCents: this.toCents(serv.vDescCond),
-      valorLiquidoCents: this.toCents(valores.vLiq),
+      valorServicosCents: this.toCents(vServ ?? nfseValores.vLiq ?? nfseValores.vBC),
+      valorDeducoesCents: this.toCents(dpsValores.vDescIncond),
+      baseCalculoCents: this.toCents(nfseValores.vBC ?? vServ),
+      aliquotaIss: this.toFloat(nfseValores.pAliqAplic ?? tribMun.pAliq),
+      issRetido: tribMun.tpRetISSQN === 2 || tribMun.tpRetISSQN === 3
+        || tribMun.tpRetISSQN === '2' || tribMun.tpRetISSQN === '3',
+      valorIssCents: this.toCents(nfseValores.vISSQN ?? tribMun.vISSQN),
+      valorPisCents: this.toCents(piscofins.vPis),
+      valorCofinsCents: this.toCents(piscofins.vCofins),
+      valorInssCents: this.toCents(this.dig(trib, 'tribFed', 'vRetCP')),
+      valorIrCents: this.toCents(this.dig(trib, 'tribFed', 'vRetIRRF')),
+      valorCsllCents: this.toCents(this.dig(trib, 'tribFed', 'vRetCSLL')),
+      outrasRetCents: null,
+      descontoIncondCents: this.toCents(dpsValores.vDescIncond),
+      descontoCondCents: this.toCents(dpsValores.vDescCond),
+      valorLiquidoCents: this.toCents(nfseValores.vLiq ?? vServ),
       // Construction
       codigoObra: this.str(obra.cObra),
-      art: this.str(obra.cART),
+      art: this.str(obra.cArt || obra.cART),
     };
   }
 

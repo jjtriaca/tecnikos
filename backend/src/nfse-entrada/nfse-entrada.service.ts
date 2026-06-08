@@ -469,7 +469,13 @@ export class NfseEntradaService {
     let imported = 0;
     let skipped = 0;
     let totalFetched = 0;
-    let currentVersion = config.lastNfseSyncVersion || 0;
+    // RECONCILIACAO COMPLETA (sempre da versao 0): varremos a lista inteira da Focus e
+    // baixamos QUALQUER nota que ainda nao esteja no sistema (dedup por chaveNfse abaixo
+    // pula as que ja existem). Assim, se uma nota for apagada — ou nunca tiver sido
+    // baixada — o "Baixar NFS-e" a traz (de volta). O cursor de versao sozinho deixava
+    // notas "presas" abaixo da ultima sincronizacao (ex.: RPS/NFS-e 740 versao 109 < 112).
+    // lastNfseSyncVersion segue sendo gravado (referencia/telemetria), mas NAO trava mais o inicio.
+    let currentVersion = 0;
     let hasMore = true;
 
     while (hasMore) {
