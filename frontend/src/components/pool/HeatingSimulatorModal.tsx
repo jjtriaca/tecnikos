@@ -3030,21 +3030,6 @@ function BombaCalorTab({
                       <BigHighlightInput label="Temp. inicial" value={tempIniDisplay} onChange={(n) => setTempAguaInicial(n)} unit="°C" min={5} max={40} manual={cfgManual} />
                       <BigHighlightInput label="Temp. final" value={tempAguaDesejada} onChange={(n) => setTempAguaDesejada(n)} unit="°C" min={20} max={40} manual={cfgManual} />
                     </div>
-                    {(() => {
-                      const ed = report?.extrasDetected;
-                      if (!ed) return null;
-                      const cards: React.ReactNode[] = [];
-                      if (ed.cascata.status !== "NAO_IDENTIFICADA") cards.push(<ExtraImpactCard key="casc" icon="🌊" title="Cascata" extra={ed.cascata} horasValue={cascataHorasSemana} onChangeHoras={onChangeCascataHoras} />);
-                      if (ed.hidromassagem.status !== "NAO_IDENTIFICADA") cards.push(<ExtraImpactCard key="hidro" icon="💦" title="SPA" extra={ed.hidromassagem} horasValue={hidromassagemHorasSemana} onChangeHoras={onChangeHidroHoras} />);
-                      if (ed.bordaInfinita.status !== "NAO_IDENTIFICADA") cards.push(<ExtraImpactCard key="borda" icon="🏞" title="Borda infinita" extra={ed.bordaInfinita} horasValue={bordaInfinitaHorasAtivaDia} onChangeHoras={onChangeBordaHoras} hoursLabel="h/dia" />);
-                      if (cards.length === 0) return null;
-                      return (
-                        <div className="mt-1">
-                          <div className="text-[8.5px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Extras (impacto no calor)</div>
-                          <div className="flex flex-wrap gap-1.5">{cards}</div>
-                        </div>
-                      );
-                    })()}
                   </div>
                 </div>
               </div>
@@ -3093,9 +3078,24 @@ function BombaCalorTab({
                     return fmt(vmin || vmax);
                   })()} unit="m³/h" />
                   <Kpi label="Mês crítico" value={MESES[report.qtotalMonthCritical] ?? "—"} unit="" />
+                    {(() => {
+                      const ed = report?.extrasDetected;
+                      if (!ed) return null;
+                      const cards: React.ReactNode[] = [];
+                      if (ed.cascata.status !== "NAO_IDENTIFICADA") cards.push(<ExtraImpactCard key="casc" icon="🌊" title="Cascata" extra={ed.cascata} horasValue={cascataHorasSemana} onChangeHoras={onChangeCascataHoras} />);
+                      if (ed.hidromassagem.status !== "NAO_IDENTIFICADA") cards.push(<ExtraImpactCard key="hidro" icon="💦" title="SPA" extra={ed.hidromassagem} horasValue={hidromassagemHorasSemana} onChangeHoras={onChangeHidroHoras} />);
+                      if (ed.bordaInfinita.status !== "NAO_IDENTIFICADA") cards.push(<ExtraImpactCard key="borda" icon="🏞" title="Borda infinita" extra={ed.bordaInfinita} horasValue={bordaInfinitaHorasAtivaDia} onChangeHoras={onChangeBordaHoras} hoursLabel="h/dia" />);
+                      if (cards.length === 0) return null;
+                      return (
+                        <div className="mt-1">
+                          <div className="text-[8.5px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Extras (impacto no calor)</div>
+                          <div className="flex flex-wrap gap-1.5">{cards}</div>
+                        </div>
+                      );
+                    })()}
                 </div>
                 {/* Equipamento */}
-                <div className="col-span-7">
+                <div className="col-span-7 flex flex-col gap-2">
                   {eq ? (
                     <div>
                       <div className="flex items-center justify-between gap-2">
@@ -3153,9 +3153,6 @@ function BombaCalorTab({
                       <div className="mt-1 text-xs">Cadastre Bomba de Calor com kcalHNominal e configure a regra de auto-seleção (✨).</div>
                     </div>
                   )}
-                </div>
-              </section>
-
               {/* BOMBA DE CIRCULACAO + TUBULACAO — paridade com o Solar (imagem/specs/consumo mensal).
                   operatingHoursPerMonth = horas REAIS de operacao da bomba de calor por mes
                   (demanda-dirigida): inverno mais, verao menos, bomba mais potente -> menos horas.
@@ -3170,25 +3167,6 @@ function BombaCalorTab({
                   ruleVersion={trocadorRuleVersion}
                 />
               )}
-
-              {/* PERDA TERMICA MENSAL */}
-              <section className="px-5 py-2 border-b border-slate-200 avoid-break">
-                <SectionLabel>Perda térmica mensal</SectionLabel>
-                <div className="mt-1 rounded-lg border border-slate-200 bg-white overflow-x-auto">
-                  <table className="w-full text-[10px]">
-                    <thead className="bg-slate-50 border-b border-slate-200"><tr><th className="px-2 py-1 text-left font-semibold text-slate-700">Mês</th>{MESES.map((m) => <th key={m} className="px-1 py-1 text-center font-semibold text-slate-700">{m}</th>)}</tr></thead>
-                    <tbody className="divide-y divide-slate-100">
-                      <tr><td className="px-2 py-1 font-medium text-slate-700">Temp ar (°C)</td>{report.monthlyHeatLoss.map((m, i) => <td key={i} className="px-1 py-1 text-center text-slate-600 tabular-nums">{m.tempAr.toFixed(1)}</td>)}</tr>
-                      <tr><td className="px-2 py-1 font-medium text-slate-700">Umidade</td>{report.monthlyHeatLoss.map((m, i) => <td key={i} className="px-1 py-1 text-center text-slate-600 tabular-nums">{(m.humidity * 100).toFixed(0)}%</td>)}</tr>
-                      <tr className="bg-orange-50"><td className="px-2 py-1 font-semibold text-orange-900">Qtotal (kW)</td>{report.monthlyHeatLoss.map((m, i) => { const isCrit = i === report.qtotalMonthCritical; return <td key={i} className={`px-1 py-1 text-center tabular-nums ${isCrit ? "bg-orange-200 font-bold text-orange-900" : "text-orange-900"}`}>{m.qtotalKw.toFixed(1)}</td>; })}</tr>
-                      {report.operatingHoursDebug && report.operatingHoursDebug.length === 12 && (
-                        <tr className="bg-amber-50"><td className="px-2 py-1 font-medium text-amber-800" title="Ganho solar estimado na superfície da piscina (kWh/dia) = radiação do mês × área × absorção × transmissão da capa. Desconta da perda pra achar a demanda líquida que a bomba de calor precisa cobrir.">☀ Ganho solar (kWh/d)</td>{report.operatingHoursDebug.map((d, i) => <td key={i} className="px-1 py-1 text-center text-amber-700 tabular-nums">{d.ganhoSolarKwhDia.toFixed(0)}</td>)}</tr>
-                      )}
-                      {report.operatingHoursPerMonth && report.operatingHoursPerMonth.length === 12 && (
-                        <tr className="bg-cyan-50"><td className="px-2 py-1 font-semibold text-cyan-900" title="Horas/dia que a bomba de calor (e a bomba de circulação, que roda junto) precisa operar = demanda líquida (perda − ganho solar) ÷ capacidade. Inverno mais, verão com capa perto de zero, bomba maior roda menos. Limitado à janela de funcionamento.">⏱ Horas/dia bomba</td>{report.operatingHoursPerMonth.map((h, i) => <td key={i} className="px-1 py-1 text-center font-semibold text-cyan-900 tabular-nums">{h.toFixed(1)}</td>)}</tr>
-                      )}
-                    </tbody>
-                  </table>
                 </div>
               </section>
 
@@ -3563,12 +3541,12 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
 
   if (!hasVazao) {
     return (
-      <section className="px-5 py-3 border-b border-slate-200 avoid-break">
+      <div className="avoid-break">
         <SectionLabel>🚰 Bomba de circulação + tubulação</SectionLabel>
         <div className="mt-1 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-[12px] text-amber-900">
           ⚠ A bomba de calor selecionada não tem <b>vazão de água</b> cadastrada. Preencha a <b>Vazão mínima</b> (e máxima) no cadastro do produto (aba Piscina · aquecimentos) para dimensionar a bomba de circulação e os tubos.
         </div>
-      </section>
+      </div>
     );
   }
 
@@ -3609,7 +3587,7 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
     : null;
 
   return (
-    <section className="px-5 py-3 border-b border-slate-200 avoid-break">
+    <div className="avoid-break">
       <SectionLabel>Tubulação — perda de carga</SectionLabel>
       <div className="mt-1 text-[10px] text-slate-500">Vazão de projeto (bomba de calor): <b className="text-slate-800 tabular-nums">{vazaoAlvo} m³/h</b>{qty > 1 ? ` (${vMin} × ${qty} bombas)` : ""}{vazaoMaxTotal > 0 ? ` · faixa até ${vazaoMaxTotal} m³/h` : ""}</div>
       {/* Tubulação — largura total (empilhado igual ao Solar) */}
@@ -3766,7 +3744,7 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
       )}
         </div>
       </div>
-    </section>
+    </div>
   );
 }
 
