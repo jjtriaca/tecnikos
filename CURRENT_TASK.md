@@ -1,5 +1,10 @@
 # TAREFA ATUAL
 
+## 🔧 ABA BOMBA DE CALOR (Simulador de Aquecimento) — espelhando o layout do Solar
+## - v1.13.28: layout reestruturado — esq (col-5): KPIs + cards de Extras (Cascata/SPA/Borda); dir (col-7 flex): Equipamento + Tubulação + Bomba de recirculação empilhados; REMOVIDA a tabela "Perda térmica mensal" da área de dimensionamento. Grid igual Solar.
+## - v1.13.29: tubulação default 30/4 nas 2 abas (Solar+Bomba) + auto-recalc no 1º acesso; template "Bomba de circulação (Bomba de Calor)" com TOLERÂNCIA editável na fórmula (`vazão ≥ mín×0,9 && ≤ máx×1,5` — antes estrito `≥ mín`, e nenhuma bomba atendia 24 m³/h); reword "X candidata(s) atendem · 1 selecionada". `vazaoSolarM3h` na bomba = valor certo (24), só nome herdado do motor compartilhado.
+## - 🟡 PRÓXIMA FRENTE (definida, NÃO iniciada): na aba Bomba de Calor, UNIR "Simulação de consumo" + "Simulação térmica" num espaço só + GRÁFICO de ganho de temperatura (estilo Solar "Variação térmica em 4 dias" — CHECAR se o heating-report expõe a curva de temp ou precisa de backend) + CONSUMO TOTAL = consumo da bomba de calor + consumo da bomba de recirculação (somar os dois; depende da recirc selecionada = tolerância P3).
+
 ## ✅ DEPLOYED v1.13.27 (08/06) — NFS-e ENTRADA (recebidas) 2 correções
 ## - **Leitor XML manual (formato NACIONAL):** lia valor/chave/impostos do bloco errado (`serv.*`) → importava R$ 0. No layout nacional o valor fica em `infDPS.valores.vServPrest.vServ` e os totais em `infNFSe.valores` (cServ p/ cTribNac/xDescServ/cNBS; serv.obra). Corrigido em `nfse-entrada-parser.service.parseNacional`. Testado na NF 740 CIBE: R$ 4.970 (antes R$ 0).
 ## - **Sync "Baixar NFS-e" frágil:** começava do `lastNfseSyncVersion` (cursor) → notas abaixo dele ficavam presas (apagou/pulou = nunca volta). Agora `currentVersion=0` = RECONCILIAÇÃO COMPLETA (dedup por chaveNfse evita dup). Pós-deploy recuperou **5 notas presas** (DB 60→65 = paridade c/ Focus). Filtro por data (`dateFrom`) intacto: pula por data ANTES do dedup, então escopo por mês continua leve.

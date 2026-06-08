@@ -1028,8 +1028,8 @@ function SolarTab({
   // environmentParams.solarPipe e tambem em environmentParams.alturaTelhadoM
   // (que alimenta a var alturaTelhadoMca pra auto-selecao da bomba).
   const initPipe = (budget.environmentParams as any)?.solarPipe ?? {};
-  const initPipeComprimento = Number(initPipe?.inputs?.comprimentoM) || 0;
-  const initPipeDesnivel = Number(initPipe?.inputs?.desnivelM) || 0;
+  const initPipeComprimento = Number(initPipe?.inputs?.comprimentoM) || 30;
+  const initPipeDesnivel = Number(initPipe?.inputs?.desnivelM) || 4;
   const initPipeResult = initPipe?.result ?? null;
   const [orientacaoTelhado, setOrientacaoTelhado] = useState<string>(initOrient);
   const [inclinacaoTelhado, setInclinacaoTelhado] = useState<number>(initIncl);
@@ -1038,6 +1038,13 @@ function SolarTab({
   const [pipeDesnivel, setPipeDesnivel] = useState<number>(initPipeDesnivel);
   const [pipeResult, setPipeResult] = useState<any | null>(initPipeResult);
   const [pipeRecomputing, setPipeRecomputing] = useState(false);
+
+  // v1.13.29: recalcula a tubulacao no 1o acesso (defaults 30/4) pra nao mostrar "preencha"
+  // com os campos ja preenchidos. !pipeResult evita re-rodar depois de ja ter calculado.
+  useEffect(() => {
+    if (pipeComprimento > 0 && !pipeResult && (report?.vazaoTotalM3h || 0) > 0) recomputePipe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [report?.vazaoTotalM3h]);
 
   // v1.12.43: dropdown de candidatos a bomba. Substitui a string fixa "Bomba recomendada"
   // por lista real do catalogo filtrada pela bombaRule (vazaoSolarM3h + alturaTelhadoMca).
@@ -2381,7 +2388,7 @@ function SolarTab({
                       })()}
                       <div className="text-[9px] text-slate-500 mt-1 leading-tight">
                         {bombaCandidates.length > 0 ? (
-                          <>{bombaCandidates.length} bomba(s) atendem · ordem definida pela regra ✨ · vazão {report.vazaoTotalM3h?.toFixed(2)} m³/h{pipeResult ? ` + altura ${pipeResult.alturaManometricaTotal?.toFixed(2)} mca` : ''}</>
+                          <>{bombaCandidates.length} candidata(s) atendem · 1 selecionada · ordem pela regra ✨ · vazão {report.vazaoTotalM3h?.toFixed(2)} m³/h{pipeResult ? ` + altura ${pipeResult.alturaManometricaTotal?.toFixed(2)} mca` : ''}</>
                         ) : null}
                       </div>
                     </div>
@@ -3465,8 +3472,8 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
   const vazaoAlvo = Number((vMin * qty).toFixed(2));
   const vazaoMaxTotal = vMax > 0 ? Number((vMax * qty).toFixed(2)) : 0;
 
-  const [comprimento, setComprimento] = useState<number>(0);
-  const [desnivel, setDesnivel] = useState<number>(0);
+  const [comprimento, setComprimento] = useState<number>(30);
+  const [desnivel, setDesnivel] = useState<number>(4);
   const [pipeResult, setPipeResult] = useState<any | null>(null);
   const [pipeBusy, setPipeBusy] = useState(false);
   const [candidates, setCandidates] = useState<TrocadorBombaCandidate[]>([]);
@@ -3538,6 +3545,12 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [budgetId, vazaoAlvo, alturaSelecao, vazaoMaxTotal, hasVazao, ruleVersion]);
+
+  // v1.13.29: recalcula a tubulacao no 1o acesso (defaults 30/4) pra nao mostrar "preencha".
+  useEffect(() => {
+    if (hasVazao && comprimento > 0 && !pipeResult) recompute();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasVazao]);
 
   if (!hasVazao) {
     return (

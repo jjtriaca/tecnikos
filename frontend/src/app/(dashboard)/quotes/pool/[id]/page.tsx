@@ -3102,7 +3102,7 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
       filterPoolType: 'Bomba',
       filterCategoria: null,
       filterDescription: 'Bomba',
-      where: 'vazaoM3h >= vazaoSolarM3h && pressaoTrabalhoMca >= alturaTelhadoMca',
+      where: 'vazaoM3h >= vazaoSolarM3h * 0.9 && pressaoTrabalhoMca >= alturaTelhadoMca && vazaoM3h <= vazaoMaxM3h * 1.5',
       orderBy: 'vazaoM3h asc',
       indicator: {
         label: 'Folga vazao',
