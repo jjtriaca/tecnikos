@@ -1,9 +1,29 @@
 # Plano — Setup financeiro robusto + guardrails (tenant novo + system-wide)
 
+> ## ✅ STATUS: FRENTE ENCERRADA (09/06/2026)
+> **Entregue:** Monitor de saúde financeira (v1.13.45, no ar) — alerta de trânsito≠0 / pago-sem-conta / import-duplicada na aba Conciliação (read-only).
+> **Conclusão que encerrou:** o comportamento à-vista/a-prazo + conta de destino **já está modelado nos tipos de pagamento** (`PaymentInstrument.autoMarkPaid` + `cashAccountId`; `resolveAutoPay` usa) — não havia o que consertar (ver ACHADO CRÍTICO abaixo). Trânsito = staging explícito configurado; o −151,27 é conciliação incompleta, não bug. Dedup já robusto.
+> **Deferido (só se o Juliano pedir):** guarda de cadastro (à-vista exige conta) — só morde tenant novo. Decisão: **"deixar assim"**.
+> **Este doc agora é REFERÊNCIA, não backlog ativo.**
+
 **Pedido (Juliano, 09/06/2026):** ao criar contas/financeiro num tenant novo, ter **mecanismos robustos**
 com **proteções claras** que não deixem brecha pros furos que apareceram (resíduo no trânsito,
 auto-pago errado, importação duplicada, lançamento pendente deletado, taxa/lançamento sem rumo).
 Forward-looking (novos tenants) + também protege o SLS. NÃO toca em dado existente.
+
+## ⚠ ACHADO CRÍTICO (09/06/2026) — LER ANTES DE RETOMAR
+**O comportamento à-vista/a-prazo + conta JÁ está modelado no tipo de pagamento** (`PaymentInstrument`):
+- `autoMarkPaid` = à vista (nasce **PAID**) vs a prazo (nasce **PENDING**).
+- `cashAccountId` do tipo = a conta de destino (o roteamento).
+- `resolveAutoPay` (payment-instrument.service) **já usa** isso. **NÃO inventar** leitura de duplicata da NFe nem tabela de mapeamento paralela (violaria REGRA #9 — seguir padrão do sistema).
+
+**O trânsito NÃO é fallback silencioso/bug no SLS:** vários tipos à-vista (PIX, TED, Débito, cartões genéricos Master/Visa/Elo/Amex/Hiper) **apontam de propósito** pra `VALORES EM TRANSITO` (`cashAccountId`=conta trânsito) — é staging configurado até conciliar. O resíduo (−151,27) é desses lançamentos **não 100% conciliados/varridos**, não furo de código. Os tipos a-prazo (A prazo, Boleto) têm `autoMarkPaid=false` → nascem PENDENTE ✓. Os "SEM CONTA" (Cheque de Terceiros, Débito em conta) são `autoMarkPaid=false`/pendente → não postam em conta → inofensivos.
+
+**Dedup já robusto:** parser parseia chave como String + `numberParseOptions` (sem corromper) + `nfeKey @unique` + manual e DFe usam o mesmo `upload()`. A 41387 2× foi artefato histórico (parser antigo corrompeu a chave em notação científica). Não recorre.
+
+**Único furo de código restante = só morde TENANT NOVO:** tipo à-vista (`autoMarkPaid=true`) salvo **sem `cashAccountId`** → `resolveAutoPay` cai no trânsito calado (payment-instrument.service L137-142). No SLS não acontece (todos os à-vista têm conta).
+
+**Decisão do Juliano (09/06): "deixar assim"** — manter PIX/TED no trânsito (staging), sem mexer em config/roteamento. **Guarda do cadastro (autoMarkPaid=true exige conta + aviso se for trânsito) = DEFERIDA** (forward-looking pra tenant novo; implementar só se ele pedir). Monitor de saúde (v1.13.45) já no ar = a visibilidade que fecha o ciclo.
 
 ## Os FUROS observados → vira PROTEÇÃO
 | Furo visto | Proteção programada |
