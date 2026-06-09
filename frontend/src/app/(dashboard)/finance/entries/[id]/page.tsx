@@ -280,11 +280,15 @@ export default function FinanceEntryDetailPage() {
                   Conciliado
                 </span>
               )}
-              {entry.parentEntryId && (
+              {entry.parentEntry?.status === "SPLIT" ? (
+                <span className="inline-flex items-center rounded-full border px-3 py-0.5 text-xs font-medium bg-purple-50 text-purple-700 border-purple-200">
+                  Parcela {entry.description?.match(/Parcela (\d+\/\d+)/)?.[1] || ""}
+                </span>
+              ) : entry.parentEntryId ? (
                 <span className="inline-flex items-center rounded-full border px-3 py-0.5 text-xs font-medium bg-purple-50 text-purple-700 border-purple-200">
                   Renegociado
                 </span>
-              )}
+              ) : null}
             </div>
           </div>
           <div className="text-right">
@@ -575,10 +579,59 @@ export default function FinanceEntryDetailPage() {
         </Section>
       )}
 
-      {/* Renegociação */}
-      {(entry.parentEntry || (entry.childEntries && entry.childEntries.length > 0) || entry.renegotiatedTo) && (
+      {/* Parcelamento — esta entry e uma PARCELA (mae dividida/SPLIT) */}
+      {entry.parentEntry?.status === "SPLIT" && (
+        <Section title="Parcelamento">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+            <Field label="Parcela">{entry.description?.match(/Parcela (\d+\/\d+)/)?.[1] || `1/${entry.installmentCount || "?"}`}</Field>
+            <Field label="Valor desta parcela">{formatCurrency(entry.netCents)}</Field>
+            <Field label="Total parcelado">{formatCurrency(entry.parentEntry.netCents)}</Field>
+            <Field label="Fatura (ciclo)">{entry.cardBillingDate ? formatDate(entry.cardBillingDate) : "—"}</Field>
+          </div>
+          <p className="text-[11px] font-medium text-slate-500 uppercase">Lancamento original (dividido)</p>
+          <a href={`/finance/entries/${entry.parentEntry.id}`} className="text-sm text-blue-600 hover:underline">
+            {entry.parentEntry.code} — {entry.parentEntry.description || "(sem descricao)"} ({formatCurrency(entry.parentEntry.netCents)})
+          </a>
+        </Section>
+      )}
+
+      {/* Parcelamento — esta entry e o PAI dividido (SPLIT): lista as parcelas */}
+      {entry.status === "SPLIT" && entry.childEntries && entry.childEntries.length > 0 && (
+        <Section title={`Parcelamento — dividido em ${entry.childEntries.length} parcelas`}>
+          <div className="mb-2 text-sm text-slate-600">
+            Total parcelado: <span className="font-semibold text-slate-900">{formatCurrency(entry.netCents)}</span>
+          </div>
+          <table className="w-full text-xs">
+            <thead className="text-slate-500 uppercase">
+              <tr className="border-b border-slate-200">
+                <th className="text-left py-2">Parcela</th>
+                <th className="text-left py-2">Fatura (ciclo)</th>
+                <th className="text-right py-2">Valor</th>
+                <th className="text-center py-2">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entry.childEntries.map((c: any) => (
+                <tr key={c.id} className="border-b border-slate-100">
+                  <td className="py-2">
+                    <a href={`/finance/entries/${c.id}`} className="text-blue-600 hover:underline">
+                      {c.description?.match(/Parcela (\d+\/\d+)/)?.[1] || c.code}
+                    </a>
+                  </td>
+                  <td className="py-2">{c.cardBillingDate ? formatDate(c.cardBillingDate) : c.paidAt ? formatDate(c.paidAt) : "—"}</td>
+                  <td className="py-2 text-right font-medium">{formatCurrency(c.netCents)}</td>
+                  <td className="py-2 text-center">{ENTRY_STATUS_CONFIG[c.status]?.label || c.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
+      )}
+
+      {/* Renegociação (verdadeira — nao e parcelamento) */}
+      {((entry.parentEntry && entry.parentEntry.status !== "SPLIT") || entry.renegotiatedTo || (entry.status !== "SPLIT" && entry.childEntries && entry.childEntries.length > 0)) && (
         <Section title="Renegociação">
-          {entry.parentEntry && (
+          {entry.parentEntry && entry.parentEntry.status !== "SPLIT" && (
             <div className="mb-3">
               <p className="text-[11px] font-medium text-slate-500 uppercase">Entry original</p>
               <a href={`/finance/entries/${entry.parentEntry.id}`} className="text-sm text-blue-600 hover:underline">
@@ -594,7 +647,7 @@ export default function FinanceEntryDetailPage() {
               </a>
             </div>
           )}
-          {entry.childEntries && entry.childEntries.length > 0 && (
+          {entry.status !== "SPLIT" && entry.childEntries && entry.childEntries.length > 0 && (
             <div>
               <p className="text-[11px] font-medium text-slate-500 uppercase mb-1">Entries filhas (renegociacoes desta)</p>
               <ul className="space-y-1">

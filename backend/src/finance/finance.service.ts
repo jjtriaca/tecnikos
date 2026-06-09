@@ -699,7 +699,7 @@ export class FinanceService {
           select: { id: true, code: true, description: true, grossCents: true, netCents: true, status: true },
         },
         childEntries: {
-          select: { id: true, code: true, description: true, grossCents: true, netCents: true, status: true, renegotiatedAt: true },
+          select: { id: true, code: true, description: true, grossCents: true, netCents: true, status: true, renegotiatedAt: true, cardBillingDate: true, paidAt: true },
           orderBy: { createdAt: 'asc' },
         },
         renegotiatedTo: {

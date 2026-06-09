@@ -1,6 +1,7 @@
 "use client";
 
 import type { FilterDefinition, FilterValues } from "@/lib/types/table";
+import type { ReactNode } from "react";
 
 interface FilterBarProps {
   filters: FilterDefinition[];
@@ -10,6 +11,8 @@ interface FilterBarProps {
   search?: string;
   onSearchChange?: (value: string) => void;
   searchPlaceholder?: string;
+  /** Slot opcional renderizado ao fim da linha de filtros (ex: botao de config de tabela). */
+  trailingActions?: ReactNode;
 }
 
 export default function FilterBar({
@@ -20,6 +23,7 @@ export default function FilterBar({
   search,
   onSearchChange,
   searchPlaceholder = "Buscar...",
+  trailingActions,
 }: FilterBarProps) {
   const hasActiveFilters =
     Object.values(values).some((v) => v !== undefined && v !== "") ||
@@ -70,6 +74,7 @@ export default function FilterBar({
             Limpar Filtros
           </button>
         )}
+        {trailingActions}
       </div>
     </div>
   );

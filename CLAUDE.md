@@ -128,6 +128,7 @@ Ao trabalhar com Meta (WhatsApp) ou Focus NFe:
 - SEMPRE usar: useTableParams({ persistKey }) + useTableLayout(tableId, columns)
 - Tipos: ColumnDefinition<T> e FilterDefinition de @/lib/types/table
 - NUNCA usar <th> plain ou renderPagination() customizado
+- **CONFIG RICA DE TABELA (PADRAO — em implementacao, ver `memory/feature_config_rica_tabela.md`):** toda tabela DEVE ter o painel de configuracao PER-ABA (icone ⚙ depois de "Limpar Filtros"): mostrar/esconder/estilizar colunas, cores condicionais de linha (sem NF / vencida / paga / regra custom), overflow `quebrar|truncar|scroll`, tamanho de fonte (coluna+linha), etc. (~50+ ajustes). **Ao MEXER em QUALQUER tela com tabela:** verificar se ja tem a config rica; se NAO, adicionar o componente compartilhado (`<TableConfigButton>` + `useTableConfig`). **Tela NOVA:** ja nasce com ele. Isolamento por aba via `tableId` distinto. ZERO funcao fantasma (todo toggle tem efeito real). NUNCA recriar hardcode paralelo.
 
 ### Variaveis em Campos de Texto (System-Wide)
 - Campos textarea/input com variaveis: DEVEM ter botoes chip clicaveis

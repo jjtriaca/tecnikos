@@ -19,7 +19,9 @@ import CardLast4Input, { isCardPayment as isCardPaymentCheck } from "@/component
 import PartnerCombobox from "@/components/PartnerCombobox";
 import { useTableParams } from "@/hooks/useTableParams";
 import { useTableLayout } from "@/hooks/useTableLayout";
-import type { FilterDefinition, ColumnDefinition } from "@/lib/types/table";
+import { useTableConfig } from "@/hooks/useTableConfig";
+import TableConfigButton from "@/components/ui/TableConfigButton";
+import type { FilterDefinition, ColumnDefinition, TableSignal } from "@/lib/types/table";
 import type {
   FinancialEntry,
   FinancialEntryType,
@@ -1073,6 +1075,28 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
     `finance-v3-${type}`,
     columns,
   );
+  // Config rica de tabela (per-aba): sinais de dados pro motor de cores condicionais de linha.
+  const tableSignals: TableSignal<FinancialEntry>[] = [
+    ...(type === "RECEIVABLE"
+      ? [{
+          key: "semNF",
+          label: "Sem NF (nao autorizada)",
+          defaultBg: "#fef9c3",
+          test: (r: FinancialEntry) => r.status !== "CANCELLED" && resolveNfse(r).status !== "AUTHORIZED",
+        }]
+      : []),
+    {
+      key: "vencida",
+      label: "Vencida",
+      defaultBg: "#fee2e2",
+      test: (r: FinancialEntry) =>
+        !!r.dueDate && new Date(r.dueDate) < new Date() && r.status !== "PAID" && r.status !== "CANCELLED",
+    },
+    { key: "paga", label: "Paga", defaultBg: "#dcfce7", test: (r: FinancialEntry) => r.status === "PAID" },
+  ];
+  const cfg = useTableConfig<FinancialEntry>(`finance-v3-${type}`, tableSignals);
+  const visibleColumns = orderedColumns.filter((c) => !cfg.isColumnHidden(c.id));
+  const netColIdx = visibleColumns.findIndex((c) => c.id === "netCents");
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
   const [meta, setMeta] = useState<PaginationMeta>({ total: 0, page: 1, limit: 20, totalPages: 1 });
   const [totals, setTotals] = useState<{ sumNetCents: number; sumGrossCents: number }>({ sumNetCents: 0, sumGrossCents: 0 });
@@ -1567,6 +1591,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
         search={tp.search}
         onSearchChange={tp.setSearch}
         searchPlaceholder="Buscar por descrição, OS ou parceiro..."
+        trailingActions={<TableConfigButton columns={columns} cfg={cfg} />}
       />
 
       {loading ? (
@@ -1603,7 +1628,9 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                     title="Selecionar todos pendentes"
                   />
                 </th>
-                {orderedColumns.map((col, idx) => (
+                {orderedColumns.map((col, idx) => {
+                  if (cfg.isColumnHidden(col.id)) return null;
+                  return (
                   <DraggableHeader
                     key={col.id}
                     index={idx}
@@ -1629,14 +1656,15 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                       </div>
                     )}
                   </DraggableHeader>
-                ))}
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
               {entries.map((rawE) => {
                 const e = type === "RECEIVABLE" ? { ...rawE, _boleto: entryBoletos[rawE.id] || null } as any : rawE;
                 return (
-                <tr key={e.id} className={`border-b border-slate-100 hover:bg-slate-100 transition-colors ${selectedIds.has(e.id) ? "bg-blue-50" : ""}`}>
+                <tr key={e.id} style={selectedIds.has(e.id) ? { fontSize: cfg.rowFontPx } : { ...cfg.getRowStyle(e), fontSize: cfg.rowFontPx }} className={`border-b border-slate-100 hover:bg-slate-100 transition-colors ${selectedIds.has(e.id) ? "bg-blue-50" : ""}`}>
                   <td className="py-2 px-2 w-8">
                     {(e.status === "PENDING" || e.status === "CONFIRMED") && (
                       <input
@@ -1652,6 +1680,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                     )}
                   </td>
                   {orderedColumns.map((col) => {
+                    if (cfg.isColumnHidden(col.id)) return null;
                     const w = columnWidths[col.id];
                     const tdStyle: React.CSSProperties = w ? { width: `${w}px`, minWidth: `${w}px`, maxWidth: `${w}px`, overflow: "hidden" } : {};
                     if (col.id === "actions") {
@@ -1716,7 +1745,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                       );
                     }
                     return (
-                      <td key={col.id} style={tdStyle} className={`py-3 px-4 ${col.className || ""} ${col.align === "right" ? "text-right" : ""}`}>
+                      <td key={col.id} style={cfg.getCellStyle(col.id, tdStyle)} className={`py-3 px-4 ${col.className || ""} ${col.align === "right" ? "text-right" : ""}`}>
                         {col.render(e)}
                       </td>
                     );
@@ -1727,15 +1756,23 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
             {totals.sumNetCents > 0 && (
               <tfoot>
                 <tr className="border-t-2 border-slate-300 bg-slate-50">
-                  <td colSpan={orderedColumns.findIndex(c => c.id === "netCents") + 1} className="py-3 px-4 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Total filtrado ({meta.total} registro{meta.total !== 1 ? "s" : ""})
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <span className={`text-sm font-bold ${type === "RECEIVABLE" ? "text-green-700" : "text-blue-700"}`}>
-                      {formatCurrency(totals.sumNetCents)}
-                    </span>
-                  </td>
-                  <td colSpan={orderedColumns.length - orderedColumns.findIndex(c => c.id === "netCents") - 1} />
+                  {netColIdx >= 0 ? (
+                    <>
+                      <td colSpan={netColIdx + 1} className="py-3 px-4 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        Total filtrado ({meta.total} registro{meta.total !== 1 ? "s" : ""})
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <span className={`text-sm font-bold ${type === "RECEIVABLE" ? "text-green-700" : "text-blue-700"}`}>
+                          {formatCurrency(totals.sumNetCents)}
+                        </span>
+                      </td>
+                      <td colSpan={visibleColumns.length - netColIdx - 1} />
+                    </>
+                  ) : (
+                    <td colSpan={visibleColumns.length + 1} className="py-3 px-4 text-right text-sm font-bold text-slate-700">
+                      Total filtrado ({meta.total} registro{meta.total !== 1 ? "s" : ""}): {formatCurrency(totals.sumNetCents)}
+                    </td>
+                  )}
                 </tr>
               </tfoot>
             )}
