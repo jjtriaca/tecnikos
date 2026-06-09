@@ -492,6 +492,7 @@ export class SefazDfeService implements OnModuleInit {
                       xmlContent: doc.xml,
                       emitterName: docData.emitterName || undefined,
                       nfeValue: docData.nfeValue || undefined,
+                      naturezaOperacao: docData.naturezaOperacao || undefined,
                       // NSU pode ter mudado tambem — atualiza pro mais recente
                       nsu: doc.nsu,
                     },
@@ -519,6 +520,7 @@ export class SefazDfeService implements OnModuleInit {
                 issueDate: docData.issueDate,
                 nfeValue: docData.nfeValue,
                 situacao: docData.situacao,
+                naturezaOperacao: docData.naturezaOperacao,
                 xmlContent: docData.schema === 'procNFe' ? doc.xml : null,
                 status: docData.schema === 'resEvento' ? 'EVENT' : 'FETCHED',
               },
@@ -529,6 +531,7 @@ export class SefazDfeService implements OnModuleInit {
                   xmlContent: doc.xml,
                   emitterName: docData.emitterName || undefined,
                   nfeValue: docData.nfeValue || undefined,
+                  naturezaOperacao: docData.naturezaOperacao || undefined,
                 }),
               },
               select: { id: true, status: true },
@@ -767,6 +770,7 @@ export class SefazDfeService implements OnModuleInit {
     let issueDate: Date | null = null;
     let nfeValue: number | null = null;
     let situacao: string | null = null;
+    let naturezaOperacao: string | null = null;
 
     // ── resNFe (summary) ───────────────────────────────────────────
     const resNFe = parsed.resNFe;
@@ -807,6 +811,7 @@ export class SefazDfeService implements OnModuleInit {
         const vNF = infNFe.total?.ICMSTot?.vNF;
         nfeValue = vNF ? Math.round(parseFloat(String(vNF)) * 100) : null;
         situacao = '1'; // Authorized (since it's in procNFe)
+        naturezaOperacao = ide?.natOp != null ? String(ide.natOp) : null;
       }
     }
 
@@ -837,6 +842,7 @@ export class SefazDfeService implements OnModuleInit {
       issueDate,
       nfeValue,
       situacao: situacao || null,
+      naturezaOperacao: naturezaOperacao || null,
     };
   }
 
@@ -974,6 +980,7 @@ export class SefazDfeService implements OnModuleInit {
           issueDate: true,
           nfeValue: true,
           situacao: true,
+          naturezaOperacao: true,
           nfeImportId: true,
           status: true,
           manifestType: true,

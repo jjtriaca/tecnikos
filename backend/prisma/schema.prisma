@@ -1391,6 +1391,7 @@ model SefazDocument {
   issueDate    DateTime?
   nfeValue     Int? // Valor total em centavos
   situacao     String? // 1=Autorizada, 2=Denegada, 3=Cancelada
+  naturezaOperacao String? // <natOp> do XML (procNFe): venda / entrega futura / remessa
   xmlContent   String? // XML descomprimido completo
   nfeImportId  String? // Vínculo com NfeImport quando processado
   status       String    @default("FETCHED") // FETCHED | IMPORTED | IGNORED | EVENT

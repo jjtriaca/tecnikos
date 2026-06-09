@@ -167,6 +167,7 @@ interface SefazDocument {
   issueDate: string | null;
   nfeValue: number | null;
   situacao: string | null;
+  naturezaOperacao: string | null;
   status: "FETCHED" | "IMPORTED" | "IGNORED" | "EVENT";
   nfeImportId: string | null;
   manifestType: string | null;
@@ -436,6 +437,15 @@ const SEFAZ_COLUMNS: ColumnDefinition<SefazDocument>[] = [
     render: (doc) => <SituacaoBadge situacao={doc.situacao} />,
   },
   {
+    id: "naturezaOperacao",
+    label: "Natureza da Operacao",
+    render: (doc) => (
+      <span className="text-xs text-slate-700 leading-tight" title={doc.naturezaOperacao || ""}>
+        {doc.naturezaOperacao || "\u2014"}
+      </span>
+    ),
+  },
+  {
     id: "status",
     label: "Status",
     align: "center",
@@ -692,6 +702,8 @@ export default function NfePage() {
 
   // Step 4 - finance
   const [createFinancialEntry, setCreateFinancialEntry] = useState(true);
+  const [processNatOp, setProcessNatOp] = useState<string | null>(null);
+  const [cienteRemessa, setCienteRemessa] = useState(false);
   const [financeDueDate, setFinanceDueDate] = useState("");
   const [financePaymentMethod, setFinancePaymentMethod] = useState("");
   const [financePaymentInstrumentId, setFinancePaymentInstrumentId] = useState("");
@@ -899,7 +911,7 @@ export default function NfePage() {
     }
   }
 
-  async function handleImportDoc(docId: string) {
+  async function handleImportDoc(docId: string, naturezaOperacao?: string | null) {
     setImportingDocId(docId);
     try {
       const result = await api.post<NfeImport>(`/nfe/sefaz/documents/${docId}/import`);
@@ -923,7 +935,12 @@ export default function NfePage() {
         })
       );
       setProductLookupItem(null);
-      setCreateFinancialEntry(true);
+      // Remessa (ex: remessa de entrega futura) NAO gera financeiro por padrao — o valor
+      // ja foi lancado nas notas de faturamento; criar aqui duplicaria o A Pagar.
+      const isRemessaImport = /REMESSA/i.test(naturezaOperacao || "");
+      setProcessNatOp(naturezaOperacao || null);
+      setCienteRemessa(false);
+      setCreateFinancialEntry(!isRemessaImport);
       setFinanceDueDate(result.issueDate ? result.issueDate.split("T")[0] : "");
       setFinancePaymentMethod("");
       setFinancePaymentInstrumentId("");
@@ -1667,7 +1684,7 @@ export default function NfePage() {
                             <td key="actions" style={tdStyle} className="py-2 px-2" onClick={(e) => e.stopPropagation()}>
                               <ActionsMenu
                                 items={[
-                                  canImport && { label: "Importar", onClick: () => handleImportDoc(doc.id), variant: "success", disabled: isBusy },
+                                  canImport && { label: "Importar", onClick: () => handleImportDoc(doc.id, doc.naturezaOperacao), variant: "success", disabled: isBusy },
                                   canIgnore && { label: "Ignorar", onClick: () => handleIgnoreDoc(doc.id), variant: "default", disabled: isBusy },
                                   canInitialManifest && { label: "Ciencia da Operação", onClick: () => handleManifestDoc(doc.id, "ciencia"), variant: "info", disabled: isBusy, divider: true },
                                   canInitialManifest && { label: "Confirmação da Operação", onClick: () => handleManifestDoc(doc.id, "confirmacao"), variant: "success", disabled: isBusy },
@@ -2619,6 +2636,15 @@ export default function NfePage() {
                       </div>
                     </div>
 
+                    {/REMESSA/i.test(processNatOp || "") && !createFinancialEntry && (
+                      <label className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-4 cursor-pointer">
+                        <input type="checkbox" checked={cienteRemessa} onChange={(e) => setCienteRemessa(e.target.checked)} className="mt-0.5 h-4 w-4" />
+                        <span className="text-xs text-amber-900 leading-snug">
+                          <strong>Nota de remessa ({processNatOp}).</strong> O financeiro fica desmarcado porque o valor normalmente ja foi lancado nas notas de faturamento (entrega futura) — criar aqui duplicaria o A Pagar. Marque para importar so o registro fiscal, ou ligue o financeiro acima.
+                        </span>
+                      </label>
+                    )}
+
                     {/* Duplicatas or manual due date (only if creating entry) */}
                     {createFinancialEntry && (
                       <>
@@ -2811,7 +2837,7 @@ export default function NfePage() {
                     </button>
                     <button
                       onClick={() => setStep(5)}
-                      disabled={createFinancialEntry && ((!financePaymentMethod && !financePaymentInstrumentId) || !financeAccountId)}
+                      disabled={(createFinancialEntry && ((!financePaymentMethod && !financePaymentInstrumentId) || !financeAccountId)) || (/REMESSA/i.test(processNatOp || "") && !createFinancialEntry && !cienteRemessa)}
                       className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Proximo

@@ -1,5 +1,19 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.13.31 (08/06) — Tubulação Bomba de Calor: PONTO DE OPERAÇÃO + tubo 50mm. Doc: [memory/pool_pump_ponto_operacao.md]
+## - **Auto-pick do tubo: alvo < 2,0 m/s** (era 2,5, herdado do solar) → 8 m³/h vai pro 50mm (1,46) em vez de 40mm (2,28). `pickOptimalDiameter(...,maxVelocidadeMs)`; trocador passa 2,0 (HARDCODED_DEFAULTS, configurável via pipeDefaults). pipe-head-loss.service.
+## - **Seleção da bomba pelo PONTO DE OPERAÇÃO** (curva da bomba × resistência do tubo K·v², K=perda/vazãoProjeto²) — `pumpOperatingPoint` NOVO em auto-select.helper; trocador injeta `frictionKResist` no baseVars (solar-budget); extractCandidateSpecs/map usam OP quando frictionKResist>0; **SOLAR INTOCADO** (não passa K → segue na altura estática, circuito aberto). Acabou o "13,44 m³/h na altura fixa" e o absurdo 13/33 mca→1,5 cv. Verificado prod ORCP-00004: 50mm auto + 1/2 cv = 10,1 m³/h real (na faixa 8-10).
+## - **Default sem válvula de retenção** no trocador (valvulaQty 1→0).
+## - **ORDENAÇÃO MANTIDA `vazaoM3h asc`** (decisão usuário "manter como está") → #1 ainda = Syllent 1,5 cv (alta-pressão/baixa-vazão 8,3). LISTA mostra vazões reais (1/2 cv #3 a 10,1) — escolher na lista ou trocar regra→`potenciaCv asc` no ⚙. trocadorBombaRule.orderBy NÃO alterado.
+## - 🟡 PENDENTE (usuário levantou): perdas de conexões AJUSTÁVEIS — Cepex/Tigre plásticas perdem menos que tabela Solis (válvula ret 7,1m@50mm≈K3,2; real plástica ~3-5m). + fator evaporação capa (36%/0,6375) ajustável. Ambos = "tornar configurável, default atual mantido".
+
+## ✅ DEPLOYED v1.13.30 (08/06) — COP da bomba de calor por TEMPERATURA + display honesto + Fase 1a X/Y/T
+## - **COP por temperatura:** `copAt50ForTemp(tempAr, air15, air26)` interpola a âncora copAt50 pela temp do ar de cada mês (15→26°C) no computeMonthlyConsumption; copEstimated = na temp MÉDIA local. heating.service.
+## - **ACHADO CHAVE:** o consumo NUNCA usou "15°C COP 7" — usa o POLINÔMIO A/B/C cadastrado (COP ~10-13, JÁ apropriado pro clima). O "7" era só RÓTULO (copEstimated/rodapé "ar 15°C"). Consumo NÃO caiu (já estava certo p/ Primavera ~23°C); o fix corrigiu o DISPLAY (copEstimated 7→11,9, bate com o polinômio). Validado prod ORCP-00001: annualKwh igual, copEstimated 7→11,9. (O "−18,6%" que prometi era vs fórmula linear simplificada, NÃO o polinômio que a prod usa — engano meu.)
+## - **Display honesto:** chip "Inverno 50%" sem "✓"/ring; nova linha "COP efetivo no clima local: X"; rodapé "COP ajustado pela temperatura média de cada mês". HeatingSimulatorModal.
+## - **Fase 1a X/Y/T:** consumo separado bomba de calor + recirculação + total (cards) via onConsumoChange no TrocadorPumpPipeCard.
+## - DECISÕES do usuário: capa = tornar ajustável (default 36% mantido); COP = só temperatura (sem modelo unificado, que SUBIRIA o consumo).
+
 ## 🔧 ABA BOMBA DE CALOR (Simulador de Aquecimento) — espelhando o layout do Solar
 ## - v1.13.28: layout reestruturado — esq (col-5): KPIs + cards de Extras (Cascata/SPA/Borda); dir (col-7 flex): Equipamento + Tubulação + Bomba de recirculação empilhados; REMOVIDA a tabela "Perda térmica mensal" da área de dimensionamento. Grid igual Solar.
 ## - v1.13.29: tubulação default 30/4 nas 2 abas (Solar+Bomba) + auto-recalc no 1º acesso; template "Bomba de circulação (Bomba de Calor)" com TOLERÂNCIA editável na fórmula (`vazão ≥ mín×0,9 && ≤ máx×1,5` — antes estrito `≥ mín`, e nenhuma bomba atendia 24 m³/h); reword "X candidata(s) atendem · 1 selecionada". `vazaoSolarM3h` na bomba = valor certo (24), só nome herdado do motor compartilhado.
