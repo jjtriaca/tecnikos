@@ -2447,36 +2447,31 @@ function CardInvoiceMatchModal({
               </div>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-medium text-slate-600 mb-1">De</label>
-              <input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-medium text-slate-600 mb-1">Ate</label>
-              <input
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-sm focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none"
-              />
-            </div>
+          {/* Datas compactas (apos os cartoes) + Novo lancamento como link */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <label className="text-[11px] font-medium text-slate-600">De</label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="w-36 rounded border border-slate-300 px-2 py-1 text-xs focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none"
+            />
+            <label className="text-[11px] font-medium text-slate-600">Ate</label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="w-36 rounded border border-slate-300 px-2 py-1 text-xs focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none"
+            />
+            {/* v1.10.75 — cria entry sem fechar o modal (defaults: cartao da fatura, data no range) */}
+            <button
+              type="button"
+              onClick={() => setShowNewEntry(true)}
+              className="ml-auto text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline"
+            >
+              + Novo lancamento
+            </button>
           </div>
-          {/* v1.10.75 — Botao "Novo lancamento" inline: cria entry sem fechar o modal de conciliacao.
-              Defaults inteligentes (cartao da fatura, data dentro do range) garantem que entry
-              aparece nos candidates apos save. */}
-          <button
-            type="button"
-            onClick={() => setShowNewEntry(true)}
-            className="w-full rounded-lg border-2 border-dashed border-rose-300 px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 hover:border-rose-400 transition-colors"
-          >
-            + Novo lancamento (sem fechar essa tela)
-          </button>
         </div>
 
         {/* Lista de candidatos */}
@@ -2697,31 +2692,18 @@ function CardInvoiceMatchModal({
           )}
         </div>
 
-        {/* Resumo e soma */}
-        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50">
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div>
-              <p className="text-[10px] text-slate-500 uppercase">Selecionados</p>
-              <p className="text-sm font-bold text-slate-800">{selectedEntryIds.size}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-500 uppercase">Soma</p>
-              <p className="text-sm font-bold text-slate-800">{formatCurrency(selectedTotal)}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-500 uppercase">Diferenca</p>
-              <p className={`text-sm font-bold ${matches && selectedEntryIds.size > 0 ? "text-green-700" : "text-red-600"}`}>
-                {diff === 0 ? "R$ 0,00 \u2713" : formatCurrency(diff)}
-              </p>
-            </div>
-          </div>
-          {!matches && selectedEntryIds.size > 0 && (
-            <p className="text-[11px] text-center text-red-600 mt-2">
-              {diff > 0
-                ? `Faltam ${formatCurrency(diff)} — selecione mais compras.`
-                : `Excede em ${formatCurrency(-diff)} — remova alguma(s).`}
-            </p>
-          )}
+        {/* Resumo e soma — linha unica compacta (a Diferenca ja diz se falta/excede) */}
+        <div className="px-5 py-1.5 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 text-xs">
+          <span className="text-slate-500">Selecionados <b className="text-slate-800">{selectedEntryIds.size}</b></span>
+          <span className="text-slate-300">&middot;</span>
+          <span className="text-slate-500">Soma <b className="text-slate-800">{formatCurrency(selectedTotal)}</b></span>
+          <span className="text-slate-300">&middot;</span>
+          <span className="text-slate-500">
+            Diferenca{" "}
+            <b className={matches && selectedEntryIds.size > 0 ? "text-green-700" : "text-red-600"}>
+              {diff === 0 ? "R$ 0,00 ✓" : formatCurrency(diff)}
+            </b>
+          </span>
         </div>
 
         {/* Observacao */}
