@@ -343,6 +343,14 @@ export class FinanceController {
     return this.reconciliationService.getStatementBalanceCompare(statementId, user.companyId);
   }
 
+  // Saude financeira (guardrails): detecta trafego no transito fora de zero, pago sem conta,
+  // importacao duplicada. Somente leitura. Ver memory/plano_setup_financeiro_robusto.md.
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('reconciliation/health')
+  getFinancialHealth(@CurrentUser() user: AuthenticatedUser) {
+    return this.reconciliationService.getFinancialHealth(user.companyId);
+  }
+
   // Define manualmente o saldo oficial do banco (caso o OFX antigo nao tenha LEDGERBAL).
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
   @Patch('reconciliation/statements/:statementId/balance')

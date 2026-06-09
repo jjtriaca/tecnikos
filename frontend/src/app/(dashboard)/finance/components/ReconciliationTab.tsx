@@ -3841,6 +3841,7 @@ function StatementsSection() {
   const [statements, setStatements] = useState<BankStatement[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedStatement, setSelectedStatement] = useState<BankStatement | null>(null);
+  const [health, setHealth] = useState<{ ok: boolean; warnings: { level: string; text: string }[] } | null>(null);
 
   const loadStatements = useCallback(async () => {
     try {
@@ -3848,6 +3849,9 @@ function StatementsSection() {
       setStatements(result);
       // Keep the currently selected statement in sync with refreshed data (counts may change)
       setSelectedStatement((prev) => prev ? result.find((s) => s.id === prev.id) || null : null);
+      // Saude financeira (guardrails) — recarrega junto com os extratos (mount + apos conciliar)
+      api.get<{ ok: boolean; warnings: { level: string; text: string }[] }>("/finance/reconciliation/health")
+        .then(setHealth).catch(() => setHealth(null));
     } catch {
       /* ignore */
     } finally {
@@ -3878,6 +3882,14 @@ function StatementsSection() {
 
   return (
     <div>
+      {health && !health.ok && health.warnings.length > 0 && (
+        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3">
+          <p className="text-sm font-semibold text-amber-900 mb-1">&#9888; Saúde financeira — atenção</p>
+          <ul className="space-y-0.5 text-xs text-amber-800 list-disc list-inside">
+            {health.warnings.map((w, i) => (<li key={i}>{w.text}</li>))}
+          </ul>
+        </div>
+      )}
       <h3 className="text-sm font-semibold text-slate-700 mb-3">Extratos mensais</h3>
 
       {loading ? (

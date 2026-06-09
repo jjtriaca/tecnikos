@@ -48,6 +48,12 @@
 5. **Reverter IMEDIATAMENTE** se algum saldo quebrar — nao tentar "consertar o conserto"
 6. **Toda movimentacao entre contas** deve ter AccountTransfer com transferDate (balance-compare depende disso)
 
+### Conciliacao de fatura de cartao — sinal do credito (NUNCA INVERTER):
+- Na conciliacao de fatura de cartao (`reconciliation.service.matchAsCardInvoice` + query de candidatas + `selectedTotal` no front), **RECEIVABLE = credito/ajuste que SUBTRAI** da soma da fatura e CREDITA o cartao; PAYABLE = compra que soma/debita.
+- Convencao unica: **`signedAmount = (type === 'RECEIVABLE' ? -1 : 1) * netCents`**. Usar IGUAL em `entriesTotal` (backend), `selectedTotal` (front) E no loop de saldo (`decrement: amount`). Inverter o sinal = credito vira debito = **saldo do cartao quebra**.
+- O usuario lanca o credito com **valor POSITIVO** (Tipo "Credito / Receita de ajuste"); o sinal e interno — NUNCA pedir valor negativo (UX: "ninguem se toca de lancar negativo").
+- Saldo correto traçado: zero no cartao + banco -fatura. Ver `memory/conciliacao-fatura-cartao-credito-ajuste.md` (mecanismo completo: splitter saldo-neutro + credito/ajuste).
+
 ### Timezone (regra de ouro):
 - **USAR SEMPRE** os helpers de `backend/src/common/util/tenant-date.util.ts`:
   - `tenantNoon(year, month, day)` pra criar dates financeiras

@@ -355,6 +355,58 @@ export class ReconciliationService {
    *
    * Assim o sinal do saldo_sistema bate com banco (positivo = dinheiro em conta).
    */
+  /**
+   * Saude financeira do tenant — checks SOMENTE LEITURA pra detectar furos cedo (guardrails).
+   * NAO altera saldo. Ver memory/plano_setup_financeiro_robusto.md.
+   */
+  async getFinancialHealth(companyId: string) {
+    // 1. Contas de passagem (TRANSITO) fora de zero — devem tender a zero
+    const transitAccounts = await this.prisma.cashAccount.findMany({
+      where: { companyId, deletedAt: null, type: 'TRANSITO' },
+      select: { id: true, name: true, currentBalanceCents: true },
+    });
+    const transitOff = transitAccounts
+      .filter((a) => a.currentBalanceCents !== 0)
+      .map((a) => ({ id: a.id, name: a.name, balanceCents: a.currentBalanceCents }));
+
+    // 2. Lancamentos PAGOS sem conta de destino (furo de roteamento — caem "no nada")
+    const paidWithoutAccount = await this.prisma.financialEntry.count({
+      where: { companyId, deletedAt: null, status: 'PAID', cashAccountId: null },
+    });
+
+    // 3. Importacoes NFe em duplicidade (mesma chave NFe)
+    const dupGroups = await this.prisma.nfeImport.groupBy({
+      by: ['nfeKey'],
+      where: { companyId, nfeKey: { not: null } },
+      _count: { _all: true },
+      having: { nfeKey: { _count: { gt: 1 } } },
+    });
+    const duplicateImports = dupGroups.length;
+
+    const warnings: { level: string; text: string }[] = [];
+    if (transitOff.length > 0) {
+      const total = transitOff.reduce((s, a) => s + a.balanceCents, 0);
+      warnings.push({
+        level: 'warn',
+        text: `Conta de passagem/transito fora de zero (total R$ ${(total / 100).toFixed(2).replace('.', ',')}). Pode ser conciliacao em andamento; se persistir, ha lancamento sem baixa.`,
+      });
+    }
+    if (paidWithoutAccount > 0) {
+      warnings.push({
+        level: 'warn',
+        text: `${paidWithoutAccount} lancamento(s) PAGO(s) sem conta de destino (furo de roteamento).`,
+      });
+    }
+    if (duplicateImports > 0) {
+      warnings.push({
+        level: 'warn',
+        text: `${duplicateImports} nota(s) importada(s) em duplicidade (mesma chave NFe).`,
+      });
+    }
+
+    return { ok: warnings.length === 0, warnings, transitOff, paidWithoutAccount, duplicateImports };
+  }
+
   async getStatementBalanceCompare(statementId: string, companyId: string) {
     const statement = await this.prisma.bankStatement.findFirst({
       where: { id: statementId, companyId },
