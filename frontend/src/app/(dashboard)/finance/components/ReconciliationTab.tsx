@@ -2893,9 +2893,7 @@ function CardInvoiceMatchModal({
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none bg-white"
               >
                 <option value="">Selecione...</option>
-                {financialAccounts.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
+                {renderAccountOptions(financialAccounts)}
               </select>
             </div>
             <div>
