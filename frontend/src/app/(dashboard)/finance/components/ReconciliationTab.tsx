@@ -2089,6 +2089,7 @@ interface CardInvoiceEntry {
   paidAt: string | null;
   dueDate: string | null;
   status?: string | null;
+  type?: "PAYABLE" | "RECEIVABLE";
   cashAccountId: string | null;
   paymentInstrumentId: string | null;
   invoiceMatchLineId: string | null;
@@ -2140,6 +2141,7 @@ function CardInvoiceMatchModal({
     paymentInstrumentId: "",
     purchaseDate: "",
     isInvoiceCharge: false,
+    kind: "EXPENSE" as "EXPENSE" | "CREDIT",
   });
   const [newEntryPartner, setNewEntryPartner] = useState<PartnerSummary | null>(null);
   const [newEntryDuplicates, setNewEntryDuplicates] = useState<Array<{
@@ -2252,7 +2254,7 @@ function CardInvoiceMatchModal({
   }, [showNewEntry, newEntryForm.grossCents]);
 
   function resetNewEntryForm() {
-    setNewEntryForm({ description: "", grossCents: "", notes: "", financialAccountId: "", paymentInstrumentId: "", purchaseDate: "", isInvoiceCharge: false });
+    setNewEntryForm({ description: "", grossCents: "", notes: "", financialAccountId: "", paymentInstrumentId: "", purchaseDate: "", isInvoiceCharge: false, kind: "EXPENSE" });
     setNewEntryPartner(null);
     setNewEntryDuplicates([]);
     setNewEntryDuplicatesTotal(0);
@@ -2277,7 +2279,7 @@ function CardInvoiceMatchModal({
     setNewEntrySaving(true);
     try {
       const created = await api.post<{ id: string }>("/finance/entries", {
-        type: "PAYABLE",
+        type: newEntryForm.kind === "CREDIT" ? "RECEIVABLE" : "PAYABLE",
         partnerId: newEntryPartner.id,
         description: newEntryForm.description || undefined,
         grossCents: cents,
@@ -2310,7 +2312,8 @@ function CardInvoiceMatchModal({
 
   const lineAbs = Math.abs(line.amountCents);
   const selectedEntries = candidates.filter((e) => selectedEntryIds.has(e.id));
-  const selectedTotal = selectedEntries.reduce((acc, e) => acc + (e.netCents || e.grossCents || 0), 0);
+  // RECEIVABLE (credito/ajuste de fatura) entra com sinal negativo — subtrai da soma (igual ao backend).
+  const selectedTotal = selectedEntries.reduce((acc, e) => acc + ((e.type === "RECEIVABLE" ? -1 : 1) * (e.netCents || e.grossCents || 0)), 0);
   const diff = lineAbs - selectedTotal;
   const matches = Math.abs(diff) <= 1;
 
@@ -2553,6 +2556,9 @@ function CardInvoiceMatchModal({
                               Parcela {entry.description.match(/Parcela (\d+\/\d+)/)?.[1]}
                             </span>
                           )}
+                          {entry.type === "RECEIVABLE" && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-semibold whitespace-nowrap">credito</span>
+                          )}
                           {entry.isInvoiceCharge && (
                             <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-semibold">encargo</span>
                           )}
@@ -2658,6 +2664,9 @@ function CardInvoiceMatchModal({
                                 Parcela {entry.description.match(/Parcela (\d+\/\d+)/)?.[1]}
                               </span>
                             )}
+                            {entry.type === "RECEIVABLE" && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-semibold whitespace-nowrap">credito</span>
+                            )}
                             {entry.isInvoiceCharge && (
                               <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-semibold">encargo</span>
                             )}
@@ -2746,7 +2755,7 @@ function CardInvoiceMatchModal({
       <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
         <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
           <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between">
-            <h3 className="text-base font-semibold text-slate-900">Novo lancamento — A Pagar (cartao)</h3>
+            <h3 className="text-base font-semibold text-slate-900">Novo lancamento — {newEntryForm.kind === "CREDIT" ? "Credito / Ajuste" : "A Pagar"} (cartao)</h3>
             <button
               onClick={() => { setShowNewEntry(false); resetNewEntryForm(); }}
               className="text-slate-600 hover:text-slate-600 text-xl leading-none"
@@ -2755,6 +2764,23 @@ function CardInvoiceMatchModal({
             </button>
           </div>
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+            {/* Tipo: Despesa (soma na fatura) ou Credito/Receita de ajuste (subtrai) */}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setNewEntryForm({ ...newEntryForm, kind: "EXPENSE", isInvoiceCharge: false })}
+                className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${newEntryForm.kind === "EXPENSE" ? "border-rose-400 bg-rose-50 text-rose-700" : "border-slate-300 text-slate-500 hover:bg-slate-100"}`}
+              >
+                Despesa (soma na fatura)
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewEntryForm({ ...newEntryForm, kind: "CREDIT", isInvoiceCharge: false })}
+                className={`flex-1 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${newEntryForm.kind === "CREDIT" ? "border-emerald-400 bg-emerald-50 text-emerald-700" : "border-slate-300 text-slate-500 hover:bg-slate-100"}`}
+              >
+                Crédito / Receita de ajuste (subtrai)
+              </button>
+            </div>
             <LookupField
               label="Parceiro *"
               placeholder="Selecione um parceiro"

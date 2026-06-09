@@ -1192,7 +1192,9 @@ export class ReconciliationService {
       deletedAt: null,
       // PAID (historico), PENDING/CONFIRMED (nao pago ainda — sera auto-pago ao conciliar)
       status: { in: ['PAID', 'PENDING', 'CONFIRMED'] },
-      type: 'PAYABLE',
+      // v1.13.x: alem das compras (PAYABLE), traz creditos/ajustes do cartao (RECEIVABLE) —
+      // ex: desconto/estorno de centavo. No total e no saldo eles SUBTRAEM (sinal abaixo).
+      type: { in: ['PAYABLE', 'RECEIVABLE'] },
       AND: [
         {
           OR: [
@@ -1254,6 +1256,7 @@ export class ReconciliationService {
         paidAt: true,
         dueDate: true,
         status: true,
+        type: true,
         isRefundEntry: true,
         isInvoiceCharge: true,
         paymentInstrumentId: true,
@@ -1413,7 +1416,10 @@ export class ReconciliationService {
       }
     }
 
-    const entriesTotal = entries.reduce((acc, e) => acc + (e.netCents || e.grossCents || 0), 0);
+    // RECEIVABLE (credito/ajuste) entra com sinal NEGATIVO — reduz a soma da fatura.
+    const signedAmount = (e: { type: string; netCents: number | null; grossCents: number | null }) =>
+      (e.type === 'RECEIVABLE' ? -1 : 1) * (e.netCents || e.grossCents || 0);
+    const entriesTotal = entries.reduce((acc, e) => acc + signedAmount(e), 0);
     const lineAbs = Math.abs(line.amountCents);
     const diff = Math.abs(entriesTotal - lineAbs);
     // Tolerancia de 1 centavo (arredondamento)
@@ -1452,7 +1458,8 @@ export class ReconciliationService {
       const creditByAccount = new Map<string, number>();
 
       for (const e of entries) {
-        const amount = e.netCents || e.grossCents || 0;
+        // Sinalizado: PAYABLE soma/debita o cartao; RECEIVABLE (credito) subtrai/credita.
+        const amount = signedAmount(e);
         const destAccountId = resolveDestAccount(e);
 
         const entryUpdate: Record<string, unknown> = { invoiceMatchLineId: lineId };
