@@ -2548,6 +2548,11 @@ function CardInvoiceMatchModal({
                           <span className="text-sm font-medium text-slate-800 truncate">
                             {entry.partner?.name || entry.description || "—"}
                           </span>
+                          {entry.description?.match(/Parcela \d+\/\d+/) && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-semibold whitespace-nowrap">
+                              Parcela {entry.description.match(/Parcela (\d+\/\d+)/)?.[1]}
+                            </span>
+                          )}
                           {entry.isInvoiceCharge && (
                             <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-semibold">encargo</span>
                           )}
@@ -2648,6 +2653,11 @@ function CardInvoiceMatchModal({
                             <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-200 text-amber-900 font-semibold">
                               fatura seguinte
                             </span>
+                            {entry.description?.match(/Parcela \d+\/\d+/) && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-semibold whitespace-nowrap">
+                                Parcela {entry.description.match(/Parcela (\d+\/\d+)/)?.[1]}
+                              </span>
+                            )}
                             {entry.isInvoiceCharge && (
                               <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-semibold">encargo</span>
                             )}
