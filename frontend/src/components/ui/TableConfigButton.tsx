@@ -54,7 +54,7 @@ export default function TableConfigButton({ columns, cfg }: Props) {
         onClick={() => setOpen(true)}
         title="Configurar tabela (so esta aba)"
         aria-label="Configurar tabela"
-        className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-base leading-none transition-colors ${
+        className={`relative flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs leading-none transition-colors ${
           cfg.isCustomized
             ? "border-blue-400 bg-blue-50 text-blue-700"
             : "border-slate-300 text-slate-600 hover:bg-slate-100"
@@ -62,7 +62,7 @@ export default function TableConfigButton({ columns, cfg }: Props) {
       >
         <span aria-hidden>&#9881;</span>
         {cfg.isCustomized && (
-          <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-blue-500" />
+          <span className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-blue-500" />
         )}
       </button>
 
