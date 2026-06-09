@@ -56,6 +56,7 @@ export interface FinancialEntry {
   // v1.01 — Instrumento de Pagamento
   paymentInstrumentId?: string | null;
   paymentInstrumentRef?: PaymentInstrument | null;
+  cardBillingDate?: string | null;
 
   // Conciliacao bancaria (v1.08.95 + v1.10.72)
   invoiceMatchLineId?: string | null;

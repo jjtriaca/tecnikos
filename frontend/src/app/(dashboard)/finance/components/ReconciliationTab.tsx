@@ -2402,7 +2402,7 @@ function CardInvoiceMatchModal({
     <>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl flex flex-col max-h-[90vh]">
-        <div className="px-5 py-4 border-b border-slate-200">
+        <div className="px-5 py-3 border-b border-slate-200">
           <h3 className="text-base font-semibold text-rose-700">&#128179; Conciliar fatura de cartao</h3>
           <p className="text-xs text-slate-500 mt-1">
             Selecione o(s) cartao(oes) e as compras que compoem esta fatura. A soma precisa bater com o valor do extrato.
@@ -2410,7 +2410,7 @@ function CardInvoiceMatchModal({
         </div>
 
         {/* Linha do extrato */}
-        <div className="px-5 py-3 bg-rose-50/50 border-b border-slate-200">
+        <div className="px-5 py-2 bg-rose-50/50 border-b border-slate-200">
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-slate-800 truncate">{line.description}</p>
@@ -2424,7 +2424,7 @@ function CardInvoiceMatchModal({
         </div>
 
         {/* Filtros */}
-        <div className="px-5 py-3 border-b border-slate-200 space-y-3">
+        <div className="px-5 py-2 border-b border-slate-200 space-y-2">
           <div>
             <label className="block text-[11px] font-medium text-slate-600 mb-1.5">Cartões que compoem a fatura</label>
             {instruments.length === 0 ? (
@@ -2564,6 +2564,7 @@ function CardInvoiceMatchModal({
                           )}
                         </div>
                         <div className="flex items-center gap-3 mt-0.5 text-[11px] text-slate-500 flex-wrap">
+                          {entry.cardBillingDate && <span className="text-rose-600 font-medium">Ciclo: {formatDate(entry.cardBillingDate)}</span>}
                           {entry.paidAt && <span>Pago: {formatDate(entry.paidAt)}</span>}
                           {!entry.paidAt && entry.dueDate && <span>Vence: {formatDate(entry.dueDate)}</span>}
                           {entry.paymentInstrumentRef && (

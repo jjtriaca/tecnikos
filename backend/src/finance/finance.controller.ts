@@ -24,6 +24,7 @@ import { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '@prisma/client';
 import { CreateFinancialEntryDto, UpdateFinancialEntryDto, ChangeEntryStatusDto } from './dto/financial-entry.dto';
 import { GenerateInstallmentsDto } from './dto/generate-installments.dto';
+import { SplitCardEntryDto } from './dto/split-card-entry.dto';
 import { RenegotiateDto } from './dto/renegotiate.dto';
 import { CreateCollectionRuleDto, UpdateCollectionRuleDto } from './dto/collection-rule.dto';
 import { CreatePaymentMethodDto, UpdatePaymentMethodDto } from './dto/payment-method.dto';
@@ -785,6 +786,18 @@ export class FinanceController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.installmentService.generateInstallments(id, user.companyId, dto);
+  }
+
+  // Divide um lancamento de cartao JA PAGO em N parcelas (1 por ciclo de fatura), saldo-neutro.
+  // dryRun=true simula sem gravar. Diferente de /installments (que so aceita pendente).
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('entries/:id/split-card')
+  splitPaidCardEntry(
+    @Param('id') id: string,
+    @Body() dto: SplitCardEntryDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.installmentService.splitPaidCardEntry(id, user.companyId, dto);
   }
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)

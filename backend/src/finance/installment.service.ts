@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
 import { GenerateInstallmentsDto } from './dto/generate-installments.dto';
+import { SplitCardEntryDto } from './dto/split-card-entry.dto';
 
 /**
  * InstallmentService — arquitetura pos-refactor (v1.09.99):
@@ -79,6 +80,12 @@ export class InstallmentService {
             paymentInstrumentId: pai.paymentInstrumentId,
             financialAccountId: pai.financialAccountId,
             cashAccountId: pai.cashAccountId,
+            // Parcela de CARTAO cai na fatura do ciclo seguinte (mae + i meses). A conciliacao
+            // de fatura filtra candidatas por cardBillingDate, entao cada parcela aparece na
+            // fatura certa. So aplica quando a mae e cartao (tem cardBillingDate); senao undefined.
+            cardBillingDate: pai.cardBillingDate
+              ? new Date(pai.cardBillingDate.getFullYear(), pai.cardBillingDate.getMonth() + i, pai.cardBillingDate.getDate(), 12, 0, 0)
+              : undefined,
             nfseStatus: pai.nfseStatus,
             nfseEmissionId: pai.nfseEmissionId,
             interestType: dto.interestType || pai.interestType || 'SIMPLE',
@@ -112,6 +119,169 @@ export class InstallmentService {
           penaltyFixedCents: dto.penaltyFixedCents ?? pai.penaltyFixedCents,
           notes: notesFormatado,
         },
+      });
+    });
+
+    return this.getInstallments(entryId, companyId);
+  }
+
+  /**
+   * Divide um lancamento de CARTAO JA PAGO em N parcelas, uma por ciclo de fatura.
+   *
+   * Diferente de generateInstallments (so PENDENTE -> filhas PENDENTES): aceita PAGO e cria
+   * filhas PAGAS com cardBillingDate por ciclo (ciclo do pai + i meses), preservando o vinculo
+   * do cartao — pra cada parcela cair na fatura certa na conciliacao de fatura.
+   *
+   * SALDO (exato, net ZERO): reverte o delta que o pai aplicou ao ser pago (PAYABLE: +netCents,
+   * espelha o estorno provado em finance.service ~L1141) e aplica o delta de cada filha
+   * (PAYABLE: -valor, convencao auto-pay payment-instrument.service L146). Como a soma das
+   * filhas == total do pai, na MESMA conta e MESMA data paidAt, o impacto liquido e exatamente
+   * zero — a conferencia de saldo de qualquer mes (inclusive fechado) continua identica.
+   *
+   * dryRun=true: retorna o plano (parcelas + ciclos + saldoNetCents) SEM gravar nada.
+   */
+  async splitPaidCardEntry(
+    entryId: string,
+    companyId: string,
+    dto: SplitCardEntryDto,
+  ) {
+    const count = Math.floor(Number(dto.count));
+    if (!count || count < 2) throw new BadRequestException('Informe ao menos 2 parcelas');
+    if (count > 36) throw new BadRequestException('Maximo de 36 parcelas');
+
+    const pai = await this.prisma.financialEntry.findFirst({
+      where: { id: entryId, companyId, deletedAt: null },
+    });
+    if (!pai) throw new NotFoundException('Lancamento nao encontrado');
+    if (pai.status !== 'PAID') {
+      throw new BadRequestException(
+        'Este metodo divide lancamentos de cartao JA PAGOS. Para lancamentos pendentes, use "Parcelar".',
+      );
+    }
+    if (!pai.cardBillingDate) {
+      throw new BadRequestException(
+        'Lancamento nao tem ciclo de fatura (cardBillingDate) — nao parece ser de cartao.',
+      );
+    }
+    if (!pai.cashAccountId) {
+      throw new BadRequestException('Lancamento sem conta de saldo vinculada.');
+    }
+    if (pai.invoiceMatchLineId) {
+      throw new BadRequestException(
+        'Lancamento ja esta conciliado em uma fatura. Desconcilie antes de dividir.',
+      );
+    }
+    const existentes = await this.prisma.financialEntry.count({
+      where: { parentEntryId: entryId, deletedAt: null },
+    });
+    if (existentes > 0) throw new BadRequestException('Lancamento ja foi dividido/parcelado.');
+    const settlements = await this.prisma.cardSettlement.count({
+      where: { financialEntryId: entryId },
+    });
+    if (settlements > 0) {
+      throw new BadRequestException(
+        'Lancamento tem repasse de cartao (settlement) — divida manualmente para nao afetar o repasse.',
+      );
+    }
+
+    // Plano: divide igual, sobra de centavos na ultima parcela. Ciclo = ciclo do pai + i meses.
+    const base = Math.floor(pai.netCents / count);
+    const remainder = pai.netCents - base * count;
+    const cbdPai = pai.cardBillingDate;
+    const plano = Array.from({ length: count }, (_, i) => ({
+      parcela: i + 1,
+      valorCents: i === count - 1 ? base + remainder : base,
+      cardBillingDate: new Date(
+        cbdPai.getFullYear(),
+        cbdPai.getMonth() + i,
+        cbdPai.getDate(),
+        12, 0, 0,
+      ),
+    }));
+    // Sanity: financeiro e exato — a soma das parcelas tem que ser IDENTICA ao total.
+    const somaCents = plano.reduce((s, p) => s + p.valorCents, 0);
+    if (somaCents !== pai.netCents) {
+      throw new BadRequestException('Erro interno: soma das parcelas difere do total.');
+    }
+
+    // Delta de saldo: reverte o pai + aplica cada filha => ZERO liquido (mesma conta/data).
+    const reverseCents = pai.type === 'RECEIVABLE' ? -pai.netCents : pai.netCents;
+    const childCents = (v: number) => (pai.type === 'RECEIVABLE' ? v : -v);
+    const saldoNetCents = reverseCents + plano.reduce((s, p) => s + childCents(p.valorCents), 0);
+
+    if (dto.dryRun) {
+      return {
+        dryRun: true as const,
+        paiId: pai.id,
+        paiCode: pai.code,
+        paiNetCents: pai.netCents,
+        cashAccountId: pai.cashAccountId,
+        saldoNetCents, // DEVE ser 0
+        parcelas: plano,
+      };
+    }
+    // Trava dura: nunca grava se o impacto de saldo nao for exatamente zero.
+    if (saldoNetCents !== 0) {
+      throw new BadRequestException('Abortado: impacto de saldo nao e zero (seguranca financeira).');
+    }
+
+    const codes: string[] = [];
+    for (let i = 0; i < count; i++) {
+      codes.push(await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY'));
+    }
+
+    const fmtBrl = (c: number) => `R$ ${(c / 100).toFixed(2).replace('.', ',')}`;
+    const fmtDate = (d: Date) => d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Reverte o saldo que o pai aplicou quando foi pago (PAYABLE: +netCents).
+      await tx.cashAccount.update({
+        where: { id: pai.cashAccountId! },
+        data: { currentBalanceCents: { increment: reverseCents } },
+      });
+
+      // 2. Cria as filhas PAGAS; cada uma aplica seu delta (PAYABLE: -valor).
+      for (let i = 0; i < count; i++) {
+        const p = plano[i];
+        await tx.financialEntry.create({
+          data: {
+            companyId,
+            code: codes[i],
+            type: pai.type,
+            status: 'PAID',
+            description: `${pai.description} — Parcela ${i + 1}/${count}`,
+            grossCents: p.valorCents,
+            netCents: p.valorCents,
+            dueDate: pai.dueDate,
+            paidAt: pai.paidAt,
+            cardBillingDate: p.cardBillingDate,
+            parentEntryId: entryId,
+            partnerId: pai.partnerId,
+            serviceOrderId: pai.serviceOrderId,
+            paymentMethod: pai.paymentMethod,
+            paymentMethodId: pai.paymentMethodId,
+            paymentInstrumentId: pai.paymentInstrumentId,
+            financialAccountId: pai.financialAccountId,
+            cashAccountId: pai.cashAccountId,
+            nfseStatus: pai.nfseStatus,
+            nfseEmissionId: pai.nfseEmissionId,
+            installmentCount: count,
+          },
+        });
+        await tx.cashAccount.update({
+          where: { id: pai.cashAccountId! },
+          data: { currentBalanceCents: { increment: childCents(p.valorCents) } },
+        });
+      }
+
+      // 3. Pai -> SPLIT (sai do saldo/relatorios, preserva historico/NFS-e).
+      const linhas = plano
+        .map((p) => `- ${fmtBrl(p.valorCents)} (fatura ${fmtDate(p.cardBillingDate)})`)
+        .join('\n');
+      const notes = `[Dividido em ${count}x no cartao] Total: ${fmtBrl(pai.netCents)}\n${linhas}`;
+      await tx.financialEntry.update({
+        where: { id: entryId },
+        data: { status: 'SPLIT', installmentCount: count, notes },
       });
     });
 

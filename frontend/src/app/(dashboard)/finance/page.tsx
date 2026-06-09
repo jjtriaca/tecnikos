@@ -32,6 +32,7 @@ import type {
 import { ENTRY_STATUS_CONFIG, NFSE_STATUS_CONFIG, BOLETO_STATUS_CONFIG, Boleto } from "@/types/finance";
 import GenerateInstallmentsModal from "./components/GenerateInstallmentsModal";
 import InstallmentDetailModal from "./components/InstallmentDetailModal";
+import SplitCardModal from "./components/SplitCardModal";
 import RenegotiationModal from "./components/RenegotiationModal";
 import NfseEmissionModal from "./components/NfseEmissionModal";
 import BoletoGenerationModal from "./components/BoletoGenerationModal";
@@ -1121,6 +1122,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
 
   // v2.00 — Installment & Renegotiation modals
   const [installmentModal, setInstallmentModal] = useState<{ entryId: string; netCents: number } | null>(null);
+  const [splitCardModal, setSplitCardModal] = useState<{ entryId: string; netCents: number } | null>(null);
   const [detailModal, setDetailModal] = useState<{ entryId: string; description?: string } | null>(null);
   const [renegotiateModal, setRenegotiateModal] = useState<{ entryId: string; description?: string; netCents: number } | null>(null);
 
@@ -1688,6 +1690,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                               }
                             }}
                             onInstallments={() => setInstallmentModal({ entryId: e.id, netCents: e.netCents })}
+                            onSplitCard={e.status === "PAID" && e.cardBillingDate ? () => setSplitCardModal({ entryId: e.id, netCents: e.netCents }) : undefined}
                             onViewInstallments={() => setDetailModal({ entryId: e.id, description: e.description })}
                             onRenegotiate={() => setRenegotiateModal({ entryId: e.id, description: e.description, netCents: e.netCents })}
                             onEmitNfse={fiscalEnabled && type === "RECEIVABLE" ? () => setNfseModal(e.id) : undefined}
@@ -2523,6 +2526,17 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
         />
       )}
 
+      {/* Dividir lancamento de cartao pago em parcelas por ciclo de fatura */}
+      {splitCardModal && (
+        <SplitCardModal
+          entryId={splitCardModal.entryId}
+          entryNetCents={splitCardModal.netCents}
+          open={true}
+          onClose={() => setSplitCardModal(null)}
+          onSuccess={() => { setSplitCardModal(null); loadEntries(); }}
+        />
+      )}
+
       {/* v2.00 — Installment Detail Modal */}
       {detailModal && (
         <InstallmentDetailModal
@@ -2722,6 +2736,7 @@ function EntryActions({
   loading,
   onAction,
   onInstallments,
+  onSplitCard,
   onViewInstallments,
   onRenegotiate,
   onEmitNfse,
@@ -2736,6 +2751,7 @@ function EntryActions({
   loading: boolean;
   onAction: (action: "PAID" | "CANCELLED" | "REVERSED") => void;
   onInstallments: () => void;
+  onSplitCard?: () => void;
   onViewInstallments: () => void;
   onRenegotiate: () => void;
   onEmitNfse?: () => void;
@@ -2873,6 +2889,11 @@ function EntryActions({
     if (onBoletoGenerate && !onBoletoView) {
       items.push({ label: "Gerar Boleto", onClick: onBoletoGenerate, className: "text-indigo-700" });
     }
+  }
+
+  // Dividir lancamento de cartao JA PAGO em parcelas (1 por ciclo de fatura) — saldo-neutro
+  if (onSplitCard) {
+    items.push({ label: "Dividir em parcelas (cartao)", onClick: onSplitCard, className: "text-blue-700" });
   }
 
   // Separator before destructive actions
