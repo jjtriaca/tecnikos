@@ -341,7 +341,7 @@ function QuickCreateEntryModal({
   if (!open || !line) return null;
 
   const needsChartAccount = financialAccounts.length > 0 && !financialAccountId;
-  const canSave = partner && grossCents > 0 && !needsChartAccount && !saving;
+  const canSave = partner && grossCents > 0 && !needsChartAccount && !saving && (paymentInstruments.length === 0 || !!paymentInstrumentId);
 
   async function handleSave() {
     if (!line || !partner) return;
@@ -357,7 +357,13 @@ function QuickCreateEntryModal({
         dueDate: isoDate(dueDate),
       };
       if (financialAccountId) createBody.financialAccountId = financialAccountId;
-      if (paymentInstrumentId) createBody.paymentInstrumentId = paymentInstrumentId;
+      if (paymentInstrumentId) {
+        createBody.paymentInstrumentId = paymentInstrumentId;
+        // Passa tambem o metodo do instrumento (ex: Boleto) — senao a entry nasce sem
+        // paymentMethod e a conciliacao nao reconhece a forma de pagamento (erro ao conciliar).
+        const piSel = paymentInstruments.find((p) => p.id === paymentInstrumentId);
+        if (piSel?.paymentMethod?.code) createBody.paymentMethod = piSel.paymentMethod.code;
+      }
       if (receivedCardLast4 && receivedCardLast4.length === 4) {
         createBody.receivedCardLast4 = receivedCardLast4;
       }
@@ -520,7 +526,7 @@ function QuickCreateEntryModal({
           {/* Meio de pagamento (opcional) */}
           {paymentInstruments.length > 0 && (
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Meio de pagamento (opcional)</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Forma de pagamento/recebimento *</label>
               <select
                 value={paymentInstrumentId}
                 onChange={(e) => {

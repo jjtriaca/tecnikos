@@ -973,7 +973,7 @@ export default function NfePage() {
       loadSefazDocs();
       loadImports();
     } catch (err: any) {
-      toast(err?.response?.data?.message || "Erro ao reverter importacao.", "error");
+      toast(err?.message || "Erro ao reverter importacao.", "error");
     } finally {
       setRevertingDocId(null);
     }
@@ -1731,7 +1731,7 @@ export default function NfePage() {
         toast("Importação revertida com sucesso.", "success");
         loadImports();
       } catch (err: any) {
-        toast(err?.response?.data?.message || "Erro ao reverter importacao.", "error");
+        toast(err?.message || "Erro ao reverter importacao.", "error");
       }
     }
 
