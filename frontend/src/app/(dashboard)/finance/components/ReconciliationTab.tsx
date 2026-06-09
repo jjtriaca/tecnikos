@@ -4108,8 +4108,9 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
 
   const refreshAll = useCallback(async () => {
     await loadLines();
+    loadBalanceCompare(); // recarrega a Conferencia de saldo apos conciliar (antes so atualizava com F5)
     onChanged?.();
-  }, [loadLines, onChanged]);
+  }, [loadLines, loadBalanceCompare, onChanged]);
 
   async function handleIgnore(lineId: string) {
     setActionLoading(lineId);

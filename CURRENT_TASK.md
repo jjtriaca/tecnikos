@@ -1,6 +1,12 @@
 # TAREFA ATUAL
 
-## 🟡 PRONTO LOCAL (aguardando deploy) — Detalhe do lançamento: documentar PARCELAMENTO (≠ renegociação)
+## ✅ DEPLOYED v1.13.41-43 (09/06) — Conciliação de fatura de cartão: parcela + plano agrupado + CRÉDITO/AJUSTE bidirecional. Doc: [memory/conciliacao-fatura-cartao-credito-ajuste.md]
+## - v1.13.41: badge "Parcela X/N" nas candidatas do modal (parse de "Parcela N/M" na descrição, nas 2 listas: corrente + próxima fatura). v1.13.42: Plano de Contas AGRUPADO (grupo>subgrupo via `renderAccountOptions`) no "Novo lançamento" (antes era lista plana).
+## - v1.13.43 **CRÉDITO/AJUSTE bidirecional** (resolve diferença de centavo na fatura — ex: POSTO lançado 480,05, cobrado 480,00 → sobra −0,05): no "Novo lançamento", seletor **Tipo** = Despesa(+ soma) | Crédito-Receita(− subtrai). Valor SEMPRE POSITIVO (sinal é interno — usuário NUNCA digita negativo; foi exigência explícita do Juliano: "ninguém vai se tocar de lançar negativo"). Crédito = RECEITA na conta receita-ajuste (aparece no DRE como receita +).
+## - **MOTOR (reconciliation.service.matchAsCardInvoice + query de candidatas):** `signedAmount = (type==='RECEIVABLE'?-1:1)×netCents` → RECEIVABLE SUBTRAI da soma E credita o cartão (decrement de valor negativo = crédito). Query de candidatas passou a trazer `type in [PAYABLE,RECEIVABLE]` + `type:true` no select. Front: `selectedTotal` subtrai RECEIVABLE, `CardInvoiceEntry`+`type`, badge verde "credito". **SALDO traçado = ZERO no cartão + banco −fatura** (vale crédito pago OU pendente). Trava de ±1 centavo do motor mantida.
+## - ⚠️ NÃO QUEBRAR: na conciliação de fatura, RECEIVABLE = crédito que SUBTRAI. Qualquer mexida em `entriesTotal`/`selectedTotal`/loop de saldo do `matchAsCardInvoice` DEVE manter o `signedAmount` (senão crédito vira débito e o saldo quebra).
+
+## ✅ DEPLOYED v1.13.35 (09/06) — Detalhe do lançamento: documentar PARCELAMENTO (≠ renegociação)
 ## - Achado no teste do splitter: a tela de detalhe tratava QUALQUER `parentEntryId` como "Renegociado" (badge + seção "Renegociação"). Split (parcela) E renegociação ambos usam `parentEntryId` (renegotiate seta em L1361) → confusão. Discriminador: mãe `status==='SPLIT'` = PARCELA; `renegotiatedTo` = renegociação real.
 ## - FILHA de split: badge "Parcela X/N" + seção "Parcelamento" (parcela X/N, valor desta, TOTAL parcelado, ciclo da fatura, link ao original). PAI SPLIT: seção "Parcelamento — dividido em N" com tabela (parcela/ciclo/valor/status). Renegociação real intacta. Backend: childEntries select += `cardBillingDate`/`paidAt`. Validado real: FIN-00494 SPLIT(965) → FIN-00656/657 parcelas 482,50 nos ciclos 25/05+25/06. tsc+build OK.
 
