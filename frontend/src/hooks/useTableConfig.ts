@@ -13,13 +13,6 @@ import type {
 
 const CONFIG_VERSION = 1;
 
-const FONT_PX: Record<TableFontSize, string> = {
-  xs: "11px",
-  sm: "13px",
-  base: "14px",
-  lg: "16px",
-};
-
 function defaultState(): TableConfigState {
   return {
     version: CONFIG_VERSION,
@@ -124,30 +117,20 @@ export function useTableConfig<T>(tableId: string, signals: TableSignal<T>[] = [
     [config.rules, signals],
   );
 
-  const getCellStyle = useCallback(
-    (colId: string, baseStyle: CSSProperties = {}): CSSProperties => {
+  // Fonte + overflow viram CLASSES (globals.css) com override forte — vencem as
+  // classes internas das celulas (text-xs/truncate/max-w). Aplicadas so quando o
+  // usuario muda do padrao (Normal/Esconder), pra nao alterar o visual default.
+  const getCellClass = useCallback(
+    (colId: string): string => {
       const cc = config.columns[colId] || {};
-      const overflow = cc.overflow || config.overflowDefault || "truncate";
-      const s: CSSProperties = { ...baseStyle };
-      if (cc.fontSize) s.fontSize = FONT_PX[cc.fontSize];
-      if (overflow === "wrap") {
-        s.whiteSpace = "normal";
-        s.wordBreak = "break-word";
-        s.overflow = "hidden";
-      } else if (overflow === "truncate") {
-        s.whiteSpace = "nowrap";
-        s.textOverflow = "ellipsis";
-        s.overflow = "hidden";
-      } else if (overflow === "scroll") {
-        s.whiteSpace = "nowrap";
-        s.overflowX = "auto";
-      }
-      return s;
+      const size = cc.fontSize || config.rowFontSize;
+      const overflow = cc.overflow || config.overflowDefault;
+      const fontCls = size && size !== "sm" ? `ttfs-${size}` : "";
+      const ovCls = overflow === "wrap" ? "ttov-wrap" : overflow === "scroll" ? "ttov-scroll" : "";
+      return [fontCls, ovCls].filter(Boolean).join(" ");
     },
-    [config.columns, config.overflowDefault],
+    [config.columns, config.rowFontSize, config.overflowDefault],
   );
-
-  const rowFontPx = config.rowFontSize ? FONT_PX[config.rowFontSize] : undefined;
 
   const isCustomized = useMemo(
     () =>
@@ -168,8 +151,7 @@ export function useTableConfig<T>(tableId: string, signals: TableSignal<T>[] = [
     resetConfig,
     isColumnHidden,
     getRowStyle,
-    getCellStyle,
-    rowFontPx,
+    getCellClass,
     isCustomized: !!isCustomized,
   };
 }

@@ -1664,7 +1664,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
               {entries.map((rawE) => {
                 const e = type === "RECEIVABLE" ? { ...rawE, _boleto: entryBoletos[rawE.id] || null } as any : rawE;
                 return (
-                <tr key={e.id} style={selectedIds.has(e.id) ? { fontSize: cfg.rowFontPx } : { ...cfg.getRowStyle(e), fontSize: cfg.rowFontPx }} className={`border-b border-slate-100 hover:bg-slate-100 transition-colors ${selectedIds.has(e.id) ? "bg-blue-50" : ""}`}>
+                <tr key={e.id} style={selectedIds.has(e.id) ? undefined : cfg.getRowStyle(e)} className={`border-b border-slate-100 hover:bg-slate-100 transition-colors ${selectedIds.has(e.id) ? "bg-blue-50" : ""}`}>
                   <td className="py-2 px-2 w-8">
                     {(e.status === "PENDING" || e.status === "CONFIRMED") && (
                       <input
@@ -1745,7 +1745,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                       );
                     }
                     return (
-                      <td key={col.id} style={cfg.getCellStyle(col.id, tdStyle)} className={`py-3 px-4 ${col.className || ""} ${col.align === "right" ? "text-right" : ""}`}>
+                      <td key={col.id} style={tdStyle} className={`py-3 px-4 ${col.className || ""} ${col.align === "right" ? "text-right" : ""} ${cfg.getCellClass(col.id)}`}>
                         {col.render(e)}
                       </td>
                     );

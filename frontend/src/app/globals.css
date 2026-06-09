@@ -151,3 +151,22 @@ tbody tr[data-row-selected="true"]:hover {
   /* Print-friendly charts: preserve colors */
   svg { print-color-adjust: exact; }
 }
+
+/* ── Config rica de tabela (per-aba): fonte + overflow por celula ──
+   Override FORTE (vence text-xs/truncate/max-w internos das celulas) pra os
+   ajustes nao ficarem "fantasma". Aplicadas so quando o usuario muda do padrao.
+   Ver memory/feature_config_rica_tabela.md */
+.ttfs-xs, .ttfs-xs * { font-size: 11px !important; }
+.ttfs-base, .ttfs-base * { font-size: 15px !important; }
+.ttfs-lg, .ttfs-lg * { font-size: 18px !important; }
+
+/* Quebrar: ignora truncate/max-w internos e deixa o texto fluir em varias linhas */
+.ttov-wrap, .ttov-wrap * {
+  white-space: normal !important;
+  text-overflow: clip !important;
+  overflow: visible !important;
+  max-width: none !important;
+}
+/* Rolar: barra horizontal na celula, conteudo em linha unica */
+.ttov-scroll { overflow-x: auto !important; }
+.ttov-scroll * { white-space: nowrap !important; }
