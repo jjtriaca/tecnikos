@@ -2401,24 +2401,24 @@ function CardInvoiceMatchModal({
   return (
     <>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl flex flex-col max-h-[90vh]">
-        <div className="px-5 py-3 border-b border-slate-200">
-          <h3 className="text-base font-semibold text-rose-700">&#128179; Conciliar fatura de cartao</h3>
-          <p className="text-xs text-slate-500 mt-1">
-            Selecione o(s) cartao(oes) e as compras que compoem esta fatura. A soma precisa bater com o valor do extrato.
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl flex flex-col h-[92vh]">
+        <div className="px-5 py-2 border-b border-slate-200">
+          <h3 className="text-sm font-semibold text-rose-700">&#128179; Conciliar fatura de cartao</h3>
+          <p className="text-[11px] text-slate-500 mt-0.5">
+            Selecione o(s) cartao(oes) e as compras que compoem a fatura. A soma precisa bater com o extrato.
           </p>
         </div>
 
         {/* Linha do extrato */}
-        <div className="px-5 py-2 bg-rose-50/50 border-b border-slate-200">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-slate-800 truncate">{line.description}</p>
-              <p className="text-xs text-slate-500">{formatDate(line.transactionDate)}</p>
+        <div className="px-5 py-1.5 bg-rose-50/50 border-b border-slate-200">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 flex-1 leading-tight">
+              <p className="text-xs font-medium text-slate-800 truncate">{line.description}</p>
+              <p className="text-[10px] text-slate-500">{formatDate(line.transactionDate)}</p>
             </div>
-            <div className="text-right">
-              <p className="text-[10px] text-slate-500">Valor da fatura</p>
-              <p className="text-lg font-bold text-rose-700">{formatCurrency(lineAbs)}</p>
+            <div className="text-right whitespace-nowrap">
+              <span className="text-[10px] text-slate-500">Valor da fatura </span>
+              <span className="text-base font-bold text-rose-700">{formatCurrency(lineAbs)}</span>
             </div>
           </div>
         </div>
@@ -2706,28 +2706,24 @@ function CardInvoiceMatchModal({
           </span>
         </div>
 
-        {/* Observacao */}
-        <div className="px-5 py-2 border-t border-slate-200">
+        {/* Footer: observacao (esq) + acoes (dir) na mesma linha */}
+        <div className="px-5 py-2 border-t border-slate-200 flex items-center gap-2">
           <input
             type="text"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Observacao (opcional)"
-            className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none"
+            className="flex-1 min-w-0 rounded-lg border border-slate-300 px-3 py-1.5 text-xs focus:border-rose-500 focus:ring-1 focus:ring-rose-500 outline-none"
           />
-        </div>
-
-        {/* Footer */}
-        <div className="px-5 py-3 border-t border-slate-200 flex justify-end gap-2">
           <button onClick={onClose} disabled={matching}
-            className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">
+            className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg whitespace-nowrap">
             Cancelar
           </button>
           <button
             onClick={handleMatch}
             disabled={matching || !matches || selectedEntryIds.size === 0 || entriesMissingAccount.length > 0}
             title={entriesMissingAccount.length > 0 ? `Faltam planos de contas em ${entriesMissingAccount.length} lançamento(s)` : undefined}
-            className="px-4 py-2 text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2 text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
           >
             {matching ? "Conciliando..." : "Conciliar fatura"}
           </button>
