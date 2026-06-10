@@ -2765,6 +2765,167 @@ function SolarTab({
   );
 }
 
+// ============ Graficos do datasheet V1 (curva sazonal + donut) — data-driven ============
+// Arredonda pra um numero "redondo" (1/2/2,5/5/10 × 10^n) pra cima/baixo — eixo Y limpo.
+function dsNiceCeil(v: number): number {
+  if (v <= 0) return 1;
+  const exp = Math.floor(Math.log10(v));
+  const base = Math.pow(10, exp);
+  const n = v / base;
+  const nice = n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10;
+  return nice * base;
+}
+// Catmull-Rom -> cubic bezier: curva suave passando por todos os pontos.
+function dsSmoothPath(pts: { x: number; y: number }[]): string {
+  if (pts.length < 2) return pts.length ? `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}` : "";
+  let d = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] || p2;
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C${cp1x.toFixed(1)},${cp1y.toFixed(1)} ${cp2x.toFixed(1)},${cp2y.toFixed(1)} ${p2.x.toFixed(1)},${p2.y.toFixed(1)}`;
+  }
+  return d;
+}
+function dsAbbrevMonth(name: string): string {
+  return (name || "").slice(0, 3).replace(/^\w/, (c) => c.toUpperCase());
+}
+function dsMoney(cents: number): string {
+  return (Number(cents || 0) / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Curva sazonal de consumo (area + linha suave + pico destacado), escalada pelos dados reais.
+function SeasonalCurve({ monthly, criticalIndex }: {
+  monthly: { monthName: string; kwhConsumido: number; custoBRLCents: number }[];
+  criticalIndex: number;
+}) {
+  const X0 = 44, X1 = 512, YT = 20, YB = 148;
+  const vals = monthly.map((m) => Number(m.kwhConsumido) || 0);
+  const minVal = Math.min(...vals);
+  const maxVal = Math.max(1, ...vals);
+  const span = Math.max(1, maxVal - minVal);
+  // teto/piso JUSTOS (arredondados ao "step") pra curva preencher a altura — pico perto do topo, vale perto da base
+  const step = dsNiceCeil(span / 4) || 1;
+  const scaleMin = Math.max(0, Math.floor((minVal - span * 0.2) / step) * step);
+  const scaleMax = Math.ceil((maxVal + span * 0.12) / step) * step;
+  const range = Math.max(1, scaleMax - scaleMin);
+  const xFor = (i: number) => X0 + (i / 11) * (X1 - X0);
+  const yFor = (v: number) => YB - ((v - scaleMin) / range) * (YB - YT);
+  const pts = monthly.map((m, i) => ({ x: xFor(i), y: yFor(Number(m.kwhConsumido) || 0) }));
+  const line = dsSmoothPath(pts);
+  const area = `${line} L${X1.toFixed(1)},${YB} L${X0.toFixed(1)},${YB} Z`;
+  const grid: { y: number; val: number }[] = [];
+  for (let g = scaleMin + step; g <= scaleMax + 0.5; g += step) grid.push({ y: YB - ((g - scaleMin) / range) * (YB - YT), val: Math.round(g) });
+  const ci = criticalIndex >= 0 && criticalIndex < pts.length ? criticalIndex : vals.indexOf(maxVal);
+  const peak = pts[ci] ?? pts[0];
+  const cm = monthly[ci];
+  const calloutText = cm ? `${dsAbbrevMonth(cm.monthName)} ${Math.round(cm.kwhConsumido).toLocaleString("pt-BR")} kWh · R$ ${dsMoney(cm.custoBRLCents)}` : "";
+  const calloutW = Math.min(220, Math.max(96, calloutText.length * 4.9 + 14));
+  const calloutCx = Math.max(X0 + calloutW / 2, Math.min(X1 - calloutW / 2, peak.x));
+  return (
+    <svg viewBox="0 0 520 168" width="100%" className="ds-curve" style={{ display: "block", marginTop: 4 }} preserveAspectRatio="none">
+      {grid.map((g, i) => (<line key={i} x1={X0} y1={g.y} x2={X1} y2={g.y} stroke={i === 0 ? "#e2e8f0" : "#f1f5f9"} strokeWidth={1} />))}
+      {grid.map((g, i) => (<text key={`t${i}`} x={X0 - 4} y={g.y + 3} textAnchor="end" fontSize={8} fill="#94a3b8">{g.val.toLocaleString("pt-BR")}</text>))}
+      <path d={area} fill="#ecfeff" />
+      <path d={line} fill="none" stroke="#0e7490" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      <line x1={peak.x} y1={peak.y} x2={peak.x} y2={YB} stroke="#0e7490" strokeWidth={1} strokeDasharray="2 2" opacity={0.5} />
+      {pts.map((p, i) => (<circle key={i} cx={p.x} cy={p.y} r={i === ci ? 3.4 : 1.8} fill="#0e7490" stroke={i === ci ? "#fff" : undefined} strokeWidth={i === ci ? 1.5 : undefined} />))}
+      <rect x={calloutCx - calloutW / 2} y={6} width={calloutW} height={17} rx={4} fill="#0e7490" />
+      <text x={calloutCx} y={17.5} textAnchor="middle" fontSize={9} fontWeight={700} fill="#fff">{calloutText}</text>
+      <g fontSize={8} fill="#64748b" textAnchor="middle">
+        {monthly.map((m, i) => (<text key={i} x={xFor(i)} y={161} fill={i === ci ? "#0e7490" : "#64748b"} fontWeight={i === ci ? 700 : undefined}>{dsAbbrevMonth(m.monthName)}</text>))}
+      </g>
+    </svg>
+  );
+}
+
+// Donut da composicao do consumo anual: bomba de calor vs recirculacao.
+function ConsumoDonut({ bombaKwh, recircKwh }: { bombaKwh: number; recircKwh: number }) {
+  const total = Math.max(1, bombaKwh + recircKwh);
+  const C = 2 * Math.PI * 32; // ~201.06
+  const bombaLen = (bombaKwh / total) * C;
+  const recircLen = (recircKwh / total) * C;
+  return (
+    <svg viewBox="0 0 84 84" width={84} height={84} className="ds-donut">
+      <circle cx={42} cy={42} r={32} fill="none" stroke="#f1f5f9" strokeWidth={14} />
+      <circle cx={42} cy={42} r={32} fill="none" stroke="#0e7490" strokeWidth={14} strokeDasharray={`${bombaLen.toFixed(1)} ${(C - bombaLen).toFixed(1)}`} transform="rotate(-90 42 42)" />
+      <circle cx={42} cy={42} r={32} fill="none" stroke="#f59e0b" strokeWidth={14} strokeDasharray={`${recircLen.toFixed(1)} ${(C - recircLen).toFixed(1)}`} strokeDashoffset={`${(-bombaLen).toFixed(1)}`} transform="rotate(-90 42 42)" />
+      <text x={42} y={40} textAnchor="middle" fontSize={13} fontWeight={800} fill="#0f172a">{Math.round(total).toLocaleString("pt-BR")}</text>
+      <text x={42} y={51} textAnchor="middle" fontSize={7.5} fill="#64748b">kWh/ano</text>
+    </svg>
+  );
+}
+
+// ---- Campos V1 do datasheet (.pico / amber) com swap tela<->print (ds-edit/ds-print) ----
+const dsDec = (n: number, d = 2) => Number(n || 0).toFixed(d).replace(".", ",");
+function PicoVal({ label, value }: { label: string; value: React.ReactNode }) {
+  return <div className="pico"><div className="lbl">{label}</div><div className="v num">{value}</div></div>;
+}
+function PicoSel({ label, value, options, onChange, disabled, placeholder }: {
+  label: string; value: string; options: { v: string; l: string }[]; onChange: (v: string) => void; disabled?: boolean; placeholder?: string;
+}) {
+  const cur = options.find((o) => o.v === value)?.l ?? (value || placeholder || "—");
+  return (
+    <div className="pico">
+      <div className="lbl">{label}</div>
+      <select className="ds-edit" value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} style={{ width: "100%", background: "transparent", border: 0, outline: "none", color: disabled ? "#94a3b8" : "#047857", cursor: "pointer", padding: 0, fontSize: 11, fontWeight: 700, lineHeight: 1.2, fontFamily: "inherit" }}>
+        {placeholder !== undefined && <option value="">{placeholder}</option>}
+        {options.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+      </select>
+      <span className="ds-print v">{cur}</span>
+    </div>
+  );
+}
+function AmberStat({ label, value, unit }: { label: string; value: React.ReactNode; unit: string }) {
+  return (
+    <div style={{ border: "1.5px solid #fcd34d", borderRadius: 4, padding: "3px 6px", background: "#fffbeb" }}>
+      <div className="lbl" style={{ color: "#b45309" }}>{label}</div>
+      <div className="num" style={{ fontSize: 14, fontWeight: 800, color: "#78350f", lineHeight: 1.15 }}>{value} <span style={{ fontSize: 9 }}>{unit}</span></div>
+    </div>
+  );
+}
+function AmberInput({ label, value, unit, min, max, onChange }: {
+  label: string; value: number; unit: string; min: number; max: number; onChange: (n: number) => void;
+}) {
+  return (
+    <div style={{ border: "1.5px solid #fcd34d", borderRadius: 4, padding: "3px 6px", background: "#fffbeb" }}>
+      <div className="lbl" style={{ color: "#b45309" }}>{label}</div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
+        <input className="ds-edit num" type="number" value={value} min={min} max={max} onChange={(e) => onChange(Number(e.target.value) || 0)} style={{ width: 36, border: 0, background: "transparent", outline: "none", fontSize: 14, fontWeight: 800, color: "#047857", lineHeight: 1.15, padding: 0, fontFamily: "inherit" }} />
+        <span className="ds-print num" style={{ fontSize: 14, fontWeight: 800, color: "#78350f", lineHeight: 1.15 }}>{value}</span>
+        <span style={{ fontSize: 9, fontWeight: 800, color: "#78350f" }}>{unit}</span>
+      </div>
+    </div>
+  );
+}
+function CompactExtraCard({ icon, name, extra, horasValue, onChangeHoras, hoursUnit }: {
+  icon: string; name: string; extra: ExtraDetected; horasValue: number; onChangeHoras: (n: number) => void; hoursUnit: string;
+}) {
+  const impactKw = extra.impactKw ?? 0;
+  const falta = extra.status === "IDENTIFICADA_FALTANDO_INFO";
+  return (
+    <div className="ex" title={extra.message}>
+      <span className="exn">{name}</span>
+      <span className="exr">
+        <span style={{ fontSize: 12 }}>{icon}</span>
+        {falta
+          ? <span style={{ fontSize: 7, color: "#b45309", fontWeight: 700 }}>falta info</span>
+          : <span style={{ fontSize: 8.5, color: "#0e7490", fontWeight: 700 }} className="num">+{dsDec(impactKw)}</span>}
+      </span>
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 2, marginTop: 1, lineHeight: 1 }}>
+        <span className="ds-edit" style={{ display: "inline-flex" }}><input type="number" value={horasValue} min={0} max={hoursUnit.includes("dia") ? 24 : 168} step={1} onChange={(e) => onChangeHoras(Number(e.target.value) || 0)} style={{ width: 26, border: "1px solid #cbd5e1", borderRadius: 3, fontSize: 8, fontWeight: 700, textAlign: "center", padding: "0 1px", color: "#0f172a", fontFamily: "inherit" }} className="num" /></span>
+        <span className="ds-print num" style={{ fontSize: 8, fontWeight: 700, color: "#0f172a" }}>{horasValue}</span>
+        <span style={{ fontSize: 6.5, color: "#64748b" }}>{hoursUnit}</span>
+      </span>
+    </div>
+  );
+}
+
 // ============ Aba Bomba de Calor (clone visual da aba Solar; so os calculos mudam) ============
 function BombaCalorTab({
   budget, report, loading, recomputing,
@@ -2943,106 +3104,95 @@ function BombaCalorTab({
 
       {/* === Folha A4 (datasheet) === */}
       <div className="mx-auto max-w-[820px] print:max-w-none bomba-screen-wrapper" style={manualZoom != null ? ({ zoom: manualZoom } as React.CSSProperties) : undefined}>
-        <div id="bomba-pdf-area" className="bg-white text-slate-900 font-sans border border-slate-200 shadow-sm print:border-0 print:shadow-none flex flex-col min-h-[1120px]">
+        <div id="bomba-pdf-area" className="ds-bomba bg-white border border-slate-200 shadow-sm print:border-0 print:shadow-none">
 
           {/* HEADER */}
-          <header className="bg-gradient-to-r from-slate-900 to-blue-900 text-white px-5 py-3 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
+          <div style={{ background: "linear-gradient(90deg,#0f172a,#1e3a8a)", color: "#fff", padding: "7px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
               {tenantSlug && (
-                <img src={`/api/public/tenant/${tenantSlug}/logo/icon-192`} alt="Logo" className="h-10 w-10 rounded bg-white/10 object-contain flex-shrink-0" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                <img src={`/api/public/tenant/${tenantSlug}/logo/icon-192`} alt="Logo" style={{ height: 30, width: 30, borderRadius: 6, background: "rgba(255,255,255,.1)", objectFit: "contain", flexShrink: 0 }} onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
               )}
-              <div className="min-w-0">
-                <div className="text-[9px] uppercase tracking-[0.18em] text-amber-300 font-medium">Aquecimento para piscinas</div>
-                <h2 className="text-base font-bold mt-0.5 leading-tight">Dimensionamento para Bomba de Calor</h2>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".18em", color: "#fcd34d", fontWeight: 600 }}>Aquecimento para piscinas</div>
+                <div style={{ fontSize: 14.5, fontWeight: 800, marginTop: 1, lineHeight: 1.1 }}>Dimensionamento para Bomba de Calor</div>
               </div>
             </div>
-            <div className="text-right flex-shrink-0">
-              <div className="text-[9px] uppercase tracking-[0.18em] text-slate-300">Orçamento</div>
-              <div className="text-xl font-bold tabular-nums leading-tight">{budget.code ?? "—"}</div>
-              <div className="text-[10px] text-slate-300 mt-0.5">{today}</div>
+            <div style={{ textAlign: "right", flexShrink: 0 }}>
+              <div style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".18em", color: "#cbd5e1" }}>Orçamento</div>
+              <div style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.05 }} className="num">{budget.code ?? "—"}</div>
+              <div style={{ fontSize: 9, color: "#cbd5e1" }}>{today}</div>
             </div>
-          </header>
+          </div>
 
-          {/* CLIENTE + DIM/CONFIG + IMAGEM */}
-          <section className="grid grid-cols-12 gap-4 px-5 py-3 border-b border-slate-200 avoid-break">
-            <div className="col-span-8 flex flex-col gap-2">
-              <div className="text-[11px] leading-tight">
-                <div className="font-bold text-slate-900 text-[12px]">{budget.clientPartner?.name ?? "—"}</div>
-                <div className="text-slate-700 mt-0.5 flex flex-wrap gap-x-4">
-                  <span><span className="text-slate-500 uppercase text-[8.5px] tracking-wide font-semibold">Local:</span> {localName}</span>
-                  <span><span className="text-slate-500 uppercase text-[8.5px] tracking-wide font-semibold">Projeto:</span> {budget.title || "—"}</span>
+          {/* CLIENTE + EXTRAS + DIM/CONFIG + IMAGEM */}
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, padding: "7px 18px", borderBottom: "1px solid #e2e8f0" }} className="avoid-break">
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {/* nome / Projeto / Local + extras minicards a direita */}
+              <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 800, fontSize: 11.5 }}>{budget.clientPartner?.name ?? "—"}</div>
+                  <div style={{ fontSize: 10.5, color: "#334155", marginTop: 2 }}><span className="lbl">Projeto:</span> {budget.title || "—"}</div>
+                  <div style={{ fontSize: 10.5, color: "#334155", marginTop: 1 }}><span className="lbl">Local:</span> {localName}</div>
                 </div>
+                {(() => {
+                  const ed = report?.extrasDetected;
+                  if (!ed) return null;
+                  const cards: React.ReactNode[] = [];
+                  if (ed.cascata.status !== "NAO_IDENTIFICADA") cards.push(<CompactExtraCard key="casc" icon="🌊" name="Cascata" extra={ed.cascata} horasValue={cascataHorasSemana} onChangeHoras={onChangeCascataHoras} hoursUnit="h/sem" />);
+                  if (ed.hidromassagem.status !== "NAO_IDENTIFICADA") cards.push(<CompactExtraCard key="hidro" icon="💦" name="SPA" extra={ed.hidromassagem} horasValue={hidromassagemHorasSemana} onChangeHoras={onChangeHidroHoras} hoursUnit="h/sem" />);
+                  if (ed.bordaInfinita.status !== "NAO_IDENTIFICADA") cards.push(<CompactExtraCard key="borda" icon="🏞" name="Borda" extra={ed.bordaInfinita} horasValue={bordaInfinitaHorasAtivaDia} onChangeHoras={onChangeBordaHoras} hoursUnit="h/dia" />);
+                  if (!cards.length) return null;
+                  return (
+                    <div style={{ flexShrink: 0, maxWidth: 210 }}>
+                      <div style={{ fontSize: 7.5, textTransform: "uppercase", letterSpacing: ".06em", color: "#94a3b8", fontWeight: 700, marginBottom: 3, textAlign: "right" }}>Extras · kW no calor</div>
+                      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", justifyContent: "flex-end" }}>{cards}</div>
+                    </div>
+                  );
+                })()}
               </div>
-              <div className="grid grid-cols-2 gap-3 items-stretch flex-1">
-                {/* Dimensoes (read-only) */}
-                <div className="flex flex-col h-full">
-                  <SectionLabel>Dimensões da piscina</SectionLabel>
-                  <div className="mt-1 grid grid-cols-2 gap-1">
-                    <StatEditable label="Comp." value={dispLen} onChange={() => {}} unit="m" manual={false} />
-                    <StatEditable label="Larg." value={dispWid} onChange={() => {}} unit="m" manual={false} />
-                    <StatEditable label="Prof. mín" value={dispProfMin} onChange={() => {}} unit="m" manual={false} />
-                    <StatEditable label="Prof. máx" value={dispProfMax} onChange={() => {}} unit="m" manual={false} />
+              {/* dimensoes + configuracao */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 9 }}>
+                <div>
+                  <div className="sec">Dimensões da piscina</div>
+                  <div className="grid2" style={{ marginTop: 5 }}>
+                    <PicoVal label="Comp." value={dsDec(dispLen)} />
+                    <PicoVal label="Larg." value={dsDec(dispWid)} />
+                    <PicoVal label="Prof. mín" value={dsDec(dispProfMin)} />
+                    <PicoVal label="Prof. máx" value={dsDec(dispProfMax)} />
+                    <PicoSel label="Tipo piscina" value={tipoPiscina} options={[{ v: "PRIVATIVA", l: "Privativa" }, { v: "COLETIVA", l: "Coletiva" }, { v: "CLINICA_SPA", l: "Clínica SPA" }]} onChange={(v) => setTipoPiscina(v)} />
+                    <PicoSel label="Construção" value={tipoConstrucao} options={[{ v: "ABERTA", l: "Aberta" }, { v: "COBERTA", l: "Coberta" }, { v: "CLIMATIZADA", l: "Climatizada" }]} onChange={(v) => setTipoConstrucao(v)} />
                   </div>
-                  <div className="mt-1 grid grid-cols-2 gap-1">
-                    <SelectCard label="Tipo de piscina" value={tipoPiscina} options={[{ v: "PRIVATIVA", l: "Privativa" }, { v: "COLETIVA", l: "Coletiva" }, { v: "CLINICA_SPA", l: "Clínica SPA" }]} onChange={(v) => setTipoPiscina(v)} />
-                    <SelectCard label="Tipo de construção" value={tipoConstrucao} options={[{ v: "ABERTA", l: "Aberta" }, { v: "COBERTA", l: "Coberta" }, { v: "CLIMATIZADA", l: "Climatizada" }]} onChange={(v) => setTipoConstrucao(v)} />
-                  </div>
-                  <div className="mt-1 grid grid-cols-2 gap-1">
-                    <BigHighlightInput label="Área" value={dispArea} onChange={() => {}} unit="m²" min={0} max={9999} manual={false} />
-                    <BigHighlightInput label="Volume" value={dispVolume} onChange={() => {}} unit="m³" min={0} max={99999} manual={false} />
+                  <div className="grid2" style={{ marginTop: 5 }}>
+                    <AmberStat label="Área" value={dsDec(dispArea)} unit="m²" />
+                    <AmberStat label="Volume" value={dsDec(dispVolume)} unit="m³" />
                   </div>
                   {bordaVolumeExtraM3 > 0 && (
-                    <div className="mt-0.5 text-[9px] leading-tight text-cyan-700">
-                      🌊 Volume inclui <b>+{bordaVolumeExtraM3.toFixed(2).replace(".", ",")} m³</b> da borda infinita (piscina {volumeBasinM3.toFixed(2).replace(".", ",")} + reservatórios)
-                    </div>
+                    <div style={{ marginTop: 2, fontSize: 9, lineHeight: 1.15, color: "#0e7490" }}>🌊 Volume inclui <b>+{dsDec(bordaVolumeExtraM3)} m³</b> da borda infinita</div>
                   )}
                 </div>
-                {/* Configuracao (editavel) */}
-                <div className="flex flex-col h-full">
-                  <SectionLabel>Configuração do aquecimento</SectionLabel>
-                  <div className="mt-1 space-y-1 flex-1">
-                    <div className="grid grid-cols-2 gap-1">
-                      <ConfigFieldBig label="Capa térmica" manual={cfgManual}>
-                        <select value={capaTermica ? "SIM" : "NAO"} onChange={(e) => setCapaTermica(e.target.value === "SIM")} className="w-full bg-transparent text-[10.5px] font-bold leading-[1.1] focus:outline-none print:hidden h-[14px] -mt-0.5 text-emerald-900">
-                          <option value="SIM">Sim</option>
-                          <option value="NAO">Não</option>
-                        </select>
-                        <span className="hidden print:inline-block text-[10.5px] font-bold text-slate-900 leading-[1.1]">{capaTermica ? "Sim" : "Não"}</span>
-                      </ConfigFieldBig>
-                      <ConfigFieldBig label="Vento" manual={cfgManual} hint={VENTO_HINT}>
-                        <select value={vento} onChange={(e) => setVento(e.target.value)} className="w-full bg-transparent text-[10.5px] font-bold leading-[1.1] focus:outline-none print:hidden h-[14px] -mt-0.5 capitalize text-emerald-900">
-                          <option value="FRACO">Fraco</option>
-                          <option value="MODERADO">Moderado</option>
-                          <option value="FORTE">Forte</option>
-                        </select>
-                        <span className="hidden print:inline-block text-[10.5px] font-bold text-slate-900 leading-[1.1] capitalize">{vento.toLowerCase()}</span>
-                      </ConfigFieldBig>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1">
-                      <ConfigFieldBig label="Cidade" manual={cfgManual}>
-                        <select value={cidade} onChange={(e) => setCidade(e.target.value)} disabled={!uf} className="w-full bg-transparent text-[10.5px] font-bold leading-[1.1] focus:outline-none disabled:opacity-50 print:hidden h-[14px] -mt-0.5 text-emerald-900">
-                          <option value="">{uf ? "Capital" : "Selecione UF"}</option>
-                          {availableCities.map((c) => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                        <span className="hidden print:inline-block text-[10.5px] font-bold text-slate-900 leading-[1.1]">{cidade || "—"}</span>
-                      </ConfigFieldBig>
-                      <ConfigFieldBig label="Estado" manual={cfgManual}>
-                        <select value={uf} onChange={(e) => { setUf(e.target.value); setCidade(""); }} className="w-full bg-transparent text-[10.5px] font-bold leading-[1.1] focus:outline-none print:hidden h-[14px] -mt-0.5 text-emerald-900">
-                          <option value="">--</option>
-                          {availableUfs.map((u) => <option key={u.uf} value={u.uf}>{u.uf}</option>)}
-                        </select>
-                        <span className="hidden print:inline-block text-[10.5px] font-bold text-slate-900 leading-[1.1]">{uf || "—"}</span>
-                      </ConfigFieldBig>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1">
-                      <BigHighlightInput label="Temp. inicial" value={tempIniDisplay} onChange={(n) => setTempAguaInicial(n)} unit="°C" min={5} max={40} manual={cfgManual} />
-                      <BigHighlightInput label="Temp. final" value={tempAguaDesejada} onChange={(n) => setTempAguaDesejada(n)} unit="°C" min={20} max={40} manual={cfgManual} />
-                    </div>
+                <div>
+                  <div className="sec">Configuração do aquecimento</div>
+                  <div className="grid2" style={{ marginTop: 5 }}>
+                    <PicoSel label="Capa térmica" value={capaTermica ? "SIM" : "NAO"} options={[{ v: "SIM", l: "Sim" }, { v: "NAO", l: "Não" }]} onChange={(v) => setCapaTermica(v === "SIM")} />
+                    <PicoSel label="Vento" value={vento} options={[{ v: "FRACO", l: "Fraco" }, { v: "MODERADO", l: "Moderado" }, { v: "FORTE", l: "Forte" }]} onChange={(v) => setVento(v)} />
+                  </div>
+                  <div className="grid2" style={{ marginTop: 5 }}>
+                    <PicoSel label="Cidade" value={cidade} options={availableCities.map((c) => ({ v: c, l: c }))} onChange={(v) => setCidade(v)} disabled={!uf} placeholder={uf ? "Capital" : "Selecione UF"} />
+                    <PicoSel label="Estado" value={uf} options={availableUfs.map((u) => ({ v: u.uf, l: u.uf }))} onChange={(v) => { setUf(v); setCidade(""); }} placeholder="--" />
+                  </div>
+                  <div className="grid2" style={{ marginTop: 5 }}>
+                    <AmberInput label="Temp. inicial" value={tempIniDisplay} unit="°C" min={5} max={40} onChange={(n) => setTempAguaInicial(n)} />
+                    <AmberInput label="Temp. final" value={tempAguaDesejada} unit="°C" min={20} max={40} onChange={(n) => setTempAguaDesejada(n)} />
+                  </div>
+                  {/* Barra ΔT (aquecimento) */}
+                  <div style={{ marginTop: 4, border: "1.5px solid #fcd34d", borderRadius: 4, padding: "2px 7px", background: "#fffbeb" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ fontSize: 8.5, fontWeight: 700, color: "#b45309", textTransform: "uppercase", letterSpacing: ".03em" }}>Aquecimento ΔT</span><span style={{ fontSize: 11, fontWeight: 800, color: "#78350f" }} className="num">+{Math.max(0, tempAguaDesejada - tempIniDisplay).toFixed(0)} <span style={{ fontSize: 7.5 }}>°C</span></span></div>
+                    <div style={{ height: 6, borderRadius: 3, marginTop: 2, background: "linear-gradient(90deg,#38bdf8 0%,#fbbf24 55%,#f97316 100%)" }}></div>
                   </div>
                 </div>
               </div>
             </div>
-            <div className="col-span-4">
+            <div>
               {(() => {
                 const selProd = candidates.find((c) => c.productId === eq?.productId);
                 const productImg = selProd?.imageUrl ?? null;
@@ -3059,170 +3209,223 @@ function BombaCalorTab({
                 );
               })()}
             </div>
-          </section>
+          </div>
 
           {/* BANNER DIMENSIONAMENTO */}
-          <div className="bg-blue-900 text-white px-5 py-1.5 print:mb-1">
-            <span className="text-[10px] uppercase tracking-[0.18em] font-bold">Dimensionamento</span>
-          </div>
+          <div className="banner">Dimensionamento</div>
 
           {report ? (
             <>
-              <section className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-slate-200 avoid-break">
-                {/* KPIs */}
-                <div className="col-span-5 grid grid-cols-1 gap-1">
-                  <Kpi label="Calor necessário (mês crítico)" value={report.calorNecessarioKcalH.toLocaleString("pt-BR")} unit="Kcal/h" accent />
-                  <Kpi label="Potência térmica" value={report.qtotalMaxKw.toFixed(1).replace(".", ",")} unit="kW" />
-                  <Kpi label="Equivalente" value={report.calorNecessarioBtuH.toLocaleString("pt-BR")} unit="Btu/h" />
-                  {/* Vazão de água necessária (mín–máx) — do cadastro da bomba de calor, SOMADA por qtd
-                      (máquinas em paralelo). Mesma vazão que dimensiona a bomba de circulação. */}
-                  <Kpi label="Vazão de água (mín–máx)" value={(() => {
-                    const q = Math.max(1, eq?.quantity || 1);
-                    const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1).replace(".", ","));
-                    const vmin = Number(eq?.vazaoMinM3h) > 0 ? Number(eq?.vazaoMinM3h) * q : 0;
-                    const vmax = Number(eq?.vazaoMaxM3h) > 0 ? Number(eq?.vazaoMaxM3h) * q : 0;
-                    if (vmin <= 0 && vmax <= 0) return "—";
-                    if (vmax > vmin && vmin > 0) return `${fmt(vmin)} – ${fmt(vmax)}`;
-                    return fmt(vmin || vmax);
-                  })()} unit="m³/h" />
-                  <Kpi label="Mês crítico" value={MESES[report.qtotalMonthCritical] ?? "—"} unit="" />
-                    {(() => {
-                      const ed = report?.extrasDetected;
-                      if (!ed) return null;
-                      const cards: React.ReactNode[] = [];
-                      if (ed.cascata.status !== "NAO_IDENTIFICADA") cards.push(<ExtraImpactCard key="casc" icon="🌊" title="Cascata" extra={ed.cascata} horasValue={cascataHorasSemana} onChangeHoras={onChangeCascataHoras} />);
-                      if (ed.hidromassagem.status !== "NAO_IDENTIFICADA") cards.push(<ExtraImpactCard key="hidro" icon="💦" title="SPA" extra={ed.hidromassagem} horasValue={hidromassagemHorasSemana} onChangeHoras={onChangeHidroHoras} />);
-                      if (ed.bordaInfinita.status !== "NAO_IDENTIFICADA") cards.push(<ExtraImpactCard key="borda" icon="🏞" title="Borda infinita" extra={ed.bordaInfinita} horasValue={bordaInfinitaHorasAtivaDia} onChangeHoras={onChangeBordaHoras} hoursLabel="h/dia" />);
-                      if (cards.length === 0) return null;
-                      return (
-                        <div className="mt-1">
-                          <div className="text-[8.5px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Extras (impacto no calor)</div>
-                          <div className="flex flex-wrap gap-1.5">{cards}</div>
-                        </div>
-                      );
-                    })()}
-                </div>
-                {/* Equipamento */}
-                <div className="col-span-7 flex flex-col gap-2">
-                  {eq ? (
-                    <div>
-                      <div className="flex items-center justify-between gap-2">
-                        <SectionLabel>{eq.fromOverride ? "Bomba de calor (manual)" : eq.fromItemCellRef ? "Bomba de calor (da linha)" : "Bomba de calor selecionada"}</SectionLabel>
-                        <button type="button" onClick={() => setShowHeatingRulePicker(true)} title="Configurar regra de auto-seleção da bomba de calor" className="print:hidden text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300">✨</button>
-                      </div>
-                      <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                        <div className="relative inline-flex items-center">
-                          <button type="button" onClick={() => setShowEquipPicker(!showEquipPicker)} className="flex items-center gap-2 min-w-0 max-w-full rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[13px] font-bold text-slate-900 hover:border-amber-300 transition text-left print:hidden">
-                            <span className="truncate max-w-[240px] sm:max-w-[320px]" title={eq.modelName}>{eq.modelName}</span>
-                            <span className="text-xs text-slate-500 shrink-0">{showEquipPicker ? "▲" : "▼"}</span>
-                          </button>
-                          <span className="hidden print:inline text-[13px] font-bold text-slate-900">{eq.modelName}</span>
-                          {showEquipPicker && (
-                            <div className="absolute z-50 left-0 top-full mt-2 rounded-xl border-2 border-emerald-200 bg-white shadow-xl p-3 max-h-96 overflow-y-auto w-[520px] max-w-[90vw]">
-                              <div className="text-[11px] font-semibold uppercase text-slate-500 mb-2">Trocar equipamento</div>
-                              {eq.fromOverride && (
-                                <button type="button" onClick={() => changeEquipment(null)} disabled={changingEquipment} className="w-full text-left px-3 py-2 mb-2 rounded-lg border border-violet-300 bg-violet-50 hover:bg-violet-100 text-sm font-semibold text-violet-900 disabled:opacity-50">↺ Voltar pra seleção automática</button>
-                              )}
-                              <div className="space-y-1">
-                                {candidates.length === 0 && (<div className="text-xs text-slate-500 px-2 py-3">Nenhum produto Bomba de Calor com kcalHNominal. Configure a regra no ✨.</div>)}
-                                {[...candidates].sort((a, b) => a.kcalHNominal - b.kcalHNominal).map((c) => (
-                                  <button key={c.productId} type="button" onClick={() => { changeEquipment(c.productId, 1); setShowEquipPicker(false); }} disabled={changingEquipment} className={`w-full text-left px-3 py-2 rounded-lg border text-sm disabled:opacity-50 ${c.productId === eq.productId ? "border-emerald-400 bg-emerald-50 font-semibold" : "border-slate-200 hover:bg-slate-50"}`}>
-                                    {c.modelName} <span className="text-[11px] text-slate-500">· {c.kcalHNominal.toLocaleString("pt-BR")} Kcal/h</span>
-                                  </button>
-                                ))}
-                              </div>
+              {(() => {
+                const demandaKw = report.qtotalMaxKw;
+                const loadR = eq?.loadRatio ?? 0;
+                const capacidadeKw = loadR > 0 ? demandaKw / loadR : (Number(eq?.kwNominal) || 0) * Math.max(1, eq?.quantity || 1);
+                const folgaPct = demandaKw > 0 && capacidadeKw > 0 ? Math.round((capacidadeKw / demandaKw - 1) * 100) : 0;
+                const demandaPct = capacidadeKw > 0 ? Math.min(100, (demandaKw / capacidadeKw) * 100) : 0;
+                const loadPct = Math.min(100, Math.max(0, loadR * 100));
+                const copVals = eq ? [
+                  { lbl: "COP máx", v: Number(eq.copMax) || 0, bar: "#475569", txt: "#475569" },
+                  { lbl: "Verão 50%", v: Number(eq.copAt50Air26) || 0, bar: "#d97706", txt: "#b45309" },
+                  { lbl: "Inverno 50%", v: Number(eq.copAt50Air15) || 0, bar: "#0e7490", txt: "#0e7490" },
+                ].filter((c) => c.v > 0) : [];
+                const copRef = Math.max(1, ...copVals.map((c) => c.v));
+                const vazaoStr = (() => {
+                  const q = Math.max(1, eq?.quantity || 1);
+                  const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1).replace(".", ","));
+                  const vmin = Number(eq?.vazaoMinM3h) > 0 ? Number(eq?.vazaoMinM3h) * q : 0;
+                  const vmax = Number(eq?.vazaoMaxM3h) > 0 ? Number(eq?.vazaoMaxM3h) * q : 0;
+                  if (vmin <= 0 && vmax <= 0) return "—";
+                  if (vmax > vmin && vmin > 0) return `${fmt(vmin)} – ${fmt(vmax)}`;
+                  return fmt(vmin || vmax);
+                })();
+                return (
+                <div style={{ display: "grid", gridTemplateColumns: "5fr 7fr", gap: 14, padding: "7px 18px", borderBottom: "1px solid #e2e8f0" }} className="avoid-break">
+                  {/* ESQUERDA: resultado + COP + capacidade x demanda */}
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    <div className="sec">Resultado do cálculo</div>
+                    <div style={{ marginTop: 4 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "3px 6px", borderBottom: "1px solid #e2e8f0", background: "#fffbeb" }}><span className="lbl" style={{ color: "#92400e" }}>Calor necessário · mês crítico</span><span style={{ fontSize: 12, fontWeight: 800, color: "#b45309" }} className="num">{report.calorNecessarioKcalH.toLocaleString("pt-BR")} <span style={{ fontSize: 8, color: "#a16207" }}>Kcal/h</span></span></div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "3px 6px", borderBottom: "1px solid #e2e8f0" }}><span className="lbl">Potência térmica</span><span style={{ fontSize: 11, fontWeight: 800 }} className="num">{report.qtotalMaxKw.toFixed(1).replace(".", ",")} <span style={{ fontSize: 8, color: "#64748b" }}>kW</span></span></div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "3px 6px", borderBottom: "1px solid #e2e8f0" }}><span className="lbl">Equivalente</span><span style={{ fontSize: 11, fontWeight: 800 }} className="num">{report.calorNecessarioBtuH.toLocaleString("pt-BR")} <span style={{ fontSize: 8, color: "#64748b" }}>Btu/h</span></span></div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "3px 6px", borderBottom: "1px solid #e2e8f0" }}><span className="lbl">Vazão de água · mín–máx</span><span style={{ fontSize: 11, fontWeight: 800 }} className="num">{vazaoStr} <span style={{ fontSize: 8, color: "#64748b" }}>m³/h</span></span></div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "3px 6px", borderBottom: "1px solid #e2e8f0" }}><span className="lbl">Mês crítico</span><span style={{ fontSize: 11, fontWeight: 800, color: "#0e7490" }}>{MESES[report.qtotalMonthCritical] ?? "—"}</span></div>
+                    </div>
+                    {copVals.length > 0 && (
+                      <>
+                        <div className="sec" style={{ marginTop: 9 }}>Rendimento (COP) por estação</div>
+                        <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 5 }}>
+                          {copVals.map((c) => (
+                            <div key={c.lbl} style={{ display: "grid", gridTemplateColumns: "62px 1fr 30px", alignItems: "center", gap: 6 }}>
+                              <span style={{ fontSize: 9, color: c.txt, fontWeight: 600 }}>{c.lbl}</span>
+                              <div style={{ height: 9, background: "#f1f5f9", borderRadius: 3, overflow: "hidden" }}><div style={{ width: `${(c.v / copRef) * 100}%`, height: "100%", background: c.bar }}></div></div>
+                              <span style={{ fontSize: 10, fontWeight: 800, textAlign: "right", color: c.txt }} className="num">{dsDec(c.v, 1)}</span>
                             </div>
-                          )}
+                          ))}
                         </div>
-                        <EquipmentQuantityInput productId={eq.productId} currentQty={eq.quantity} onChangeQty={(newQty) => changeEquipment(eq.productId, newQty)} disabled={changingEquipment} />
-                        {eq.quantity > 1 && (<span className="inline-flex items-center gap-1 bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full text-[10px] font-bold">⚡ {eq.quantity}× EM PARALELO</span>)}
-                      </div>
-                      <div className="mt-1.5 rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm">
-                        <div className="grid grid-cols-3 gap-2">
-                          <StatCompact label="Capacidade" value={`${eq.kcalHNominal?.toLocaleString("pt-BR")} Kcal/h`} />
-                        {eq.kwNominal ? <StatCompact label="Pot. térmica" value={`${eq.kwNominal} kW`} /> : null}
-                        {eq.ratedInputPowerKW ? <StatCompact label="Consumo médio" value={`${eq.ratedInputPowerKW} kW`} /> : null}
-                      </div>
-                      <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
-                        {eq.copMax !== undefined && eq.copMax > 0 && (<div className="rounded bg-slate-50 px-2 py-1.5"><div className="text-[9px] text-slate-500">COP máx</div><div className="font-bold text-slate-700 tabular-nums">{eq.copMax}</div></div>)}
-                        {eq.copAt50Air26 !== undefined && eq.copAt50Air26 > 0 && (<div className="rounded bg-amber-50 px-2 py-1.5"><div className="text-[9px] text-amber-700">Verão 50%</div><div className="font-bold text-amber-900 tabular-nums">{eq.copAt50Air26}</div></div>)}
-                        {eq.copAt50Air15 !== undefined && eq.copAt50Air15 > 0 && (<div className="rounded bg-cyan-50 px-2 py-1.5"><div className="text-[9px] text-cyan-700">Inverno 50%</div><div className="font-bold text-cyan-900 tabular-nums">{eq.copAt50Air15}</div></div>)}
-                      </div>
-                      {report.copEstimated && report.copEstimated > 0 ? (
-                        <div className="mt-1.5 rounded bg-cyan-50 px-2 py-1 text-[10px] text-cyan-800">
-                          COP efetivo no clima local: <strong className="tabular-nums">{report.copEstimated.toFixed(1)}</strong> · varia por mês com a temperatura do ar (não fixo no inverno)
+                        {report.copEstimated && report.copEstimated > 0 ? (<div style={{ marginTop: 6, borderRadius: 4, background: "#ecfeff", border: "1px solid #cffafe", padding: "4px 7px", fontSize: 9.5, color: "#155e75" }}>COP efetivo no clima local <strong className="num">{dsDec(report.copEstimated, 1)}</strong> · varia mês a mês com a temperatura do ar</div>) : null}
+                      </>
+                    )}
+                    {capacidadeKw > 0 && demandaKw > 0 && (
+                      <>
+                        <div className="sec" style={{ marginTop: 9 }}>Capacidade × Demanda</div>
+                        <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 5 }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "62px 1fr 52px", alignItems: "center", gap: 6 }}><span style={{ fontSize: 9, color: "#475569", fontWeight: 600 }}>Demanda</span><div style={{ height: 11, background: "#f1f5f9", borderRadius: 3, overflow: "hidden" }}><div style={{ width: `${demandaPct}%`, height: "100%", background: "#94a3b8" }}></div></div><span style={{ fontSize: 9.5, fontWeight: 800, textAlign: "right" }} className="num">{dsDec(demandaKw, 1)} kW</span></div>
+                          <div style={{ display: "grid", gridTemplateColumns: "62px 1fr 52px", alignItems: "center", gap: 6 }}><span style={{ fontSize: 9, color: "#047857", fontWeight: 600 }}>Capacidade</span><div style={{ height: 11, background: "#f1f5f9", borderRadius: 3, overflow: "hidden" }}><div style={{ width: "100%", height: "100%", background: "#047857" }}></div></div><span style={{ fontSize: 9.5, fontWeight: 800, textAlign: "right", color: "#047857" }} className="num">{dsDec(capacidadeKw, 1)} kW</span></div>
+                          {folgaPct !== 0 && (<div style={{ display: "flex", justifyContent: "flex-end" }}><span className="chip" style={{ background: "#ecfdf5", borderColor: "#a7f3d0", color: "#047857" }}>{folgaPct > 0 ? "+" : ""}{folgaPct}% de folga</span></div>)}
                         </div>
-                      ) : null}
-                      <div className="mt-2 text-xs text-emerald-700">
-                        Carga: <strong>{(eq.loadRatio * 100).toFixed(0)}%</strong>
-                        {eq.isAdequate ? <span className="ml-2 text-emerald-700">✓ Folga adequada</span> : <span className="ml-2 text-amber-700">⚠ Fora da faixa ideal</span>}
-                        {report.timeToHeatInfeasible ? (<span className="ml-2 text-rose-700">⛔ Não aquece nas condições atuais</span>) : report.timeToHeatHours && isFinite(report.timeToHeatHours) ? (<span className="ml-2 text-slate-600">· Aquece em {Math.floor(report.timeToHeatHours)}h{report.degreesPerHour ? ` (${report.degreesPerHour.toFixed(2)} °C/h)` : ""}</span>) : null}
+                      </>
+                    )}
+                  </div>
+                  {/* DIREITA: equipamento + tubulacao + bomba de circulacao */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {eq ? (
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                          <div className="sec" style={{ flex: 1 }}>{eq.fromOverride ? "Bomba de calor (manual)" : eq.fromItemCellRef ? "Bomba de calor (da linha)" : "Bomba de calor selecionada"}</div>
+                          <button type="button" className="ds-edit" onClick={() => setShowHeatingRulePicker(true)} title="Configurar regra de auto-seleção da bomba de calor" style={{ fontSize: 11, fontWeight: 700, padding: "0 5px", borderRadius: 4, border: "1px solid #e2e8f0", color: "#94a3b8", background: "#fff", cursor: "pointer" }}>✨</button>
+                        </div>
+                        <div style={{ marginTop: 5, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+                            <button type="button" className="ds-edit" onClick={() => setShowEquipPicker(!showEquipPicker)} style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: "100%", border: "1px solid #fcd34d", background: "#fffbeb", borderRadius: 5, padding: "2px 7px", fontSize: 12.5, fontWeight: 800, color: "#0f172a", cursor: "pointer", textAlign: "left" }}>
+                              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 300 }} title={eq.modelName}>{eq.modelName}</span>
+                              <span style={{ fontSize: 10, color: "#64748b", flexShrink: 0 }}>{showEquipPicker ? "▲" : "▼"}</span>
+                            </button>
+                            <span className="ds-print" style={{ fontSize: 12.5, fontWeight: 800 }}>{eq.modelName}</span>
+                            {showEquipPicker && (
+                              <div className="absolute z-50 left-0 top-full mt-2 rounded-xl border-2 border-emerald-200 bg-white shadow-xl p-3 max-h-96 overflow-y-auto w-[520px] max-w-[90vw]">
+                                <div className="text-[11px] font-semibold uppercase text-slate-500 mb-2">Trocar equipamento</div>
+                                {eq.fromOverride && (
+                                  <button type="button" onClick={() => changeEquipment(null)} disabled={changingEquipment} className="w-full text-left px-3 py-2 mb-2 rounded-lg border border-violet-300 bg-violet-50 hover:bg-violet-100 text-sm font-semibold text-violet-900 disabled:opacity-50">↺ Voltar pra seleção automática</button>
+                                )}
+                                <div className="space-y-1">
+                                  {candidates.length === 0 && (<div className="text-xs text-slate-500 px-2 py-3">Nenhum produto Bomba de Calor com kcalHNominal. Configure a regra no ✨.</div>)}
+                                  {[...candidates].sort((a, b) => a.kcalHNominal - b.kcalHNominal).map((c) => (
+                                    <button key={c.productId} type="button" onClick={() => { changeEquipment(c.productId, 1); setShowEquipPicker(false); }} disabled={changingEquipment} className={`w-full text-left px-3 py-2 rounded-lg border text-sm disabled:opacity-50 ${c.productId === eq.productId ? "border-emerald-400 bg-emerald-50 font-semibold" : "border-slate-200 hover:bg-slate-50"}`}>
+                                      {c.modelName} <span className="text-[11px] text-slate-500">· {c.kcalHNominal.toLocaleString("pt-BR")} Kcal/h</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <span className="ds-edit"><EquipmentQuantityInput productId={eq.productId} currentQty={eq.quantity} onChangeQty={(newQty) => changeEquipment(eq.productId, newQty)} disabled={changingEquipment} /></span>
+                          {eq.quantity > 1 ? (<span className="chip" style={{ background: "#fef3c7", borderColor: "#fcd34d", color: "#92400e" }}>⚡ {eq.quantity}× em paralelo</span>) : (<span className="chip">1 unidade</span>)}
+                        </div>
+                        <div className="card" style={{ marginTop: 5, padding: "7px 8px" }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
+                            <div style={{ background: "#f8fafc", borderRadius: 4, padding: "4px 7px" }}><div className="lbl">Capacidade</div><div style={{ fontSize: 11, fontWeight: 800 }} className="num">{eq.kcalHNominal?.toLocaleString("pt-BR")} Kcal/h</div></div>
+                            {eq.kwNominal ? <div style={{ background: "#f8fafc", borderRadius: 4, padding: "4px 7px" }}><div className="lbl">Pot. térmica</div><div style={{ fontSize: 11, fontWeight: 800 }} className="num">{eq.kwNominal} kW</div></div> : null}
+                            {eq.ratedInputPowerKW ? <div style={{ background: "#f8fafc", borderRadius: 4, padding: "4px 7px" }}><div className="lbl">Consumo médio</div><div style={{ fontSize: 11, fontWeight: 800 }} className="num">{eq.ratedInputPowerKW} kW</div></div> : null}
+                          </div>
+                          <div style={{ marginTop: 7, display: "grid", gridTemplateColumns: "auto 1fr", gap: 8, alignItems: "center" }}>
+                            <div style={{ fontSize: 10, color: "#047857", whiteSpace: "nowrap" }}>Carga <strong className="num" style={{ fontSize: 12 }}>{(eq.loadRatio * 100).toFixed(0)}%</strong> · <span>{eq.isAdequate ? "folga adequada" : "fora da faixa"}</span></div>
+                            <div style={{ position: "relative", height: 12, background: "#f1f5f9", borderRadius: 4, overflow: "hidden" }}><div style={{ position: "absolute", left: "60%", width: "25%", top: 0, bottom: 0, background: "#ecfdf5" }}></div><div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${loadPct}%`, background: eq.isAdequate ? "#047857" : "#d97706", borderRadius: "4px 0 0 4px" }}></div><div style={{ position: "absolute", left: `${loadPct}%`, top: -2, bottom: -2, width: 2, background: "#0f172a" }}></div></div>
+                          </div>
+                          <div style={{ marginTop: 5, fontSize: 9.5, color: "#475569", borderTop: "1px solid #f1f5f9", paddingTop: 4 }}>
+                            {report.timeToHeatInfeasible
+                              ? <span style={{ color: "#be123c", fontWeight: 700 }}>⛔ Não aquece nas condições atuais</span>
+                              : <>Aquece de <strong className="num" style={{ color: "#0f172a" }}>{tempIniDisplay} → {tempAguaDesejada} °C</strong> em <strong className="num" style={{ color: "#0f172a" }}>{report.timeToHeatHours && isFinite(report.timeToHeatHours) ? Math.floor(report.timeToHeatHours) : "—"} h</strong>{report.degreesPerHour ? <span style={{ color: "#94a3b8" }}> ({dsDec(report.degreesPerHour)} °C/h)</span> : null} · zona ideal de carga 60–85% (faixa verde)</>}
+                          </div>
+                        </div>
                       </div>
+                    ) : (
+                      <div style={{ borderRadius: 8, border: "1px solid #fcd34d", background: "#fffbeb", padding: "8px 12px", fontSize: 12, color: "#92400e" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}><strong>Nenhum equipamento compatível.</strong><button type="button" className="ds-edit" onClick={() => setShowHeatingRulePicker(true)} style={{ color: "#7c3aed", fontSize: 12, fontWeight: 700, cursor: "pointer", background: "none", border: 0 }}>✨ Configurar</button></div>
+                        <div style={{ marginTop: 2, fontSize: 10.5 }}>Cadastre Bomba de Calor com kcalHNominal e configure a regra de auto-seleção (✨).</div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                      <div className="flex items-center justify-between"><strong>Nenhum equipamento compatível.</strong><button type="button" onClick={() => setShowHeatingRulePicker(true)} className="print:hidden text-violet-700 hover:text-violet-900 text-sm font-bold">✨ Configurar</button></div>
-                      <div className="mt-1 text-xs">Cadastre Bomba de Calor com kcalHNominal e configure a regra de auto-seleção (✨).</div>
-                    </div>
-                  )}
-              {/* BOMBA DE CIRCULACAO + TUBULACAO — paridade com o Solar (imagem/specs/consumo mensal).
-                  operatingHoursPerMonth = horas REAIS de operacao da bomba de calor por mes
-                  (demanda-dirigida): inverno mais, verao menos, bomba mais potente -> menos horas.
-                  A bomba de circulacao roda junto com a bomba de calor. */}
-              {report.selectedEquipment && (
-                <TrocadorPumpPipeCard
-                  budgetId={budget.id}
-                  sel={report.selectedEquipment}
-                  operatingHoursPerMonth={report.operatingHoursPerMonth}
-                  operatingHoursPerDayAvg={report.operatingHoursPerDayAvg}
-                  onOpenRulePicker={() => setShowTrocadorRulePicker(true)}
-                  ruleVersion={trocadorRuleVersion}
-                  onConsumoChange={setRecircConsumo}
-                />
-              )}
+                    )}
+                    {report.selectedEquipment && (
+                      <TrocadorPumpPipeCard
+                        budgetId={budget.id}
+                        sel={report.selectedEquipment}
+                        operatingHoursPerMonth={report.operatingHoursPerMonth}
+                        operatingHoursPerDayAvg={report.operatingHoursPerDayAvg}
+                        onOpenRulePicker={() => setShowTrocadorRulePicker(true)}
+                        ruleVersion={trocadorRuleVersion}
+                        onConsumoChange={setRecircConsumo}
+                      />
+                    )}
+                  </div>
                 </div>
-              </section>
+                );
+              })()}
 
               {/* BANNER SIMULACAO */}
-              <div className="bg-blue-900 text-white px-5 py-1.5 print:mb-1"><span className="text-[10px] uppercase tracking-[0.18em] font-bold">Simulação de consumo mensal</span></div>
-              <section className="grid grid-cols-12 gap-3 px-5 py-3 avoid-break">
-                {report.monthlyConsumption && report.monthlyConsumption.length > 0 ? (
-                  <>
-                    <div className="col-span-7 grid grid-cols-2 gap-2">
-                      <BigStatLegacy label="Bomba de calor (ano)" value={(report.annualKwh ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} unit="kWh" emphasis="cyan" />
-                      <BigStatLegacy label="Recirculação (ano)" value={(recircConsumo?.kwhAno ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} unit="kWh" emphasis="cyan" />
-                      <BigStatLegacy label="Consumo TOTAL (ano)" value={((report.annualKwh ?? 0) + (recircConsumo?.kwhAno ?? 0)).toLocaleString("pt-BR", { maximumFractionDigits: 0 })} unit="kWh (bomba+recirc)" emphasis="orange" />
-                      <BigStatLegacy label="Custo total (ano)" value={fmtBRL((report.annualCostBRLCents ?? 0) + (recircConsumo?.custoAnoCents ?? 0))} unit="por ano" emphasis="orange" />
+              <div className="banner">Simulação de consumo mensal</div>
+              {report.monthlyConsumption && report.monthlyConsumption.length > 0 ? (() => {
+                const mc = report.monthlyConsumption!;
+                const critIdx = mc.findIndex((m) => m.monthIndex === report.qtotalMonthCritical);
+                const bombaKwh = report.annualKwh ?? 0;
+                const recircKwh = recircConsumo?.kwhAno ?? 0;
+                const totalKwh = bombaKwh + recircKwh;
+                const totalCostCents = (report.annualCostBRLCents ?? 0) + (recircConsumo?.custoAnoCents ?? 0);
+                const bombaPct = totalKwh > 0 ? Math.round((bombaKwh / totalKwh) * 100) : 100;
+                const recircPct = 100 - bombaPct;
+                return (
+                  <div style={{ display: "grid", gridTemplateColumns: "7fr 5fr", gap: 14, padding: "7px 18px" }} className="avoid-break">
+                    {/* ESQUERDA: 4 stats + curva sazonal + donut */}
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 7 }}>
+                        <div style={{ border: "1px solid #cffafe", background: "#ecfeff", borderRadius: 8, padding: "4px 8px" }}><div className="lbl" style={{ color: "#0e7490" }}>Bomba calor · ano</div><div style={{ fontSize: 15, fontWeight: 800, color: "#155e75", lineHeight: 1.1 }} className="num">{bombaKwh.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</div><div style={{ fontSize: 8, color: "#0e7490", fontWeight: 600 }}>kWh</div></div>
+                        <div style={{ border: "1px solid #cffafe", background: "#ecfeff", borderRadius: 8, padding: "4px 8px" }}><div className="lbl" style={{ color: "#0e7490" }}>Recirculação · ano</div><div style={{ fontSize: 15, fontWeight: 800, color: "#155e75", lineHeight: 1.1 }} className="num">{recircKwh.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</div><div style={{ fontSize: 8, color: "#0e7490", fontWeight: 600 }}>kWh</div></div>
+                        <div style={{ border: "1px solid #fed7aa", background: "#fff7ed", borderRadius: 8, padding: "4px 8px" }}><div className="lbl" style={{ color: "#c2410c" }}>Consumo TOTAL · ano</div><div style={{ fontSize: 15, fontWeight: 800, color: "#9a3412", lineHeight: 1.1 }} className="num">{totalKwh.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</div><div style={{ fontSize: 8, color: "#c2410c", fontWeight: 600 }}>kWh (bomba+recirc)</div></div>
+                        <div style={{ border: "1px solid #fed7aa", background: "#fff7ed", borderRadius: 8, padding: "4px 8px" }}><div className="lbl" style={{ color: "#c2410c" }}>Custo total · ano</div><div style={{ fontSize: 13.5, fontWeight: 800, color: "#9a3412", lineHeight: 1.1 }} className="num">{fmtBRL(totalCostCents)}</div><div style={{ fontSize: 8, color: "#c2410c", fontWeight: 600 }}>por ano</div></div>
+                      </div>
+                      <div className="card" style={{ marginTop: 8, padding: "7px 9px 4px", flex: 1, display: "flex", flexDirection: "column" }}>
+                        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}><div className="sec" style={{ border: 0, padding: 0 }}>Curva sazonal de consumo · kWh/mês</div><div style={{ fontSize: 9, color: "#64748b" }}>pico no <b style={{ color: "#0e7490" }}>inverno</b></div></div>
+                        <SeasonalCurve monthly={mc} criticalIndex={critIdx} />
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 12, alignItems: "center", marginTop: 7, border: "1px solid #e2e8f0", borderRadius: 8, padding: "7px 10px" }}>
+                        <ConsumoDonut bombaKwh={bombaKwh} recircKwh={recircKwh} />
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          <div className="lbl" style={{ marginBottom: 1 }}>Composição do consumo anual</div>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}><span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: "#0e7490" }}></span>Bomba de calor</span><span style={{ fontSize: 10 }}><b className="num">{bombaKwh.toLocaleString("pt-BR")}</b> kWh · <b style={{ color: "#0e7490" }}>{bombaPct}%</b></span></div>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}><span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: "#f59e0b" }}></span>Recirculação</span><span style={{ fontSize: 10 }}><b className="num">{recircKwh.toLocaleString("pt-BR")}</b> kWh · <b style={{ color: "#b45309" }}>{recircPct}%</b></span></div>
+                          <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: 4, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}><span style={{ fontSize: 9.5, color: "#64748b" }}>Custo da bomba (ano)</span><span style={{ fontSize: 10.5, fontWeight: 800, color: "#b45309" }} className="num">{fmtBRL(report.annualCostBRLCents ?? 0)}</span></div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="col-span-5 rounded-lg border border-slate-200 bg-white overflow-hidden">
-                      <table className="w-full text-[10px]">
-                        <thead className="bg-slate-50 border-b border-slate-200"><tr><th className="px-2 py-1 text-left font-semibold text-slate-700">Mês</th><th className="px-2 py-1 text-right font-semibold text-slate-700">kWh</th><th className="px-2 py-1 text-right font-semibold text-slate-700">R$</th></tr></thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {report.monthlyConsumption.map((m) => { const isCrit = m.monthIndex === report.qtotalMonthCritical; return (<tr key={m.monthIndex} className={isCrit ? "bg-orange-50" : ""}><td className="px-2 py-1 font-medium text-slate-700">{m.monthName}</td><td className="px-2 py-1 text-right text-slate-700 tabular-nums">{m.kwhConsumido.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</td><td className="px-2 py-1 text-right font-semibold text-emerald-700 tabular-nums">{fmtBRL(m.custoBRLCents)}</td></tr>); })}
-                          <tr className="bg-slate-100 font-bold"><td className="px-2 py-1 text-slate-900">Total</td><td className="px-2 py-1 text-right text-slate-900 tabular-nums">{(report.annualKwh ?? 0).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</td><td className="px-2 py-1 text-right text-emerald-700 tabular-nums">{fmtBRL(report.annualCostBRLCents ?? 0)}</td></tr>
+                    {/* DIREITA: tabela mensal */}
+                    <div className="card" style={{ overflow: "hidden", display: "flex", flexDirection: "column" }}>
+                      <table style={{ fontSize: 10 }}>
+                        <thead><tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}><th style={{ textAlign: "left", padding: "4px 9px", fontSize: 9, color: "#334155", fontWeight: 700 }}>Mês</th><th style={{ textAlign: "right", padding: "4px 9px", fontSize: 9, color: "#334155", fontWeight: 700 }}>kWh</th><th style={{ textAlign: "right", padding: "4px 9px", fontSize: 9, color: "#334155", fontWeight: 700 }}>R$</th></tr></thead>
+                        <tbody>
+                          {mc.map((m, i) => { const isCrit = i === critIdx; return (
+                            <tr key={m.monthIndex} style={{ borderBottom: "1px solid #f1f5f9", background: isCrit ? "#cffafe" : undefined }}>
+                              <td style={{ padding: "3.4px 9px", color: isCrit ? "#155e75" : "#334155", fontWeight: isCrit ? 800 : undefined }}>{m.monthName}{isCrit ? " ▲" : ""}</td>
+                              <td style={{ padding: "3.4px 9px", textAlign: "right", color: isCrit ? "#155e75" : undefined, fontWeight: isCrit ? 800 : undefined }} className="num">{Math.round(m.kwhConsumido).toLocaleString("pt-BR")}</td>
+                              <td style={{ padding: "3.4px 9px", textAlign: "right", color: isCrit ? "#0e7490" : "#047857", fontWeight: isCrit ? 800 : 700 }} className="num">{dsMoney(m.custoBRLCents)}</td>
+                            </tr>
+                          ); })}
+                          <tr style={{ background: "#f1f5f9" }}><td style={{ padding: "5px 9px", color: "#0f172a", fontWeight: 800, whiteSpace: "nowrap" }}>Total bomba de calor:</td><td style={{ padding: "5px 9px", textAlign: "right", color: "#0f172a", fontWeight: 800, whiteSpace: "nowrap" }} className="num">{bombaKwh.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} <span style={{ fontSize: 8, fontWeight: 600, color: "#64748b" }}>kWh</span></td><td style={{ padding: "5px 9px", textAlign: "right", color: "#0e7490", fontWeight: 800, whiteSpace: "nowrap" }} className="num">{fmtBRL(report.annualCostBRLCents ?? 0)}</td></tr>
                         </tbody>
                       </table>
+                      <div style={{ padding: "5px 9px", borderTop: "1px solid #e2e8f0", fontSize: 8.5, color: "#64748b", lineHeight: 1.35 }}>Valores da <b style={{ color: "#0e7490" }}>bomba de calor</b>. Recirculação adiciona <b className="num" style={{ color: "#0f172a" }}>{recircKwh.toLocaleString("pt-BR")} kWh</b> ao ano → total geral <b className="num" style={{ color: "#9a3412" }}>{totalKwh.toLocaleString("pt-BR")} kWh / {fmtBRL(totalCostCents)}</b>.</div>
                     </div>
-                  </>
-                ) : (
-                  <div className="col-span-12 text-sm text-slate-500">{eq ? "Equipamento sem ratedInputPowerKW no cadastro — não dá pra estimar consumo." : "Selecione um equipamento pra estimar o consumo."}</div>
-                )}
-              </section>
+                  </div>
+                );
+              })() : (
+                <div style={{ padding: "12px 18px", fontSize: 13, color: "#64748b" }}>{eq ? "Equipamento sem ratedInputPowerKW no cadastro — não dá pra estimar consumo." : "Selecione um equipamento pra estimar o consumo."}</div>
+              )}
 
               {/* FOOTER */}
-              <footer className="mt-auto px-5 py-3 border-t border-slate-200">
-                <div className="grid grid-cols-12 gap-4 items-start">
-                  <div className="col-span-8 text-[9px] text-slate-500 leading-snug">
-                    <div className="font-semibold text-slate-600 uppercase tracking-wide text-[8.5px] mb-0.5">Observações</div>
-                    Dimensionamento conforme NBR 10.339. Capacidade da bomba de calor selecionada para o mês mais frio (crítico) da localidade. Consumo estimado com COP ajustado pela temperatura média de cada mês (clima local) e tarifa de energia configurada no sistema.
-                  </div>
-                  <div className="col-span-4 text-right text-[9px] text-slate-400">
-                    <div className="font-bold text-slate-500 text-[10px]">Tecnikos</div>
-                    <div>Gestão para piscinas</div>
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14, padding: "6px 18px", borderTop: "1px solid #e2e8f0", alignItems: "stretch" }} className="avoid-break">
+                <div style={{ fontSize: 9, color: "#64748b", lineHeight: 1.45, display: "flex", flexDirection: "column" }}>
+                  <div style={{ fontSize: 8.5, textTransform: "uppercase", letterSpacing: ".08em", color: "#475569", fontWeight: 700, marginBottom: 3 }}>Observações</div>
+                  <div>Dimensionamento conforme NBR 10.339. Capacidade da bomba de calor selecionada para o mês mais frio (crítico) da localidade. Consumo estimado com COP ajustado pela temperatura média de cada mês (clima local) e tarifa de energia configurada no sistema. A curva sazonal evidencia o maior consumo nos meses mais frios, quando o ΔT é maior e o COP cai.</div>
+                </div>
+                <div style={{ border: "1px solid #fecaca", borderRadius: 8, overflow: "hidden", background: "#fff", display: "flex", flexDirection: "column" }}>
+                  <div style={{ background: "#b91c1c", color: "#fff", padding: "3px 8px" }}><div style={{ fontSize: 9, fontWeight: 800, lineHeight: 1.1 }}>NBR 10339:2018 — ABNT</div><div style={{ fontSize: 7.5, color: "#fecaca", lineHeight: 1.1 }}>Faixas de temperatura por uso</div></div>
+                  <div style={{ padding: "4px 8px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px", fontSize: 8.5, lineHeight: 1.5, flex: 1, alignContent: "center" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#475569" }}>SPA</span><span style={{ fontWeight: 800 }} className="num">36–38°</span></div>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#475569" }}>Competição</span><span style={{ fontWeight: 800 }} className="num">25–28°</span></div>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#475569" }}>Recreação</span><span style={{ fontWeight: 800 }} className="num">27–29°</span></div>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#475569" }}>Bebês/Hidro</span><span style={{ fontWeight: 800 }} className="num">30–34°</span></div>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "#475569" }}>Crianças</span><span style={{ fontWeight: 800 }} className="num">29–32°</span></div>
+                    <div style={{ color: "#b91c1c", fontWeight: 700 }}>⚠ médico &gt;38°</div>
                   </div>
                 </div>
-              </footer>
+              </div>
             </>
           ) : (
             <div className="mx-5 my-6 rounded border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500 print:hidden">
@@ -3282,6 +3485,26 @@ function BombaCalorTab({
       )}
 
       <style dangerouslySetInnerHTML={{ __html: `
+        /* === V1 "curva sazonal" datasheet (.ds-bomba) — base, vale tela E print === */
+        .ds-bomba { width:100%; background:#fff; color:#0f172a; font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; font-size:11px; line-height:1.3; }
+        .ds-bomba * { box-sizing:border-box; }
+        .ds-bomba .num { font-variant-numeric: tabular-nums; }
+        .ds-bomba .lbl { font-size:8px; text-transform:uppercase; letter-spacing:.08em; color:#64748b; font-weight:700; line-height:1; }
+        .ds-bomba .sec { font-size:8.5px; text-transform:uppercase; letter-spacing:.14em; color:#64748b; font-weight:700; border-bottom:1px solid #e2e8f0; padding-bottom:3px; }
+        .ds-bomba .banner { background:#1e3a8a; color:#fff; padding:5px 18px; font-size:9px; text-transform:uppercase; letter-spacing:.18em; font-weight:700; }
+        .ds-bomba .card { border:1px solid #e2e8f0; border-radius:8px; background:#fff; }
+        .ds-bomba .chip { display:inline-flex; align-items:center; gap:4px; border:1px solid #e2e8f0; background:#f1f5f9; color:#475569; border-radius:4px; font-size:9px; font-weight:700; padding:1px 7px; }
+        .ds-bomba .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+        .ds-bomba .pico { border:1px solid #e2e8f0; border-radius:4px; padding:3px 6px; background:#fff; }
+        .ds-bomba .pico .lbl { color:#64748b; }
+        .ds-bomba .pico .v { font-size:11px; font-weight:700; color:#0f172a; line-height:1.2; }
+        .ds-bomba table { width:100%; border-collapse:collapse; }
+        .ds-bomba .ex { display:inline-flex; flex-direction:column; align-items:center; gap:1px; border:1px solid #bae6fd; background:#f0f9ff; border-radius:5px; padding:2px 6px 3px; line-height:1; }
+        .ds-bomba .exn { font-size:7px; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:.02em; line-height:1; }
+        .ds-bomba .exr { display:inline-flex; align-items:center; gap:3px; line-height:1; }
+        /* swap tela <-> impressao: ds-edit = controle editavel (so na tela), ds-print = valor estatico (so no print) */
+        .ds-bomba .ds-print { display:none; }
+
         @media print {
           @page { size: A4 portrait; margin: 0; }
           html, body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
@@ -3372,6 +3595,16 @@ function BombaCalorTab({
           html.printing-mode #bomba-pdf-clone footer { padding-top: 2px !important; padding-bottom: 2px !important; }
           html.printing-mode #bomba-pdf-clone .px-5 { padding-left: 10px !important; padding-right: 10px !important; }
 
+          /* v1.13.47: compactacao EXTRA — a aba Bomba de Calor tem card de bomba de circulacao +
+             tubulacao no dimensionamento E tabela de consumo de 12 meses (conteudo a mais que o
+             Solar), entao estourava pra 2a pagina (~1233px). Medido no /dev/print-test-bomba:
+             estes 4 ajustes baixam pra ~1084px (cabe em A4 com folga). */
+          html.printing-mode #bomba-pdf-clone table td, html.printing-mode #bomba-pdf-clone table th { padding-top: 2px !important; padding-bottom: 2px !important; }
+          html.printing-mode #bomba-pdf-clone .p-2\\.5 { padding: 5px !important; }
+          html.printing-mode #bomba-pdf-clone .mt-2 { margin-top: 3px !important; }
+          html.printing-mode #bomba-pdf-clone .mt-2\\.5 { margin-top: 3px !important; }
+          html.printing-mode #bomba-pdf-clone .mt-1\\.5 { margin-top: 4px !important; }
+
           /* Esconde controles interativos */
           html.printing-mode #bomba-pdf-clone .print-hide-interactive { display: none !important; }
           html.printing-mode #bomba-pdf-clone .print-show-value { display: inline-block !important; }
@@ -3391,6 +3624,12 @@ function BombaCalorTab({
 
           /* SVG do grafico — limita a 60mm (era 80mm, gerava overflow pra pag 2) */
           html.printing-mode #bomba-pdf-clone svg { max-height: 60mm !important; width: 100% !important; height: auto !important; }
+          /* V1: a regra svg acima distorceria donut/curva — neutralizar pra cada um */
+          html.printing-mode #bomba-pdf-clone svg.ds-donut { width: 84px !important; height: 84px !important; max-height: none !important; }
+          html.printing-mode #bomba-pdf-clone svg.ds-curve { width: 100% !important; height: auto !important; max-height: none !important; }
+          /* V1: swap editavel -> estatico no print */
+          html.printing-mode #bomba-pdf-clone .ds-edit { display: none !important; }
+          html.printing-mode #bomba-pdf-clone .ds-print { display: inline !important; }
           html.printing-mode #bomba-pdf-clone img { max-height: none !important; }
 
           /* v1.12.73: classes print:* especificas do Tailwind usadas pra controlar
@@ -3626,7 +3865,6 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
   return (
     <div className="avoid-break">
       <SectionLabel>Tubulação — perda de carga</SectionLabel>
-      <div className="mt-1 text-[10px] text-slate-500">Vazão de projeto (bomba de calor): <b className="text-slate-800 tabular-nums">{vazaoAlvo} m³/h</b>{qty > 1 ? ` (${vMin} × ${qty} bombas)` : ""}{vazaoMaxTotal > 0 ? ` · faixa até ${vazaoMaxTotal} m³/h` : ""}</div>
       {/* Tubulação — largura total (empilhado igual ao Solar) */}
       <div className="mt-1.5 rounded border border-slate-200 bg-slate-50/50 p-2 space-y-1">
           <div className="grid grid-cols-2 gap-1.5">
@@ -3645,8 +3883,9 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
               </div>
               <div className={`text-[9.5px] mt-0.5 ${velAlta ? "text-red-800" : "text-amber-800"}`}>= {pipeResult.perdaDinamica?.toFixed(2)} mca de atrito · <span title="Circuito FECHADO (bomba de calor): depois que a água circula, a coluna que sobe é equilibrada pela que desce no retorno (sifão) — o desnível não soma na altura de OPERAÇÃO (a bomba só vence o atrito). MAS pra COMEÇAR a circular a bomba precisa vencer o desnível e ROMPER A INÉRCIA (encher a coluna até o ponto alto); se a bomba não alcança o desnível, não circula. Por isso ela é escolhida pra dar conta dos dois. Diferente do solar (circuito aberto, válvula ventosa).">circuito fechado{desnivel > 0 ? ` — opera no atrito, mas precisa vencer ${desnivel} m pra romper a inércia` : ""}</span> · velocidade <span className={velAlta ? "font-bold text-red-700" : ""}>{pipeResult.velocidade?.toFixed(2)} m/s</span></div>
               <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                <span className={`text-[10px] uppercase tracking-wider font-bold ${velAlta ? "text-red-800" : "text-amber-800"}`}>📏 {pipeResult.material ?? "PVC"}</span>
-                <select value={dnAtual} onChange={(e) => recompute(Number(e.target.value))} className={`text-xs font-bold rounded border px-2 py-0.5 bg-white ${velAlta ? "border-red-400 text-red-900" : "border-amber-400 text-amber-900"} focus:outline-none`}>{dns.map((d) => <option key={d} value={d}>{d} mm DN</option>)}</select>
+                <span className={`text-[10px] tracking-wider font-bold ${velAlta ? "text-red-800" : "text-amber-800"}`}>Tubo de {pipeResult.material ?? "PVC"}:</span>
+                <select value={dnAtual} onChange={(e) => recompute(Number(e.target.value))} className={`text-xs font-bold rounded border px-2 py-0.5 bg-white ${velAlta ? "border-red-400 text-red-900" : "border-amber-400 text-amber-900"} focus:outline-none print:hidden`}>{dns.map((d) => <option key={d} value={d}>{d} mm DN</option>)}</select>
+                <span className={`hidden print:inline-block text-xs font-bold ${velAlta ? "text-red-900" : "text-amber-900"}`}>{dnAtual} mm DN</span>
                 {pipeResult.diametroAutoPicked ? <span className="text-[9px] uppercase tracking-wider text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">auto</span> : <button type="button" onClick={() => recompute(null)} className="text-[10px] underline text-slate-500 hover:text-slate-700">↺ automático</button>}
               </div>
               {velAlta && <div className="mt-1.5 rounded bg-red-100 border border-red-300 px-2 py-1 text-[10px] font-bold text-red-800 text-center uppercase tracking-wide">⚠ Velocidade {pipeResult.velocidade?.toFixed(2)} m/s acima de 2,5 — aumente o diâmetro</div>}
@@ -3700,9 +3939,6 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
               )}
               <div><span className="text-slate-500">Vazão:</span> <span className="font-semibold tabular-nums">{selB.vazaoM3h.toFixed(2)} m³/h</span></div>
               <div><span className="text-slate-500">Pressão:</span> <span className="font-semibold tabular-nums">{selB.pressaoTrabalhoMca.toFixed(2)} mca</span></div>
-              {selB.salePriceCents > 0 && (
-                <div><span className="text-slate-500">Preço:</span> <span className="font-semibold tabular-nums">R$ {(selB.salePriceCents / 100).toFixed(2)}</span></div>
-              )}
               {selB.hasPumpCurve && <div className="text-[9px] text-emerald-700 font-semibold">📈 com curva característica</div>}
               {selB.indicator && (
                 <div className={`text-[10px] font-semibold ${
@@ -4546,19 +4782,6 @@ function BigStat({ color, label, value, unit }: { color: "emerald" | "blue" | "a
 }
 
 // Versao legada (mantida pra nao quebrar refs antigas)
-function BigStatLegacy({ label, value, unit, emphasis }: { label: string; value: string; unit: string; emphasis: "cyan" | "orange" | "emerald" }) {
-  const cls = emphasis === "cyan" ? "border-cyan-200 from-cyan-50 to-blue-50 text-cyan-900" :
-              emphasis === "orange" ? "border-orange-200 from-orange-50 to-amber-50 text-orange-900" :
-              "border-emerald-200 from-emerald-50 to-teal-50 text-emerald-900";
-  return (
-    <div className={`rounded-xl border bg-gradient-to-br p-3 shadow-sm ${cls}`}>
-      <div className="text-[10px] uppercase tracking-wider font-semibold opacity-80">{label}</div>
-      <div className="mt-1 text-2xl font-extrabold tabular-nums">{value}</div>
-      <div className="text-xs opacity-70">{unit}</div>
-    </div>
-  );
-}
-
 function SmallStat({ label, value }: { label: string; value: string }) {
   return (
     <div>
@@ -4658,69 +4881,6 @@ function EquipmentCandidateRow({
         </span>
       </div>
     </button>
-  );
-}
-
-/** Card compacto ao lado do "Calor necessario" mostrando contribuicao individual
- *  de cada extra (Cascata/SPA/Borda) em kW + horas/sem editavel + status visual.
- *  Substitui o ExtraDetectedCard antigo (maior) — v1.11.81. */
-function ExtraImpactCard({
-  icon,
-  title,
-  extra,
-  horasValue,
-  onChangeHoras,
-  hoursLabel,
-}: {
-  icon: string;
-  title: string;
-  extra: ExtraDetected;
-  horasValue: number;
-  onChangeHoras: (n: number) => void;
-  hoursLabel?: string;
-}) {
-  const tone = extra.status === "IDENTIFICADA_COMPLETA"
-    ? { border: "border-emerald-300", bg: "bg-emerald-50", title: "text-emerald-900", muted: "text-emerald-700" }
-    : extra.status === "IDENTIFICADA_FALTANDO_INFO"
-    ? { border: "border-amber-300", bg: "bg-amber-50", title: "text-amber-900", muted: "text-amber-700" }
-    : { border: "border-slate-200", bg: "bg-white", title: "text-slate-700", muted: "text-slate-500" };
-
-  const impactKw = extra.impactKw ?? 0;
-  const isPaid = extra.status === "IDENTIFICADA_FALTANDO_INFO";
-
-  return (
-    <div
-      className={`rounded-lg border ${tone.border} ${tone.bg} px-2.5 py-1.5 min-w-[140px] max-w-[220px]`}
-      title={extra.message}
-    >
-      <div className="flex items-center justify-between gap-1.5">
-        <div className="flex items-center gap-1">
-          <span className="text-sm">{icon}</span>
-          <span className={`text-[11px] font-semibold ${tone.title}`}>{title}</span>
-        </div>
-        {!isPaid && impactKw > 0 && (
-          <span className={`text-xs font-bold tabular-nums ${tone.title}`}>+{impactKw.toFixed(2)} kW</span>
-        )}
-        {isPaid && (
-          <span className="text-[9px] font-bold uppercase text-amber-700">FALTA INFO</span>
-        )}
-      </div>
-      {extra.status !== "IDENTIFICADA_FALTANDO_INFO" && extra.totalValue > 0 && (
-        <div className={`text-[10px] ${tone.muted} truncate`}>{extra.totalValue} {extra.unit}</div>
-      )}
-      <div className="flex items-center gap-1 mt-1">
-        <input
-          type="number"
-          value={horasValue}
-          onChange={(e) => onChangeHoras(Number(e.target.value) || 0)}
-          min={0}
-          max={hoursLabel?.includes("dia") ? 24 : 168}
-          step={1}
-          className="w-12 rounded border border-slate-300 bg-white px-1.5 py-0.5 text-xs font-bold text-slate-900 tabular-nums"
-        />
-        <span className={`text-[10px] ${tone.muted}`}>{hoursLabel ?? "h/sem"}</span>
-      </div>
-    </div>
   );
 }
 

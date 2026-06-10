@@ -1,5 +1,5 @@
 {
-  "version": "1.13.46",
-  "codename": "v1.12.98: aba Bomba de Calor — datasheet mostra imagem do produto selecionado (listCandidates devolve imageUrl) + cards de Cascata/SPA/Borda infinita (impacto kW + horas) na Configuracao, no espaco da orientacao/inclinacao.",
-  "releasedAt": "2026-06-10T12:27:32.250Z"
+  "version": "1.13.47",
+  "codename": "v1.13.47: aba Bomba de Calor — datasheet V1 'curva sazonal' portado pro componente real (ligado aos dados reais): curva de consumo sazonal + donut bomba×recirculacao data-driven, extras como minicards no topo (nome+icone+kW), barra ΔT, KPIs em lista + barras de COP por estacao + Capacidade×Demanda, swap tela/print preservando toda a interatividade.",
+  "releasedAt": "2026-06-10T18:28:31.002Z"
 }
