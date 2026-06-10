@@ -151,6 +151,27 @@ export class PoolBudgetService {
 
     // Se template tem defaults (snapshot v1.10.43+), aplica como base. DTO sobrescreve.
     const tDefaults = (template?.defaults as Record<string, any>) || {};
+    // Restaura NOMES das etapas custom (labels) + ESCONDIDAS (hidden) gravados no template
+    // dentro do environmentParams do novo orcamento. Sem isso o header da etapa mostra a
+    // CHAVE crua (CUSTOM_<slug>_<rand>) em vez do nome amigavel. Templates salvos ANTES
+    // deste fix nao tem defaults.customSections -> merge vira no-op (comportamento antigo).
+    const tCustomSections = (tDefaults?.customSections ?? null) as
+      | { labels?: Record<string, string>; hidden?: string[] }
+      | null;
+    if (tCustomSections && (tCustomSections.labels || tCustomSections.hidden)) {
+      const baseEnv = (envParams ?? {}) as Record<string, any>;
+      const baseCustom = (baseEnv.customSections ?? {}) as Record<string, any>;
+      envParams = {
+        ...baseEnv,
+        customSections: {
+          ...baseCustom,
+          labels: { ...(baseCustom.labels ?? {}), ...(tCustomSections.labels ?? {}) },
+          hidden: Array.from(
+            new Set([...(baseCustom.hidden ?? []), ...(tCustomSections.hidden ?? [])]),
+          ),
+        },
+      };
+    }
     // FASE 2 — anexa bordaVolumeExtraM3 (água dos reservatórios da borda) no poolDimensions.
     const enrichedDims = this.enrichPoolDimensions(dto.poolDimensions);
     const created = await this.prisma.poolBudget.create({
@@ -2510,6 +2531,21 @@ export class PoolBudgetService {
       autoSelectRule: (it as any).autoSelectRule ?? null,
     }));
 
+    // Etapas custom: captura os NOMES (labels) e as ESCONDIDAS (hidden) das etapas que tem
+    // item no snapshot. Sem isso, o novo orcamento criado a partir do modelo mostra a CHAVE
+    // crua (CUSTOM_<slug>_<rand>) no lugar do nome amigavel. So guarda etapas EM USO (com item).
+    const env = (budget.environmentParams ?? {}) as Record<string, any>;
+    const usedSections = new Set(itemsSnapshot.map((i) => i.poolSection));
+    const srcLabels = (env.customSections?.labels ?? {}) as Record<string, string>;
+    const customLabels: Record<string, string> = {};
+    for (const [k, v] of Object.entries(srcLabels)) {
+      if (usedSections.has(k)) customLabels[k] = v;
+    }
+    const srcHidden = Array.isArray(env.customSections?.hidden)
+      ? (env.customSections.hidden as string[])
+      : [];
+    const customHidden = srcHidden.filter((k) => usedSections.has(k));
+
     // Defaults
     const defaults = {
       validityDays: budget.validityDays,
@@ -2521,6 +2557,8 @@ export class PoolBudgetService {
       earlyPaymentDiscountPct: budget.earlyPaymentDiscountPct,
       paymentTermId: budget.paymentTermId,
       sectionOrder: budget.sectionOrder,
+      // Nomes/escondidas das etapas custom — restaurados no create do novo orcamento.
+      customSections: { labels: customLabels, hidden: customHidden },
     };
 
     if (payload.isDefault) {
