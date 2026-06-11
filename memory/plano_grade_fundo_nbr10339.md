@@ -46,7 +46,8 @@ de linhas que o operador aponta e seleciona a grade de fundo que aguenta essa va
 
 ⚠️ SEGURANÇA: a regra "cada ralo aguenta a vazão total sozinho" é anti-aprisionamento — NÃO afrouxar sem o usuário.
 
-## 🟡 PENDENTE (point 1, 11/06 — refinado) — ALERTA VERMELHO na linha da BOMBA sem vazão
+## ✅ FEITO + DEPLOYED v1.13.51 (11/06) — ALERTA VERMELHO na linha da BOMBA sem vazão
+**Implementado:** helper module-level `collectVazaoRefs(items)` (regex `prod(L\d+,"vazaoM3h")` em todos os `where`, cross-section, ignora LREF/auto-ref) + `itemVazaoM3h` + `itemNeedsVazaoAlert` no `quotes/pool/[id]/page.tsx`. `sectionSeverity` ganhou `hasRed` (vermelho > amarelo). `ItemRow`: `useMemo(collectVazaoRefs(allItems))` → linha vermelha + badge L# vermelho + ⛔ + banner com 🔕 silenciar / lembrete 🔔 reativar. Flag persistido `PoolBudgetItem.suppressVazaoAlert` (migration `20260611180000`; coluna confirmada em public + tenant_sls). Silenciar SÓ esconde — bomba segue no cálculo. Genérico: etapa/linha nova funciona sozinho. Spec original abaixo:
 - O alerta vermelho fica na **linha da BOMBA** (NÃO na do ralo): quando uma bomba referenciada por algum `where` de
   ralo (`prod(Lx,"vazaoM3h")`) está com `vazaoM3h` = 0 / não cadastrada → ela some no cálculo do ralo (subdimensiona =
   PERIGOSO) → a linha da bomba fica VERMELHA com erro (mais grave que o amarelo de "quantidade" que já existe).
