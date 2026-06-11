@@ -3656,8 +3656,20 @@ export function AutoSelectModal({
     return out;
   }, [linkedCellRef, sectionItems, siblingVars]);
 
-  // Vars do orcamento (mesma lista de FORMULA_VARS, computada das dimensoes)
+  // Vars do orcamento — DEVE espelhar o `vars` do FormulaModal (lista FORMULA_VARS) pra o
+  // preview do AutoSelect bater com o do FormulaModal e com o backend. v1.13.53: antes faltavam
+  // ~11 vars aqui (dias/vento/capa/construcao/bombaCalorQty/solarQty/solarNumBaterias/
+  // vazaoMaxM3h/hidromassagens/cascataCm/bordaInfinitaM) e a fonte de vazaoSolarM3h era outra
+  // -> regras que usavam essas vars davam "Nenhum candidato passa" falso (incidente v1.12.41).
   const dimVars = useMemo(() => {
+    const env = environmentParams as any;
+    const ventoNum = (() => { const v = env?.velocidadeVento; if (typeof v === 'number') return v; const m: Record<string, number> = { BAIXO: 1, MODERADO: 2, FORTE: 3 }; return m[String(v || '').toUpperCase()] ?? 0; })();
+    const capaNum = (() => { const v = env?.capaTermica; if (typeof v === 'boolean') return v ? 1 : 0; if (typeof v === 'number') return v; return ['SIM', 'S', '1'].includes(String(v || '').toUpperCase()) ? 1 : 0; })();
+    const construcaoNum = (() => { const v = env?.tipoConstrucao; if (typeof v === 'number') return v; const m: Record<string, number> = { ABERTA: 1, FECHADA: 2 }; return m[String(v || '').toUpperCase()] ?? 0; })();
+    const radierM2Val = Number(dimensions?.radierM2) || 0;
+    const radierEspVal = Number(dimensions?.radierEspessura) || 0;
+    const selEq = (heatingReport as any)?.selectedEquipment;
+    const bombaQty = Number(selEq?.quantity) || 1;
     const v: Record<string, number> = {
       length: Number(dimensions?.length) || 0,
       width: Number(dimensions?.width) || 0,
@@ -3669,25 +3681,32 @@ export function AutoSelectModal({
       perimExterno: Number(dimensions?.perimetroExternoBorda) || 0,
       perimInterno: Number(dimensions?.perimetroParedesInternas) || 0,
       areaParedeEFundo: Number(dimensions?.areaParedeEFundo) || 0,
-      radierM2: Number(dimensions?.radierM2) || 0,
-      radierEspessura: Number(dimensions?.radierEspessura) || 0,
-      radierM3: Number(dimensions?.radierM3) || 0,
+      radierM2: radierM2Val,
+      radierEspessura: radierEspVal,
+      radierM3: Number(dimensions?.radierM3) || (radierM2Val * radierEspVal) || 0,
       escavacao: Number(dimensions?.escavacaoM3) || 0,
-      tempLocal: Number(environmentParams?.temperaturaMediaLocal ?? environmentParams?.temperatura) || 0,
-      tempAgua: Number(environmentParams?.temperaturaAguaDesejada) || 0,
-      // Calor necessario do simulador de aquecimento (v1.11.69) — usado pelo
-      // template "Bomba de Calor (preciso)" pra filtrar candidatos.
-      calorNecessarioKcalH: Number(heatingReport?.calorNecessarioKcalH) || 0,
-      // Vazao total do Simulador Solar — usada pelo template "Bomba do Coletor
-      // Solar (vazao do simulador)". Le de heatingReport (que quando aberto pelo
-      // SolarTab eh o SolarReport com vazaoTotalM3h).
-      vazaoSolarM3h: Number((heatingReport as any)?.vazaoTotalM3h) || 0,
-      // v1.12.42: altura manometrica total do Simulador (perda dinamica + desnivel),
-      // populada apos o operador rodar o calculo da tubulacao. Usada pelo template
-      // "Bomba do Coletor Solar": pressaoTrabalhoMca >= alturaTelhadoMca.
-      // Sem essa linha, a variavel ficava undefined e o evaluator do frontend
-      // retornava false pra TODO candidato (incidente v1.12.41).
-      alturaTelhadoMca: Number((environmentParams as any)?.alturaTelhadoM) || 0,
+      // dias nao chega ao AutoSelectModal (so formulas de qty usam) — default 0.
+      dias: 0,
+      tempLocal: Number(env?.temperaturaMediaLocal ?? env?.temperatura) || 0,
+      tempAgua: Number(env?.temperaturaAguaDesejada) || 0,
+      vento: ventoNum,
+      capa: capaNum,
+      construcao: construcaoNum,
+      calorNecessarioKcalH: Number((heatingReport as any)?.calorNecessarioKcalH) || 0,
+      bombaCalorQty: bombaQty,
+      solarQty: Number(env?.solarReport?.qtdColetores) || 0,
+      solarNumBaterias: Number(env?.solarReport?.numBaterias) || 0,
+      // vazaoSolarM3h = vazao-alvo da recirculacao. Solar = vazaoTotal do solarReport; sem
+      // solar (contexto bomba de calor) cai pra vazaoMin do equipamento x qtd (igual backend).
+      vazaoSolarM3h: Number(env?.solarReport?.vazaoTotalM3h) || (Number(selEq?.vazaoMinM3h) || 0) * bombaQty,
+      // vazaoMaxM3h = teto da faixa (template "Bomba de circulacao (Bomba de Calor)").
+      vazaoMaxM3h: (Number(selEq?.vazaoMaxM3h) || 0) * bombaQty,
+      // altura manometrica total do Simulador (perda + desnivel) — template "Bomba do Coletor
+      // Solar": pressaoTrabalhoMca >= alturaTelhadoMca. v1.12.42 (incidente v1.12.41).
+      alturaTelhadoMca: Number(env?.alturaTelhadoM) || 0,
+      hidromassagens: Number(env?.hidromassagensQtd) || 0,
+      cascataCm: Number(env?.cascataLarguraCm) || 0,
+      bordaInfinitaM: Number(env?.bordaInfinitaM) || 0,
       // Sibling vars resolvidas: linkedCellRef se definido, senao siblingVars genericos.
       ...effectiveSiblingVars,
     };
