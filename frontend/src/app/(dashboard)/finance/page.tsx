@@ -73,6 +73,19 @@ function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+// Converte uma data ISO do backend pra "YYYY-MM-DD" no fuso LOCAL (BRT),
+// pra preencher <input type="date"> mostrando o MESMO dia que a tabela (formatDate).
+// Usar getFullYear/Month/Date (local) — toISOString() daria o dia em UTC e desalinharia.
+function toDateInputValue(dateStr?: string | null) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 /* ── Tab definitions ───────────────────────────────────── */
 
 type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "cartoes" | "contas" | "conciliacao" | "formas" | "instrumentos" | "cobranca" | "plano" | "taxas";
@@ -1165,6 +1178,8 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
   const [editAccountId, setEditAccountId] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [editPartnerId, setEditPartnerId] = useState("");
+  const [editDueDate, setEditDueDate] = useState("");
+  const [editInstrumentId, setEditInstrumentId] = useState("");
   const [editSaving, setEditSaving] = useState(false);
 
   // Batch selection
@@ -1335,6 +1350,8 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
     setEditAccountId(e.financialAccount?.id || "");
     setEditNotes(e.notes || "");
     setEditPartnerId(e.partnerId || e.partner?.id || "");
+    setEditDueDate(toDateInputValue(e.dueDate));
+    setEditInstrumentId(e.paymentInstrumentId || "");
   }
 
   async function handleSaveEdit() {
@@ -1347,6 +1364,12 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
         description: editDesc || undefined,
         financialAccountId: editAccountId || undefined,
         notes: editNotes || undefined,
+        // Vencimento ancorado ao MEIO-DIA BRT (12:00 -03:00 = 15:00 UTC) — regra de ouro
+        // financeira: nunca midnight, senao o backend (new Date) desloca pro dia anterior em BRT.
+        dueDate: editDueDate ? `${editDueDate}T12:00:00-03:00` : undefined,
+        // Meio de recebimento/pagamento — sempre envia o selecionado (""=limpar). Backend
+        // deriva o paymentMethod do instrumento; write puro, sem mexer em saldo.
+        paymentInstrumentId: editInstrumentId,
         // So envia partnerId se mudou — evita disparar audit log sem necessidade
         partnerId: partnerChanged ? (editPartnerId || null) : undefined,
       });
@@ -2737,6 +2760,39 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                       </optgroup>
                     ));
                   })()}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Vencimento</label>
+                <input
+                  type="date"
+                  value={editDueDate}
+                  onChange={(e) => setEditDueDate(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Meio de {editEntry?.type === "RECEIVABLE" ? "Recebimento" : "Pagamento"}
+                </label>
+                <select
+                  value={editInstrumentId}
+                  onChange={(e) => setEditInstrumentId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                >
+                  <option value="">Selecione...</option>
+                  {allInstruments.map((pi: any) => {
+                    const code = pi.paymentMethod?.code || "";
+                    const isCardInst = code.includes("CARTAO") || code.includes("CREDITO") || code.includes("DEBITO");
+                    const icon = isCardInst ? "💳" : code === "PIX" ? "⚡" : code === "DINHEIRO" ? "💵" : code === "BOLETO" ? "📄" : code === "TRANSFERENCIA" ? "🔄" : code === "CHEQUE" ? "📝" : "💰";
+                    const last4 = isCardInst && pi.cardLast4 ? ` •••• ${pi.cardLast4}` : "";
+                    const autoBadge = pi.autoMarkPaid ? " ⚡" : "";
+                    return (
+                      <option key={pi.id} value={pi.id}>
+                        {icon} {pi.name}{last4}{autoBadge}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
               <div>

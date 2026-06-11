@@ -877,6 +877,24 @@ export class FinanceService {
     }
     if (dto.dueDate !== undefined) data.dueDate = dto.dueDate ? new Date(dto.dueDate) : null;
 
+    // Meio de recebimento/pagamento (instrumento). Edicao de metadado: write PURO do FK —
+    // NAO move saldo, NAO cria/cancela CardSettlement, NAO dispara auto-pay (diferente de
+    // changeEntryStatus). Deriva o paymentMethod do proprio instrumento (single source of
+    // truth) pra manter a coluna "Metodo" e o DRE-por-metodo consistentes. Scoped por companyId.
+    if (dto.paymentInstrumentId !== undefined) {
+      if (dto.paymentInstrumentId) {
+        const pi = await this.prisma.paymentInstrument.findFirst({
+          where: { id: dto.paymentInstrumentId, companyId },
+          select: { id: true, paymentMethod: { select: { code: true } } },
+        });
+        if (!pi) throw new BadRequestException('Meio de recebimento/pagamento invalido.');
+        data.paymentInstrumentId = pi.id;
+        data.paymentMethod = pi.paymentMethod?.code || null;
+      } else {
+        data.paymentInstrumentId = null;
+      }
+    }
+
     const updated = await this.prisma.financialEntry.update({
       where: { id },
       // withUpdate injeta updatedByUserId/Name do userContext (v1.10.87+ tracking universal)

@@ -128,6 +128,12 @@ export class UpdateFinancialEntryDto {
   @IsOptional()
   @IsString()
   financialAccountId?: string;
+
+  // Meio de recebimento/pagamento (instrumento). Edicao de metadado — o service deriva
+  // o paymentMethod do instrumento e NAO move saldo nem dispara auto-pay.
+  @IsOptional()
+  @IsString()
+  paymentInstrumentId?: string;
 }
 
 export class ChangeEntryStatusDto {
