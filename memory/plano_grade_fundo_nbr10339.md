@@ -45,3 +45,26 @@ de linhas que o operador aponta e seleciona a grade de fundo que aguenta essa va
 4. Quantidade nasce 2.
 
 ⚠️ SEGURANÇA: a regra "cada ralo aguenta a vazão total sozinho" é anti-aprisionamento — NÃO afrouxar sem o usuário.
+
+## 🟡 PENDENTE (point 1, 11/06) — ALERTA VERMELHO: bomba apontada SEM vazão
+Pedido do usuário: se o `where` do ralo apontar uma linha (bomba) com `vazaoM3h` = 0 / não cadastrada, a soma
+subdimensiona o ralo (PERIGOSO) → a linha do ralo deve ficar **VERMELHA com erro** (mais grave que o amarelo de
+"quantidade" que já existe). Implementação provável FRONTEND-only (igual ao alerta amarelo de qty, que é calculado no
+front em `quotes/pool/[id]/page.tsx` ~L1039/L1554): parsear o `where` da linha do ralo, achar `prod(Lx,"vazaoM3h")`,
+resolver cada Lx pelos items; se algum referenciar uma linha existente (qtdLinha>0) com vazaoM3h=0 → alerta VERMELHO.
+Precisa DEPLOY.
+
+## ✅ CONFIRMADO (point 2) — recálculo automático + escala
+O orçamento NÃO tem botão "Recalcular" — recomputa sozinho a cada mudança. O motor (`pool-budget.service` L866-871
+`ruleUsesSiblings`) detecta `prod(Lx,...)`/sibling no where e re-avalia em 2 FASES (computa as linhas referenciadas,
+depois as regras cross-line). `cellRefSpecsMap` = TODAS as linhas de TODAS as etapas, remontado a cada recálculo →
+escala. `currentStillPasses` (pool-budget.service ~L876) só re-seleciona quando a grade atual não passa mais.
+
+## 🟡 PENDENTE (point 3, 11/06) — grade SEMPRE a menor adequada (re-otimizar pra BAIXO também)
+Correção do usuário: quando a vazão das bombas DESCE, a grade deve DESCER também (senão fica grade GRANDE à toa =
+custo desnecessário). Hoje o `currentStillPasses` MANTÉM a grade atual se ela ainda passa (oversized fica). Pra a
+grade, precisa SEMPRE pegar a menor adequada (orderBy `vazaoM3h asc` já dá a "menor"; falta IGNORAR o currentStillPasses).
+Solução: flag novo na AutoSelectRule (ex: `alwaysReselect`/`optimalAlways`) que pula o currentStillPasses e força
+re-seleção do melhor candidato — SÓ pra regras que pedem (a grade); NÃO mexer nas outras (evitar churn de seleções
+válidas). Respeitar override manual do operador. Backend (helper interface + recalc skip) + frontend (tipo + template).
+Precisa DEPLOY. Construir JUNTO com o point 1 (alerta vermelho).
