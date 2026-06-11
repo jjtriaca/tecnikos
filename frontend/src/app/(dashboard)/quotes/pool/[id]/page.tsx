@@ -1818,6 +1818,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             id: it.id,
             cellRef: it.cellRef,
             description: it.description,
+            qty: it.qty,
             linked: !!(it.productId || it.serviceId),
             specs: (it.product?.technicalSpecs ?? it.service?.technicalSpecs) || null,
           }))}
@@ -3176,6 +3177,30 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
       },
     },
   },
+  // Grade de fundo / ralo (NBR 10339): cada ralo tem que aguentar a vazao TOTAL das bombas
+  // sozinho (anti-aprisionamento). Usa prod(LREF,"vazaoM3h")*prod(LREF,"qtdLinha") = vazao x
+  // quantidade de cada linha de bomba apontada. qtdLinha = pseudo-spec injetada pelo motor.
+  {
+    icon: '▦',
+    label: 'Grade de fundo / ralo (NBR 10339 — vazao das bombas)',
+    description: 'Seleciona a grade cuja "Vazao maxima (m³/h)" aguenta a vazao TOTAL das bombas — cada ralo aguenta tudo sozinho (anti-aprisionamento NBR 10339). Apos aplicar, edite o where: troque LREF pela(s) linha(s) da(s) bomba(s) de recirculacao (ex: prod(L5,"vazaoM3h")*prod(L5,"qtdLinha")). Some varias bombas com +. qtdLinha = quantidade daquela linha (bombas em paralelo). IMPORTANTE: fixe a QUANTIDADE da linha do ralo em 2 (minimo NBR). Indicador vermelho = nenhuma grade aguenta sozinha -> use grade maior.',
+    rule: {
+      filterCategoria: null,
+      filterDescription: 'grade',
+      where: 'vazaoM3h >= prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")',
+      orderBy: 'vazaoM3h asc',
+      indicator: {
+        label: 'Folga de vazao (ralo)',
+        expr: '(vazaoM3h - prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")) / (prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")) * 100',
+        unit: '%',
+        levels: [
+          { max: -0.01, label: 'Insuficiente — use grade maior', color: 'red' },
+          { max: 20, label: 'Justo', color: 'yellow' },
+          { max: 99999, label: 'Aguenta a vazao total', color: 'emerald' },
+        ],
+      },
+    },
+  },
   // REMOVIDO v1.11.49: template "💦 Cascata (operador escolhe)" era redundante.
   // Mesma config (filterPoolType + manualSelection) pode ser feita em 2 cliques na secao
   // Candidatos: escolhe Tipo no dropdown + marca toggle "Apenas filtrar — nao escolher automaticamente".
@@ -3362,7 +3387,7 @@ export function AutoSelectModal({
   siblingVars?: Record<string, number>;
   // Items da mesma etapa (sem o atual) — usado pra diagnosticar siblings
   // ausentes E alimentar dropdown "Equipamento principal (linha)".
-  sectionItems?: { id: string; cellRef: string | null; description: string; linked: boolean; specs: Record<string, any> | null }[];
+  sectionItems?: { id: string; cellRef: string | null; description: string; qty?: number; linked: boolean; specs: Record<string, any> | null }[];
   itemDescription?: string;
   currentProductName?: string | null;
   onClose: () => void;
@@ -3524,7 +3549,9 @@ export function AutoSelectModal({
   const cellRefSpecs = useMemo(() => {
     const m = new Map<string, Record<string, any>>();
     for (const s of sectionItems || []) {
-      if (s.cellRef && s.specs) m.set(s.cellRef, s.specs);
+      // qtdLinha = quantidade da linha como pseudo-spec (paridade com o backend): permite
+      // prod(Lx,"qtdLinha") no where/indicator (ex: grade de fundo NBR = vazao x qtd de bombas).
+      if (s.cellRef) m.set(s.cellRef, { ...(s.specs ?? {}), qtdLinha: Number((s as any).qty) || 0 });
     }
     return m;
   }, [sectionItems]);

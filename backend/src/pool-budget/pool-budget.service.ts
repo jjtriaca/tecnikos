@@ -848,6 +848,7 @@ export class PoolBudgetService {
           where: { budgetId },
           select: {
             cellRef: true,
+            qty: true,
             product: { select: { technicalSpecs: true } },
             service: { select: { technicalSpecs: true } },
           },
@@ -856,7 +857,10 @@ export class PoolBudgetService {
         for (const it of allInBudgetForSpecs) {
           if (!it.cellRef) continue;
           const specs = (it.product?.technicalSpecs ?? it.service?.technicalSpecs) as Record<string, unknown> | null | undefined;
-          if (specs) cellRefSpecsMap.set(it.cellRef, specs);
+          // qtdLinha = quantidade da linha, exposta como pseudo-spec pra o where da regra
+          // poder fazer `prod(Lx,"vazaoM3h") * prod(Lx,"qtdLinha")` (ex: grade de fundo NBR
+          // 10339 = vazao TOTAL das bombas x qtd de cada linha). prod() ja funciona no where.
+          cellRefSpecsMap.set(it.cellRef, { ...(specs ?? {}), qtdLinha: Number(it.qty) || 0 });
         }
 
         // Detecta uso de sibling vars OU prod() cross-line no where/indicator — split em 2 fases
