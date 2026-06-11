@@ -44,8 +44,18 @@ Port do redesign **V1 data-viz** (aprovado no mock `/dev/print-test-bomba`) pro 
   arriscar lint no `next build`. `dsNiceFloor` idem.
 - Pre-deploy gate: `tsc --noEmit --incremental false` (evita false-pass de cache).
 
-## 🟡 PENDENTE (2 decisões do usuário, 10/06)
-1. Cards **Tubulação / Bomba de circulação** (renderizados pelo `TrocadorPumpPipeCard`) ainda no estilo
-   Tailwind antigo (funcionais, SectionLabel≈.sec). Decidir se deixa idênticos à V1.
-2. **Horas dos extras** no `CompactExtraCard`: mantive um campinho editável (vira texto no print). Juliano
-   pode querer display puro (sem editar ali).
+## Cards Tubulação + Bomba de circulação (TrocadorPumpPipeCard) — V1 compacta (v1.13.48, 11/06)
+- **RESOLVIDO (decisão #1):** o render do `TrocadorPumpPipeCard` foi portado pra V1 compacta (inline-style,
+  igual ao mock). Root vira `flex column gap:8`. **Tubulação** = card âmbar (label + mca no topo, linha de
+  explicação, comp/desnív/DN numa linha) — tirou a label "Altura manométrica (bomba)" e os 2 inputs soltos
+  que sobravam altura. **Circulação** = card compacto: imagem **64px** (era `w-24 h-24`=96px) + specs 2col +
+  consumo/R$ numa linha. Dropdown de troca / ✨ / 💡 tarifa + comp/desnív/DN = `ds-edit` (somem no print);
+  valores estáticos = `ds-print`. Indicator color virou hex inline (era className ternário).
+- **Causa do 2-páginas era ISSO:** os cards antigos (altos) faziam a coluna direita do dimensionamento
+  estourar; a esquerda (Resultado/COP/Cap×Dem) já estava em 325px BALANCEADA com a direita do mock. Card
+  alto → direita > esquerda → branco na esquerda + 2 páginas. Compacto → direita = esquerda → 1 folha.
+  ⚠️ NÃO "aumentar a altura dos cards da esquerda" (empurra de volta pra 2 páginas) — o certo é a direita encolher.
+
+## 🟡 PENDENTE (decisão #2 do usuário)
+- **Horas dos extras** no `CompactExtraCard`: mantive um campinho editável (vira texto no print). Juliano
+  pode querer display puro (sem editar ali). Aguardando decisão.
