@@ -1,5 +1,5 @@
 {
-  "version": "1.13.47",
-  "codename": "v1.13.47: aba Bomba de Calor — datasheet V1 'curva sazonal' portado pro componente real (ligado aos dados reais): curva de consumo sazonal + donut bomba×recirculacao data-driven, extras como minicards no topo (nome+icone+kW), barra ΔT, KPIs em lista + barras de COP por estacao + Capacidade×Demanda, swap tela/print preservando toda a interatividade.",
-  "releasedAt": "2026-06-10T18:28:31.002Z"
+  "version": "1.13.48",
+  "codename": "v1.13.48: aba Bomba de Calor — cards Tubulação + Bomba de circulação portados pra V1 compacta (iguais ao mock aprovado): Tubulação ambar (mca no topo + comp/desnív/DN numa linha) + circulação com imagem 64px + specs 2col + consumo. Resolve impressão em 2 páginas (coluna direita encolhe e balanceia com a esquerda → 1 folha) + branco abaixo dos cards da esquerda. ds-edit (dropdown/✨/tarifa) some no print.",
+  "releasedAt": "2026-06-11T12:18:41.593Z"
 }

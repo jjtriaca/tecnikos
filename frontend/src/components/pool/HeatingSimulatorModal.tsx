@@ -3863,159 +3863,95 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
     : null;
 
   return (
-    <div className="avoid-break">
-      <SectionLabel>Tubulação — perda de carga</SectionLabel>
-      {/* Tubulação — largura total (empilhado igual ao Solar) */}
-      <div className="mt-1.5 rounded border border-slate-200 bg-slate-50/50 p-2 space-y-1">
-          <div className="grid grid-cols-2 gap-1.5">
-            <label className="flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold text-slate-500">Comp. (m)
-              <input type="number" step="0.5" min={0} value={comprimento || ""} onChange={(e) => setComprimento(Number(e.target.value) || 0)} onBlur={() => recompute()} placeholder="30" className="flex-1 min-w-0 rounded border border-slate-300 px-1.5 py-0.5 text-[12px] font-semibold h-6 focus:outline-none focus:border-amber-500" />
-            </label>
-            <label className="flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold text-slate-500">Desnív. (m)
-              <input type="number" step="0.5" min={0} value={desnivel || ""} onChange={(e) => setDesnivel(Number(e.target.value) || 0)} onBlur={() => recompute()} placeholder="2" className="flex-1 min-w-0 rounded border border-slate-300 px-1.5 py-0.5 text-[12px] font-semibold h-6 focus:outline-none focus:border-amber-500" />
-            </label>
-          </div>
-          {pipeResult ? (
-            <div className={`rounded border px-2 py-1.5 ${velAlta ? "border-red-400 bg-red-50" : "border-amber-300 bg-amber-50"}`}>
-              <div className="flex items-baseline justify-between gap-2">
-                <div className={`text-[8.5px] uppercase tracking-wider font-bold ${velAlta ? "text-red-800" : "text-amber-800"}`}>Altura manométrica (bomba)</div>
-                <div className={`text-base font-bold tabular-nums ${velAlta ? "text-red-900" : "text-amber-900"}`} title="Maior entre o atrito (operação) e o desnível (romper a inércia pra começar a circular). A bomba precisa produzir pelo menos isto.">{alturaSelecao.toFixed(2)} <span className="text-[10px] font-semibold">mca</span></div>
-              </div>
-              <div className={`text-[9.5px] mt-0.5 ${velAlta ? "text-red-800" : "text-amber-800"}`}>= {pipeResult.perdaDinamica?.toFixed(2)} mca de atrito · <span title="Circuito FECHADO (bomba de calor): depois que a água circula, a coluna que sobe é equilibrada pela que desce no retorno (sifão) — o desnível não soma na altura de OPERAÇÃO (a bomba só vence o atrito). MAS pra COMEÇAR a circular a bomba precisa vencer o desnível e ROMPER A INÉRCIA (encher a coluna até o ponto alto); se a bomba não alcança o desnível, não circula. Por isso ela é escolhida pra dar conta dos dois. Diferente do solar (circuito aberto, válvula ventosa).">circuito fechado{desnivel > 0 ? ` — opera no atrito, mas precisa vencer ${desnivel} m pra romper a inércia` : ""}</span> · velocidade <span className={velAlta ? "font-bold text-red-700" : ""}>{pipeResult.velocidade?.toFixed(2)} m/s</span></div>
-              <div className="mt-1.5 flex items-center gap-2 flex-wrap">
-                <span className={`text-[10px] tracking-wider font-bold ${velAlta ? "text-red-800" : "text-amber-800"}`}>Tubo de {pipeResult.material ?? "PVC"}:</span>
-                <select value={dnAtual} onChange={(e) => recompute(Number(e.target.value))} className={`text-xs font-bold rounded border px-2 py-0.5 bg-white ${velAlta ? "border-red-400 text-red-900" : "border-amber-400 text-amber-900"} focus:outline-none print:hidden`}>{dns.map((d) => <option key={d} value={d}>{d} mm DN</option>)}</select>
-                <span className={`hidden print:inline-block text-xs font-bold ${velAlta ? "text-red-900" : "text-amber-900"}`}>{dnAtual} mm DN</span>
-                {pipeResult.diametroAutoPicked ? <span className="text-[9px] uppercase tracking-wider text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">auto</span> : <button type="button" onClick={() => recompute(null)} className="text-[10px] underline text-slate-500 hover:text-slate-700">↺ automático</button>}
-              </div>
-              {velAlta && <div className="mt-1.5 rounded bg-red-100 border border-red-300 px-2 py-1 text-[10px] font-bold text-red-800 text-center uppercase tracking-wide">⚠ Velocidade {pipeResult.velocidade?.toFixed(2)} m/s acima de 2,5 — aumente o diâmetro</div>}
-            </div>
-          ) : <div className="text-[10px] text-slate-500 italic">{pipeBusy ? "Calculando…" : "Preencha comprimento + desnível para escolher o tubo e calcular a altura manométrica."}</div>}
+    <div className="avoid-break" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {/* TUBULAÇÃO — card V1 ambar compacto (label + mca no topo, comp/desnív/tubo numa linha) */}
+      <div style={{ border: `1px solid ${velAlta ? "#fca5a5" : "#fcd34d"}`, borderRadius: 8, background: velAlta ? "#fef2f2" : "#fffbeb", padding: "5px 8px" }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+          <div style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".07em", color: velAlta ? "#b91c1c" : "#92400e", fontWeight: 700 }}>Tubulação — perda de carga</div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: velAlta ? "#b91c1c" : "#78350f" }} className="num" title="Maior entre o atrito (operação) e o desnível (romper a inércia pra começar a circular). A bomba precisa produzir pelo menos isto.">{pipeResult ? alturaSelecao.toFixed(2) : "—"} <span style={{ fontSize: 8.5, fontWeight: 700 }}>mca</span></div>
         </div>
-      {/* Bomba recomendada — empilhado igual ao Solar (label + dropdown + card embaixo) */}
-      <div className="mt-2.5">
-        <SectionLabel>Bomba de circulação recomendada</SectionLabel>
-        <div className="mt-1.5">
-          <div className="flex items-center gap-1.5">
-            {onOpenRulePicker && (
-              <button type="button" onClick={onOpenRulePicker} title="Configurar a regra de seleção da bomba de circulação — INDEPENDENTE do Solar (usa a mesma fórmula). Sem regra própria, cai pra a do Solar." className="text-[11px] font-bold px-1.5 py-0.5 rounded border border-slate-200 text-slate-400 hover:text-violet-600 hover:border-violet-300 flex-shrink-0 print:hidden">✨</button>
+        {pipeResult ? (
+          <div style={{ fontSize: 8.5, color: velAlta ? "#b91c1c" : "#92400e", marginTop: 1 }}>= {pipeResult.perdaDinamica?.toFixed(2)} mca de atrito · circuito fechado{desnivel > 0 ? ` — opera no atrito, mas vence ${desnivel} m pra romper a inércia` : ""} · vel. {pipeResult.velocidade?.toFixed(2)} m/s</div>
+        ) : (
+          <div style={{ fontSize: 8.5, color: "#92400e", marginTop: 1, fontStyle: "italic" }}>{pipeBusy ? "Calculando…" : "Preencha comprimento + desnível para escolher o tubo."}</div>
+        )}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 6, alignItems: "center", marginTop: 4 }}>
+          <span style={{ fontSize: 9, color: "#92400e", display: "inline-flex", alignItems: "center", gap: 3 }}><span style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".05em", color: "#a16207", fontWeight: 700 }}>Comp.</span><input className="ds-edit num" type="number" step="0.5" min={0} value={comprimento || ""} onChange={(e) => setComprimento(Number(e.target.value) || 0)} onBlur={() => recompute()} placeholder="30" style={{ width: 32, border: "1px solid #fcd34d", borderRadius: 3, background: "#fff", fontSize: 9, fontWeight: 700, color: "#78350f", padding: "0 2px", textAlign: "center", fontFamily: "inherit" }} /><b className="ds-print num" style={{ color: "#78350f" }}>{comprimento}</b> m</span>
+          <span style={{ fontSize: 9, color: "#92400e", display: "inline-flex", alignItems: "center", gap: 3 }}><span style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".05em", color: "#a16207", fontWeight: 700 }}>Desnív.</span><input className="ds-edit num" type="number" step="0.5" min={0} value={desnivel || ""} onChange={(e) => setDesnivel(Number(e.target.value) || 0)} onBlur={() => recompute()} placeholder="2" style={{ width: 32, border: "1px solid #fcd34d", borderRadius: 3, background: "#fff", fontSize: 9, fontWeight: 700, color: "#78350f", padding: "0 2px", textAlign: "center", fontFamily: "inherit" }} /><b className="ds-print num" style={{ color: "#78350f" }}>{desnivel}</b> m</span>
+          {pipeResult ? (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, justifyContent: "flex-end" }}><b style={{ color: "#92400e", fontSize: 8, textTransform: "uppercase", letterSpacing: ".05em" }}>Tubo de {pipeResult.material ?? "PVC"}:</b><select className="ds-edit num" value={dnAtual} onChange={(e) => recompute(Number(e.target.value))} style={{ fontSize: 10.5, fontWeight: 700, color: "#78350f", border: "1px solid #fcd34d", borderRadius: 3, background: "#fff", padding: "0 2px", fontFamily: "inherit" }}>{dns.map((d) => <option key={d} value={d}>{d} mm DN</option>)}</select><b className="ds-print num" style={{ fontSize: 10.5, color: "#78350f" }}>{dnAtual} mm DN</b>{pipeResult.diametroAutoPicked ? <span style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".05em", color: "#047857", background: "#d1fae5", padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>auto</span> : <button type="button" className="ds-edit" onClick={() => recompute(null)} style={{ fontSize: 9, textDecoration: "underline", color: "#64748b", background: "none", border: 0, cursor: "pointer" }}>↺ auto</button>}</span>
+          ) : <span />}
+        </div>
+        {velAlta && <div style={{ marginTop: 4, borderRadius: 4, background: "#fee2e2", border: "1px solid #fca5a5", padding: "2px 6px", fontSize: 9, fontWeight: 700, color: "#b91c1c", textAlign: "center" }}>⚠ Velocidade {pipeResult?.velocidade?.toFixed(2)} m/s acima de 2,5 — aumente o diâmetro</div>}
+      </div>
+      {/* BOMBA DE CIRCULAÇÃO — card V1 compacto (img 64px + specs 2col + consumo) */}
+      <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, background: "#fff", padding: "5px 8px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 3 }}>
+          <div style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".07em", color: "#64748b", fontWeight: 700 }}>Bomba de circulação recomendada</div>
+          {onOpenRulePicker && (<button type="button" className="ds-edit" onClick={onOpenRulePicker} title="Configurar a regra de seleção da bomba de circulação — INDEPENDENTE do Solar (mesma fórmula). Sem regra própria, cai pra a do Solar." style={{ fontSize: 11, fontWeight: 700, padding: "0 5px", borderRadius: 4, border: "1px solid #e2e8f0", color: "#94a3b8", background: "#fff", cursor: "pointer" }}>✨</button>)}
+        </div>
+        {candidates.length === 0 ? (
+          <div style={{ fontSize: 10, color: "#475569", lineHeight: 1.3 }}>{candLoading ? "Carregando candidatos…" : `Nenhuma bomba do catálogo atende vazão ≥ ${vazaoAlvo} m³/h${alturaSelecao > 0 ? ` e ${alturaSelecao.toFixed(1)} mca (atrito + romper a inércia)` : ""}. Configure a regra no ✨.`}</div>
+        ) : (
+          <>
+            <select className="ds-edit num" value={selBombaId ?? ""} onChange={(e) => setSelBombaId(e.target.value || null)} style={{ width: "100%", borderRadius: 4, border: "1px solid #cbd5e1", background: "#fffbeb", padding: "2px 6px", fontSize: 10.5, fontWeight: 600, marginBottom: 4, fontFamily: "inherit" }}>
+              {candidates.map((c) => { const parts = [c.description]; if (c.potenciaCv != null) parts.push(`${c.potenciaCv} cv`); parts.push(`${c.vazaoM3h.toFixed(1)} m³/h`); parts.push(`${c.pressaoTrabalhoMca.toFixed(1)} mca`); if (c.hasPumpCurve) parts.push("📈 curva"); return <option key={c.productId} value={c.productId}>{parts.join(" · ")}</option>; })}
+            </select>
+            {selB && ((vazaoMaxTotal > 0 && selB.vazaoM3h > vazaoMaxTotal) || (alturaInercia > 0 && selB.pressaoTrabalhoMca < alturaInercia) || (altura > 0 && selB.pressaoTrabalhoMca < altura)) && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 1, fontSize: 9.5, marginBottom: 3 }}>
+                {vazaoMaxTotal > 0 && selB.vazaoM3h > vazaoMaxTotal && <span style={{ color: "#d97706", fontWeight: 600 }}>⚠ acima da vazão máx ({vazaoMaxTotal})</span>}
+                {alturaInercia > 0 && selB.pressaoTrabalhoMca < alturaInercia && <span style={{ color: "#dc2626", fontWeight: 600 }}>⚠ não rompe a inércia: {selB.pressaoTrabalhoMca.toFixed(1)} mca &lt; desnível {alturaInercia.toFixed(1)} m</span>}
+                {altura > 0 && selB.pressaoTrabalhoMca < altura && <span style={{ color: "#dc2626", fontWeight: 600 }}>⚠ pressão &lt; atrito {altura.toFixed(1)} mca</span>}
+              </div>
             )}
-            <div className="flex-1 min-w-0">
-              {candidates.length === 0 ? (
-                <div className="text-[11px] text-slate-600 leading-tight">{candLoading ? "Carregando candidatos…" : `Nenhuma bomba do catálogo atende vazão ≥ ${vazaoAlvo} m³/h${alturaSelecao > 0 ? ` e ${alturaSelecao.toFixed(1)} mca (atrito + romper a inércia do desnível)` : ""}. Configure a regra no ✨ (ou cadastre bombas compatíveis, com curva).`}</div>
-              ) : (
-                <select value={selBombaId ?? ""} onChange={(e) => setSelBombaId(e.target.value || null)} className="w-full rounded border border-slate-300 bg-amber-50 px-2 py-1 text-[12px] font-semibold">
-                  {candidates.map((c) => { const parts = [c.description]; if (c.potenciaCv != null) parts.push(`${c.potenciaCv} cv`); parts.push(`${c.vazaoM3h.toFixed(1)} m³/h`); parts.push(`${c.pressaoTrabalhoMca.toFixed(1)} mca`); if (c.hasPumpCurve) parts.push("📈 curva"); return <option key={c.productId} value={c.productId}>{parts.join(" · ")}</option>; })}
-                </select>
-              )}
-            </div>
-          </div>
-          {selB && ((vazaoMaxTotal > 0 && selB.vazaoM3h > vazaoMaxTotal) || (alturaInercia > 0 && selB.pressaoTrabalhoMca < alturaInercia) || (altura > 0 && selB.pressaoTrabalhoMca < altura)) && (
-            <div className="mt-1.5 flex flex-col gap-y-0.5 text-[11px]">
-              {vazaoMaxTotal > 0 && selB.vazaoM3h > vazaoMaxTotal && <span className="text-amber-600 font-semibold">⚠ acima da vazão máx ({vazaoMaxTotal})</span>}
-              {alturaInercia > 0 && selB.pressaoTrabalhoMca < alturaInercia && <span className="text-red-600 font-semibold">⚠ não rompe a inércia: {selB.pressaoTrabalhoMca.toFixed(1)} mca &lt; desnível {alturaInercia.toFixed(1)} m — não circula</span>}
-              {altura > 0 && selB.pressaoTrabalhoMca < altura && <span className="text-red-600 font-semibold">⚠ pressão &lt; atrito {altura.toFixed(1)} mca</span>}
-            </div>
-          )}
-
-      {/* Card da bomba selecionada — imagem + specs + CONSUMO ELETRICO MENSAL (paridade Solar) */}
-      {selB && (
-        <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2.5 flex gap-3 items-start shadow-sm">
-          {/* Imagem da bomba (mesma estetica do Solar — quadrada, contain) */}
-          <div className="w-24 h-24 flex-shrink-0 rounded border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center">
-            {selB.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={selB.imageUrl} alt={selB.description} className="w-full h-full object-contain" />
-            ) : (
-              <div className="text-[9px] text-slate-400 text-center px-1">Sem imagem</div>
-            )}
-          </div>
-          {/* Specs + consumo */}
-          <div className="flex-1 min-w-0">
-            <div className="text-[12px] font-bold text-slate-900 leading-tight truncate">{selB.description}</div>
-            <div className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 text-[10px] text-slate-700">
-              {selB.potenciaCv != null && (
-                <div><span className="text-slate-500">Potência:</span> <span className="font-semibold tabular-nums">{selB.potenciaCv} cv</span></div>
-              )}
-              <div><span className="text-slate-500">Vazão:</span> <span className="font-semibold tabular-nums">{selB.vazaoM3h.toFixed(2)} m³/h</span></div>
-              <div><span className="text-slate-500">Pressão:</span> <span className="font-semibold tabular-nums">{selB.pressaoTrabalhoMca.toFixed(2)} mca</span></div>
-              {selB.hasPumpCurve && <div className="text-[9px] text-emerald-700 font-semibold">📈 com curva característica</div>}
-              {selB.indicator && (
-                <div className={`text-[10px] font-semibold ${
-                  selB.indicator.color === 'emerald' ? 'text-emerald-600' :
-                  selB.indicator.color === 'green' ? 'text-green-600' :
-                  selB.indicator.color === 'lime' ? 'text-lime-600' :
-                  selB.indicator.color === 'yellow' ? 'text-yellow-600' :
-                  selB.indicator.color === 'orange' ? 'text-orange-500' :
-                  selB.indicator.color === 'amber' ? 'text-amber-600' :
-                  selB.indicator.color === 'red' ? 'text-red-600' :
-                  'text-slate-700'
-                }`}>
-                  {(() => {
-                    const v = selB.indicator.value;
-                    const decimals = Math.abs(v) < 10 ? 1 : 0;
-                    const formatted = v.toFixed(decimals).replace('.', ',');
-                    const group = selB.indicator.groupLabel || 'Dimensionamento';
-                    return `${group}: ${formatted}${selB.indicator.unit} (${selB.indicator.label})`;
-                  })()}
+            {selB && (
+              <div style={{ display: "flex", gap: 9, alignItems: "stretch" }}>
+                <div style={{ width: 64, flexShrink: 0, border: "1px solid #e2e8f0", borderRadius: 6, background: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                  {selB.imageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={selB.imageUrl} alt={selB.description} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                  ) : <span style={{ fontSize: 8, color: "#94a3b8" }}>Sem img</span>}
                 </div>
-              )}
-            </div>
-
-            {/* Consumo eletrico mensal estimado (paridade Solar) */}
-            {consumo ? (
-              <div className="mt-1.5 pt-1.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-                <div className="text-[10px] text-slate-700 leading-tight">
-                  <span className="text-slate-500">⚡ Consumo médio:</span>{" "}
-                  <span className="font-bold tabular-nums text-slate-900">{consumo.kwhMes.toFixed(0)}</span>
-                  <span className="text-[9px] font-semibold text-slate-500"> kWh/mês</span>
-                  <span className="text-[9px] text-slate-500 ml-1.5" title={`A bomba de circulacao roda junto com a bomba de calor — horas reais de operacao por mes (inverno mais, verao menos; bomba de calor mais potente roda menos pois atinge o alvo mais rapido). Media ${consumo.horasDiaMedio.toFixed(1)} h/dia, varia ${consumo.horasMin.toFixed(1)}–${consumo.horasMax.toFixed(1)} h/dia entre os meses. Potencia eletrica = ${selB.potenciaCv} cv × 0,7355 / 0,65 (rendimento medio) = ${consumo.potenciaKW.toFixed(2)} kW. Consumo medio = media anual / 12.`}>({consumo.horasDiaMedio.toFixed(1)}h/dia médio · {consumo.potenciaKW.toFixed(2)} kW)</span>
-                </div>
-                <div className="relative flex items-center gap-1">
-                  <div className="text-[11px] font-bold tabular-nums text-amber-700">
-                    R$ {(consumo.custoMesCents / 100).toFixed(2)}<span className="text-[9px] font-semibold text-amber-600">/mês</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, lineHeight: 1.15 }}>{selB.description}</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1px 12px", marginTop: 3, fontSize: 9, color: "#334155" }}>
+                    {selB.potenciaCv != null && <div><span style={{ color: "#64748b" }}>Potência</span> <b className="num">{selB.potenciaCv} cv</b></div>}
+                    <div><span style={{ color: "#64748b" }}>Vazão</span> <b className="num">{selB.vazaoM3h.toFixed(2)} m³/h</b></div>
+                    <div><span style={{ color: "#64748b" }}>Pressão</span> <b className="num">{selB.pressaoTrabalhoMca.toFixed(2)} mca</b></div>
+                    {selB.hasPumpCurve && <div style={{ color: "#047857", fontWeight: 700 }}>📈 com curva característica</div>}
+                    {selB.indicator && (
+                      <div style={{ gridColumn: "1 / -1", fontWeight: 700, color: selB.indicator.color === 'emerald' ? '#059669' : selB.indicator.color === 'green' ? '#16a34a' : selB.indicator.color === 'lime' ? '#65a30d' : selB.indicator.color === 'yellow' ? '#ca8a04' : selB.indicator.color === 'orange' ? '#f97316' : selB.indicator.color === 'amber' ? '#d97706' : selB.indicator.color === 'red' ? '#dc2626' : '#334155' }}>
+                        {(() => { const v = selB.indicator.value; const decimals = Math.abs(v) < 10 ? 1 : 0; const formatted = v.toFixed(decimals).replace('.', ','); const group = selB.indicator.groupLabel || 'Dimensionamento'; return `${group}: ${formatted}${selB.indicator.unit} (${selB.indicator.label})`; })()}
+                      </div>
+                    )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTarifaInputValue((tarifaKwhBRLCents / 100).toFixed(2).replace(".", ","));
-                      setShowTarifaPopover((v) => !v);
-                    }}
-                    title={`Tarifa atual: R$ ${(tarifaKwhBRLCents / 100).toFixed(2)}/kWh. Clique para alterar.`}
-                    className="text-[10px] font-bold px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 print:hidden"
-                  >
-                    💡
-                  </button>
-                  {showTarifaPopover && (
-                    <div className="absolute right-0 top-full mt-1 z-20 bg-white border border-slate-300 rounded-lg shadow-lg p-3 w-[240px] print:hidden">
-                      <div className="text-[10px] uppercase tracking-wider text-slate-600 font-bold mb-1.5">Tarifa de energia (R$/kWh)</div>
-                      <input
-                        type="text"
-                        value={tarifaInputValue}
-                        onChange={(e) => setTarifaInputValue(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") saveTarifa(); if (e.key === "Escape") setShowTarifaPopover(false); }}
-                        autoFocus
-                        placeholder="0,95"
-                        className="w-full rounded border border-slate-300 px-2 py-1 text-[12px] font-semibold focus:border-amber-500 focus:outline-none"
-                      />
-                      <div className="text-[9px] text-slate-500 mt-1 leading-tight">Tarifa aplicada a todos os orcamentos do tenant.</div>
-                      <div className="mt-2 flex gap-1.5 justify-end">
-                        <button type="button" onClick={() => setShowTarifaPopover(false)} disabled={tarifaSaving} className="text-[10px] px-2 py-1 rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-700">Cancelar</button>
-                        <button type="button" onClick={saveTarifa} disabled={tarifaSaving} className="text-[10px] px-2 py-1 rounded bg-amber-600 text-white font-bold hover:bg-amber-700 disabled:bg-slate-300">{tarifaSaving ? "Salvando..." : "Salvar"}</button>
+                  {consumo ? (
+                    <div style={{ marginTop: 4, paddingTop: 3, borderTop: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                      <div style={{ fontSize: 9, color: "#334155" }}><span style={{ color: "#64748b" }}>⚡ Consumo</span> <b className="num" style={{ fontSize: 11 }}>{consumo.kwhMes.toFixed(0)}</b> <span style={{ fontSize: 8, color: "#64748b" }}>kWh/mês</span> <span style={{ fontSize: 8, color: "#94a3b8" }} title={`Média ${consumo.horasDiaMedio.toFixed(1)} h/dia, varia ${consumo.horasMin.toFixed(1)}–${consumo.horasMax.toFixed(1)} h/dia. P = ${selB.potenciaCv} cv × 0,7355 / 0,65 = ${consumo.potenciaKW.toFixed(2)} kW. Média anual / 12.`}>({consumo.horasDiaMedio.toFixed(1)}h/dia · {consumo.potenciaKW.toFixed(2)} kW)</span></div>
+                      <div style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: "#b45309" }} className="num">R$ {(consumo.custoMesCents / 100).toFixed(2)}<span style={{ fontSize: 8, color: "#d97706" }}>/mês</span></div>
+                        <button type="button" className="ds-edit" onClick={() => { setTarifaInputValue((tarifaKwhBRLCents / 100).toFixed(2).replace(".", ",")); setShowTarifaPopover((v) => !v); }} title={`Tarifa atual: R$ ${(tarifaKwhBRLCents / 100).toFixed(2)}/kWh.`} style={{ fontSize: 9, fontWeight: 700, padding: "0 4px", borderRadius: 4, border: "1px solid #fde68a", background: "#fffbeb", color: "#b45309", cursor: "pointer" }}>💡</button>
+                        {showTarifaPopover && (
+                          <div className="ds-edit" style={{ position: "absolute", right: 0, top: "100%", marginTop: 4, zIndex: 20, background: "#fff", border: "1px solid #cbd5e1", borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,.12)", padding: 10, width: 220 }}>
+                            <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: ".05em", color: "#475569", fontWeight: 700, marginBottom: 5 }}>Tarifa de energia (R$/kWh)</div>
+                            <input type="text" value={tarifaInputValue} onChange={(e) => setTarifaInputValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") saveTarifa(); if (e.key === "Escape") setShowTarifaPopover(false); }} autoFocus placeholder="0,95" style={{ width: "100%", borderRadius: 4, border: "1px solid #cbd5e1", padding: "4px 6px", fontSize: 11, fontWeight: 600, fontFamily: "inherit" }} />
+                            <div style={{ fontSize: 8.5, color: "#64748b", marginTop: 3 }}>Tarifa aplicada a todos os orcamentos do tenant.</div>
+                            <div style={{ marginTop: 6, display: "flex", gap: 5, justifyContent: "flex-end" }}>
+                              <button type="button" onClick={() => setShowTarifaPopover(false)} disabled={tarifaSaving} style={{ fontSize: 9, padding: "2px 7px", borderRadius: 4, border: "1px solid #cbd5e1", background: "#fff", color: "#475569", cursor: "pointer" }}>Cancelar</button>
+                              <button type="button" onClick={saveTarifa} disabled={tarifaSaving} style={{ fontSize: 9, padding: "2px 7px", borderRadius: 4, background: "#d97706", color: "#fff", fontWeight: 700, border: 0, cursor: "pointer" }}>{tarifaSaving ? "Salvando..." : "Salvar"}</button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
+                  ) : (
+                    <div style={{ marginTop: 4, paddingTop: 3, borderTop: "1px solid #f1f5f9", fontSize: 9, color: "#94a3b8" }}>{selB && selB.potenciaCv != null && selB.potenciaCv > 0 ? "Estimando as horas de operação…" : "Cadastre a potência (cv) da bomba para o consumo elétrico."}</div>
                   )}
                 </div>
               </div>
-            ) : (
-              <div className="mt-1.5 pt-1.5 border-t border-slate-100 text-[9.5px] text-slate-400 leading-tight">{selB && selB.potenciaCv != null && selB.potenciaCv > 0
-                ? "Estimando as horas de operação da bomba de calor para o consumo elétrico…"
-                : "Cadastre a potência (cv) da bomba para estimar o consumo elétrico mensal."}</div>
             )}
-          </div>
-        </div>
-      )}
-        </div>
+          </>
+        )}
       </div>
     </div>
   );
