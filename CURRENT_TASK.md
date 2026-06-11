@@ -1,5 +1,10 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.13.54 (11/06) — Auditoria Chunk A (resto): sum() real no preview + limpeza
+## - **`sum("spec")` real** nos 3 avaliadores do front (`evalLocal`/`evalCondition`/`evalNumber` em page.tsx) = Σ `spec×qty` de todas as linhas (espelha backend `evaluateFormula`). Antes `sum` caía como identificador no `evalCondition` → templates **Disjuntor/Quadro/Fonte** reprovavam TODOS os candidatos no preview; e o `evalLocal` stubava `sum→0` (indicador "Carga total" dava 0). Filtro por categoria (2º arg) ignorado no preview (sem o dado).
+## - **Limpeza:** `linkedCellRef` deixou de ser `state` (setter `setLinkedCellRef` NUNCA chamado — morto, deprecado pelo `prod()`); virou `const`, valor preservado no `buildRule` p/ regras antigas. (Deixei `effectiveSiblingVars` redundante + diagnóstico sibling órfão + textos de ajuda DE FORA — inertes, mais risco.)
+## - ✅ **Chunk A da auditoria COMPLETO** (v1.13.53 dimVars + v1.13.54 sum/limpeza). 🔜 Restam: **Chunk B** (quantidade das recirc — N em paralelo + templates de fórmula buscam qtd) e **Chunk C** (templates de tubo + picker LREF no AutoSelect).
+
 ## ✅ DEPLOYED v1.13.53 (11/06) — Auditoria AutoSelect/Fórmula: fix do PREVIEW (raiz do "Nenhum candidato passa")
 ## - **Causa:** `dimVars` do AutoSelectModal (page.tsx) era montado SEPARADO do `vars` do FormulaModal e divergiu — faltavam ~11 vars (dias/vento/capa/construcao/bombaCalorQty/solarQty/solarNumBaterias/vazaoMaxM3h/hidromassagens/cascataCm/bordaInfinitaM) e `vazaoSolarM3h` lia de fonte errada (`heatingReport.vazaoTotalM3h` em vez de `solarReport`). → templates que usavam essas vars davam preview "Nenhum candidato passa" mesmo com a regra certa (backend acertava). Mesmo padrão do incidente v1.12.41.
 ## - **Fix ADITIVO** no dimVars: todas as vars do FormulaModal + conversão vento/capa/construcao + `vazaoSolarM3h` de solarReport (fallback vazaoMin×qtd no contexto bomba de calor) + `vazaoMaxM3h` (vazaoMax×qtd) + alturaTelhadoMca. Sem refatorar o FormulaModal (risco baixo). tsc OK.
