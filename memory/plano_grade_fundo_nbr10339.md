@@ -24,7 +24,10 @@ de linhas que o operador aponta e seleciona a grade de fundo que aguenta essa va
 - `cellRefSpecs: Map<cellRef, specs>` (só specs, sem qtd) é montado em ~4 lugares (memória feedback_autoselect_vars):
   backend `pool-budget.service.ts` (recalc) + endpoint de preview + frontend `quotes/pool/[id]/page.tsx` (preview do modal) + AutoSelectModal.
 
-## Build (a fazer — precisa DEPLOY, perguntar antes)
+## Build — ✅ FEITO + DEPLOYED v1.13.49 (11/06). Implementado pela ALTERNATIVA MÍNIMA: pseudo-spec `qtdLinha`
+## injetada no cellRefSpecs (back `pool-budget.service` L855 + front preview L3524 + sectionItems +qty) → o where usa
+## `prod(Lx,"vazaoM3h")*prod(Lx,"qtdLinha")` (sem mexer em substituteVars). Template "▦ Grade de fundo / ralo (NBR 10339)"
+## em AUTOSELECT_TEMPLATES. Qtd do ralo = operador fixa `2`. 🟡 Falta usuário validar no ORCP real. Plano original abaixo:
 1. **Motor — suportar `qty(Lx)` no `where`:** injetar a qtd da linha no `cellRefSpecs` (ex: chave reservada `qtdLinha`)
    nos build-sites, e em `substituteVars` (auto-select.helper) traduzir `qty(Lx)` → a qtd injetada. Espelhar nos ~4 lugares.
    (Alternativa mínima: template usa `prod(Lx,"qtdLinha")` direto, sem mexer em substituteVars — mas `qty(Lx)` é mais limpo.)

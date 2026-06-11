@@ -1,9 +1,10 @@
 # TAREFA ATUAL
 
-## 🔵 PRÓXIMA FRENTE (spec travada, NÃO construída) — Auto-seleção da GRADE DE FUNDO (Ralo) por NBR 10339. Spec: [memory/plano_grade_fundo_nbr10339.md]
-## - **Pedido:** linha "Ralos de fundo" → template que soma vazão×qtd das bombas apontadas + seleciona grade que aguenta a vazão total; quantidade = mínimo 2 (NBR), cada ralo aguenta tudo sozinho (anti-aprisionamento).
-## - **Decisões:** vazão da grade = `technicalSpecs.vazaoM3h` (campo "Vazão máxima", já documentado pra ralo — ✅ usuário JÁ cadastrou); operador APONTA as linhas das bombas; conta vazão×qtd; sem grade grande → mantém 2 + AVISA (vermelho).
-## - **Fato técnico:** o `where` da auto-seleção suporta `prod(Lx,"spec")` mas NÃO `qty(Lx)` → precisa de ajuste no motor (injetar qtd da linha no cellRefSpecs, ~4 lugares). + template em AUTOSELECT_TEMPLATES + fórmula qtd=2. PRECISA DEPLOY (perguntar).
+## ✅ DEPLOYED v1.13.49 (11/06) — Auto-seleção da GRADE DE FUNDO (Ralo) por NBR 10339. Spec: [memory/plano_grade_fundo_nbr10339.md]
+## - **Motor:** o `where`/indicator da auto-seleção agora enxerga a qtd da linha — `qtdLinha` injetada como pseudo-spec no `cellRefSpecs` (backend `pool-budget.service` recalc L855 + frontend `quotes/pool/[id]/page.tsx` preview + sectionItems ganhou `qty`). Permite `prod(Lx,"vazaoM3h")*prod(Lx,"qtdLinha")` = vazão × qtd de bombas. Mudança segura (linhas sem spec = igual antes).
+## - **Template "▦ Grade de fundo / ralo (NBR 10339)"** em AUTOSELECT_TEMPLATES: filterDescription "grade", where `vazaoM3h >= prod(LREF,"vazaoM3h")*prod(LREF,"qtdLinha")` (operador troca LREF pelas linhas das bombas), orderBy `vazaoM3h asc` (menor que aguenta), indicator folga % (vermelho<0 / amarelo<20 / verde). Cada ralo aguenta a vazão TOTAL sozinho = anti-aprisionamento.
+## - **Quantidade** do ralo = operador fixa fórmula `2` (mínimo NBR). Grade vazão = `technicalSpecs.vazaoM3h` (usuário já cadastrou).
+## - ⚠️ Preview do modal só vê linhas da MESMA etapa (igual tubo) — se a bomba está em outra etapa, preview mostra "todas passam" mas o Recalcular (backend, todas as linhas) acerta. 🟡 PENDENTE: usuário testar no ORCP real (selecionou grade certa? indicador bate?).
 
 ## ✅ DEPLOYED v1.13.48 (11/06) — cards Tubulação + Bomba de circulação → V1 compacta (resolve impressão 2 páginas). Doc: [memory/datasheet_v1_bomba_calor.md]
 ## - **Decisão #1 RESOLVIDA:** `TrocadorPumpPipeCard` restilizado pra V1 compacta (igual ao mock aprovado): **Tubulação** = card âmbar (mca no topo + comp/desnív/DN numa linha; tirou a label "Altura manométrica" e os 2 inputs soltos); **Bomba de circulação** = card compacto (imagem **64px** em vez de 96px + specs 2col + consumo/R$ numa linha). Dropdown de troca de bomba / ✨ regra / 💡 tarifa = `ds-edit` (só na tela, somem no print). Inputs comp/desnív/DN com swap `ds-edit`/`ds-print`.
