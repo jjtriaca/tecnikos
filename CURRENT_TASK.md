@@ -1,5 +1,10 @@
 # TAREFA ATUAL
 
+## 🔵 PRÓXIMA FRENTE (spec travada, NÃO construída) — Auto-seleção da GRADE DE FUNDO (Ralo) por NBR 10339. Spec: [memory/plano_grade_fundo_nbr10339.md]
+## - **Pedido:** linha "Ralos de fundo" → template que soma vazão×qtd das bombas apontadas + seleciona grade que aguenta a vazão total; quantidade = mínimo 2 (NBR), cada ralo aguenta tudo sozinho (anti-aprisionamento).
+## - **Decisões:** vazão da grade = `technicalSpecs.vazaoM3h` (campo "Vazão máxima", já documentado pra ralo — ✅ usuário JÁ cadastrou); operador APONTA as linhas das bombas; conta vazão×qtd; sem grade grande → mantém 2 + AVISA (vermelho).
+## - **Fato técnico:** o `where` da auto-seleção suporta `prod(Lx,"spec")` mas NÃO `qty(Lx)` → precisa de ajuste no motor (injetar qtd da linha no cellRefSpecs, ~4 lugares). + template em AUTOSELECT_TEMPLATES + fórmula qtd=2. PRECISA DEPLOY (perguntar).
+
 ## ✅ DEPLOYED v1.13.48 (11/06) — cards Tubulação + Bomba de circulação → V1 compacta (resolve impressão 2 páginas). Doc: [memory/datasheet_v1_bomba_calor.md]
 ## - **Decisão #1 RESOLVIDA:** `TrocadorPumpPipeCard` restilizado pra V1 compacta (igual ao mock aprovado): **Tubulação** = card âmbar (mca no topo + comp/desnív/DN numa linha; tirou a label "Altura manométrica" e os 2 inputs soltos); **Bomba de circulação** = card compacto (imagem **64px** em vez de 96px + specs 2col + consumo/R$ numa linha). Dropdown de troca de bomba / ✨ regra / 💡 tarifa = `ds-edit` (só na tela, somem no print). Inputs comp/desnív/DN com swap `ds-edit`/`ds-print`.
 ## - **Por que conserta:** os cards antigos (altos) faziam a coluna direita estourar → 2 páginas + branco na esquerda (que estava balanceada em 325px). Compactos = direita encolhe → bate com a esquerda → 1 folha. `next build` OK (71 páginas), commit −64 linhas líquidas.
