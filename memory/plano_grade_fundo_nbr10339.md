@@ -46,13 +46,15 @@ de linhas que o operador aponta e seleciona a grade de fundo que aguenta essa va
 
 ⚠️ SEGURANÇA: a regra "cada ralo aguenta a vazão total sozinho" é anti-aprisionamento — NÃO afrouxar sem o usuário.
 
-## 🟡 PENDENTE (point 1, 11/06) — ALERTA VERMELHO: bomba apontada SEM vazão
-Pedido do usuário: se o `where` do ralo apontar uma linha (bomba) com `vazaoM3h` = 0 / não cadastrada, a soma
-subdimensiona o ralo (PERIGOSO) → a linha do ralo deve ficar **VERMELHA com erro** (mais grave que o amarelo de
-"quantidade" que já existe). Implementação provável FRONTEND-only (igual ao alerta amarelo de qty, que é calculado no
-front em `quotes/pool/[id]/page.tsx` ~L1039/L1554): parsear o `where` da linha do ralo, achar `prod(Lx,"vazaoM3h")`,
-resolver cada Lx pelos items; se algum referenciar uma linha existente (qtdLinha>0) com vazaoM3h=0 → alerta VERMELHO.
-Precisa DEPLOY.
+## 🟡 PENDENTE (point 1, 11/06 — refinado) — ALERTA VERMELHO na linha da BOMBA sem vazão
+- O alerta vermelho fica na **linha da BOMBA** (NÃO na do ralo): quando uma bomba referenciada por algum `where` de
+  ralo (`prod(Lx,"vazaoM3h")`) está com `vazaoM3h` = 0 / não cadastrada → ela some no cálculo do ralo (subdimensiona =
+  PERIGOSO) → a linha da bomba fica VERMELHA com erro (mais grave que o amarelo de "quantidade" que já existe).
+- **Toggle por linha** na tela de auto-seleção de produto (da bomba) pra **silenciar** o aviso. SILENCIA SÓ O AVISO —
+  a bomba CONTINUA no cálculo do ralo (NÃO exclui). A UX tem que deixar claro que silenciar ≠ tirar a bomba do ralo
+  ("sem o operador achar que aquela bomba não faz parte de ralo"). Flag por item, ex: `suppressVazaoAlert`.
+- Detecção (frontend, igual ao amarelo de qty ~L1039/L1554): varrer os items, coletar refs `prod(Lx,"vazaoM3h")` usadas
+  nos `where` de auto-seleção; bomba nessa lista com vazaoM3h=0 e sem o flag de silêncio → vermelho. Precisa DEPLOY.
 
 ## ✅ CONFIRMADO (point 2) — recálculo automático + escala
 O orçamento NÃO tem botão "Recalcular" — recomputa sozinho a cada mudança. O motor (`pool-budget.service` L866-871
