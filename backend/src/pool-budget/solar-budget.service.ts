@@ -723,6 +723,7 @@ export class SolarBudgetService {
     alturaMca: number,
     ruleKey: 'solarBombaRule' | 'trocadorBombaRule' = 'solarBombaRule',
     vazaoMaxAlvoM3h = 0,
+    maxParalelo = 1,
   ): Promise<Array<{
     productId: string;
     description: string;
@@ -781,7 +782,12 @@ export class SolarBudgetService {
     const frictionKResist = ruleKey === 'trocadorBombaRule' && vazaoAlvoM3h > 0 && alturaMca > 0
       ? alturaMca / (vazaoAlvoM3h * vazaoAlvoM3h)
       : 0;
-    const baseVars = { vazaoSolarM3h: vazaoAlvoM3h, vazaoMaxM3h: vazaoMaxAlvoM3h, alturaTelhadoMca: alturaMca, frictionKResist };
+    // v1.13.55: N em paralelo — relaxa o filtro de vazao pra incluir bombas usaveis com ate
+    // `maxParalelo` unidades (where `vazaoM3h >= vazaoSolarM3h` passa com vazaoM3h >= alvo/N).
+    // Altura/K seguem REAIS (a bomba ainda precisa vencer a pressao). maxParalelo=1 (default,
+    // todos os callers existentes) = comportamento INALTERADO. O front recomputa o N real.
+    const vazaoFiltro = vazaoAlvoM3h / Math.max(1, maxParalelo);
+    const baseVars = { vazaoSolarM3h: vazaoFiltro, vazaoMaxM3h: vazaoMaxAlvoM3h, alturaTelhadoMca: alturaMca, frictionKResist };
 
     // Aplica where (filtro de criterio) e orderBy da regra. filterByWhere/orderCandidates
     // ja interpolam pumpCurve quando candidato tem curva cadastrada (v1.12.41).
@@ -874,20 +880,29 @@ export class SolarBudgetService {
     budgetId: string,
     companyId: string,
     productId: string | null,
-  ): Promise<{ trocadorBombaId: string | null }> {
+    qty: number = 1,
+  ): Promise<{ trocadorBombaId: string | null; trocadorBombaQty: number }> {
     const budget = await this.prisma.poolBudget.findFirst({
       where: { id: budgetId, companyId, deletedAt: null },
       select: { environmentParams: true },
     });
     if (!budget) throw new NotFoundException('Orcamento nao encontrado');
     const env = (budget.environmentParams ?? {}) as Record<string, any>;
-    if (productId === null) delete env.trocadorBombaId;
-    else env.trocadorBombaId = productId;
+    // v1.13.55: persiste tambem a QUANTIDADE (N em paralelo) — a linha do orcamento com
+    // formula `trocadorBombaQty` busca esse N. clamp [1,20].
+    const n = Math.max(1, Math.min(20, Math.round(Number(qty) || 1)));
+    if (productId === null) {
+      delete env.trocadorBombaId;
+      delete env.trocadorBombaQty;
+    } else {
+      env.trocadorBombaId = productId;
+      env.trocadorBombaQty = n;
+    }
     await this.prisma.poolBudget.update({
       where: { id: budgetId },
       data: { environmentParams: env as any },
     });
-    return { trocadorBombaId: productId };
+    return { trocadorBombaId: productId, trocadorBombaQty: productId === null ? 1 : n };
   }
 
   private ruleHasAnyFilter(rule: any): boolean {

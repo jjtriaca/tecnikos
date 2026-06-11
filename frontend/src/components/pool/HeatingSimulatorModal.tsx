@@ -3355,6 +3355,7 @@ function BombaCalorTab({
                         ruleVersion={trocadorRuleVersion}
                         onConsumoChange={setRecircConsumo}
                         initialBombaId={(budget.environmentParams as any)?.trocadorBombaId ?? null}
+                        initialBombaQty={(budget.environmentParams as any)?.trocadorBombaQty ?? 1}
                         onChanged={onPendingSave}
                       />
                     )}
@@ -3716,7 +3717,7 @@ interface TrocadorBombaCandidate {
 // mais, verao menos, e bomba de calor mais potente -> menos horas (atinge o alvo mais
 // rapido). Sem vazao cadastrada -> avisa e nao dimensiona. Reusa /trocador-pipe/recompute
 // + /trocador-bomba-candidates (endpoints do nucleo do Solar).
-function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operatingHoursPerDayAvg, onOpenRulePicker, ruleVersion, onConsumoChange, initialBombaId, onChanged }: {
+function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operatingHoursPerDayAvg, onOpenRulePicker, ruleVersion, onConsumoChange, initialBombaId, initialBombaQty, onChanged }: {
   budgetId: string;
   sel?: { vazaoMinM3h?: number; vazaoMaxM3h?: number; quantity?: number } | null;
   operatingHoursPerMonth?: number[];
@@ -3726,6 +3727,8 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
   onConsumoChange?: (c: { kwhAno: number; custoAnoCents: number } | null) => void;
   // v1.13.52: productId persistido (environmentParams.trocadorBombaId) — restaura a escolha.
   initialBombaId?: string | null;
+  // v1.13.55: N em paralelo persistido (environmentParams.trocadorBombaQty) — restaura a qtd.
+  initialBombaQty?: number | null;
   // v1.13.52: chamado quando a bomba selecionada e persistida — parent marca reload pendente.
   onChanged?: () => void;
 }) {
@@ -3742,6 +3745,8 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
   const [pipeBusy, setPipeBusy] = useState(false);
   const [candidates, setCandidates] = useState<TrocadorBombaCandidate[]>([]);
   const [selBombaId, setSelBombaId] = useState<string | null>(initialBombaId ?? null);
+  // v1.13.55: N em paralelo da recirc (auto = teto(vazaoAlvo/vazaoBomba); operador ajusta).
+  const [selBombaQty, setSelBombaQty] = useState<number>(Math.max(1, Math.round(Number(initialBombaQty) || 1)));
   const [candLoading, setCandLoading] = useState(false);
 
   // Tarifa de energia (R$/kWh em centavos) — tenant global, MESMA do Solar (💡).
@@ -3802,8 +3807,21 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
   useEffect(() => {
     if (!hasVazao || vazaoAlvo <= 0) { setCandidates([]); return; }
     let cancelled = false; setCandLoading(true);
-    api.get<{ candidates: TrocadorBombaCandidate[] }>(`/pool-budgets/${budgetId}/trocador-bomba-candidates?vazao=${vazaoAlvo}&altura=${alturaSelecao}&vazaoMax=${vazaoMaxTotal}`)
-      .then((res) => { if (cancelled) return; const cs = res?.candidates ?? []; setCandidates(cs); if (cs.length && !cs.some((c) => c.productId === selBombaId)) setSelBombaId(cs[0].productId); })
+    // maxParalelo=6: inclui bombas menores usaveis com N em paralelo (v1.13.55). Default
+    // inteligente: menor bomba que atende SOZINHA (N=1); se nenhuma atende sozinha, a MAIOR
+    // (minimiza N). Auto-N = teto(vazaoAlvo / vazaoBomba), clamp [1,6].
+    api.get<{ candidates: TrocadorBombaCandidate[] }>(`/pool-budgets/${budgetId}/trocador-bomba-candidates?vazao=${vazaoAlvo}&altura=${alturaSelecao}&vazaoMax=${vazaoMaxTotal}&maxParalelo=6`)
+      .then((res) => {
+        if (cancelled) return;
+        const cs = res?.candidates ?? [];
+        setCandidates(cs);
+        if (cs.length && !cs.some((c) => c.productId === selBombaId)) {
+          const meetsAlone = cs.filter((c) => (c.vazaoM3h || 0) >= vazaoAlvo - 0.01);
+          const def = meetsAlone.length ? meetsAlone[0] : [...cs].sort((a, b) => (b.vazaoM3h || 0) - (a.vazaoM3h || 0))[0];
+          setSelBombaId(def.productId);
+          setSelBombaQty(Math.max(1, Math.min(6, Math.ceil(vazaoAlvo / (def.vazaoM3h || vazaoAlvo)))));
+        }
+      })
       .catch(() => { if (!cancelled) setCandidates([]); })
       .finally(() => { if (!cancelled) setCandLoading(false); });
     return () => { cancelled = true; };
@@ -3814,15 +3832,17 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
   // em environmentParams.trocadorBombaId. Linhas do orcamento com regra "useTrocadorBomba"
   // vinculam direto a esse produto; o endpoint recalcula os totais. onChanged marca reload
   // pendente pro orcamento refletir ao fechar o Simulador.
-  const lastPersistedBombaRef = useRef<string | null>(initialBombaId ?? null);
+  const lastPersistedBombaRef = useRef<string>(`${initialBombaId ?? ''}|${Math.max(1, Math.round(Number(initialBombaQty) || 1))}`);
   useEffect(() => {
-    if (!selBombaId || selBombaId === lastPersistedBombaRef.current) return;
-    lastPersistedBombaRef.current = selBombaId;
-    api.post(`/pool-budgets/${budgetId}/trocador-bomba-selection`, { productId: selBombaId })
+    if (!selBombaId) return;
+    const key = `${selBombaId}|${selBombaQty}`;
+    if (key === lastPersistedBombaRef.current) return;
+    lastPersistedBombaRef.current = key;
+    api.post(`/pool-budgets/${budgetId}/trocador-bomba-selection`, { productId: selBombaId, qty: selBombaQty })
       .then(() => onChanged?.())
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [budgetId, selBombaId]);
+  }, [budgetId, selBombaId, selBombaQty]);
 
   // v1.13.29: recalcula a tubulacao no 1o acesso (defaults 30/4) pra nao mostrar "preencha".
   useEffect(() => {
@@ -3925,9 +3945,22 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
           <div style={{ fontSize: 10, color: "#475569", lineHeight: 1.3 }}>{candLoading ? "Carregando candidatos…" : `Nenhuma bomba do catálogo atende vazão ≥ ${vazaoAlvo} m³/h${alturaSelecao > 0 ? ` e ${alturaSelecao.toFixed(1)} mca (atrito + romper a inércia)` : ""}. Configure a regra no ✨.`}</div>
         ) : (
           <>
-            <select className="ds-edit num" value={selBombaId ?? ""} onChange={(e) => setSelBombaId(e.target.value || null)} style={{ width: "100%", borderRadius: 4, border: "1px solid #cbd5e1", background: "#fffbeb", padding: "2px 6px", fontSize: 10.5, fontWeight: 600, marginBottom: 4, fontFamily: "inherit" }}>
+            <select className="ds-edit num" value={selBombaId ?? ""} onChange={(e) => { const id = e.target.value || null; setSelBombaId(id); const p = candidates.find((c) => c.productId === id); if (p) setSelBombaQty(Math.max(1, Math.min(6, Math.ceil(vazaoAlvo / (p.vazaoM3h || vazaoAlvo))))); }} style={{ width: "100%", borderRadius: 4, border: "1px solid #cbd5e1", background: "#fffbeb", padding: "2px 6px", fontSize: 10.5, fontWeight: 600, marginBottom: 4, fontFamily: "inherit" }}>
               {candidates.map((c) => { const parts = [c.description]; if (c.potenciaCv != null) parts.push(`${c.potenciaCv} cv`); parts.push(`${c.vazaoM3h.toFixed(1)} m³/h`); parts.push(`${c.pressaoTrabalhoMca.toFixed(1)} mca`); if (c.hasPumpCurve) parts.push("📈 curva"); return <option key={c.productId} value={c.productId}>{parts.join(" · ")}</option>; })}
             </select>
+            {selB && (() => {
+              const totalVazao = (selB.vazaoM3h || 0) * selBombaQty;
+              const ok = totalVazao >= vazaoAlvo - 0.01;
+              return (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".05em", color: "#64748b", fontWeight: 700 }}>Quant.</span>
+                  <input className="ds-edit num" type="number" min={1} max={6} value={selBombaQty} onChange={(e) => setSelBombaQty(Math.max(1, Math.min(6, Math.round(Number(e.target.value) || 1))))} style={{ width: 36, border: "1px solid #cbd5e1", borderRadius: 4, padding: "1px 4px", fontSize: 10.5, fontWeight: 700, textAlign: "center", fontFamily: "inherit" }} />
+                  <b className="ds-print num" style={{ fontSize: 10.5 }}>{selBombaQty}×</b>
+                  {selBombaQty > 1 && <span style={{ fontSize: 8.5, fontWeight: 700, color: "#92400e", background: "#fef3c7", border: "1px solid #fcd34d", borderRadius: 3, padding: "1px 5px" }}>⚡ {selBombaQty}× em paralelo</span>}
+                  <span style={{ fontSize: 9, fontWeight: 700, color: ok ? "#059669" : "#dc2626" }} className="num">Vazão total {totalVazao.toFixed(1)} m³/h {ok ? "≥" : "<"} {vazaoAlvo.toFixed(1)} alvo</span>
+                </div>
+              );
+            })()}
             {selB && ((vazaoMaxTotal > 0 && selB.vazaoM3h > vazaoMaxTotal) || (alturaInercia > 0 && selB.pressaoTrabalhoMca < alturaInercia) || (altura > 0 && selB.pressaoTrabalhoMca < altura)) && (
               <div style={{ display: "flex", flexDirection: "column", gap: 1, fontSize: 9.5, marginBottom: 3 }}>
                 {vazaoMaxTotal > 0 && selB.vazaoM3h > vazaoMaxTotal && <span style={{ color: "#d97706", fontWeight: 600 }}>⚠ acima da vazão máx ({vazaoMaxTotal})</span>}

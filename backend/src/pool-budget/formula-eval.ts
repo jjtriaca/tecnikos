@@ -57,6 +57,10 @@ export const ALLOWED_VARS = [
   // v1.12.31: altura do telhado em MCA (1m geometrico = 1 MCA estatica).
   // Permite where='pressaoTrabalhoMca >= alturaTelhadoMca' na auto-select de bomba.
   'alturaTelhadoMca',
+  // v1.13.55: quantidade de bombas de recirculacao (N em paralelo) escolhida no Simulador.
+  // Linha da recirc usa formula `trocadorBombaQty` (bomba de calor) / `solarBombaQty` (solar).
+  'trocadorBombaQty',
+  'solarBombaQty',
 ] as const;
 const ALLOWED_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
 const CELL_REF_FUNCTIONS = ['qty', 'total', 'unitPrice'] as const;
@@ -254,6 +258,9 @@ export function extractEnvVars(environmentParams: any): FormulaVars {
   // v1.12.31: altura do telhado em metros — 1m ≈ 1 MCA estatica. Permite regras
   // de auto-select de bomba: where='pressaoTrabalhoMca >= alturaTelhadoMca'.
   if (typeof e.alturaTelhadoM === 'number') vars.alturaTelhadoMca = e.alturaTelhadoM;
+  // v1.13.55: N em paralelo da bomba de recirculacao da BOMBA DE CALOR (default 1). A linha
+  // da recirc usa formula `trocadorBombaQty` pra refletir a quantidade do Simulador.
+  vars.trocadorBombaQty = Number(e.trocadorBombaQty) || 1;
   return vars;
 }
 
@@ -307,6 +314,9 @@ export function extractSolarVars(solarReport: any): FormulaVars {
   if (Number.isFinite(vazaoTotal) && vazaoTotal > 0) {
     vars.vazaoSolarM3h = vazaoTotal;
   }
+  // v1.13.55: N em paralelo da bomba de recirculacao SOLAR (default 1). Linha da recirc
+  // solar usa formula `solarBombaQty` pra refletir a quantidade do Simulador.
+  vars.solarBombaQty = Number(r.selectedBombaQty) || 1;
   return vars;
 }
 

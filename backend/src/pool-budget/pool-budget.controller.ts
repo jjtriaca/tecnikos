@@ -150,15 +150,19 @@ export class PoolBudgetController {
     @Query('vazao') vazao: string,
     @Query('altura') altura: string,
     @Query('vazaoMax') vazaoMax: string,
+    @Query('maxParalelo') maxParalelo: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     const v = Number(vazao) || 0;
     const a = Number(altura) || 0;
     const vmax = Number(vazaoMax) || 0; // vazao MAXIMA-alvo (× qtd) — alimenta indicador "dentro x fora da vazao"
+    // v1.13.55: N em paralelo — quando nenhuma bomba atende sozinha, relaxa pra incluir
+    // bombas usaveis com ate maxParalelo unidades. Default 1 = comportamento atual.
+    const mp = Math.max(1, Math.min(20, Number(maxParalelo) || 1));
     // Regra INDEPENDENTE da bomba de circulacao do calor (trocadorBombaRule), com fallback
     // pra do Solar quando nao configurada — ver listBombaCandidatesByFlow.
     return this.solarBudget
-      .listBombaCandidatesByFlow(user.companyId, v, a, 'trocadorBombaRule', vmax)
+      .listBombaCandidatesByFlow(user.companyId, v, a, 'trocadorBombaRule', vmax, mp)
       .then((candidates) => ({ candidates }));
   }
 
@@ -246,10 +250,10 @@ export class PoolBudgetController {
   @Post(':id/trocador-bomba-selection')
   async setSelectedTrocadorBomba(
     @Param('id') id: string,
-    @Body() body: { productId: string | null },
+    @Body() body: { productId: string | null; qty?: number },
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    const r = await this.solarBudget.setSelectedTrocadorBomba(id, user.companyId, body?.productId ?? null);
+    const r = await this.solarBudget.setSelectedTrocadorBomba(id, user.companyId, body?.productId ?? null, Number(body?.qty) || 1);
     await this.service.recalculateTotals(id);
     return r;
   }
