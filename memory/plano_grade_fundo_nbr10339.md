@@ -62,11 +62,8 @@ O orçamento NÃO tem botão "Recalcular" — recomputa sozinho a cada mudança.
 depois as regras cross-line). `cellRefSpecsMap` = TODAS as linhas de TODAS as etapas, remontado a cada recálculo →
 escala. `currentStillPasses` (pool-budget.service ~L876) só re-seleciona quando a grade atual não passa mais.
 
-## 🟡 PENDENTE (point 3, 11/06) — grade SEMPRE a menor adequada (re-otimizar pra BAIXO também)
-Correção do usuário: quando a vazão das bombas DESCE, a grade deve DESCER também (senão fica grade GRANDE à toa =
-custo desnecessário). Hoje o `currentStillPasses` MANTÉM a grade atual se ela ainda passa (oversized fica). Pra a
-grade, precisa SEMPRE pegar a menor adequada (orderBy `vazaoM3h asc` já dá a "menor"; falta IGNORAR o currentStillPasses).
-Solução: flag novo na AutoSelectRule (ex: `alwaysReselect`/`optimalAlways`) que pula o currentStillPasses e força
-re-seleção do melhor candidato — SÓ pra regras que pedem (a grade); NÃO mexer nas outras (evitar churn de seleções
-válidas). Respeitar override manual do operador. Backend (helper interface + recalc skip) + frontend (tipo + template).
-Precisa DEPLOY. Construir JUNTO com o point 1 (alerta vermelho).
+## ✅ point 3 — JÁ FUNCIONA (não precisa build/deploy)
+A grade usa `prod(Lx,...)` no where → `ruleUsesSiblings` (L867) = true → cai na FASE B do recálculo (L1005), que roda com
+`forceReapply: true` (L1062) → o `currentStillPasses` (L934) é BYPASSADO → a grade SEMPRE re-seleciona o melhor candidato
+(orderBy `vazaoM3h asc` = menor que aguenta). Desceu a vazão → desce a grade; subiu → sobe. Re-otimiza nos 2 sentidos
+auto. NÃO precisa flag. (Ressalva: escolha manual da grade dura só até o próximo recálculo — esperado p/ auto-ótima.)
