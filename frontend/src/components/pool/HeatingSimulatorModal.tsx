@@ -285,8 +285,12 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
   const handleClose = useCallback(() => {
     if (pendingReloadRef.current) {
       pendingReloadRef.current = false;
-      // Notifica pai SEM aguardar — o close acontece imediato.
-      notifyPendingSave();
+      // Notifica o pai (que faz load()) pra refletir no orcamento as mudancas feitas no
+      // Simulador — ex: linha com formula "bombaCalorQty" reflete a Quant nova de bombas.
+      // BUG ate v1.13.51: chamava notifyPendingSave() (so RE-setava o ref) em vez de
+      // onSaved() -> o orcamento NUNCA recarregava ao fechar, a linha ficava no valor antigo
+      // (qty=1) apesar do banco ja estar correto (qty=2). v1.13.52.
+      onSaved?.();
     }
     onClose();
   }, [onSaved, onClose]);
@@ -839,6 +843,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
 
           {activeTab === "bomba" && (
             <BombaCalorTab
+              onPendingSave={notifyPendingSave}
               budget={budget}
               report={report}
               loading={loading}
@@ -883,6 +888,7 @@ export function HeatingSimulatorModal({ budget, open, onClose, onSaved, catalog 
 
           {activeTab === "solar" && (
             <SolarTab
+              onPendingSave={notifyPendingSave}
               budget={budget}
               report={solarReport}
               loading={solarLoading}
@@ -970,7 +976,7 @@ function SolarTab({
   onRecompute,
   headerImage, headerImageUploading, onUploadHeaderImage, onRemoveHeaderImage,
   catalog,
-  coletorRule, bombaRule, onSaveColetorRule, onSaveBombaRule,
+  coletorRule, bombaRule, onSaveColetorRule, onSaveBombaRule, onPendingSave,
 }: {
   budget: BudgetForHeating;
   report: SolarReport | null;
@@ -1005,6 +1011,7 @@ function SolarTab({
   bombaRule: AutoSelectRule | null;
   onSaveColetorRule: (rule: AutoSelectRule | null) => void | Promise<void>;
   onSaveBombaRule: (rule: AutoSelectRule | null) => void | Promise<void>;
+  onPendingSave?: () => void;
 }) {
   const dims = budget.poolDimensions ?? {};
   const area = Number(dims.area) || 0;
@@ -1244,6 +1251,9 @@ function SolarTab({
     try {
       // manual=true ao escolher pelo dropdown, productId=null limpa a flag.
       await api.post(`/pool-budgets/${budget.id}/solar-bomba-selection`, { productId, manual: productId !== null });
+      // v1.13.52: o endpoint agora recalcula (linhas com useSolarBomba vinculam) — marca
+      // reload pendente pro orcamento refletir ao fechar o Simulador.
+      onPendingSave?.();
     } catch (err) {
       console.warn('Falha ao salvar selectedBombaId:', err);
     }
@@ -2939,7 +2949,7 @@ function BombaCalorTab({
   headerImage, headerImageUploading, onUploadHeaderImage, onRemoveHeaderImage,
   catalog, heatingRule, onSaveHeatingRule,
   cascataHorasSemana, onChangeCascataHoras, hidromassagemHorasSemana, onChangeHidroHoras,
-  bordaInfinitaHorasAtivaDia, onChangeBordaHoras,
+  bordaInfinitaHorasAtivaDia, onChangeBordaHoras, onPendingSave,
 }: {
   budget: BudgetForHeating;
   report: HeatingReport | null;
@@ -2980,6 +2990,7 @@ function BombaCalorTab({
   onChangeHidroHoras: (n: number) => void;
   bordaInfinitaHorasAtivaDia: number;
   onChangeBordaHoras: (n: number) => void;
+  onPendingSave?: () => void;
 }) {
   const dims = (budget.poolDimensions ?? {}) as any;
   const dispArea = Number(dims.area) || 0;
@@ -3343,6 +3354,8 @@ function BombaCalorTab({
                         onOpenRulePicker={() => setShowTrocadorRulePicker(true)}
                         ruleVersion={trocadorRuleVersion}
                         onConsumoChange={setRecircConsumo}
+                        initialBombaId={(budget.environmentParams as any)?.trocadorBombaId ?? null}
+                        onChanged={onPendingSave}
                       />
                     )}
                   </div>
@@ -3703,7 +3716,7 @@ interface TrocadorBombaCandidate {
 // mais, verao menos, e bomba de calor mais potente -> menos horas (atinge o alvo mais
 // rapido). Sem vazao cadastrada -> avisa e nao dimensiona. Reusa /trocador-pipe/recompute
 // + /trocador-bomba-candidates (endpoints do nucleo do Solar).
-function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operatingHoursPerDayAvg, onOpenRulePicker, ruleVersion, onConsumoChange }: {
+function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operatingHoursPerDayAvg, onOpenRulePicker, ruleVersion, onConsumoChange, initialBombaId, onChanged }: {
   budgetId: string;
   sel?: { vazaoMinM3h?: number; vazaoMaxM3h?: number; quantity?: number } | null;
   operatingHoursPerMonth?: number[];
@@ -3711,6 +3724,10 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
   onOpenRulePicker?: () => void;
   ruleVersion?: number;
   onConsumoChange?: (c: { kwhAno: number; custoAnoCents: number } | null) => void;
+  // v1.13.52: productId persistido (environmentParams.trocadorBombaId) — restaura a escolha.
+  initialBombaId?: string | null;
+  // v1.13.52: chamado quando a bomba selecionada e persistida — parent marca reload pendente.
+  onChanged?: () => void;
 }) {
   const qty = Math.max(1, Number(sel?.quantity) || 1);
   const vMin = Number(sel?.vazaoMinM3h) || 0;
@@ -3724,7 +3741,7 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
   const [pipeResult, setPipeResult] = useState<any | null>(null);
   const [pipeBusy, setPipeBusy] = useState(false);
   const [candidates, setCandidates] = useState<TrocadorBombaCandidate[]>([]);
-  const [selBombaId, setSelBombaId] = useState<string | null>(null);
+  const [selBombaId, setSelBombaId] = useState<string | null>(initialBombaId ?? null);
   const [candLoading, setCandLoading] = useState(false);
 
   // Tarifa de energia (R$/kWh em centavos) — tenant global, MESMA do Solar (💡).
@@ -3792,6 +3809,20 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [budgetId, vazaoAlvo, alturaSelecao, vazaoMaxTotal, hasVazao, ruleVersion]);
+
+  // v1.13.52: persiste a bomba selecionada (default automatico OU escolha manual no dropdown)
+  // em environmentParams.trocadorBombaId. Linhas do orcamento com regra "useTrocadorBomba"
+  // vinculam direto a esse produto; o endpoint recalcula os totais. onChanged marca reload
+  // pendente pro orcamento refletir ao fechar o Simulador.
+  const lastPersistedBombaRef = useRef<string | null>(initialBombaId ?? null);
+  useEffect(() => {
+    if (!selBombaId || selBombaId === lastPersistedBombaRef.current) return;
+    lastPersistedBombaRef.current = selBombaId;
+    api.post(`/pool-budgets/${budgetId}/trocador-bomba-selection`, { productId: selBombaId })
+      .then(() => onChanged?.())
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [budgetId, selBombaId]);
 
   // v1.13.29: recalcula a tubulacao no 1o acesso (defaults 30/4) pra nao mostrar "preencha".
   useEffect(() => {

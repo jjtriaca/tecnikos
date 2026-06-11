@@ -229,12 +229,29 @@ export class PoolBudgetController {
   @RequireVerification()
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)
   @Post(':id/solar-bomba-selection')
-  setSelectedBomba(
+  async setSelectedBomba(
     @Param('id') id: string,
     @Body() body: { productId: string | null; manual?: boolean },
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.solarBudget.setSelectedBomba(id, user.companyId, body?.productId ?? null, body?.manual !== false);
+    const r = await this.solarBudget.setSelectedBomba(id, user.companyId, body?.productId ?? null, body?.manual !== false);
+    // v1.13.52: recalcula pra linhas com regra useSolarBomba vincularem ao novo produto na hora.
+    await this.service.recalculateTotals(id);
+    return r;
+  }
+
+  @ApiOperation({ summary: 'Persiste a bomba de recirculacao da Bomba de Calor (trocador) escolhida no Simulador em environmentParams.trocadorBombaId. Linhas com regra useTrocadorBomba vinculam a ela. v1.13.52.' })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/trocador-bomba-selection')
+  async setSelectedTrocadorBomba(
+    @Param('id') id: string,
+    @Body() body: { productId: string | null },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const r = await this.solarBudget.setSelectedTrocadorBomba(id, user.companyId, body?.productId ?? null);
+    await this.service.recalculateTotals(id);
+    return r;
   }
 
   @ApiOperation({ summary: 'Salva override de area/volume manuais em environmentParams.solarOverride. body null/{} limpa. v1.12.52.' })

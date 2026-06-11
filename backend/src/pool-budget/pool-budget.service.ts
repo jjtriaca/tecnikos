@@ -891,14 +891,13 @@ export class PoolBudgetService {
           opts: { forceReapply?: boolean } = {},
         ) => {
           const rule = it.autoSelectRule as AutoSelectRule | null;
-          if (!rule || (!rule.where && !rule.filterCategoria && !rule.filterDescription && !rule.filterPoolType && !rule.useSolarCollector)) return;
+          if (!rule || (!rule.where && !rule.filterCategoria && !rule.filterDescription && !rule.filterPoolType && !rule.useSolarCollector && !rule.useSolarBomba && !rule.useTrocadorBomba)) return;
 
-          // v1.12.26: useSolarCollector — vincula direto ao coletor do Simulador Solar.
-          // Ignora filtros/criterios. Quando operador troca o coletor no Simulador,
-          // recalculateTotals atualiza esta linha automaticamente.
-          if (rule.useSolarCollector) {
-            const solarColl = (budget?.environmentParams as any)?.solarReport?.selectedCollector;
-            const targetProductId = solarColl?.productId as string | undefined;
+          // v1.12.26 / v1.13.52: flags "use*" — vinculam a linha DIRETO ao equipamento escolhido
+          // no Simulador (ignoram filtros/criterio). Quando o operador troca no Simulador,
+          // recalculateTotals reaplica e a linha acompanha. Coletor solar / bomba de recirculacao
+          // solar / bomba de recirculacao da bomba de calor (trocador).
+          const linkLineToSimulator = async (targetProductId?: string | null) => {
             if (targetProductId && it.productId !== targetProductId) {
               const product = allProducts.find((p) => p.id === targetProductId);
               if (product) {
@@ -915,8 +914,11 @@ export class PoolBudgetService {
                 });
               }
             }
-            return; // skipa lógica padrão de filtro/where
-          }
+          };
+          const simEnv = budget?.environmentParams as any;
+          if (rule.useSolarCollector) { await linkLineToSimulator(simEnv?.solarReport?.selectedCollector?.productId); return; }
+          if (rule.useSolarBomba) { await linkLineToSimulator(simEnv?.solarReport?.selectedBombaId); return; }
+          if (rule.useTrocadorBomba) { await linkLineToSimulator(simEnv?.trocadorBombaId); return; }
 
           // manualSelection: regra so filtra candidatos no catalog picker, engine NAO escolhe automaticamente.
           // Usado quando o item nao tem criterio objetivo (ex: cascata e estetica) e o operador escolhe na mao.

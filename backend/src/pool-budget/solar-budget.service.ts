@@ -864,6 +864,32 @@ export class SolarBudgetService {
     return { selectedBombaId: productId, bombaManuallySelected: productId === null ? false : manual };
   }
 
+  /**
+   * v1.13.52: persiste a bomba de recirculacao da BOMBA DE CALOR (trocador) escolhida no card
+   * do Simulador, em environmentParams.trocadorBombaId. A linha do orcamento com regra
+   * `useTrocadorBomba` vincula direto a esse produto (mesmo mecanismo do coletor/recirc solar).
+   * O controller chama recalculateTotals depois pra a linha acompanhar na hora.
+   */
+  async setSelectedTrocadorBomba(
+    budgetId: string,
+    companyId: string,
+    productId: string | null,
+  ): Promise<{ trocadorBombaId: string | null }> {
+    const budget = await this.prisma.poolBudget.findFirst({
+      where: { id: budgetId, companyId, deletedAt: null },
+      select: { environmentParams: true },
+    });
+    if (!budget) throw new NotFoundException('Orcamento nao encontrado');
+    const env = (budget.environmentParams ?? {}) as Record<string, any>;
+    if (productId === null) delete env.trocadorBombaId;
+    else env.trocadorBombaId = productId;
+    await this.prisma.poolBudget.update({
+      where: { id: budgetId },
+      data: { environmentParams: env as any },
+    });
+    return { trocadorBombaId: productId };
+  }
+
   private ruleHasAnyFilter(rule: any): boolean {
     if (!rule || typeof rule !== 'object') return false;
     const fields = [rule.filterPoolType, rule.filterCategoria, rule.filterDescription];

@@ -24,6 +24,10 @@ export type AutoSelectRule = {
   // selecionado no Simulador Solar (environmentParams.solarReport.selectedCollector.productId).
   // Operador configura uma vez e o orcamento herda a escolha do Simulador.
   useSolarCollector?: boolean | null;
+  // v1.13.52: vincula direto a bomba de recirculacao SOLAR escolhida no Simulador.
+  useSolarBomba?: boolean | null;
+  // v1.13.52: vincula direto a bomba de recirculacao da BOMBA DE CALOR escolhida no Simulador.
+  useTrocadorBomba?: boolean | null;
   indicator?: {
     label: string;
     expr: string;
@@ -338,6 +342,8 @@ export default function PoolBudgetDetailPage() {
   // inicial. Etapas com linhas amarelas (qty fora do padrao) ficam destacadas no header
   // mesmo minimizadas, pra chamar atencao.
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set(SECTION_ORDER));
+  // Guarda do "minimizar tudo no 1o load" (inclui etapas CUSTOM, que so existem apos carregar).
+  const [collapseInitForId, setCollapseInitForId] = useState<string | null>(null);
   // Refs pra cada section header — usado pelo IntersectionObserver pra auto-minimizar
   // etapas que saem do viewport (operador rolou pra outra parte da tela).
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -366,11 +372,29 @@ export default function PoolBudgetDetailPage() {
       return next;
     });
   }
+  // Lista TODAS as etapas presentes (enum padrao + custom do environmentParams + as que tem
+  // item). Generico: cobre etapas custom atuais e futuras.
+  function allSectionKeys(b: typeof budget): string[] {
+    const customLabels = ((b?.environmentParams as any)?.customSections?.labels ?? {}) as Record<string, string>;
+    const customKeys = Object.keys(customLabels).filter((k) => k.startsWith('CUSTOM_'));
+    const itemSections = (b?.items || []).map((it) => it.poolSection);
+    return [...SECTION_ORDER, ...customKeys, ...itemSections];
+  }
   function collapseAll() {
-    setCollapsedSections(new Set(SECTION_ORDER));
+    setCollapsedSections(new Set(allSectionKeys(budget)));
   }
   function expandAll() {
     setCollapsedSections(new Set());
+  }
+
+  // Padrao do orcamento = TODAS as etapas minimizadas, INCLUSIVE as custom (que so existem
+  // depois do budget carregar — o useState inicial so cobre SECTION_ORDER do enum, por isso
+  // "Borda Infinita" abria expandida). Ajuste no 1o load via padrao React de "ajustar estado
+  // durante o render" (sem flash; roda 1x por budget.id, depois respeita os toggles do
+  // operador e o auto-minimize por scroll). v1.13.52.
+  if (budget && budget.id !== collapseInitForId) {
+    setCollapseInitForId(budget.id);
+    setCollapsedSections(new Set(allSectionKeys(budget)));
   }
 
   // ===== Helpers de etapas customizadas (label override + ordem + hidden) =====
@@ -1506,6 +1530,12 @@ function itemVazaoM3h(item: BudgetItem): number {
 // (quem decide vermelho x silenciado eh o caller, pra poder mostrar o lembrete discreto).
 function itemNeedsVazaoAlert(item: BudgetItem, refMap: Map<string, string[]>): boolean {
   if (!item.cellRef || !refMap.has(item.cellRef)) return false;
+  // "Sem Produto" (produto universal: technicalSpecs=null) ou linha ainda vazia (sem produto)
+  // = INCOMPLETO, nao erro — o operador ainda nao escolheu a bomba. O alerta so faz sentido
+  // quando ha um produto REAL vinculado (com technicalSpecs cadastrado) mas SEM o campo
+  // vazaoM3h preenchido. v1.13.52 (antes piscava vermelho em linha Sem Produto).
+  const specs = (item.product?.technicalSpecs ?? item.service?.technicalSpecs) as Record<string, unknown> | null | undefined;
+  if (!specs) return false;
   return itemVazaoM3h(item) <= 0;
 }
 
@@ -1903,7 +1933,12 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
         heatingReport={heatingReport}
         siblingVars={siblingVars}
         sectionItems={(allItems || [])
-          .filter((it) => it.poolSection === item.poolSection && it.id !== item.id)
+          // TODAS as linhas (qualquer etapa), nao so a mesma — o `prod(Lx,"spec")` de uma regra
+          // referencia linhas de OUTRAS etapas (ex: grade de fundo NBR aponta as bombas de
+          // recirculacao em outra etapa). Antes filtrava `poolSection === item.poolSection`, entao
+          // o preview resolvia prod(Lx) cross-etapa como 0 -> "Nenhum candidato passa" (falso). O
+          // FormulaModal ja passava todas as linhas; agora o AutoSelectModal tambem. v1.13.52.
+          .filter((it) => it.id !== item.id)
           .map((it) => ({
             id: it.id,
             cellRef: it.cellRef,
@@ -3163,6 +3198,22 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
   },
   {
     icon: '🚰',
+    label: 'Bomba de recirculacao Solar (do Simulador)',
+    description: 'Vincula a linha DIRETO a bomba de recirculacao escolhida no card do Simulador Solar. Quando voce trocar a bomba no Simulador, esta linha acompanha automaticamente. Ignora filtros e criterio (diferente do template "Bomba do Coletor Solar", que escolhe por vazao).',
+    rule: {
+      useSolarBomba: true,
+    },
+  },
+  {
+    icon: '🌀',
+    label: 'Bomba de recirculacao da Bomba de Calor (do Simulador)',
+    description: 'Vincula a linha DIRETO a bomba de recirculacao escolhida no card do Simulador (aba Bomba de Calor). Quando voce trocar a bomba no Simulador, esta linha acompanha automaticamente. Ignora filtros e criterio.',
+    rule: {
+      useTrocadorBomba: true,
+    },
+  },
+  {
+    icon: '🚰',
     label: 'Bomba do Coletor Solar (vazao + pressao do simulador)',
     description: 'Bomba hidraulica de recirculacao pros coletores solares. Filtra bombas com vazaoM3h >= vazaoSolarM3h E pressaoTrabalhoMca >= alturaTelhadoMca (ambos do Simulador). Escolhe a menor vazao que atende. Folga ideal 0-50%.',
     rule: {
@@ -3493,6 +3544,8 @@ export function AutoSelectModal({
   const [linkedCellRef, setLinkedCellRef] = useState(initialRule?.linkedCellRef || '');
   // v1.12.26: quando true, ignora filtros e where — vincula direto ao coletor do Simulador Solar.
   const [useSolarCollector, setUseSolarCollector] = useState(!!initialRule?.useSolarCollector);
+  const [useSolarBomba, setUseSolarBomba] = useState(!!initialRule?.useSolarBomba);
+  const [useTrocadorBomba, setUseTrocadorBomba] = useState(!!initialRule?.useTrocadorBomba);
   const [hasIndicator, setHasIndicator] = useState(!!initialRule?.indicator);
   const [indLabel, setIndLabel] = useState(initialRule?.indicator?.label || '');
   const [indExpr, setIndExpr] = useState(initialRule?.indicator?.expr || '');
@@ -3504,6 +3557,10 @@ export function AutoSelectModal({
       { max: 999, label: 'Ruim', color: 'red' },
     ]
   );
+  // Snapshot CANONICO da regra inicial (mesmos defaults dos useState acima). Habilita
+  // "Aplicar regra" SO quando a config da linha realmente muda. `buildRule` e hoisted
+  // (function declaration mais abaixo) e le os states ja inicializados aqui. v1.13.52.
+  const [baselineRuleJson] = useState<string>(() => JSON.stringify(buildRule()));
 
   // Tooltip do "?" nos templates: hover mostra; click no "?" fixa ate clicar fora.
   const [pinnedTemplateLabel, setPinnedTemplateLabel] = useState<string | null>(null);
@@ -3534,6 +3591,8 @@ export function AutoSelectModal({
     setOrderBy(t.rule.orderBy || 'priceCents asc');
     setManualSelection(!!t.rule.manualSelection);
     setUseSolarCollector(!!t.rule.useSolarCollector);
+    setUseSolarBomba(!!t.rule.useSolarBomba);
+    setUseTrocadorBomba(!!t.rule.useTrocadorBomba);
     if (t.rule.indicator) {
       setHasIndicator(true);
       setIndLabel(t.rule.indicator.label);
@@ -3757,8 +3816,8 @@ export function AutoSelectModal({
     setIndLevels(t.preset.levels);
   }
 
-  function handleSave() {
-    const rule: AutoSelectRule = {
+  function buildRule(): AutoSelectRule {
+    return {
       filterPoolType: filterPoolType.trim() || null,
       filterCategoria: filterCategoria.trim() || null,
       filterDescription: filterDescription.trim() || null,
@@ -3767,12 +3826,18 @@ export function AutoSelectModal({
       manualSelection: manualSelection || null,
       linkedCellRef: linkedCellRef.trim() || null,
       useSolarCollector: useSolarCollector || null,
+      useSolarBomba: useSolarBomba || null,
+      useTrocadorBomba: useTrocadorBomba || null,
       indicator: hasIndicator && indLabel.trim() && indExpr.trim()
         ? { label: indLabel.trim(), expr: indExpr.trim(), unit: indUnit.trim() || null, levels: indLevels }
         : null,
     };
-    onSave(rule);
   }
+  function handleSave() {
+    onSave(buildRule());
+  }
+  // "Aplicar regra" so habilita quando a config da linha mudou vs o estado inicial. v1.13.52.
+  const isDirty = JSON.stringify(buildRule()) !== baselineRuleJson;
 
   return (
     <tr>
@@ -4168,8 +4233,9 @@ export function AutoSelectModal({
               <div className="flex gap-2">
                 <button type="button" onClick={onClose}
                   className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">Cancelar</button>
-                <button type="button" onClick={handleSave}
-                  className="rounded-lg bg-violet-600 px-5 py-2 text-sm font-bold text-white hover:bg-violet-700">
+                <button type="button" onClick={handleSave} disabled={!isDirty}
+                  title={isDirty ? undefined : "Nenhuma mudanca na regra pra aplicar"}
+                  className={"rounded-lg px-5 py-2 text-sm font-bold text-white transition " + (isDirty ? "bg-violet-600 hover:bg-violet-700 cursor-pointer" : "bg-slate-300 cursor-not-allowed")}>
                   ✓ Aplicar regra
                 </button>
               </div>

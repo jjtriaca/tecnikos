@@ -45,6 +45,12 @@ export interface AutoSelectRule {
   // v1.12.26: quando true, ignora filtros e where — vincula direto ao coletor
   // selecionado no Simulador Solar (environmentParams.solarReport.selectedCollector.productId).
   useSolarCollector?: boolean | null;
+  // v1.13.52: vincula direto a bomba de recirculacao SOLAR escolhida no Simulador
+  // (environmentParams.solarReport.selectedBombaId). Mesmo mecanismo do coletor.
+  useSolarBomba?: boolean | null;
+  // v1.13.52: vincula direto a bomba de recirculacao da BOMBA DE CALOR escolhida no Simulador
+  // (environmentParams.trocadorBombaId).
+  useTrocadorBomba?: boolean | null;
   indicator?: AutoSelectIndicator | null;
 }
 
