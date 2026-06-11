@@ -1911,6 +1911,7 @@ export class PoolBudgetService {
           ? { autoSelectRule: (dto.autoSelectRule === null ? Prisma.JsonNull : dto.autoSelectRule) as Prisma.InputJsonValue }
           : {}),
         ...(dto.manualUnlink !== undefined ? { manualUnlink: dto.manualUnlink } : {}),
+        ...(dto.suppressVazaoAlert !== undefined ? { suppressVazaoAlert: dto.suppressVazaoAlert } : {}),
         ...(dto.previousQty !== undefined ? { previousQty: dto.previousQty } : {}),
         ...(dto.qtyDecimals !== undefined ? { qtyDecimals: dto.qtyDecimals } : {}),
         ...(dto.poolSection !== undefined ? { poolSection: dto.poolSection } : {}),

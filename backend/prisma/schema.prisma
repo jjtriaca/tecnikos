@@ -3648,6 +3648,12 @@ model PoolBudgetItem {
   // Snapshot da qty antes de virar "Sem produto" — quando o operador re-escolhe
   // um produto, restaura a qty anterior pra ele nao perder o trabalho.
   previousQty      Float?
+  // Silencia o ALERTA VERMELHO de "bomba sem vazao" (Grade NBR 10339): quando esta
+  // linha eh referenciada por prod(Lx,"vazaoM3h") no `where` de auto-selecao de outra
+  // linha (um ralo) E nao tem vazaoM3h cadastrada, ela some da soma do ralo (subdimensiona
+  // = risco de aprisionamento) -> linha fica vermelha. Silenciar SO esconde o aviso — a
+  // bomba CONTINUA no calculo do ralo. Por-linha, decisao consciente do operador. v1.13.51.
+  suppressVazaoAlert Boolean @default(false)
   // Quantidade de casas decimais permitidas no input qty da linha (v1.11.89).
   // 0=inteiro (step=1), 1=0.1, 2=0.01, 3=0.001, 4=0.0001. Configuravel via modal
   // de Formula automatica. Default 0 = sobe/desce inteiro (usual pra qty equipamento).

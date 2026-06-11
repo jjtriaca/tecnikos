@@ -187,6 +187,11 @@ export class UpdateBudgetItemDto {
   @IsBoolean()
   manualUnlink?: boolean;
 
+  @ApiPropertyOptional({ description: 'Silencia o alerta vermelho de "bomba sem vazao" (Grade NBR) nesta linha. A bomba continua no calculo do ralo.' })
+  @IsOptional()
+  @IsBoolean()
+  suppressVazaoAlert?: boolean;
+
   // @ValidateIf permite null pra LIMPAR o snapshot (sem o decorator, @IsNumber rejeita null
   // e ValidationPipe stripa o campo — backend nao limpava snapshot, ficava preso).
   @ApiPropertyOptional({ description: 'Snapshot da qty antes de virar "Sem produto" — restaura ao re-escolher produto. null = limpa.' })

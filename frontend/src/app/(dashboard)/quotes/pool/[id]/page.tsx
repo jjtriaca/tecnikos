@@ -60,6 +60,7 @@ type BudgetItem = {
   serviceId?: string | null;
   autoSelectRule?: AutoSelectRule | null;
   manualUnlink?: boolean;
+  suppressVazaoAlert?: boolean;
   previousQty?: number | null;
   // Calculados em runtime no findOne — nao persistidos:
   indicatorLabel?: string | null;
@@ -1029,8 +1030,13 @@ export default function PoolBudgetDetailPage() {
               // Hoje: 'amber' (qty fora do padrao — defaultQty do produto ou qtyCalculated da formula).
               // Futuro: 'red' (erro grave, sobrescreve amber). Sem severity = neutro (cyan).
               const sectionSeverity = ((): 'red' | 'amber' | null => {
+                // refMap GLOBAL (todas as etapas) — generico: nova etapa/linha entra sozinho.
+                const vazaoRefMap = collectVazaoRefs(budget.items || []);
                 let hasAmber = false;
+                let hasRed = false;
                 for (const it of items) {
+                  // VERMELHO (grave): bomba sem vazao referenciada por um ralo e nao silenciada.
+                  if (!it.suppressVazaoAlert && itemNeedsVazaoAlert(it, vazaoRefMap)) hasRed = true;
                   const hasFormula = !!(it.formulaExpr && it.formulaExpr.trim());
                   const itemDefaultQty = it.product && typeof (it.product as any).defaultQty === 'number' && (it.product as any).defaultQty > 0
                     ? (it.product as any).defaultQty as number
@@ -1040,6 +1046,7 @@ export default function PoolBudgetDetailPage() {
                     : (itemDefaultQty !== undefined && it.qty !== itemDefaultQty);
                   if (itemOutOfDefault) hasAmber = true;
                 }
+                if (hasRed) return 'red';
                 if (hasAmber) return 'amber';
                 return null;
               })();
@@ -1459,6 +1466,49 @@ export default function PoolBudgetDetailPage() {
   );
 }
 
+// ── Alerta de vazao zero (Grade de fundo / ralo — NBR 10339) ──────────────
+// GENERICO e cross-section: varre TODAS as linhas (qualquer etapa) e mapeia o
+// cellRef de uma linha referenciada via prod(Lx,"vazaoM3h") no `where` de
+// auto-selecao de OUTRA linha (um ralo) -> lista de cellRefs dos ralos que a
+// referenciam. Nao depende de etapa/posicao/ordem: etapa nova + linhas novas
+// entram no esquema automaticamente. O placeholder LREF (template nao editado)
+// NAO casa no regex (so L\d+ real) => sem falso-positivo.
+const VAZAO_REF_RE = /\bprod\s*\(\s*(L\d+)\s*,\s*"vazaoM3h"\s*\)/g;
+function collectVazaoRefs(items: BudgetItem[]): Map<string, string[]> {
+  const map = new Map<string, Set<string>>();
+  for (const it of items) {
+    const where = it.autoSelectRule?.where;
+    if (!where || typeof where !== 'string') continue;
+    VAZAO_REF_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = VAZAO_REF_RE.exec(where)) !== null) {
+      const ref = m[1];
+      // ignora auto-referencia (linha lendo a propria vazao) e refs sem cellRef de origem
+      if (it.cellRef && it.cellRef !== ref) {
+        if (!map.has(ref)) map.set(ref, new Set());
+        map.get(ref)!.add(it.cellRef);
+      }
+    }
+  }
+  const out = new Map<string, string[]>();
+  for (const [ref, set] of map) out.set(ref, Array.from(set));
+  return out;
+}
+// vazaoM3h do produto/servico vinculado a linha (0 = sem produto ou sem o campo cadastrado).
+function itemVazaoM3h(item: BudgetItem): number {
+  const specs = (item.product?.technicalSpecs ?? item.service?.technicalSpecs) as Record<string, unknown> | null | undefined;
+  if (!specs) return 0;
+  const v = Number(specs['vazaoM3h']);
+  return Number.isFinite(v) ? v : 0;
+}
+// Linha (bomba) PRECISA de alerta: referenciada por um ralo via vazaoM3h, mas sem vazao
+// cadastrada -> some da soma do ralo (subdimensiona). NAO considera o flag de silencio aqui
+// (quem decide vermelho x silenciado eh o caller, pra poder mostrar o lembrete discreto).
+function itemNeedsVazaoAlert(item: BudgetItem, refMap: Map<string, string[]>): boolean {
+  if (!item.cellRef || !refMap.has(item.cellRef)) return false;
+  return itemVazaoM3h(item) <= 0;
+}
+
 function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentParams, heatingReport, dias, allItems, catalog, tenantPoolTypes, onUpdate, onRemove, onEdit, onMove }: {
   item: BudgetItem;
   seq?: number;
@@ -1553,22 +1603,33 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
   const outOfDefault = hasFormula
     ? (item.qtyCalculated !== null && item.qtyCalculated !== undefined && item.qty !== item.qtyCalculated)
     : (productDefaultQty !== undefined && item.qty !== productDefaultQty);
+  // Alerta VERMELHO (Grade NBR 10339): bomba sem vazao referenciada por um ralo. Generico —
+  // refMap montado de TODAS as linhas (allItems), entao etapa/linha nova funciona sozinho.
+  const vazaoRefMap = useMemo(() => collectVazaoRefs(allItems || []), [allItems]);
+  const needsVazaoAlert = itemNeedsVazaoAlert(item, vazaoRefMap);
+  const vazaoAlert = needsVazaoAlert && !item.suppressVazaoAlert;      // pinta vermelho
+  const vazaoSilenced = needsVazaoAlert && !!item.suppressVazaoAlert;  // lembrete discreto
+  const vazaoReferrers = (item.cellRef ? vazaoRefMap.get(item.cellRef) : undefined) || [];
   return (
     <>
-    <tr className={`border-b border-slate-100 last:border-b-0 ${outOfDefault ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-slate-50'}`}>
+    <tr className={`border-b border-slate-100 last:border-b-0 ${vazaoAlert ? 'bg-red-50 hover:bg-red-100' : outOfDefault ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-slate-50'}`}>
       <td className="px-3 py-1.5 text-xs font-mono tabular-nums whitespace-nowrap">
         <span className="text-slate-700 font-semibold">{seq ?? ""}</span>
         {item.cellRef && (
-          <span className="ml-1 text-[10px] font-bold text-amber-900 bg-amber-200 border border-amber-400 rounded px-1.5 py-0.5"
+          <span className={`ml-1 text-[10px] font-bold rounded px-1.5 py-0.5 border ${vazaoAlert ? 'text-red-900 bg-red-200 border-red-400' : 'text-amber-900 bg-amber-200 border-amber-400'}`}
             title="Endereço da linha (use em formulas: qty(LX), total(LX))">{item.cellRef}</span>
         )}
-        {outOfDefault && (
+        {vazaoAlert ? (
+          <span className="ml-1 text-[9px] text-red-700" title={`Bomba sem vazao cadastrada — usada no dimensionamento do ralo ${vazaoReferrers.join(', ')}. Subdimensiona (risco de aprisionamento). Cadastre a Vazao maxima (m3/h) do produto.`}>
+            ⛔
+          </span>
+        ) : outOfDefault ? (
           <span className="ml-1 text-[9px] text-amber-700" title={hasFormula
             ? `Quantidade fora do calculo da formula (formula: ${item.qtyCalculated})`
             : `Quantidade fora do padrao do produto (cadastro: ${productDefaultQty})`}>
             ⚠
           </span>
-        )}
+        ) : null}
       </td>
       <td className="px-3 py-1.5">
         {locked ? (
@@ -1691,6 +1752,35 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
               </span>
             )
           )
+        )}
+        {/* Alerta NBR 10339: bomba sem vazao referenciada por um ralo -> subdimensiona.
+            Silenciar SO esconde o aviso — a bomba CONTINUA somando no calculo do ralo. */}
+        {vazaoAlert && (
+          <div className="mt-1 px-2 py-1 rounded text-[11px] font-medium border bg-red-50 border-red-300 text-red-800 flex items-center gap-2 flex-wrap">
+            <span className="font-bold uppercase tracking-wide">⛔ Bomba sem vazão</span>
+            <span>Sem &quot;Vazão máxima (m³/h)&quot; cadastrada — usada no dimensionamento do ralo {vazaoReferrers.join(', ') || '—'}. O ralo fica subdimensionado (risco de aprisionamento). Cadastre a vazão do produto.</span>
+            {!locked && (
+              <button type="button"
+                onClick={() => onUpdate({ suppressVazaoAlert: true } as any)}
+                title="Silencia só o aviso. A bomba CONTINUA somando no cálculo do ralo — não sai do dimensionamento."
+                className="ml-auto text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-red-300 bg-white hover:bg-red-100 hover:border-red-500 text-red-700 transition cursor-pointer font-medium">
+                🔕 silenciar
+              </button>
+            )}
+          </div>
+        )}
+        {vazaoSilenced && (
+          <div className="mt-1 px-2 py-1 rounded text-[11px] border bg-slate-50 border-slate-200 text-slate-500 flex items-center gap-2 flex-wrap">
+            <span>🔕 Alerta de vazão silenciado — a bomba <b>continua</b> no cálculo do ralo {vazaoReferrers.join(', ') || '—'}.</span>
+            {!locked && (
+              <button type="button"
+                onClick={() => onUpdate({ suppressVazaoAlert: false } as any)}
+                title="Reativar o alerta de vazão zero nesta bomba."
+                className="ml-auto text-[10px] inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-slate-300 bg-white hover:bg-slate-100 hover:border-slate-400 text-slate-600 transition cursor-pointer font-medium">
+                🔔 reativar
+              </button>
+            )}
+          </div>
         )}
       </td>
       <td className="px-2 py-1.5 text-center text-xs text-slate-500">{item.unit}</td>
