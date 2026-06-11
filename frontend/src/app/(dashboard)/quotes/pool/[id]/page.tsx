@@ -2446,7 +2446,19 @@ function evalLocal(
     const v = specs ? Number(specs[key] ?? 0) : 0;
     return '(' + (Number.isFinite(v) ? v : 0) + ')';
   });
-  s = s.replace(/\bsum\s*\(\s*"[a-zA-Z_][a-zA-Z0-9_]*"\s*(?:,\s*"[^"]*"\s*)?\)/g, '(0)');
+  // sum("spec") = soma de spec × qty de TODAS as linhas com produto vinculado (espelha o
+  // backend evaluateFormula). v1.13.53: antes era stub (0) -> indicador/preview dos templates
+  // eletricos (Disjuntor/Quadro/Fonte) sempre dava 0. Filtro de categoria (2o arg) e ignorado
+  // no preview por falta do dado de categoria nas linhas.
+  s = s.replace(/\bsum\s*\(\s*"([a-zA-Z_][a-zA-Z0-9_]*)"\s*(?:,\s*"[^"]*"\s*)?\)/g, (_m, key: string) => {
+    let total = 0;
+    for (const [ref, specs] of cellRefProductSpecs) {
+      const val = Number(specs?.[key]);
+      if (!Number.isFinite(val) || val === 0) continue;
+      total += val * (Number(cellRefs.get(ref)?.qty) || 0);
+    }
+    return '(' + total + ')';
+  });
   // Substitui areaSecN / volumeSecN dinamicamente (uma por section)
   s = s.replace(SECTION_VAR_PATTERN, (_m, prefix: string, num: string) => {
     const key = prefix + num;
@@ -3541,7 +3553,10 @@ export function AutoSelectModal({
   const [where, setWhere] = useState(initialRule?.where || '');
   const [orderBy, setOrderBy] = useState(initialRule?.orderBy || 'priceCents asc');
   const [manualSelection, setManualSelection] = useState(!!initialRule?.manualSelection);
-  const [linkedCellRef, setLinkedCellRef] = useState(initialRule?.linkedCellRef || '');
+  // linkedCellRef: DEPRECADO (prod() substituiu) — este modal nao tem UI/setter pra ele
+  // (setLinkedCellRef nunca era chamado). Mantido como const so pra o buildRule PRESERVAR
+  // o valor de regras antigas que ainda tenham linkedCellRef salvo. v1.13.53.
+  const linkedCellRef = initialRule?.linkedCellRef || '';
   // v1.12.26: quando true, ignora filtros e where — vincula direto ao coletor do Simulador Solar.
   const [useSolarCollector, setUseSolarCollector] = useState(!!initialRule?.useSolarCollector);
   const [useSolarBomba, setUseSolarBomba] = useState(!!initialRule?.useSolarBomba);
@@ -3734,6 +3749,18 @@ export function AutoSelectModal({
       const v = specs ? Number(specs[key] ?? 0) : 0;
       return '(' + (Number.isFinite(v) ? v : 0) + ')';
     });
+    // sum("spec") = soma spec × qty (qtdLinha) de todas as linhas — espelha o backend.
+    // v1.13.53: antes 'sum' nao era tratado aqui -> caia como identifier e o where reprovava
+    // TODOS os candidatos no preview (templates Disjuntor/Quadro/Fonte).
+    s = s.replace(/\bsum\s*\(\s*"([a-zA-Z_][a-zA-Z0-9_]*)"\s*(?:,\s*"[^"]*"\s*)?\)/g, (_m, key: string) => {
+      let total = 0;
+      for (const [, specs] of cellRefSpecs) {
+        const val = Number(specs?.[key]);
+        if (!Number.isFinite(val) || val === 0) continue;
+        total += val * (Number((specs as any)?.qtdLinha) || 0);
+      }
+      return '(' + total + ')';
+    });
     s = s.replace(SECTION_VAR_PATTERN, (_m, prefix: string, num: string) => '(' + (vars[prefix + num] || 0) + ')');
     for (const k of FORMULA_VARS) {
       s = s.replace(new RegExp('\\b' + k + '\\b', 'g'), '(' + (vars[k] || 0) + ')');
@@ -3764,6 +3791,16 @@ export function AutoSelectModal({
       const specs = cellRefSpecs.get(ref);
       const v = specs ? Number(specs[key] ?? 0) : 0;
       return '(' + (Number.isFinite(v) ? v : 0) + ')';
+    });
+    // sum("spec") pre-resolvido aqui (evalLocal recebe so (e, vars), sem os maps). v1.13.53.
+    e = e.replace(/\bsum\s*\(\s*"([a-zA-Z_][a-zA-Z0-9_]*)"\s*(?:,\s*"[^"]*"\s*)?\)/g, (_m, key: string) => {
+      let total = 0;
+      for (const [, specs] of cellRefSpecs) {
+        const val = Number(specs?.[key]);
+        if (!Number.isFinite(val) || val === 0) continue;
+        total += val * (Number((specs as any)?.qtdLinha) || 0);
+      }
+      return '(' + total + ')';
     });
     const r = evalLocal(e, vars);
     return r.ok ? r.value! : NaN;
