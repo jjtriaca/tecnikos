@@ -1,5 +1,10 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.13.53 (11/06) — Auditoria AutoSelect/Fórmula: fix do PREVIEW (raiz do "Nenhum candidato passa")
+## - **Causa:** `dimVars` do AutoSelectModal (page.tsx) era montado SEPARADO do `vars` do FormulaModal e divergiu — faltavam ~11 vars (dias/vento/capa/construcao/bombaCalorQty/solarQty/solarNumBaterias/vazaoMaxM3h/hidromassagens/cascataCm/bordaInfinitaM) e `vazaoSolarM3h` lia de fonte errada (`heatingReport.vazaoTotalM3h` em vez de `solarReport`). → templates que usavam essas vars davam preview "Nenhum candidato passa" mesmo com a regra certa (backend acertava). Mesmo padrão do incidente v1.12.41.
+## - **Fix ADITIVO** no dimVars: todas as vars do FormulaModal + conversão vento/capa/construcao + `vazaoSolarM3h` de solarReport (fallback vazaoMin×qtd no contexto bomba de calor) + `vazaoMaxM3h` (vazaoMax×qtd) + alturaTelhadoMca. Sem refatorar o FormulaModal (risco baixo). tsc OK.
+## - 🔜 **FILA da auditoria (escopo escolhido pelo Juliano, incremental):** (A-resto) `sum()` dos templates elétricos no `evalCondition` + limpeza (`linkedCellRef` morto/setter nunca chamado, diagnóstico sibling órfão, textos de ajuda); (B) **QUANTIDADE das recirc** (N em paralelo quando 1 bomba não atende a vazão) + templates de fórmula buscam a qtd; (C) **templates de tubo** + picker LREF no AutoSelect. Auditoria completa = ≈20 achados (tabela A-E do agente).
+
 ## ✅ DEPLOYED v1.13.52 (11/06) — 5 fixes (teste do Juliano no ORCP-00001) + vínculo das recirculações ao Simulador
 ## - **FIX 1 (Sem Produto não erra):** alerta vermelho NBR (`itemNeedsVazaoAlert`, page.tsx) só dispara com **produto real** (technicalSpecs presente) sem vazão. Linha "Sem Produto" (universal, specs=null) ou vazia = incompleto, não erro.
 ## - **FIX 2 (modal "Nenhum candidato passa"):** AutoSelectModal recebia só linhas da MESMA etapa (`sectionItems` filtrava poolSection) → `prod(Lx)` cross-etapa virava 0. Agora passa TODAS as linhas (igual o FormulaModal) → preview resolve + picker "Inserir prod(L?)" lista todas.
