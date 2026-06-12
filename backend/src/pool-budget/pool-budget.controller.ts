@@ -166,14 +166,20 @@ export class PoolBudgetController {
       .then((candidates) => ({ candidates }));
   }
 
-  @ApiOperation({ summary: 'Recalcula a perda de carga da tubulacao do lado piscina do trocador (perda interna do trocador entra aditiva). Stateless. v1.12.94.' })
+  @ApiOperation({ summary: 'Recalcula a perda de carga da tubulacao do lado piscina do trocador (perda interna do trocador entra aditiva). v1.13.57: persiste em environmentParams.trocadorPipe (DN do tubo vira var trocadorPipeDnMm pro auto-select + inputs deixam de ser efemeros).' })
   @Post(':id/trocador-pipe/recompute')
-  recomputeTrocadorPipe(
-    @Param('id') _id: string,
+  async recomputeTrocadorPipe(
+    @Param('id') id: string,
     @Body() body: TrocadorPipeDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.trocadorBudget.computeTrocadorPipe(user.companyId, body);
+    const r = await this.trocadorBudget.computeTrocadorPipe(user.companyId, body, id);
+    // v1.13.57 (Chunk C): recalcula pra a linha do tubo refletir o novo DN (template "Tubo da
+    // tubulacao Bomba de Calor", where=tuboEntradaMm>=trocadorPipeDnMm). Espelha o
+    // solar-pipe/recompute, que ja recalcula pela mesma razao. recalculateTotals devolve
+    // cache se o orcamento estiver congelado (frozen) — seguro.
+    await this.service.recalculateTotals(id);
+    return r;
   }
 
   // ============ Regras de auto-selecao (config do tenant) ============

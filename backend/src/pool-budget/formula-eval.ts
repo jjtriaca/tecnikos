@@ -61,6 +61,12 @@ export const ALLOWED_VARS = [
   // Linha da recirc usa formula `trocadorBombaQty` (bomba de calor) / `solarBombaQty` (solar).
   'trocadorBombaQty',
   'solarBombaQty',
+  // v1.13.57 (Chunk C): DN (mm) do tubo dimensionado no card "Tubulacao — perda de carga"
+  // do Simulador. solar = environmentParams.solarPipe.result.diametroDnMm; bomba de calor =
+  // environmentParams.trocadorPipe.result.diametroDnMm. Linha do tubo usa auto-select
+  // where='tuboEntradaMm >= solarPipeDnMm' (ou trocadorPipeDnMm) pra escolher o tubo do catalogo.
+  'solarPipeDnMm',
+  'trocadorPipeDnMm',
 ] as const;
 const ALLOWED_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
 const CELL_REF_FUNCTIONS = ['qty', 'total', 'unitPrice'] as const;
@@ -261,6 +267,11 @@ export function extractEnvVars(environmentParams: any): FormulaVars {
   // v1.13.55: N em paralelo da bomba de recirculacao da BOMBA DE CALOR (default 1). A linha
   // da recirc usa formula `trocadorBombaQty` pra refletir a quantidade do Simulador.
   vars.trocadorBombaQty = Number(e.trocadorBombaQty) || 1;
+  // v1.13.57 (Chunk C): DN (mm) do tubo dimensionado no Simulador (card "Tubulacao — perda de
+  // carga"). Habilita auto-select do tubo do orcamento: where='tuboEntradaMm >= solarPipeDnMm'
+  // (solar) / 'tuboEntradaMm >= trocadorPipeDnMm' (bomba de calor). 0 quando ainda nao dimensionou.
+  vars.solarPipeDnMm = Number(e.solarPipe?.result?.diametroDnMm) || 0;
+  vars.trocadorPipeDnMm = Number(e.trocadorPipe?.result?.diametroDnMm) || 0;
   return vars;
 }
 

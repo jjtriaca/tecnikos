@@ -2403,6 +2403,10 @@ const FORMULA_VARS = [
   'hidromassagens', 'cascataCm', 'bordaInfinitaM',
   // v1.13.55: N em paralelo das bombas de recirculacao (do Simulador).
   'trocadorBombaQty', 'solarBombaQty',
+  // v1.13.57 (Chunk C): DN (mm) do tubo dimensionado no card "Tubulacao — perda de carga"
+  // do Simulador (solar = env.solarPipe; bomba de calor = env.trocadorPipe). Auto-select do
+  // tubo do orcamento: where='tuboEntradaMm >= solarPipeDnMm' (ou trocadorPipeDnMm).
+  'solarPipeDnMm', 'trocadorPipeDnMm',
 ] as const;
 const FORMULA_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
 const CELL_REF_FUNCTIONS = ['qty', 'total', 'unitPrice'] as const;
@@ -2653,6 +2657,9 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
     // v1.13.55: N em paralelo das bombas de recirculacao (do Simulador).
     trocadorBombaQty: Number((environmentParams as any)?.trocadorBombaQty) || 1,
     solarBombaQty: Number((environmentParams as any)?.solarReport?.selectedBombaQty) || 1,
+    // v1.13.57 (Chunk C): DN (mm) do tubo dimensionado no Simulador (solar / bomba de calor).
+    solarPipeDnMm: Number((environmentParams as any)?.solarPipe?.result?.diametroDnMm) || 0,
+    trocadorPipeDnMm: Number((environmentParams as any)?.trocadorPipe?.result?.diametroDnMm) || 0,
     // Merge das sibling vars (technicalSpecs dos outros items da mesma poolSection).
     // Permite formulas como 'siblingTempoMontagemH', 'siblingVazaoM3h', etc.
     ...(siblingVars || {}),
@@ -3183,7 +3190,13 @@ const ORDER_BY_PRESETS: Array<{ value: string; label: string }> = [
 ];
 
 // Templates completos de auto-selecao — clique em 1 e popula filterCategoria+where+orderBy+indicator
-const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: string; rule: AutoSelectRule }> = [
+// v1.13.57 (Chunk C): lineRef marca templates cujo where/indicator usam o placeholder LREF
+// (referencia a outra LINHA do orcamento). `unit` = a sub-expressao com LREF que representa a
+// contribuicao de UMA linha (igual em where e indicator); ao aplicar, o modal abre um seletor
+// de linha(s) e troca `unit` por: 1 linha -> unit[Lx]; varias -> soma (combine 'sum') ou
+// max (combine 'max'). Espelha o `needsLineRef` do FormulaModal — acaba a edicao manual de LREF.
+type AutoSelectTemplate = { icon: string; label: string; description: string; lineRef?: { unit: string; combine: 'sum' | 'max' }; rule: AutoSelectRule };
+const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
   {
     icon: '🌊',
     label: 'Filtro de piscina (vazao = volume / 3.7)',
@@ -3319,7 +3332,8 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
   {
     icon: '🚿',
     label: 'Tubo (mesmo diametro do equipamento — escolha a linha)',
-    description: 'Tubos com diametro = tuboEntradaMm do equipamento principal de outra linha (filtro/cascata/SPA). Apos aplicar, edite o where pra apontar a linha certa (ex: prod(L3, "tuboEntradaMm")). Funciona em qualquer etapa.',
+    description: 'Tubos com diametro >= tuboEntradaMm do equipamento principal de outra linha (filtro/cascata/SPA). Ao aplicar, escolha a(s) linha(s) no seletor que abre — o LREF e trocado automaticamente. Se escolher varias linhas, usa o MAIOR diametro entre elas. Funciona em qualquer etapa.',
+    lineRef: { unit: 'prod(LREF, "tuboEntradaMm")', combine: 'max' },
     rule: {
       filterCategoria: null,
       filterDescription: 'tubo',
@@ -3337,13 +3351,61 @@ const AUTOSELECT_TEMPLATES: Array<{ icon: string; label: string; description: st
       },
     },
   },
+  // v1.13.57 (Chunk C): tubo do orcamento amarrado ao DN dimensionado no Simulador. O card
+  // "Tubulacao — perda de carga" (Solar / Bomba de Calor) ja calcula o DN (mm) por
+  // Darcy-Weisbach; estes templates escolhem o tubo do catalogo que cobre esse DN. Diferente
+  // do "Tubo mesmo diametro" (que aponta pra outra LINHA), aqui o DN vem direto do Simulador
+  // (vars solarPipeDnMm / trocadorPipeDnMm) — sem precisar apontar linha.
+  {
+    icon: '🚿',
+    label: 'Tubo da tubulacao Solar (DN do Simulador)',
+    description: 'Escolhe o tubo do catalogo cujo diametro (tuboEntradaMm) cobre o DN dimensionado no card "Tubulacao — perda de carga" da aba SOLAR do Simulador (var solarPipeDnMm). Rode o dimensionamento da tubulacao no Simulador primeiro (senao o DN fica 0 e qualquer tubo passa). O tubo acompanha quando voce muda comprimento/desnivel/vazao la.',
+    rule: {
+      filterCategoria: null,
+      filterDescription: 'tubo',
+      where: 'tuboEntradaMm >= solarPipeDnMm',
+      orderBy: 'tuboEntradaMm asc',
+      indicator: {
+        label: 'Folga do tubo (vs DN solar)',
+        expr: 'tuboEntradaMm - solarPipeDnMm',
+        unit: 'mm',
+        levels: [
+          { max: -0.01, label: 'Menor que o DN calculado', color: 'red' },
+          { max: 0, label: 'Exato (DN do Simulador)', color: 'emerald' },
+          { max: 999, label: 'Maior que o necessario', color: 'yellow' },
+        ],
+      },
+    },
+  },
+  {
+    icon: '🚿',
+    label: 'Tubo da tubulacao Bomba de Calor (DN do Simulador)',
+    description: 'Escolhe o tubo do catalogo cujo diametro (tuboEntradaMm) cobre o DN dimensionado no card "Tubulacao — perda de carga" da aba BOMBA DE CALOR do Simulador (var trocadorPipeDnMm). Rode o dimensionamento da tubulacao no Simulador primeiro (senao o DN fica 0 e qualquer tubo passa). O tubo acompanha quando voce muda comprimento/desnivel/vazao la.',
+    rule: {
+      filterCategoria: null,
+      filterDescription: 'tubo',
+      where: 'tuboEntradaMm >= trocadorPipeDnMm',
+      orderBy: 'tuboEntradaMm asc',
+      indicator: {
+        label: 'Folga do tubo (vs DN bomba de calor)',
+        expr: 'tuboEntradaMm - trocadorPipeDnMm',
+        unit: 'mm',
+        levels: [
+          { max: -0.01, label: 'Menor que o DN calculado', color: 'red' },
+          { max: 0, label: 'Exato (DN do Simulador)', color: 'emerald' },
+          { max: 999, label: 'Maior que o necessario', color: 'yellow' },
+        ],
+      },
+    },
+  },
   // Grade de fundo / ralo (NBR 10339): cada ralo tem que aguentar a vazao TOTAL das bombas
   // sozinho (anti-aprisionamento). Usa prod(LREF,"vazaoM3h")*prod(LREF,"qtdLinha") = vazao x
   // quantidade de cada linha de bomba apontada. qtdLinha = pseudo-spec injetada pelo motor.
   {
     icon: '▦',
     label: 'Grade de fundo / ralo (NBR 10339 — vazao das bombas)',
-    description: 'Seleciona a grade cuja "Vazao maxima (m³/h)" aguenta a vazao TOTAL das bombas — cada ralo aguenta tudo sozinho (anti-aprisionamento NBR 10339). Apos aplicar, edite o where: troque LREF pela(s) linha(s) da(s) bomba(s) de recirculacao (ex: prod(L5,"vazaoM3h")*prod(L5,"qtdLinha")). Some varias bombas com +. qtdLinha = quantidade daquela linha (bombas em paralelo). IMPORTANTE: fixe a QUANTIDADE da linha do ralo em 2 (minimo NBR). Indicador vermelho = nenhuma grade aguenta sozinha -> use grade maior.',
+    description: 'Seleciona a grade cuja "Vazao maxima (m³/h)" aguenta a vazao TOTAL das bombas — cada ralo aguenta tudo sozinho (anti-aprisionamento NBR 10339). Ao aplicar, escolha no seletor a(s) linha(s) da(s) bomba(s) de recirculacao — varias bombas SOMAM (vazao x qtd de cada). qtdLinha = quantidade daquela linha (bombas em paralelo). IMPORTANTE: fixe a QUANTIDADE da linha do ralo em 2 (minimo NBR). Indicador vermelho = nenhuma grade aguenta sozinha -> use grade maior.',
+    lineRef: { unit: 'prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")', combine: 'sum' },
     rule: {
       filterCategoria: null,
       filterDescription: 'grade',
@@ -3587,6 +3649,11 @@ export function AutoSelectModal({
   // Tooltip do "?" nos templates: hover mostra; click no "?" fixa ate clicar fora.
   const [pinnedTemplateLabel, setPinnedTemplateLabel] = useState<string | null>(null);
   const pinnedPopoverRef = useRef<HTMLDivElement | null>(null);
+  // v1.13.57 (Chunk C): picker LREF (porte do needsLineRef do FormulaModal). Ao aplicar uma
+  // template com lineRef, guarda a template + mostra o seletor de linha(s); ao confirmar, troca
+  // o placeholder LREF no where + indicator pela(s) linha(s) escolhida(s).
+  const [pendingLineRefTemplate, setPendingLineRefTemplate] = useState<AutoSelectTemplate | null>(null);
+  const [pendingLineRefs, setPendingLineRefs] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!pinnedTemplateLabel) return;
@@ -3625,6 +3692,29 @@ export function AutoSelectModal({
     } else {
       setHasIndicator(false);
     }
+    // v1.13.57 (Chunk C): template com LREF -> abre o seletor de linha(s). O where/indicator
+    // ficam com o placeholder LREF ate o operador escolher; a trava de salvar bloqueia LREF cru.
+    if (t.lineRef) { setPendingLineRefTemplate(t); setPendingLineRefs(new Set()); }
+    else { setPendingLineRefTemplate(null); setPendingLineRefs(new Set()); }
+  };
+
+  // v1.13.57 (Chunk C): troca o placeholder LREF (sub-expressao `unit`) no where + indicator
+  // pela(s) linha(s) escolhida(s). 1 linha = unit[Lx]; varias = soma (combine 'sum') ou
+  // max(...) (combine 'max'). Substituicao literal do `unit` (sem regex) — robusto a parenteses.
+  const applyLineRefSelection = () => {
+    const t = pendingLineRefTemplate;
+    const refs = Array.from(pendingLineRefs);
+    if (!t?.lineRef || refs.length === 0) return;
+    const { unit, combine } = t.lineRef;
+    const parts = refs.map((r) => unit.replace(/\bLREF\b/g, r));
+    const replacement = parts.length === 1
+      ? parts[0]
+      : (combine === 'sum' ? '(' + parts.join(' + ') + ')' : 'max(' + parts.join(', ') + ')');
+    const expand = (s: string) => s.split(unit).join(replacement);
+    setWhere((w) => expand(w));
+    setIndExpr((e) => expand(e));
+    setPendingLineRefTemplate(null);
+    setPendingLineRefs(new Set());
   };
 
   // v1.12.39: carrega tipos do tenant DIRETO ao abrir o modal — garante dados frescos
@@ -3732,6 +3822,11 @@ export function AutoSelectModal({
       // v1.13.55: N em paralelo das bombas de recirculacao (do Simulador).
       trocadorBombaQty: Number(env?.trocadorBombaQty) || 1,
       solarBombaQty: Number(env?.solarReport?.selectedBombaQty) || 1,
+      // v1.13.57 (Chunk C): DN (mm) do tubo dimensionado no card "Tubulacao — perda de carga"
+      // do Simulador. Templates de tubo escolhem o tubo do catalogo por esse DN. 0 = ainda nao
+      // dimensionou (where 'tuboEntradaMm >= 0' passaria todos -> operador roda o Simulador 1a).
+      solarPipeDnMm: Number(env?.solarPipe?.result?.diametroDnMm) || 0,
+      trocadorPipeDnMm: Number(env?.trocadorPipe?.result?.diametroDnMm) || 0,
       // Sibling vars resolvidas: linkedCellRef se definido, senao siblingVars genericos.
       ...effectiveSiblingVars,
     };
@@ -3900,7 +3995,16 @@ export function AutoSelectModal({
     };
   }
   function handleSave() {
-    onSave(buildRule());
+    const rule = buildRule();
+    // v1.13.57 (Chunk C): trava — nao salvar com LREF cru (template de linha aplicada sem
+    // escolher a linha). LREF nao casa no regex prod(L\d+) do motor -> rejeitaria todos os
+    // candidatos silenciosamente ("Nenhum candidato passa"). Forca o operador a escolher.
+    const raw = `${rule.where || ''} ${rule.indicator?.expr || ''}`;
+    if (/\bLREF\b/.test(raw)) {
+      alert('Esta regra ainda tem "LREF" sem linha escolhida. Clique na template de novo e escolha a(s) linha(s) no seletor, ou edite o criterio trocando LREF pela linha (ex: L3).');
+      return;
+    }
+    onSave(rule);
   }
   // "Aplicar regra" so habilita quando a config da linha mudou vs o estado inicial. v1.13.52.
   const isDirty = JSON.stringify(buildRule()) !== baselineRuleJson;
@@ -4051,6 +4155,77 @@ export function AutoSelectModal({
                   })}
                 </div>
               </details>
+
+              {/* v1.13.57 (Chunk C): SELETOR DE LINHA (LREF) — porte do needsLineRef do FormulaModal.
+                  Aparece quando o operador aplica uma template com lineRef (Tubo mesmo diametro / Grade
+                  NBR). Lista TODAS as linhas com cellRef (cross-etapa); ao confirmar, troca o LREF. */}
+              {pendingLineRefTemplate && pendingLineRefTemplate.lineRef && (() => {
+                const lr = pendingLineRefTemplate.lineRef!;
+                const specKey = lr.unit.match(/"([a-zA-Z_][a-zA-Z0-9_]*)"/)?.[1] || null;
+                const lines = (sectionItems || []).filter((it) => it.cellRef);
+                return (
+                  <div className="rounded-lg border-2 border-violet-300 bg-violet-50 p-3">
+                    <div className="text-xs font-bold text-violet-900 mb-1">
+                      🔗 {pendingLineRefTemplate.icon} Escolha a(s) linha(s) {pendingLineRefs.size > 0 && <span className="text-violet-700">— {pendingLineRefs.size} selecionada(s)</span>}
+                    </div>
+                    <div className="text-[11px] text-violet-800 mb-2 leading-tight">
+                      Marque a(s) linha(s) que esta regra referencia (LREF). {lr.combine === 'sum'
+                        ? 'Varias linhas SOMAM (ex: vazao × qtd de cada bomba).'
+                        : 'Varias linhas usam o MAIOR valor entre elas.'}
+                    </div>
+                    <div className="space-y-1 max-h-44 overflow-y-auto">
+                      {lines.length === 0 ? (
+                        <div className="text-[11px] text-amber-700 italic">Nenhuma linha com endereço (cellRef) disponivel.</div>
+                      ) : lines.map((o) => {
+                        const cref = o.cellRef as string;
+                        const specs = (o.specs as Record<string, any> | null) || {};
+                        const specVal = specKey ? Number(specs[specKey]) : null;
+                        const hasSpec = specVal !== null && Number.isFinite(specVal);
+                        const checked = pendingLineRefs.has(cref);
+                        return (
+                          <label key={o.id}
+                            className={`flex items-center gap-2 rounded border px-2 py-1.5 cursor-pointer transition ${
+                              checked ? 'bg-violet-100 border-violet-500' : 'bg-white border-violet-200 hover:border-violet-400 hover:bg-violet-50'
+                            }`}>
+                            <input type="checkbox" checked={checked}
+                              onChange={(e) => {
+                                setPendingLineRefs((prev) => {
+                                  const next = new Set(prev);
+                                  if (e.target.checked) next.add(cref); else next.delete(cref);
+                                  return next;
+                                });
+                              }}
+                              className="h-3.5 w-3.5 accent-violet-600" />
+                            <span className="font-mono text-[10px] text-violet-700">{cref}</span>
+                            <span className="text-xs text-slate-800 flex-1 truncate" title={o.description}>{o.description}</span>
+                            {hasSpec && (
+                              <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">{specKey}={specVal}</span>
+                            )}
+                            {specKey && !hasSpec && (
+                              <span className="text-[10px] text-amber-700">sem {specKey}</span>
+                            )}
+                            {lr.unit.includes('qtdLinha') && Number(o.qty) > 0 && (
+                              <span className="text-[10px] text-slate-500">×{Number(o.qty)}</span>
+                            )}
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <button type="button" disabled={pendingLineRefs.size === 0}
+                        onClick={applyLineRefSelection}
+                        className="rounded bg-violet-600 hover:bg-violet-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-3 py-1 text-xs font-semibold">
+                        Aplicar {pendingLineRefs.size > 0 && `(${pendingLineRefs.size})`}
+                      </button>
+                      <button type="button" onClick={() => { setPendingLineRefTemplate(null); setPendingLineRefs(new Set()); }}
+                        className="text-[10px] text-violet-700 hover:text-violet-900 underline">
+                        Cancelar
+                      </button>
+                      <span className="text-[10px] text-violet-700">O critério fica com <code className="bg-white px-1 rounded">LREF</code> até você escolher.</span>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* CANDIDATOS */}
               <details open className="group rounded-lg border border-slate-200 bg-white">
@@ -4517,6 +4692,11 @@ function CatalogPickModal({ catalog, currentSection, currentKind, autoSelectRule
       // "Apenas que passam no criterio" reconhecer regras tipo "vazaoM3h >= vazaoSolarM3h".
       vazaoSolarM3h: Number((environmentParams as any)?.solarReport?.vazaoTotalM3h) || 0,
       alturaTelhadoMca: Number((environmentParams as any)?.alturaTelhadoM) || 0,
+      // v1.13.57 (Chunk C): DN (mm) do tubo do Simulador — filtro "passa no criterio" das
+      // templates de tubo (tuboEntradaMm >= solarPipeDnMm / trocadorPipeDnMm). Sem isto o
+      // criterio excluiria todos os tubos (incidente v1.12.41).
+      solarPipeDnMm: Number((environmentParams as any)?.solarPipe?.result?.diametroDnMm) || 0,
+      trocadorPipeDnMm: Number((environmentParams as any)?.trocadorPipe?.result?.diametroDnMm) || 0,
       ...(siblingVars || {}),
     };
     return v;

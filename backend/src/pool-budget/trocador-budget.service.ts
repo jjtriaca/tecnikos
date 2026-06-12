@@ -89,11 +89,15 @@ export class TrocadorBudgetService {
   }
 
   // Etapa 7: calcula perda de carga da tubulacao do lado piscina do trocador.
-  // STATELESS (nao persiste) — a vazao vem do DTO (lado secundario do trocador),
-  // nao do solarReport. A perda interna do proprio trocador entra aditiva na
-  // altura manometrica, igual as baterias do solar. Mesmos defaults do solar
-  // (tenant pipeDefaults sobrescritos pelos inputs, com fallback hardcoded).
-  async computeTrocadorPipe(companyId: string, dto: TrocadorPipeDto): Promise<{
+  // A vazao vem do DTO (lado secundario do trocador), nao do solarReport. A perda
+  // interna do proprio trocador entra aditiva na altura manometrica, igual as baterias
+  // do solar. Mesmos defaults do solar (tenant pipeDefaults sobrescritos pelos inputs,
+  // com fallback hardcoded).
+  // v1.13.57 (Chunk C): quando budgetId vem, PERSISTE em environmentParams.trocadorPipe
+  // (espelha o solar). Habilita: (1) auto-select do tubo via var `trocadorPipeDnMm`;
+  // (2) inputs comprimento/desnivel deixam de ser efemeros (pendencia v1.13.12). Sem
+  // budgetId = stateless (retrocompat). Merge no env — nao toca outras chaves.
+  async computeTrocadorPipe(companyId: string, dto: TrocadorPipeDto, budgetId?: string): Promise<{
     inputs: Record<string, any>;
     result: ReturnType<PipeHeadLossService['compute']> & {
       diametroAutoPicked: boolean;
@@ -163,6 +167,23 @@ export class TrocadorBudgetService {
     };
     result.diametroAutoPicked = autoPickInfo !== null;
     result.availableDiametersMm = availableDiameters;
+
+    // v1.13.57 (Chunk C): persiste em environmentParams.trocadorPipe quando ha budgetId.
+    // MERGE — preserva todas as outras chaves do env (solarPipe, solarReport, trocadorBombaId,
+    // overrides, etc.). Espelha o SolarBudgetService.recomputeSolarPipe (env.solarPipe).
+    if (budgetId) {
+      const budget = await this.prisma.poolBudget.findFirst({
+        where: { id: budgetId, companyId, deletedAt: null },
+        select: { environmentParams: true },
+      });
+      if (budget) {
+        const env = (budget.environmentParams ?? {}) as Record<string, any>;
+        await this.prisma.poolBudget.update({
+          where: { id: budgetId },
+          data: { environmentParams: { ...env, trocadorPipe: { inputs, result } } as any },
+        });
+      }
+    }
 
     return { inputs, result };
   }

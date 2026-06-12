@@ -3396,6 +3396,7 @@ function BombaCalorTab({
                         onConsumoChange={setRecircConsumo}
                         initialBombaId={(budget.environmentParams as any)?.trocadorBombaId ?? null}
                         initialBombaQty={(budget.environmentParams as any)?.trocadorBombaQty ?? 1}
+                        initialPipe={(budget.environmentParams as any)?.trocadorPipe ?? null}
                         onChanged={onPendingSave}
                       />
                     )}
@@ -3757,7 +3758,7 @@ interface TrocadorBombaCandidate {
 // mais, verao menos, e bomba de calor mais potente -> menos horas (atinge o alvo mais
 // rapido). Sem vazao cadastrada -> avisa e nao dimensiona. Reusa /trocador-pipe/recompute
 // + /trocador-bomba-candidates (endpoints do nucleo do Solar).
-function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operatingHoursPerDayAvg, onOpenRulePicker, ruleVersion, onConsumoChange, initialBombaId, initialBombaQty, onChanged }: {
+function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operatingHoursPerDayAvg, onOpenRulePicker, ruleVersion, onConsumoChange, initialBombaId, initialBombaQty, initialPipe, onChanged }: {
   budgetId: string;
   sel?: { vazaoMinM3h?: number; vazaoMaxM3h?: number; quantity?: number } | null;
   operatingHoursPerMonth?: number[];
@@ -3769,6 +3770,9 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
   initialBombaId?: string | null;
   // v1.13.55: N em paralelo persistido (environmentParams.trocadorBombaQty) — restaura a qtd.
   initialBombaQty?: number | null;
+  // v1.13.57 (Chunk C): tubo persistido (environmentParams.trocadorPipe = { inputs, result }).
+  // Restaura comprimento/desnivel/DN salvos — antes resetavam a 30/4 (pendencia v1.13.12).
+  initialPipe?: { inputs?: { comprimentoM?: number; desnivelM?: number; vazaoM3h?: number } | null; result?: any } | null;
   // v1.13.52: chamado quando a bomba selecionada e persistida — parent marca reload pendente.
   onChanged?: () => void;
 }) {
@@ -3779,9 +3783,13 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
   const vazaoAlvo = Number((vMin * qty).toFixed(2));
   const vazaoMaxTotal = vMax > 0 ? Number((vMax * qty).toFixed(2)) : 0;
 
-  const [comprimento, setComprimento] = useState<number>(30);
-  const [desnivel, setDesnivel] = useState<number>(4);
-  const [pipeResult, setPipeResult] = useState<any | null>(null);
+  // v1.13.57 (Chunk C): inicia do tubo persistido (env.trocadorPipe) — antes resetava a 30/4
+  // a cada abertura (efemero). Sem persistido, mantem os defaults 30/4.
+  const [comprimento, setComprimento] = useState<number>(Number(initialPipe?.inputs?.comprimentoM) || 30);
+  const [desnivel, setDesnivel] = useState<number>(
+    Number.isFinite(Number(initialPipe?.inputs?.desnivelM)) ? Number(initialPipe?.inputs?.desnivelM) : 4,
+  );
+  const [pipeResult, setPipeResult] = useState<any | null>(initialPipe?.result ?? null);
   const [pipeBusy, setPipeBusy] = useState(false);
   const [candidates, setCandidates] = useState<TrocadorBombaCandidate[]>([]);
   const [selBombaId, setSelBombaId] = useState<string | null>(initialBombaId ?? null);
@@ -3833,6 +3841,9 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
       if (diametroMm != null) body.diametroMm = diametroMm;
       const res = await api.post<{ result: any }>(`/pool-budgets/${budgetId}/trocador-pipe/recompute`, body);
       setPipeResult(res?.result ?? null);
+      // v1.13.57 (Chunk C): o endpoint persiste env.trocadorPipe + recalcula (linha do tubo
+      // reflete o novo DN). Marca reload pendente pro orcamento atualizar ao fechar o Simulador.
+      onChanged?.();
     } catch { setPipeResult(null); } finally { setPipeBusy(false); }
   }
 
@@ -3885,10 +3896,15 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
   }, [budgetId, selBombaId, selBombaQty]);
 
   // v1.13.29: recalcula a tubulacao no 1o acesso (defaults 30/4) pra nao mostrar "preencha".
+  // v1.13.57 (Chunk C): com persistencia, recalcula tambem quando o tubo salvo foi dimensionado
+  // pra OUTRA vazao (operador trocou a bomba de calor) — evita DN obsoleto alimentando o
+  // auto-select. Tubo salvo com a mesma vazao = mantem (sem reescrever).
   useEffect(() => {
-    if (hasVazao && comprimento > 0 && !pipeResult) recompute();
+    if (!hasVazao || comprimento <= 0) return;
+    const savedVazao = Number(initialPipe?.inputs?.vazaoM3h) || 0;
+    if (!pipeResult || (savedVazao > 0 && Math.abs(savedVazao - vazaoAlvo) > 0.01)) recompute();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasVazao]);
+  }, [hasVazao, vazaoAlvo]);
 
   // v1.13.30: reporta o consumo eletrico anual da bomba de recirculacao pro pai (BombaCalorTab),
   // que soma com o da bomba de calor (Bomba de calor + Recirculacao = Total). ANTES do return
