@@ -7,6 +7,8 @@ metadata:
 
 # Plano: Quantidade das bombas de recirculacao (N em paralelo) — Chunk B da auditoria (definido 11/06)
 
+> ✅ **IMPLEMENTADO + DEPLOYED v1.13.55 (bomba de calor) + v1.13.56 (solar).** Todos os passos abaixo executados, EXCETO: o `maxParalelo` relaxa o filtro mexendo so em `vazaoSolarM3h` (altura/K reais) — o indicador do backend fica relativo ao filtro relaxado (otimista), e o FRONT mostra o N real + "vazao total >= alvo" como autoridade. Solar: default NAO persiste (operador clica pra ativar). Plano original abaixo (referencia).
+
 **Pedido (Juliano):** colocar a QUANTIDADE de bombas de recirculacao na **solar** E na **bomba de calor** — se nenhuma bomba atende a vazao necessaria SOZINHA, **multiplicar** (N em paralelo). As templates de FORMULA tem que buscar a quantidade tambem.
 
 **Decisao travada (Juliano):** modelo SIMPLES — **N = teto(vazaoAlvo / vazaoBomba)**, clamp >= 1 (e um teto, ex 6). NAO usar fisica de bombas-em-paralelo (head-sharing) — so divisao de vazao. O operador pode ajustar o N.
