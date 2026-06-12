@@ -1,6 +1,6 @@
 # TAREFA ATUAL
 
-## 🟡 FEITO local (aguardando deploy) v1.13.57 — Chunk C da auditoria AutoSelect: templates de TUBO (DN do Simulador) + picker LREF
+## ✅ DEPLOYED v1.13.57 (12/06) — Chunk C da auditoria AutoSelect: templates de TUBO (DN do Simulador) + picker LREF
 ## - **Parte 1 — templates de tubo vinculadas ao Simulador (pedido do Juliano):** 2 templates novas no `✨` que escolhem o tubo do orçamento pelo **DN (mm) calculado no card "Tubulação — perda de carga"** do Simulador (Solar e Bomba de Calor). `where='tuboEntradaMm >= solarPipeDnMm'` / `'>= trocadorPipeDnMm'` + indicador de folga (mm). Padrão "Simulador dirige, linha reflete" (como as recirc).
 ## - **Vars novas:** `solarPipeDnMm` (de `env.solarPipe.result.diametroDnMm`, já persistido) + `trocadorPipeDnMm` (de `env.trocadorPipe.result.diametroDnMm`). Adicionadas nos **6 lugares** (back ALLOWED_VARS + `extractEnvVars`; front FORMULA_VARS + AutoSelectModal dimVars + FormulaModal vars + CatalogPickModal ruleVars — evita incidente v1.12.41).
 ## - **Persistência do tubo do trocador (resolve pendência v1.13.12):** `/trocador-pipe/recompute` deixou de ser stateless — `computeTrocadorPipe(...,budgetId)` grava `env.trocadorPipe={inputs,result}` (MERGE, espelha o solar) + controller **recalcula** (linha do tubo reflete o DN, igual o solar-pipe na L416). Card `TrocadorPumpPipeCard` lê inputs iniciais do env (comp/desnív não resetam mais a 30/4) + recalcula se a vazão salva diverge (troca de equipamento) + `onChanged` no recompute (reflete ao fechar).
