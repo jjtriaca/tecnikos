@@ -225,8 +225,9 @@ export class PoolBudgetController {
 
   @ApiOperation({ summary: 'Lista candidatos a bomba do Coletor Solar que passam na regra (ordenados pelo orderBy). v1.12.43.' })
   @Get(':id/solar-bomba-candidates')
-  listSolarBombaCandidates(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.solarBudget.listSolarBombaCandidates(id, user.companyId).then((candidates) => ({ candidates }));
+  listSolarBombaCandidates(@Param('id') id: string, @Query('maxParalelo') maxParalelo: string, @CurrentUser() user: AuthenticatedUser) {
+    const mp = Math.max(1, Math.min(20, Number(maxParalelo) || 1));
+    return this.solarBudget.listSolarBombaCandidates(id, user.companyId, mp).then((candidates) => ({ candidates }));
   }
 
   @ApiOperation({ summary: 'Persiste a bomba escolhida pelo operador no dropdown do Simulador Solar. body.productId=null limpa. body.manual=false marca como default automatico (recalculavel). v1.12.43/62.' })
@@ -235,10 +236,10 @@ export class PoolBudgetController {
   @Post(':id/solar-bomba-selection')
   async setSelectedBomba(
     @Param('id') id: string,
-    @Body() body: { productId: string | null; manual?: boolean },
+    @Body() body: { productId: string | null; manual?: boolean; qty?: number },
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    const r = await this.solarBudget.setSelectedBomba(id, user.companyId, body?.productId ?? null, body?.manual !== false);
+    const r = await this.solarBudget.setSelectedBomba(id, user.companyId, body?.productId ?? null, body?.manual !== false, Number(body?.qty) || 1);
     // v1.13.52: recalcula pra linhas com regra useSolarBomba vincularem ao novo produto na hora.
     await this.service.recalculateTotals(id);
     return r;

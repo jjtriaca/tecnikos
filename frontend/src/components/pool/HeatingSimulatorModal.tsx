@@ -1073,6 +1073,8 @@ function SolarTab({
   const [bombaCandidates, setBombaCandidates] = useState<BombaCandidate[]>([]);
   const [selectedBombaId, setSelectedBombaId] = useState<string | null>(initSelectedBombaId);
   const [bombaManuallySelected, setBombaManuallySelected] = useState<boolean>(initBombaManuallySelected);
+  // v1.13.55: N em paralelo da recirc solar (auto = teto(vazaoAlvo/vazaoBomba); operador ajusta).
+  const [selectedBombaQty, setSelectedBombaQty] = useState<number>(Math.max(1, Math.round(Number((budget.environmentParams as any)?.solarReport?.selectedBombaQty) || 1)));
   const [bombaCandidatesLoading, setBombaCandidatesLoading] = useState(false);
 
   // v1.12.63: regras solares configuraveis
@@ -1212,7 +1214,8 @@ function SolarTab({
     }
     let cancelled = false;
     setBombaCandidatesLoading(true);
-    api.get<{ candidates: BombaCandidate[] }>(`/pool-budgets/${budget.id}/solar-bomba-candidates`)
+    // v1.13.55: maxParalelo=6 inclui bombas menores usaveis com N em paralelo.
+    api.get<{ candidates: BombaCandidate[] }>(`/pool-budgets/${budget.id}/solar-bomba-candidates?maxParalelo=6`)
       .then((res) => {
         if (cancelled) return;
         const candidates = res?.candidates ?? [];
@@ -1222,9 +1225,7 @@ function SolarTab({
           return;
         }
         // Se foi escolha manual E a bomba escolhida ainda esta na lista → preserva.
-        // Caso contrario (manual=false OU bomba caiu fora) → adota o primeiro
-        // candidato (default da regra). Quando o que vinha do banco era manual
-        // mas saiu da lista, limpa a flag no servidor pra evitar que retorne.
+        // Caso contrario adota o default. Manual obsoleta (saiu da lista) → limpa no servidor.
         if (bombaManuallySelected && selectedBombaId) {
           const stillValid = candidates.some((c) => c.productId === selectedBombaId);
           if (stillValid) return;
@@ -1232,8 +1233,14 @@ function SolarTab({
           api.post(`/pool-budgets/${budget.id}/solar-bomba-selection`, { productId: null })
             .catch((err) => console.warn('Falha ao limpar bomba manual obsoleta:', err));
         }
-        // Default automatico: primeiro candidato, sem persistir (manual=false implicito).
-        setSelectedBombaId(candidates[0].productId);
+        // Default inteligente (display): menor bomba que atende SOZINHA (N=1); se nenhuma atende,
+        // a MAIOR (minimiza N). Auto-N = teto(vazaoAlvo/vazaoBomba). Sem persistir (manual=false
+        // implicito; persiste quando o operador clica no dropdown). v1.13.55.
+        const alvo = Number(report.vazaoTotalM3h) || 0;
+        const meetsAlone = candidates.filter((c) => (c.vazaoM3h || 0) >= alvo - 0.01);
+        const def = meetsAlone.length ? meetsAlone[0] : [...candidates].sort((a, b) => (b.vazaoM3h || 0) - (a.vazaoM3h || 0))[0];
+        setSelectedBombaId(def.productId);
+        setSelectedBombaQty(Math.max(1, Math.min(6, Math.ceil(alvo / (def.vazaoM3h || alvo)))));
       })
       .catch(() => {
         if (!cancelled) setBombaCandidates([]);
@@ -1248,14 +1255,31 @@ function SolarTab({
   async function handleSelectBomba(productId: string | null) {
     setSelectedBombaId(productId);
     setBombaManuallySelected(productId !== null);
+    // v1.13.55: auto-N pra bomba escolhida = teto(vazaoAlvo/vazaoBomba), clamp [1,6].
+    const alvo = Number(report?.vazaoTotalM3h) || 0;
+    const p = bombaCandidates.find((c) => c.productId === productId);
+    const n = productId && p ? Math.max(1, Math.min(6, Math.ceil(alvo / (p.vazaoM3h || alvo)))) : 1;
+    setSelectedBombaQty(n);
     try {
       // manual=true ao escolher pelo dropdown, productId=null limpa a flag.
-      await api.post(`/pool-budgets/${budget.id}/solar-bomba-selection`, { productId, manual: productId !== null });
+      await api.post(`/pool-budgets/${budget.id}/solar-bomba-selection`, { productId, manual: productId !== null, qty: n });
       // v1.13.52: o endpoint agora recalcula (linhas com useSolarBomba vinculam) — marca
       // reload pendente pro orcamento refletir ao fechar o Simulador.
       onPendingSave?.();
     } catch (err) {
       console.warn('Falha ao salvar selectedBombaId:', err);
+    }
+  }
+  // v1.13.55: operador ajusta o N (em paralelo) manualmente — persiste com o produto atual.
+  async function handleSetBombaQty(n: number) {
+    const qty = Math.max(1, Math.min(6, Math.round(Number(n) || 1)));
+    setSelectedBombaQty(qty);
+    if (!selectedBombaId) return;
+    try {
+      await api.post(`/pool-budgets/${budget.id}/solar-bomba-selection`, { productId: selectedBombaId, manual: bombaManuallySelected, qty });
+      onPendingSave?.();
+    } catch (err) {
+      console.warn('Falha ao salvar qty da bomba:', err);
     }
   }
 
@@ -2122,7 +2146,7 @@ function SolarTab({
                                   : `Nenhuma bomba do catálogo atende a regra atual (vazão ≥ ${report.vazaoTotalM3h?.toFixed(2)} m³/h${pipeResult ? ` e pressão ≥ ${pipeResult.alturaManometricaTotal?.toFixed(2)} mca` : ''}). Edite no ✨ ou cadastre bombas compatíveis.`}
                               </div>
                             </div>
-                          ) : (
+                          ) : (<>
                             <select
                               value={selectedBombaId ?? ''}
                               onChange={(e) => handleSelectBomba(e.target.value || null)}
@@ -2141,7 +2165,23 @@ function SolarTab({
                                 return <option key={c.productId} value={c.productId}>{parts.join(' · ')}</option>;
                               })}
                             </select>
-                          )}
+                            {/* v1.13.55: Quant. (N em paralelo) + vazao total vs alvo */}
+                            {(() => {
+                              const sb = bombaCandidates.find((b) => b.productId === selectedBombaId) ?? bombaCandidates[0];
+                              if (!sb) return null;
+                              const alvo = Number(report.vazaoTotalM3h) || 0;
+                              const total = (sb.vazaoM3h || 0) * selectedBombaQty;
+                              const ok = total >= alvo - 0.01;
+                              return (
+                                <div className="flex items-center gap-1.5 flex-wrap mt-1 print:hidden">
+                                  <span className="text-[9px] uppercase tracking-wide text-slate-500 font-bold">Quant.</span>
+                                  <input type="number" min={1} max={6} value={selectedBombaQty} onChange={(e) => handleSetBombaQty(Number(e.target.value) || 1)} className="w-9 rounded border border-slate-300 px-1 py-0.5 text-[11px] font-bold text-center" />
+                                  {selectedBombaQty > 1 && <span className="text-[9px] font-bold text-amber-800 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5">⚡ {selectedBombaQty}× em paralelo</span>}
+                                  <span className={"text-[10px] font-bold " + (ok ? "text-emerald-600" : "text-red-600")}>Vazão total {total.toFixed(1)} m³/h {ok ? "≥" : "<"} {alvo.toFixed(1)} alvo</span>
+                                </div>
+                              );
+                            })()}
+                          </>)}
                         </div>
                       </div>
                       {/* v1.12.53: card com imagem + specs da bomba selecionada (mesmo padrao do coletor) */}

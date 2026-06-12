@@ -684,6 +684,7 @@ export class SolarBudgetService {
   async listSolarBombaCandidates(
     budgetId: string,
     companyId: string,
+    maxParalelo = 1,
   ): Promise<Array<{
     productId: string;
     description: string;
@@ -707,7 +708,8 @@ export class SolarBudgetService {
     const vazaoSolarM3h = Number(solarReport?.vazaoTotalM3h) || 0;
     const alturaTelhadoMca = Number(env.alturaTelhadoM) || 0;
     // Nucleo compartilhado: mesma regra + interpolacao pra Solar e Trocador.
-    return this.listBombaCandidatesByFlow(companyId, vazaoSolarM3h, alturaTelhadoMca);
+    // v1.13.55: maxParalelo relaxa o filtro pra incluir bombas usaveis com N em paralelo.
+    return this.listBombaCandidatesByFlow(companyId, vazaoSolarM3h, alturaTelhadoMca, 'solarBombaRule', 0, maxParalelo);
   }
 
   /**
@@ -847,6 +849,7 @@ export class SolarBudgetService {
     companyId: string,
     productId: string | null,
     manual: boolean = true,
+    qty: number = 1,
   ): Promise<{ selectedBombaId: string | null; bombaManuallySelected: boolean }> {
     const budget = await this.prisma.poolBudget.findFirst({
       where: { id: budgetId, companyId, deletedAt: null },
@@ -855,12 +858,16 @@ export class SolarBudgetService {
     if (!budget) throw new NotFoundException('Orcamento nao encontrado');
     const env = (budget.environmentParams ?? {}) as Record<string, any>;
     const solarReport = (env.solarReport ?? {}) as Record<string, any>;
+    // v1.13.55: N em paralelo — a linha da recirc solar usa formula `solarBombaQty`. clamp [1,20].
+    const n = Math.max(1, Math.min(20, Math.round(Number(qty) || 1)));
     if (productId === null) {
       delete solarReport.selectedBombaId;
       delete solarReport.bombaManuallySelected;
+      delete solarReport.selectedBombaQty;
     } else {
       solarReport.selectedBombaId = productId;
       solarReport.bombaManuallySelected = manual;
+      solarReport.selectedBombaQty = n;
     }
     env.solarReport = solarReport;
     await this.prisma.poolBudget.update({
