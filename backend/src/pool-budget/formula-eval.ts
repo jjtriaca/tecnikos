@@ -67,6 +67,10 @@ export const ALLOWED_VARS = [
   // where='tuboEntradaMm >= solarPipeDnMm' (ou trocadorPipeDnMm) pra escolher o tubo do catalogo.
   'solarPipeDnMm',
   'trocadorPipeDnMm',
+  // v1.13.58: vazao-alvo (faixa min-max) da agua da bomba de calor x qtd — indicador da linha
+  // da bomba de recirculacao (useTrocadorBomba) mede se a vazao cai dentro da faixa.
+  'vazaoTrocadorMinM3h',
+  'vazaoTrocadorMaxM3h',
 ] as const;
 const ALLOWED_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
 const CELL_REF_FUNCTIONS = ['qty', 'total', 'unitPrice'] as const;
@@ -293,6 +297,15 @@ export function extractHeatingVars(heatingReport: any): FormulaVars {
   } else {
     vars.bombaCalorQty = 1; // fallback se ainda nao computou
   }
+  // v1.13.58 (Chunk C follow-up): vazao-alvo da agua da BOMBA DE CALOR = faixa [min,max] do
+  // equipamento x qtd. Habilita o indicador da linha da bomba de RECIRCULACAO (useTrocadorBomba)
+  // mostrar se a vazao cai DENTRO da faixa — mesmo alvo do card do Simulador. 0 se nao dimensionou.
+  const qtyBC = Number.isFinite(selectedQty) && selectedQty > 0 ? selectedQty : 1;
+  vars.vazaoTrocadorMinM3h = (Number(r?.selectedEquipment?.vazaoMinM3h) || 0) * qtyBC;
+  // Sem vazaoMax cadastrada (0) = SEM TETO (sentinel grande) — indicador so penaliza abaixo do
+  // minimo, nunca "acima do maximo" falso. Com max cadastrado, vale a faixa [min,max].
+  const vmaxBC = (Number(r?.selectedEquipment?.vazaoMaxM3h) || 0) * qtyBC;
+  vars.vazaoTrocadorMaxM3h = vmaxBC > 0 ? vmaxBC : 999999;
   return vars;
 }
 

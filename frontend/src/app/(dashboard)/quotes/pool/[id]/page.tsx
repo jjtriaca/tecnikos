@@ -2407,6 +2407,9 @@ const FORMULA_VARS = [
   // do Simulador (solar = env.solarPipe; bomba de calor = env.trocadorPipe). Auto-select do
   // tubo do orcamento: where='tuboEntradaMm >= solarPipeDnMm' (ou trocadorPipeDnMm).
   'solarPipeDnMm', 'trocadorPipeDnMm',
+  // v1.13.58: vazao-alvo (faixa min-max) da agua da bomba de calor x qtd — indicador da linha
+  // da bomba de recirculacao (useTrocadorBomba) "dentro x fora da faixa".
+  'vazaoTrocadorMinM3h', 'vazaoTrocadorMaxM3h',
 ] as const;
 const FORMULA_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
 const CELL_REF_FUNCTIONS = ['qty', 'total', 'unitPrice'] as const;
@@ -2660,6 +2663,10 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
     // v1.13.57 (Chunk C): DN (mm) do tubo dimensionado no Simulador (solar / bomba de calor).
     solarPipeDnMm: Number((environmentParams as any)?.solarPipe?.result?.diametroDnMm) || 0,
     trocadorPipeDnMm: Number((environmentParams as any)?.trocadorPipe?.result?.diametroDnMm) || 0,
+    // v1.13.58: vazao-alvo (faixa) da bomba de calor x qtd — indicador da linha da recirc.
+    // Sem vazaoMax cadastrada = sem teto (sentinel), so checa o minimo.
+    vazaoTrocadorMinM3h: (Number(heatingReport?.selectedEquipment?.vazaoMinM3h) || 0) * (Number(heatingReport?.selectedEquipment?.quantity) || 1),
+    vazaoTrocadorMaxM3h: ((Number(heatingReport?.selectedEquipment?.vazaoMaxM3h) || 0) * (Number(heatingReport?.selectedEquipment?.quantity) || 1)) || 999999,
     // Merge das sibling vars (technicalSpecs dos outros items da mesma poolSection).
     // Permite formulas como 'siblingTempoMontagemH', 'siblingVazaoM3h', etc.
     ...(siblingVars || {}),
@@ -3231,17 +3238,44 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
   {
     icon: '🚰',
     label: 'Bomba de recirculacao Solar (do Simulador)',
-    description: 'Vincula a linha DIRETO a bomba de recirculacao escolhida no card do Simulador Solar. Quando voce trocar a bomba no Simulador, esta linha acompanha automaticamente. Ignora filtros e criterio (diferente do template "Bomba do Coletor Solar", que escolhe por vazao).',
+    description: 'Vincula a linha DIRETO a bomba de recirculacao escolhida no card do Simulador Solar. Quando voce trocar a bomba no Simulador, esta linha acompanha automaticamente. Ignora filtros e criterio (diferente do template "Bomba do Coletor Solar", que escolhe por vazao). Indicador de folga: vazao da bomba (x qtd) vs a vazao-alvo do solar.',
     rule: {
       useSolarBomba: true,
+      // v1.13.58: indicador de folga de vazao vs o alvo do Simulador Solar (vazaoSolarM3h).
+      // vazaoM3h e multiplicado pela qtd da linha (N em paralelo).
+      indicator: {
+        label: 'Folga vazao (Solar)',
+        expr: '(vazaoM3h - vazaoSolarM3h) / max(vazaoSolarM3h, 0.001) * 100',
+        unit: '%',
+        levels: [
+          { max: -0.001, label: 'Insuficiente', color: 'red' },
+          { max: 10, label: 'Justo', color: 'orange' },
+          { max: 50, label: 'Adequado', color: 'emerald' },
+          { max: 150, label: 'Folgado', color: 'yellow' },
+          { max: 99999, label: 'Super-dim.', color: 'red' },
+        ],
+      },
     },
   },
   {
     icon: '🌀',
     label: 'Bomba de recirculacao da Bomba de Calor (do Simulador)',
-    description: 'Vincula a linha DIRETO a bomba de recirculacao escolhida no card do Simulador (aba Bomba de Calor). Quando voce trocar a bomba no Simulador, esta linha acompanha automaticamente. Ignora filtros e criterio.',
+    description: 'Vincula a linha DIRETO a bomba de recirculacao escolhida no card do Simulador (aba Bomba de Calor). Quando voce trocar a bomba no Simulador, esta linha acompanha automaticamente. Ignora filtros e criterio. Indicador "dentro x fora da faixa": mede se a vazao da bomba (x qtd da linha) cai na faixa de agua da bomba de calor (mesma logica do card do Simulador).',
     rule: {
       useTrocadorBomba: true,
+      // v1.13.58: indicador da linha = mesma dimensao do card do Simulador (vazao dentro da
+      // faixa [min,max] da agua da bomba de calor). value = % FORA da faixa: <0 abaixo do min,
+      // 0 dentro, >0 acima do max. vazaoM3h e multiplicado pela qtd da linha (N em paralelo).
+      indicator: {
+        label: 'Vazao na faixa (Bomba de Calor)',
+        expr: 'min(0, (vazaoM3h - vazaoTrocadorMinM3h) / max(vazaoTrocadorMinM3h, 0.001) * 100) + max(0, (vazaoM3h - vazaoTrocadorMaxM3h) / max(vazaoTrocadorMaxM3h, 0.001) * 100)',
+        unit: '%',
+        levels: [
+          { max: -0.001, label: 'Abaixo do minimo', color: 'red' },
+          { max: 0, label: 'Dentro da faixa', color: 'emerald' },
+          { max: 99999, label: 'Acima do maximo', color: 'orange' },
+        ],
+      },
     },
   },
   {
@@ -3548,11 +3582,13 @@ const INDICATOR_TEMPLATES: Array<{ label: string; preset: { label: string; expr:
     // ficar DENTRO da faixa [vazaoMin, vazaoMax] da bomba de calor (× qtd). value = QUANTOS %
     // esta FORA da faixa (mesma ideia do folga% do Solar): NEGATIVO = % abaixo do minimo
     // (troca de calor insuficiente), 0 = dentro, POSITIVO = % acima do maximo (pressao/erosao).
-    // vazaoSolarM3h = min-alvo, vazaoMaxM3h = max-alvo (do Simulador, × qtd). max(...,0.001) evita /0.
+    // v1.13.58: usa vazaoTrocadorMinM3h/vazaoTrocadorMaxM3h (vazao-alvo da bomba de calor x qtd,
+    // de extractHeatingVars) — funciona no indicador da LINHA (backend). Antes usava vazaoSolarM3h
+    // (= 0 no backend pra contexto bomba de calor sem solar) -> indicador errado na linha.
     label: 'Vazao dentro x fora da faixa (Bomba de Calor)',
     preset: {
       label: 'Vazao fora da faixa',
-      expr: 'min(0, (vazaoM3h - vazaoSolarM3h) / max(vazaoSolarM3h, 0.001) * 100) + max(0, (vazaoM3h - vazaoMaxM3h) / max(vazaoMaxM3h, 0.001) * 100)',
+      expr: 'min(0, (vazaoM3h - vazaoTrocadorMinM3h) / max(vazaoTrocadorMinM3h, 0.001) * 100) + max(0, (vazaoM3h - vazaoTrocadorMaxM3h) / max(vazaoTrocadorMaxM3h, 0.001) * 100)',
       unit: '%',
       levels: [
         { max: -0.001, label: 'Abaixo do minimo', color: 'red' },
@@ -3827,6 +3863,10 @@ export function AutoSelectModal({
       // dimensionou (where 'tuboEntradaMm >= 0' passaria todos -> operador roda o Simulador 1a).
       solarPipeDnMm: Number(env?.solarPipe?.result?.diametroDnMm) || 0,
       trocadorPipeDnMm: Number(env?.trocadorPipe?.result?.diametroDnMm) || 0,
+      // v1.13.58: vazao-alvo (faixa) da bomba de calor x qtd — indicador da linha da recirc.
+      // Sem vazaoMax cadastrada = sem teto (sentinel), so checa o minimo.
+      vazaoTrocadorMinM3h: (Number(selEq?.vazaoMinM3h) || 0) * bombaQty,
+      vazaoTrocadorMaxM3h: ((Number(selEq?.vazaoMaxM3h) || 0) * bombaQty) || 999999,
       // Sibling vars resolvidas: linkedCellRef se definido, senao siblingVars genericos.
       ...effectiveSiblingVars,
     };
@@ -4755,12 +4795,28 @@ function CatalogPickModal({ catalog, currentSection, currentKind, autoSelectRule
     return catalog.find((c) => c.product && (c.product.description || '').trim().toLowerCase() === 'sem produto') || null;
   }, [catalog]);
 
+  // v1.13.58: linha VINCULADA ao Simulador (useTrocadorBomba / useSolarBomba / useSolarCollector)
+  // — o produto e DIRIGIDO pelo Simulador (single source of truth). O catalog picker deve mostrar
+  // SO o produto escolhido no Simulador (+ Sem Produto virtual no topo), nao o catalogo inteiro.
+  // Pra TROCAR a bomba/coletor o operador vai no Simulador. Resolve o productId vinculado do env.
+  const isSimulatorBound = !!(autoSelectRule?.useTrocadorBomba || autoSelectRule?.useSolarBomba || autoSelectRule?.useSolarCollector);
+  const boundProductId = useMemo(() => {
+    const env = environmentParams as any;
+    if (autoSelectRule?.useTrocadorBomba) return env?.trocadorBombaId ?? null;
+    if (autoSelectRule?.useSolarBomba) return env?.solarReport?.selectedBombaId ?? null;
+    if (autoSelectRule?.useSolarCollector) return env?.solarReport?.selectedCollector?.productId ?? null;
+    return null;
+  }, [autoSelectRule, environmentParams]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const tokens = q.length > 0 ? q.split(/\s+/) : [];
     return catalog.filter((c) => {
       // Sempre exclui o Sem Produto da lista filtrada — aparece so como botao virtual no topo
       if (semProdutoCfg && c.id === semProdutoCfg.id) return false;
+      // v1.13.58: linha vinculada ao Simulador -> SO o produto escolhido no Simulador (+ Sem
+      // Produto, que ja e o botao virtual). Ignora kind/secao/regra/busca (irrelevantes p/ 1 item).
+      if (isSimulatorBound) return !!boundProductId && c.product?.id === boundProductId;
       // Filtro por kind (Produto vs Servico) — default ON, baseado no kind da linha
       if (filterByKind && currentKind) {
         if (currentKind === 'PRODUCT' && !c.product) return false;
@@ -4783,7 +4839,7 @@ function CatalogPickModal({ catalog, currentSection, currentKind, autoSelectRule
       return tokens.every((t) => haystack.includes(t));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [catalog, search, currentSection, currentKind, filterByKind, showAll, filterByRule, hasRule, ruleVars, autoSelectRule, semProdutoCfg]);
+  }, [catalog, search, currentSection, currentKind, filterByKind, showAll, filterByRule, hasRule, ruleVars, autoSelectRule, semProdutoCfg, isSimulatorBound, boundProductId]);
 
   return (
     <tr>
@@ -4818,6 +4874,12 @@ function CatalogPickModal({ catalog, currentSection, currentKind, autoSelectRule
                   )}
                 </div>
               </div>
+              {isSimulatorBound && (
+                <div className="rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-[11px] text-violet-900 leading-snug">
+                  🔗 Esta linha é <b>dirigida pelo Simulador</b> ({autoSelectRule?.useTrocadorBomba ? 'bomba de recirculação da Bomba de Calor' : autoSelectRule?.useSolarBomba ? 'bomba de recirculação Solar' : 'coletor Solar'}).
+                  Mostra só o item escolhido lá + Sem Produto. Pra <b>trocar</b>, vá no Simulador (aba Aquecimento) — a linha acompanha sozinha.
+                </div>
+              )}
               <div className="relative">
                 <input value={search} onChange={(e) => setSearch(e.target.value)} autoFocus
                   placeholder="Buscar por descricao, marca, codigo, voltagem, vazao..."
@@ -4849,7 +4911,9 @@ function CatalogPickModal({ catalog, currentSection, currentKind, autoSelectRule
                 </button>
                 {filtered.length === 0 ? (
                   <div className="text-center text-xs text-slate-600 py-6">
-                    {search ? "Nenhum item encontrado" : "Catalogo vazio"}
+                    {isSimulatorBound
+                      ? "Nenhuma bomba/coletor escolhido no Simulador ainda — abra o Simulador (aba Aquecimento) e selecione. Ou use Sem Produto acima."
+                      : search ? "Nenhum item encontrado" : "Catalogo vazio"}
                   </div>
                 ) : filtered.slice(0, 200).map((c) => {
                   const isProduct = !!c.product;
