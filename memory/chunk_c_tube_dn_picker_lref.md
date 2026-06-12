@@ -31,6 +31,13 @@ Padrao **var-formula line-bond** (Simulador dirige, linha reflete) — ver [[hea
 - Ao aplicar template com lineRef: abre seletor de linha(s) (estilo violeta, lista TODAS as linhas com cellRef = cross-etapa, mostra a spec detectada). Confirma → troca `unit` (substituicao literal, `s.split(unit).join(replacement)`) no where + indicator: 1 linha = `unit[Lx]`; varias = soma `(a + b)` (combine 'sum', Grade) ou `max(a, b)` (combine 'max', Tubo).
 - **Trava ao salvar** (`handleSave`): bloqueia `LREF` cru no where/indicator (regex `/\bLREF\b/`) — LREF nao casa no `prod(L\d+)` do motor → rejeitaria todos os candidatos silenciosamente. Acabou editar LREF na mao.
 
+## Follow-up v1.13.58 (teste Juliano ORCP-00001) — catalogo da linha vinculada + indicador da recirc
+- **Catalogo da linha DIRIGIDA pelo Simulador** (`useTrocadorBomba`/`useSolarBomba`/`useSolarCollector`): essas regras tem SO a flag (sem where/filterDescription) -> `hasRule=false` no CatalogPickModal -> nao filtrava nada (trazia o catalogo inteiro). Fix: `isSimulatorBound` + `boundProductId` (de `env.trocadorBombaId` / `solarReport.selectedBombaId` / `solarReport.selectedCollector.productId`) -> lista mostra SO o produto vinculado + Sem Produto (botao virtual). Banner "dirigida pelo Simulador, troque la". Pra trocar = no Simulador.
+- **Indicador da linha da recirc**: o passo de indicador roda no READ (`findOne` ~L1455, NAO grava em DB), pra qualquer item com `rule.indicator`. As templates `useTrocadorBomba`/`useSolarBomba` NAO tinham indicador. Adicionado: bomba de calor = "Vazao na faixa" (dentro/fora de [min,max]); solar = folga vs `vazaoSolarM3h`.
+- **Var nova `vazaoTrocadorMinM3h`/`vazaoTrocadorMaxM3h`** = `heatingReport.selectedEquipment.vazaoMin/Max × quantity`, em `extractHeatingVars` + ALLOWED_VARS + FORMULA_VARS + AutoSelectModal dimVars + FormulaModal vars (NAO no CatalogPickModal ruleVars — so usada em indicador, nunca em where). **Sem vazaoMax cadastrada = sentinel 999999** (sem teto; so penaliza abaixo do min). Preset INDICATOR "Vazao dentro x fora da faixa (Bomba de Calor)" corrigido (usava `vazaoSolarM3h`=0 no backend p/ bomba de calor).
+- O indicador multiplica `vazaoM3h` (spec do produto) por `itemQty` (CUMULATIVE_SPECS) -> recirc N em paralelo = vazao total vs alvo. Var-alvo ja vem × qtd da bomba de calor (sem dupla mult: vars nao sao multiplicadas, so specs).
+- ⚠ Linhas ja configuradas: RE-APLICAR a template da recirc pra ganhar o indicador novo.
+
 ## Gotcha — DN=0 (Simulador nao rodou)
 `tuboEntradaMm >= 0` passa TODOS os tubos → orderBy pega o menor (indicador amarelo "maior que necessario"). Descricao das templates avisa pra dimensionar a tubulacao no Simulador antes. Nao e erro duro.
 
