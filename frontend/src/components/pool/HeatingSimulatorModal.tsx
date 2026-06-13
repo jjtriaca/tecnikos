@@ -3051,6 +3051,9 @@ function BombaCalorTab({
     const n = v ? Number(v) : NaN;
     return Number.isFinite(n) && n >= 0.5 && n <= 2.5 ? n : null;
   });
+  // v1.13.60: "Recalcular" tambem reseta o dimensionamento da recirc (tubo->auto, bomba->melhor,
+  // qtd->auto-N). Incrementa este token; o TrocadorPumpPipeCard observa e reseta os overrides.
+  const [recircResetToken, setRecircResetToken] = useState(0);
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (manualZoom == null) window.localStorage.removeItem("bomba:manualZoom");
@@ -3146,7 +3149,7 @@ function BombaCalorTab({
             <button type="button" onClick={() => setManualZoom(null)} className="px-1 h-5 rounded text-[9px] font-semibold text-slate-600 hover:bg-slate-100 tabular-nums min-w-[36px]" title="Resetar zoom">{manualZoom != null ? `${Math.round(manualZoom * 100)}%` : "Auto"}</button>
             <button type="button" onClick={() => setManualZoom((z) => Math.min(2.5, Math.round(((z ?? 1) + 0.1) * 10) / 10))} className="w-5 h-5 rounded text-[11px] font-bold text-slate-700 hover:bg-slate-100">+</button>
           </div>
-          <button onClick={() => onRecompute()} disabled={recomputing || !uf} className="rounded bg-amber-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-amber-700 disabled:bg-slate-300 transition shadow-sm whitespace-nowrap">
+          <button onClick={() => { onRecompute(); setRecircResetToken((t) => t + 1); }} disabled={recomputing || !uf} className="rounded bg-amber-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-amber-700 disabled:bg-slate-300 transition shadow-sm whitespace-nowrap" title="Recalcula o dimensionamento e RESETA a recirculacao pro otimo: tubulacao mais apropriada (auto), melhor bomba e quantidade (N em paralelo) — descarta ajustes manuais.">
             {recomputing ? "Recalculando..." : "Recalcular"}
           </button>
           <button onClick={printViaClone} className="rounded border border-slate-300 bg-white text-slate-700 px-2 py-1 text-[11px] font-semibold hover:bg-slate-50 transition shadow-sm whitespace-nowrap">🖨️ Imprimir</button>
@@ -3398,6 +3401,7 @@ function BombaCalorTab({
                         initialBombaQty={(budget.environmentParams as any)?.trocadorBombaQty ?? 1}
                         initialVazaoOper={(budget.environmentParams as any)?.trocadorBombaVazaoOperM3h ?? null}
                         initialPipe={(budget.environmentParams as any)?.trocadorPipe ?? null}
+                        resetToken={recircResetToken}
                         onChanged={onPendingSave}
                       />
                     )}
@@ -3759,13 +3763,15 @@ interface TrocadorBombaCandidate {
 // mais, verao menos, e bomba de calor mais potente -> menos horas (atinge o alvo mais
 // rapido). Sem vazao cadastrada -> avisa e nao dimensiona. Reusa /trocador-pipe/recompute
 // + /trocador-bomba-candidates (endpoints do nucleo do Solar).
-function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operatingHoursPerDayAvg, onOpenRulePicker, ruleVersion, onConsumoChange, initialBombaId, initialBombaQty, initialVazaoOper, initialPipe, onChanged }: {
+function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operatingHoursPerDayAvg, onOpenRulePicker, ruleVersion, resetToken, onConsumoChange, initialBombaId, initialBombaQty, initialVazaoOper, initialPipe, onChanged }: {
   budgetId: string;
   sel?: { vazaoMinM3h?: number; vazaoMaxM3h?: number; quantity?: number } | null;
   operatingHoursPerMonth?: number[];
   operatingHoursPerDayAvg?: number;
   onOpenRulePicker?: () => void;
   ruleVersion?: number;
+  // v1.13.60: muda quando o operador clica "Recalcular" — reseta tubo/bomba/qtd pro otimo.
+  resetToken?: number;
   onConsumoChange?: (c: { kwhAno: number; custoAnoCents: number } | null) => void;
   // v1.13.52: productId persistido (environmentParams.trocadorBombaId) — restaura a escolha.
   initialBombaId?: string | null;
@@ -3851,6 +3857,17 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
     } catch { setPipeResult(null); } finally { setPipeBusy(false); }
   }
 
+  // v1.13.60: escolhe a MELHOR bomba dos candidatos + auto-N. Menor que atende SOZINHA (N=1);
+  // se nenhuma atende sozinha, a MAIOR (minimiza N). Auto-N = teto(vazaoAlvo/vazaoBomba) [1,6].
+  // Usado pelo auto-default (candidatos novos) E pelo "Recalcular" (reset pro otimo).
+  const pickBestBomba = (cs: TrocadorBombaCandidate[]) => {
+    if (!cs.length) return;
+    const meetsAlone = cs.filter((c) => (c.vazaoM3h || 0) >= vazaoAlvo - 0.01);
+    const def = meetsAlone.length ? meetsAlone[0] : [...cs].sort((a, b) => (b.vazaoM3h || 0) - (a.vazaoM3h || 0))[0];
+    setSelBombaId(def.productId);
+    setSelBombaQty(Math.max(1, Math.min(6, Math.ceil(vazaoAlvo / (def.vazaoM3h || vazaoAlvo)))));
+  };
+
   // altura = perda de OPERACAO (atrito; circuito fechado, o sifao cancela a carga estatica
   // depois que circula). alturaInercia = desnivel: a bomba precisa VENCER o desnivel pra
   // ROMPER A INERCIA e estabelecer a circulacao (encher a coluna ate o ponto alto). Se a
@@ -3870,18 +3887,26 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
         if (cancelled) return;
         const cs = res?.candidates ?? [];
         setCandidates(cs);
-        if (cs.length && !cs.some((c) => c.productId === selBombaId)) {
-          const meetsAlone = cs.filter((c) => (c.vazaoM3h || 0) >= vazaoAlvo - 0.01);
-          const def = meetsAlone.length ? meetsAlone[0] : [...cs].sort((a, b) => (b.vazaoM3h || 0) - (a.vazaoM3h || 0))[0];
-          setSelBombaId(def.productId);
-          setSelBombaQty(Math.max(1, Math.min(6, Math.ceil(vazaoAlvo / (def.vazaoM3h || vazaoAlvo)))));
-        }
+        // Auto-default so quando a selecao atual nao e mais candidata (mantem escolha manual valida).
+        if (cs.length && !cs.some((c) => c.productId === selBombaId)) pickBestBomba(cs);
       })
       .catch(() => { if (!cancelled) setCandidates([]); })
       .finally(() => { if (!cancelled) setCandLoading(false); });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [budgetId, vazaoAlvo, alturaSelecao, vazaoMaxTotal, hasVazao, ruleVersion]);
+
+  // v1.13.60: "Recalcular" (resetToken muda) reseta o dimensionamento da recirc pro OTIMO —
+  // tubo volta pro DN auto-escolhido + bomba pro melhor candidato + qtd pro auto-N. Descarta
+  // ajustes manuais (tubo trocado na mao, bomba aleatoria, qtd forcada). Pula o mount inicial.
+  const lastResetTokenRef = useRef<number>(resetToken ?? 0);
+  useEffect(() => {
+    if (resetToken == null || resetToken === lastResetTokenRef.current) return;
+    lastResetTokenRef.current = resetToken;
+    recompute(null);            // tubulacao: volta pro DN mais apropriado (auto-pick)
+    pickBestBomba(candidates);  // bomba: melhor candidato + auto-N (qtd 2 -> 1 se uma atende)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetToken]);
 
   // v1.13.52: persiste a bomba selecionada (default automatico OU escolha manual no dropdown)
   // em environmentParams.trocadorBombaId. Linhas do orcamento com regra "useTrocadorBomba"
