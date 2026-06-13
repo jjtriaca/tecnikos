@@ -1,5 +1,12 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.13.60 (13/06) — Aba Bomba de Calor: "Recalcular" reseta a recirculação pro ÓTIMO (tubo+bomba+qtd)
+## - **Pedido (Juliano):** ao trocar a tubulação pra 32mm + bomba aleatória + qtd 2, clicar "Recalcular" não mudava nada. Deve recalcular a tubulação mais apropriada + bomba equivalente + quantidade; e qtd 2 → 1 quando uma bomba única atende.
+## - **Causa:** o "Recalcular" (`onRecompute`) só recomputava o RELATÓRIO (calor/equip); o tubo (DN), a bomba e a qtd vivem no estado do `TrocadorPumpPipeCard` e não eram tocados.
+## - **Fix:** botão "Recalcular" agora também incrementa `recircResetToken` (passado ao card). Card observa o token e RESETA: `recompute(null)` (tubo → DN auto-pick) + `pickBestBomba(candidates)` (bomba → melhor candidato + auto-N). `pickBestBomba` extraído (era inline no auto-default dos candidatos): menor que atende SOZINHA → N=1; se nenhuma atende, a MAIOR (minimiza N); auto-N = teto(vazãoAlvo/vazãoBomba) clamp [1,6]. Pula o mount inicial (token 0).
+## - **Cobre os 3 casos:** tubo 32mm → auto-pick; bomba aleatória → melhor; **qtd 2 → 1** (pickBestBomba pega a que atende sozinha = N1). Frontend-only (HeatingSimulatorModal). Build EXIT 0.
+## - 🟡 Nuance: o reset usa os candidatos atuais; se o auto-pick do DN mudar a vazão de operação, a re-busca de candidatos ajusta o resto (escolha manual válida só é trocada se deixar de ser candidata).
+
 ## ✅ DEPLOYED v1.13.59 (13/06) — Chunk C: indicador da recirc usa VAZÃO DE OPERAÇÃO (bate com o card) + layout compacto
 ## - **Causa do "120% Acima" vs "0% Na faixa" do card:** o indicador da linha lia a vazão **nominal** cadastrada (~13 m³/h), mas a bomba tem curva → o Simulador usa o **ponto de operação** (4.14 m³/h, curva × resistência). Mismatch real (só bomba de calor diverge; solar usa altura estática = nominal, ficou intocado).
 ## - **Fix:** persisto `env.trocadorBombaVazaoOperM3h` (vazão de operação TOTAL = `selB.vazaoM3h × qtd`, que o card/endpoint de candidatos já calcula) no `setSelectedTrocadorBomba` (controller `trocador-bomba-selection` body += `vazaoOperM3h`). Card persiste no effect da bomba (chave inclui a vazão de operação → re-persiste quando só o pipe muda; prop `initialVazaoOper` evita re-persistir à toa). Backend só ATUALIZA quando vem valor (não zera em transiente). Var exposta em `extractEnvVars` + ALLOWED_VARS + FORMULA_VARS + dimVars + FormulaModal vars.

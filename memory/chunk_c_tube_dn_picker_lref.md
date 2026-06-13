@@ -45,6 +45,11 @@ Padrao **var-formula line-bond** (Simulador dirige, linha reflete) — ver [[hea
 - **Layout:** badge era `flex-wrap` e o texto longo ("Vazao na faixa (Bomba de Calor)" + "ACIMA DO MAXIMO") quebrava em varias linhas. Encurtado: label "Vazao recirc" + niveis "Abaixo"/"Na faixa"/"Acima" -> 1 linha (igual L44).
 - Bomba SEM curva: endpoint retorna nominal como vazaoM3h -> operTotal = nominal × N (correto). Orcamento antigo (sem oper persistida): indicador fica "Abaixo" ate reabrir o Simulador 1× (persiste).
 
+## Follow-up v1.13.60 — "Recalcular" reseta a recirc pro otimo (tubo+bomba+qtd)
+- **Pedido:** trocar tubo pra 32mm + bomba aleatoria + qtd 2 e clicar "Recalcular" nao mudava nada. Deve voltar pro otimo (tubo auto + melhor bomba + auto-N); qtd 2 -> 1 se uma bomba unica atende.
+- **Causa:** "Recalcular" (`onRecompute`) so recomputava o RELATORIO; tubo/bomba/qtd vivem no estado do `TrocadorPumpPipeCard`, intocados.
+- **Fix:** botao "Recalcular" (BombaCalorTab) incrementa `recircResetToken` -> passado ao card -> useEffect reseta: `recompute(null)` (tubo DN auto-pick) + `pickBestBomba(candidates)` (melhor bomba + auto-N). `pickBestBomba` extraido (era inline no auto-default da useEffect de candidatos): menor que atende SOZINHA (N=1); senao a MAIOR; auto-N=teto(vazaoAlvo/vazaoBomba) [1,6]. `lastResetTokenRef` pula o mount inicial (token 0). Frontend-only.
+
 ## Gotcha — DN=0 (Simulador nao rodou)
 `tuboEntradaMm >= 0` passa TODOS os tubos → orderBy pega o menor (indicador amarelo "maior que necessario"). Descricao das templates avisa pra dimensionar a tubulacao no Simulador antes. Nao e erro duro.
 
