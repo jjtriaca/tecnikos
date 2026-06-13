@@ -3396,6 +3396,7 @@ function BombaCalorTab({
                         onConsumoChange={setRecircConsumo}
                         initialBombaId={(budget.environmentParams as any)?.trocadorBombaId ?? null}
                         initialBombaQty={(budget.environmentParams as any)?.trocadorBombaQty ?? 1}
+                        initialVazaoOper={(budget.environmentParams as any)?.trocadorBombaVazaoOperM3h ?? null}
                         initialPipe={(budget.environmentParams as any)?.trocadorPipe ?? null}
                         onChanged={onPendingSave}
                       />
@@ -3758,7 +3759,7 @@ interface TrocadorBombaCandidate {
 // mais, verao menos, e bomba de calor mais potente -> menos horas (atinge o alvo mais
 // rapido). Sem vazao cadastrada -> avisa e nao dimensiona. Reusa /trocador-pipe/recompute
 // + /trocador-bomba-candidates (endpoints do nucleo do Solar).
-function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operatingHoursPerDayAvg, onOpenRulePicker, ruleVersion, onConsumoChange, initialBombaId, initialBombaQty, initialPipe, onChanged }: {
+function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operatingHoursPerDayAvg, onOpenRulePicker, ruleVersion, onConsumoChange, initialBombaId, initialBombaQty, initialVazaoOper, initialPipe, onChanged }: {
   budgetId: string;
   sel?: { vazaoMinM3h?: number; vazaoMaxM3h?: number; quantity?: number } | null;
   operatingHoursPerMonth?: number[];
@@ -3770,6 +3771,9 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
   initialBombaId?: string | null;
   // v1.13.55: N em paralelo persistido (environmentParams.trocadorBombaQty) — restaura a qtd.
   initialBombaQty?: number | null;
+  // v1.13.59: vazao de operacao total persistida (environmentParams.trocadorBombaVazaoOperM3h)
+  // — evita re-persistir/recalcular a toa ao abrir o Simulador quando nada mudou.
+  initialVazaoOper?: number | null;
   // v1.13.57 (Chunk C): tubo persistido (environmentParams.trocadorPipe = { inputs, result }).
   // Restaura comprimento/desnivel/DN salvos — antes resetavam a 30/4 (pendencia v1.13.12).
   initialPipe?: { inputs?: { comprimentoM?: number; desnivelM?: number; vazaoM3h?: number } | null; result?: any } | null;
@@ -3883,17 +3887,26 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
   // em environmentParams.trocadorBombaId. Linhas do orcamento com regra "useTrocadorBomba"
   // vinculam direto a esse produto; o endpoint recalcula os totais. onChanged marca reload
   // pendente pro orcamento refletir ao fechar o Simulador.
-  const lastPersistedBombaRef = useRef<string>(`${initialBombaId ?? ''}|${Math.max(1, Math.round(Number(initialBombaQty) || 1))}`);
+  // v1.13.59: a chave inclui a vazao de OPERACAO total (ponto de operacao x N) — persiste tambem
+  // quando so o pipe muda (mesma bomba/qty, vazao de operacao nova) pro indicador da linha bater.
+  const lastPersistedBombaRef = useRef<string>(`${initialBombaId ?? ''}|${Math.max(1, Math.round(Number(initialBombaQty) || 1))}|${(Number(initialVazaoOper) || 0).toFixed(2)}`);
   useEffect(() => {
     if (!selBombaId) return;
-    const key = `${selBombaId}|${selBombaQty}`;
+    const cand = candidates.find((c) => c.productId === selBombaId);
+    // operTotalStr vazio enquanto os candidatos nao carregaram — persiste productId/qty mesmo
+    // assim, sem vazaoOperM3h (backend mantem o valor existente). Quando o candidato aparece,
+    // re-persiste com a vazao de operacao real (key muda).
+    const operTotalStr = cand ? ((cand.vazaoM3h || 0) * selBombaQty).toFixed(2) : '';
+    const key = `${selBombaId}|${selBombaQty}|${operTotalStr}`;
     if (key === lastPersistedBombaRef.current) return;
     lastPersistedBombaRef.current = key;
-    api.post(`/pool-budgets/${budgetId}/trocador-bomba-selection`, { productId: selBombaId, qty: selBombaQty })
+    const body: Record<string, unknown> = { productId: selBombaId, qty: selBombaQty };
+    if (cand) body.vazaoOperM3h = Number(operTotalStr);
+    api.post(`/pool-budgets/${budgetId}/trocador-bomba-selection`, body)
       .then(() => onChanged?.())
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [budgetId, selBombaId, selBombaQty]);
+  }, [budgetId, selBombaId, selBombaQty, candidates]);
 
   // v1.13.29: recalcula a tubulacao no 1o acesso (defaults 30/4) pra nao mostrar "preencha".
   // v1.13.57 (Chunk C): com persistencia, recalcula tambem quando o tubo salvo foi dimensionado

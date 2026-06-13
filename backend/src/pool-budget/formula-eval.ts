@@ -71,6 +71,9 @@ export const ALLOWED_VARS = [
   // da bomba de recirculacao (useTrocadorBomba) mede se a vazao cai dentro da faixa.
   'vazaoTrocadorMinM3h',
   'vazaoTrocadorMaxM3h',
+  // v1.13.59: vazao de operacao total (ponto de operacao) da bomba de recirculacao da bomba
+  // de calor — indicador da linha usa ela em vez do nominal (bate com o Simulador).
+  'trocadorBombaVazaoOperM3h',
 ] as const;
 const ALLOWED_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
 const CELL_REF_FUNCTIONS = ['qty', 'total', 'unitPrice'] as const;
@@ -276,6 +279,10 @@ export function extractEnvVars(environmentParams: any): FormulaVars {
   // (solar) / 'tuboEntradaMm >= trocadorPipeDnMm' (bomba de calor). 0 quando ainda nao dimensionou.
   vars.solarPipeDnMm = Number(e.solarPipe?.result?.diametroDnMm) || 0;
   vars.trocadorPipeDnMm = Number(e.trocadorPipe?.result?.diametroDnMm) || 0;
+  // v1.13.59: vazao de OPERACAO total da bomba de recirculacao da bomba de calor (ponto de
+  // operacao curva x resistencia x N, do Simulador). O indicador da linha da recirc usa ESTA
+  // vazao (nao o nominal cadastrado) pra bater com o Simulador. 0 = sem dado.
+  vars.trocadorBombaVazaoOperM3h = Number(e.trocadorBombaVazaoOperM3h) || 0;
   return vars;
 }
 

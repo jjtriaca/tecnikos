@@ -257,10 +257,10 @@ export class PoolBudgetController {
   @Post(':id/trocador-bomba-selection')
   async setSelectedTrocadorBomba(
     @Param('id') id: string,
-    @Body() body: { productId: string | null; qty?: number },
+    @Body() body: { productId: string | null; qty?: number; vazaoOperM3h?: number },
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    const r = await this.solarBudget.setSelectedTrocadorBomba(id, user.companyId, body?.productId ?? null, Number(body?.qty) || 1);
+    const r = await this.solarBudget.setSelectedTrocadorBomba(id, user.companyId, body?.productId ?? null, Number(body?.qty) || 1, Number(body?.vazaoOperM3h) || undefined);
     await this.service.recalculateTotals(id);
     return r;
   }

@@ -888,6 +888,7 @@ export class SolarBudgetService {
     companyId: string,
     productId: string | null,
     qty: number = 1,
+    vazaoOperTotalM3h?: number,
   ): Promise<{ trocadorBombaId: string | null; trocadorBombaQty: number }> {
     const budget = await this.prisma.poolBudget.findFirst({
       where: { id: budgetId, companyId, deletedAt: null },
@@ -901,9 +902,18 @@ export class SolarBudgetService {
     if (productId === null) {
       delete env.trocadorBombaId;
       delete env.trocadorBombaQty;
+      delete env.trocadorBombaVazaoOperM3h;
     } else {
       env.trocadorBombaId = productId;
       env.trocadorBombaQty = n;
+      // v1.13.59: vazao de OPERACAO TOTAL da bomba escolhida (ponto de operacao curva x
+      // resistencia x N, ja calculada pelo card/endpoint de candidatos). O indicador da linha
+      // usa ESTA vazao (nao o nominal cadastrado) pra bater com o Simulador — bomba com curva
+      // tem operacao != nominal. So ATUALIZA quando vier valor (>0); ausente = mantem o existente
+      // (evita zerar num transiente de candidatos ainda carregando). Limpa so quando productId=null.
+      if (Number.isFinite(Number(vazaoOperTotalM3h)) && Number(vazaoOperTotalM3h) > 0) {
+        env.trocadorBombaVazaoOperM3h = Number(vazaoOperTotalM3h);
+      }
     }
     await this.prisma.poolBudget.update({
       where: { id: budgetId },

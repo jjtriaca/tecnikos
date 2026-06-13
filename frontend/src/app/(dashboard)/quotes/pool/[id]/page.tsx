@@ -2410,6 +2410,8 @@ const FORMULA_VARS = [
   // v1.13.58: vazao-alvo (faixa min-max) da agua da bomba de calor x qtd — indicador da linha
   // da bomba de recirculacao (useTrocadorBomba) "dentro x fora da faixa".
   'vazaoTrocadorMinM3h', 'vazaoTrocadorMaxM3h',
+  // v1.13.59: vazao de operacao total (ponto de operacao) da bomba de recirc da bomba de calor.
+  'trocadorBombaVazaoOperM3h',
 ] as const;
 const FORMULA_FUNCTIONS = ['ceil', 'floor', 'round', 'min', 'max'] as const;
 const CELL_REF_FUNCTIONS = ['qty', 'total', 'unitPrice'] as const;
@@ -2667,6 +2669,8 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
     // Sem vazaoMax cadastrada = sem teto (sentinel), so checa o minimo.
     vazaoTrocadorMinM3h: (Number(heatingReport?.selectedEquipment?.vazaoMinM3h) || 0) * (Number(heatingReport?.selectedEquipment?.quantity) || 1),
     vazaoTrocadorMaxM3h: ((Number(heatingReport?.selectedEquipment?.vazaoMaxM3h) || 0) * (Number(heatingReport?.selectedEquipment?.quantity) || 1)) || 999999,
+    // v1.13.59: vazao de operacao total persistida (ponto de operacao do Simulador).
+    trocadorBombaVazaoOperM3h: Number((environmentParams as any)?.trocadorBombaVazaoOperM3h) || 0,
     // Merge das sibling vars (technicalSpecs dos outros items da mesma poolSection).
     // Permite formulas como 'siblingTempoMontagemH', 'siblingVazaoM3h', etc.
     ...(siblingVars || {}),
@@ -3260,20 +3264,21 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
   {
     icon: '🌀',
     label: 'Bomba de recirculacao da Bomba de Calor (do Simulador)',
-    description: 'Vincula a linha DIRETO a bomba de recirculacao escolhida no card do Simulador (aba Bomba de Calor). Quando voce trocar a bomba no Simulador, esta linha acompanha automaticamente. Ignora filtros e criterio. Indicador "dentro x fora da faixa": mede se a vazao da bomba (x qtd da linha) cai na faixa de agua da bomba de calor (mesma logica do card do Simulador).',
+    description: 'Vincula a linha DIRETO a bomba de recirculacao escolhida no card do Simulador (aba Bomba de Calor). Quando voce trocar a bomba no Simulador, esta linha acompanha automaticamente. Ignora filtros e criterio. Indicador "Vazao recirc": usa a vazao de OPERACAO (ponto de operacao do Simulador, nao o nominal) e mede se cai na faixa de agua da bomba de calor — bate exatamente com o card do Simulador.',
     rule: {
       useTrocadorBomba: true,
-      // v1.13.58: indicador da linha = mesma dimensao do card do Simulador (vazao dentro da
-      // faixa [min,max] da agua da bomba de calor). value = % FORA da faixa: <0 abaixo do min,
-      // 0 dentro, >0 acima do max. vazaoM3h e multiplicado pela qtd da linha (N em paralelo).
+      // v1.13.59: indicador usa trocadorBombaVazaoOperM3h (vazao de OPERACAO total do Simulador,
+      // = ponto de operacao curva x resistencia x N) — NAO o vazaoM3h nominal do cadastro (bomba
+      // com curva opera bem abaixo do nominal). value = % FORA da faixa [min,max]: <0 abaixo do
+      // min, 0 dentro, >0 acima do max. Bate com "Vazao fora da faixa" do card do Simulador.
       indicator: {
-        label: 'Vazao na faixa (Bomba de Calor)',
-        expr: 'min(0, (vazaoM3h - vazaoTrocadorMinM3h) / max(vazaoTrocadorMinM3h, 0.001) * 100) + max(0, (vazaoM3h - vazaoTrocadorMaxM3h) / max(vazaoTrocadorMaxM3h, 0.001) * 100)',
+        label: 'Vazao recirc',
+        expr: 'min(0, (trocadorBombaVazaoOperM3h - vazaoTrocadorMinM3h) / max(vazaoTrocadorMinM3h, 0.001) * 100) + max(0, (trocadorBombaVazaoOperM3h - vazaoTrocadorMaxM3h) / max(vazaoTrocadorMaxM3h, 0.001) * 100)',
         unit: '%',
         levels: [
-          { max: -0.001, label: 'Abaixo do minimo', color: 'red' },
-          { max: 0, label: 'Dentro da faixa', color: 'emerald' },
-          { max: 99999, label: 'Acima do maximo', color: 'orange' },
+          { max: -0.001, label: 'Abaixo', color: 'red' },
+          { max: 0, label: 'Na faixa', color: 'emerald' },
+          { max: 99999, label: 'Acima', color: 'orange' },
         ],
       },
     },
@@ -3582,18 +3587,18 @@ const INDICATOR_TEMPLATES: Array<{ label: string; preset: { label: string; expr:
     // ficar DENTRO da faixa [vazaoMin, vazaoMax] da bomba de calor (× qtd). value = QUANTOS %
     // esta FORA da faixa (mesma ideia do folga% do Solar): NEGATIVO = % abaixo do minimo
     // (troca de calor insuficiente), 0 = dentro, POSITIVO = % acima do maximo (pressao/erosao).
-    // v1.13.58: usa vazaoTrocadorMinM3h/vazaoTrocadorMaxM3h (vazao-alvo da bomba de calor x qtd,
-    // de extractHeatingVars) — funciona no indicador da LINHA (backend). Antes usava vazaoSolarM3h
-    // (= 0 no backend pra contexto bomba de calor sem solar) -> indicador errado na linha.
+    // v1.13.59: usa trocadorBombaVazaoOperM3h (vazao de OPERACAO do Simulador, ponto de operacao
+    // x N) vs a faixa vazaoTrocadorMin/Max (agua da bomba de calor x qtd). Bate com o card do
+    // Simulador. Antes usava vazaoM3h nominal -> indicador errado (bomba com curva opera != nominal).
     label: 'Vazao dentro x fora da faixa (Bomba de Calor)',
     preset: {
-      label: 'Vazao fora da faixa',
-      expr: 'min(0, (vazaoM3h - vazaoTrocadorMinM3h) / max(vazaoTrocadorMinM3h, 0.001) * 100) + max(0, (vazaoM3h - vazaoTrocadorMaxM3h) / max(vazaoTrocadorMaxM3h, 0.001) * 100)',
+      label: 'Vazao recirc',
+      expr: 'min(0, (trocadorBombaVazaoOperM3h - vazaoTrocadorMinM3h) / max(vazaoTrocadorMinM3h, 0.001) * 100) + max(0, (trocadorBombaVazaoOperM3h - vazaoTrocadorMaxM3h) / max(vazaoTrocadorMaxM3h, 0.001) * 100)',
       unit: '%',
       levels: [
-        { max: -0.001, label: 'Abaixo do minimo', color: 'red' },
-        { max: 0, label: 'Dentro da faixa', color: 'emerald' },
-        { max: 9999, label: 'Acima do maximo', color: 'orange' },
+        { max: -0.001, label: 'Abaixo', color: 'red' },
+        { max: 0, label: 'Na faixa', color: 'emerald' },
+        { max: 9999, label: 'Acima', color: 'orange' },
       ],
     },
   },
@@ -3867,6 +3872,8 @@ export function AutoSelectModal({
       // Sem vazaoMax cadastrada = sem teto (sentinel), so checa o minimo.
       vazaoTrocadorMinM3h: (Number(selEq?.vazaoMinM3h) || 0) * bombaQty,
       vazaoTrocadorMaxM3h: ((Number(selEq?.vazaoMaxM3h) || 0) * bombaQty) || 999999,
+      // v1.13.59: vazao de operacao total persistida (ponto de operacao do Simulador).
+      trocadorBombaVazaoOperM3h: Number(env?.trocadorBombaVazaoOperM3h) || 0,
       // Sibling vars resolvidas: linkedCellRef se definido, senao siblingVars genericos.
       ...effectiveSiblingVars,
     };
