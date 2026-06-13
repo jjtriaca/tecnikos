@@ -38,6 +38,13 @@ Padrao **var-formula line-bond** (Simulador dirige, linha reflete) — ver [[hea
 - O indicador multiplica `vazaoM3h` (spec do produto) por `itemQty` (CUMULATIVE_SPECS) -> recirc N em paralelo = vazao total vs alvo. Var-alvo ja vem × qtd da bomba de calor (sem dupla mult: vars nao sao multiplicadas, so specs).
 - ⚠ Linhas ja configuradas: RE-APLICAR a template da recirc pra ganhar o indicador novo.
 
+## Follow-up v1.13.59 — indicador da recirc usa VAZAO DE OPERACAO (nao o nominal)
+- **Bug:** o indicador "Vazao na faixa" da linha mostrava 120% "Acima" enquanto o card do Simulador mostrava 0% "Dentro da faixa". Causa: o indicador lia `vazaoM3h` NOMINAL do cadastro (~13 m³/h), mas a bomba tem CURVA -> o Simulador usa o PONTO DE OPERACAO (4.14 m³/h = curva × resistencia, v1.13.31 `pumpOperatingPoint`). So a BOMBA DE CALOR diverge (trocador usa ponto de operacao); o SOLAR usa altura estatica = nominal (indicador solar ficou intocado, correto).
+- **Fix:** persiste `env.trocadorBombaVazaoOperM3h` = vazao de operacao TOTAL (`selB.vazaoM3h × qtd`, do endpoint de candidatos). `setSelectedTrocadorBomba(...,vazaoOperTotalM3h)` + controller body `vazaoOperM3h`. Card persiste no effect da bomba (chave inclui a vazao oper -> re-persiste quando o pipe muda; prop `initialVazaoOper` evita re-persist a toa). Backend SO atualiza quando vem valor>0 (nao zera em transiente de candidatos carregando); limpa so quando productId=null.
+- Var `trocadorBombaVazaoOperM3h` em `extractEnvVars` + ALLOWED_VARS + FORMULA_VARS + dimVars + FormulaModal vars. Indicador `useTrocadorBomba` + preset INDICATOR trocaram `vazaoM3h` -> `trocadorBombaVazaoOperM3h`.
+- **Layout:** badge era `flex-wrap` e o texto longo ("Vazao na faixa (Bomba de Calor)" + "ACIMA DO MAXIMO") quebrava em varias linhas. Encurtado: label "Vazao recirc" + niveis "Abaixo"/"Na faixa"/"Acima" -> 1 linha (igual L44).
+- Bomba SEM curva: endpoint retorna nominal como vazaoM3h -> operTotal = nominal × N (correto). Orcamento antigo (sem oper persistida): indicador fica "Abaixo" ate reabrir o Simulador 1× (persiste).
+
 ## Gotcha — DN=0 (Simulador nao rodou)
 `tuboEntradaMm >= 0` passa TODOS os tubos → orderBy pega o menor (indicador amarelo "maior que necessario"). Descricao das templates avisa pra dimensionar a tubulacao no Simulador antes. Nao e erro duro.
 
