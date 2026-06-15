@@ -1221,10 +1221,20 @@ export class ServiceOrderService {
     // Conteúdo (title, desc, itens, valor, endereço) pode editar — atribuição não.
     const isTerminalEdit = TERMINAL_STATUSES.includes(so.status as ServiceOrderStatus)
       && so.status !== ServiceOrderStatus.CANCELADA;
+    // v1.13.62: compara arrays de IDs ignorando ordem — o bloqueio de OS terminal so deve disparar
+    // quando a atribuicao MUDA de fato. Antes requiredSpecializationIds/directedTechnicianIds eram
+    // checados por PRESENCA (!== undefined): o form de edicao manda esses campos INALTERADOS, entao
+    // editar so o valor/horas de uma OS concluida (nao aprovada) quebrava. Agora segue o mesmo
+    // padrao de techAssignmentMode/workflowTemplateId (so bloqueia mudanca real).
+    const sameIds = (a?: string[] | null, b?: string[] | null) => {
+      const aa = [...(a ?? [])].map(String).sort();
+      const bb = [...(b ?? [])].map(String).sort();
+      return aa.length === bb.length && aa.every((v, i) => v === bb[i]);
+    };
     const assignmentFields = [
       ['techAssignmentMode', data.techAssignmentMode !== undefined && data.techAssignmentMode !== (so as any).techAssignmentMode],
-      ['requiredSpecializationIds', data.requiredSpecializationIds !== undefined],
-      ['directedTechnicianIds', data.directedTechnicianIds !== undefined],
+      ['requiredSpecializationIds', data.requiredSpecializationIds !== undefined && !sameIds(data.requiredSpecializationIds, (so as any).requiredSpecializationIds)],
+      ['directedTechnicianIds', data.directedTechnicianIds !== undefined && !sameIds(data.directedTechnicianIds, (so as any).directedTechnicianIds)],
       ['workflowTemplateId', data.workflowTemplateId !== undefined && (data.workflowTemplateId || null) !== so.workflowTemplateId],
     ] as const;
     if (isTerminalEdit) {
