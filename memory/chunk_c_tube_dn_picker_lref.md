@@ -50,6 +50,12 @@ Padrao **var-formula line-bond** (Simulador dirige, linha reflete) — ver [[hea
 - **Causa:** "Recalcular" (`onRecompute`) so recomputava o RELATORIO; tubo/bomba/qtd vivem no estado do `TrocadorPumpPipeCard`, intocados.
 - **Fix:** botao "Recalcular" (BombaCalorTab) incrementa `recircResetToken` -> passado ao card -> useEffect reseta: `recompute(null)` (tubo DN auto-pick) + `pickBestBomba(candidates)` (melhor bomba + auto-N). `pickBestBomba` extraido (era inline no auto-default da useEffect de candidatos): menor que atende SOZINHA (N=1); senao a MAIOR; auto-N=teto(vazaoAlvo/vazaoBomba) [1,6]. `lastResetTokenRef` pula o mount inicial (token 0). Frontend-only.
 
+## Follow-up v1.13.61 — auto-recalcular ao ABRIR (Solar + Bomba de Calor) + paridade do Solar
+- **Decisao Juliano:** ao abrir Aquecimento (e ao salvar) o "Recalcular" dispara sozinho nos 2, SEMPRE refazendo pro otimo (descarta manual).
+- **Bomba de Calor:** `BombaCalorTab` bumpa `recircResetToken` no mount -> card reseta (tubo/bomba/qtd). Effect de reset robusto: `pendingPumpResetRef` adia a escolha da bomba pro `.then` dos candidatos quando ainda nao carregaram (caso da abertura).
+- **Solar (era so display, nao persistia):** `handleSolarRecalcular()` = limpa manual + `recomputePipe({diametroMm:null})` (tubo auto) + recompute + `solarResetPendingRef`. O useEffect de candidatos, com pending, **adota o melhor E PERSISTE `manual=false`** (`solar-bomba-selection`) — fix do gap: antes o auto-default do Solar NAO gravava, entao a linha `useSolarBomba` nao refletia. Botao Recalcular do Solar -> `handleSolarRecalcular`; auto ao abrir via useEffect 1x (`didSolarAutoRecalcRef`, deps [uf, report]). Coletor/modelo principal preservado; so a recirc reseta.
+- **FALTA (proximo passo) — gatilho AO SALVAR (backend):** redimensionar a recirc no `recalculateTotals` (porte da selecao por ponto-de-operacao pro backend). Grande/sensivel (roda em todo save) — NAO feito (risco). Mitigacao: abrir Aquecimento ja redimensiona; indicador "Vazao na faixa" sinaliza stale.
+
 ## Gotcha — DN=0 (Simulador nao rodou)
 `tuboEntradaMm >= 0` passa TODOS os tubos → orderBy pega o menor (indicador amarelo "maior que necessario"). Descricao das templates avisa pra dimensionar a tubulacao no Simulador antes. Nao e erro duro.
 

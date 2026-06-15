@@ -1076,6 +1076,11 @@ function SolarTab({
   // v1.13.55: N em paralelo da recirc solar (auto = teto(vazaoAlvo/vazaoBomba); operador ajusta).
   const [selectedBombaQty, setSelectedBombaQty] = useState<number>(Math.max(1, Math.round(Number((budget.environmentParams as any)?.solarReport?.selectedBombaQty) || 1)));
   const [bombaCandidatesLoading, setBombaCandidatesLoading] = useState(false);
+  // v1.13.61: "Recalcular"/abertura resetam o Solar pro otimo. solarResetPendingRef sinaliza
+  // pro useEffect de candidatos adotar o melhor + PERSISTIR com manual=false (linha useSolarBomba
+  // reflete o otimo). didSolarAutoRecalcRef garante o auto-recalcular ao abrir rodar so 1x.
+  const solarResetPendingRef = useRef(false);
+  const didSolarAutoRecalcRef = useRef(false);
 
   // v1.12.63: regras solares configuraveis
   const [showSolarRulesModal, setShowSolarRulesModal] = useState(false);
@@ -1222,6 +1227,23 @@ function SolarTab({
         setBombaCandidates(candidates);
         if (candidates.length === 0) {
           setSelectedBombaId(null);
+          return;
+        }
+        // v1.13.61: reset pendente (Recalcular / abertura) -> adota o MELHOR e PERSISTE com
+        // manual=false (a linha useSolarBomba reflete o otimo; antes o default era so display).
+        // Mesma logica do default abaixo, mas grava no servidor. Descarta escolha manual anterior.
+        if (solarResetPendingRef.current) {
+          solarResetPendingRef.current = false;
+          const alvoR = Number(report.vazaoTotalM3h) || 0;
+          const maR = candidates.filter((c) => (c.vazaoM3h || 0) >= alvoR - 0.01);
+          const defR = maR.length ? maR[0] : [...candidates].sort((a, b) => (b.vazaoM3h || 0) - (a.vazaoM3h || 0))[0];
+          const nR = Math.max(1, Math.min(6, Math.ceil(alvoR / (defR.vazaoM3h || alvoR))));
+          setSelectedBombaId(defR.productId);
+          setSelectedBombaQty(nR);
+          setBombaManuallySelected(false);
+          api.post(`/pool-budgets/${budget.id}/solar-bomba-selection`, { productId: defR.productId, manual: false, qty: nR })
+            .then(() => onPendingSave?.())
+            .catch((err) => console.warn('Falha ao persistir bomba solar (reset):', err));
           return;
         }
         // Se foi escolha manual E a bomba escolhida ainda esta na lista → preserva.
@@ -1380,6 +1402,34 @@ function SolarTab({
   const dispProfMax = dimManual ? profMaxOverride : profMax;
   const dispArea = dimManual ? areaOverride : area;
   const dispVolume = dimManual ? volumeOverride : volume;
+  // v1.13.61: "Recalcular" do Solar reseta pro OTIMO (paridade com a Bomba de Calor): tubo volta
+  // pro DN auto + bomba pro melhor candidato + qtd auto-N (persiste via solarResetPendingRef no
+  // useEffect de candidatos) + recomputa o relatorio. Descarta ajustes manuais.
+  const buildSolarExtras = () => {
+    const extras: { areaPiscinaM2?: number; volumeM3?: number; orientacaoTelhado?: string; inclinacaoTelhadoGraus?: number; temperaturaAguaInicial?: number } = {};
+    if (dimManual) {
+      if (Number.isFinite(dispArea) && dispArea > 0) extras.areaPiscinaM2 = dispArea;
+      if (Number.isFinite(dispVolume) && dispVolume > 0) extras.volumeM3 = dispVolume;
+    }
+    if (orientacaoTelhado) extras.orientacaoTelhado = orientacaoTelhado;
+    if (Number.isFinite(inclinacaoTelhado)) extras.inclinacaoTelhadoGraus = inclinacaoTelhado;
+    if (Number.isFinite(temperaturaInicial) && temperaturaInicial > 0) extras.temperaturaAguaInicial = temperaturaInicial;
+    return extras;
+  };
+  const handleSolarRecalcular = () => {
+    solarResetPendingRef.current = true;                     // candidates useEffect adota+persiste o melhor
+    setBombaManuallySelected(false);
+    recomputePipe({ diametroMm: null });                     // tubo: DN auto-pick
+    onRecompute(undefined, undefined, buildSolarExtras());   // recomputa o relatorio solar
+  };
+  // v1.13.61: auto-recalcular ao ABRIR a aba Solar (decisao Juliano: sempre refazer pro otimo).
+  // Roda 1x quando UF + report estao prontos (apos a abertura carregar o env do orcamento).
+  useEffect(() => {
+    if (didSolarAutoRecalcRef.current || !uf || !report) return;
+    didSolarAutoRecalcRef.current = true;
+    handleSolarRecalcular();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uf, report]);
   // v5.3 — modal de selecao do coletor (abrira ao clicar ✨)
   const [showColetorPicker, setShowColetorPicker] = useState(false);
   // v5.7 — modal de auto-selecao da bomba hidraulica (✨ ao lado da Bomba recomendada)
@@ -1503,26 +1553,8 @@ function SolarTab({
               onClick={() => setManualZoom((z) => Math.min(2.5, Math.round(((z ?? 1) + 0.1) * 10) / 10))}
               className="w-5 h-5 rounded text-[11px] font-bold text-slate-700 hover:bg-slate-100">+</button>
           </div>
-          <button onClick={() => {
-              // v1.12.65: inclui TODOS os campos editaveis manualmente no recompute —
-              // antes so passava area/volume, entao mudar orientacao/inclinacao/temp.inicial
-              // no formulario nao surtia efeito (backend lia valor antigo do banco).
-              const extras: {
-                areaPiscinaM2?: number;
-                volumeM3?: number;
-                orientacaoTelhado?: string;
-                inclinacaoTelhadoGraus?: number;
-                temperaturaAguaInicial?: number;
-              } = {};
-              if (dimManual) {
-                if (Number.isFinite(dispArea) && dispArea > 0) extras.areaPiscinaM2 = dispArea;
-                if (Number.isFinite(dispVolume) && dispVolume > 0) extras.volumeM3 = dispVolume;
-              }
-              if (orientacaoTelhado) extras.orientacaoTelhado = orientacaoTelhado;
-              if (Number.isFinite(inclinacaoTelhado)) extras.inclinacaoTelhadoGraus = inclinacaoTelhado;
-              if (Number.isFinite(temperaturaInicial) && temperaturaInicial > 0) extras.temperaturaAguaInicial = temperaturaInicial;
-              onRecompute(undefined, undefined, extras);
-            }} disabled={recomputing || !uf}
+          <button onClick={handleSolarRecalcular} disabled={recomputing || !uf}
+            title="Recalcula o dimensionamento Solar e RESETA pro otimo: melhor coletor/bomba, tubulacao auto e quantidade (N em paralelo) — descarta ajustes manuais."
             className="rounded bg-amber-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-amber-700 disabled:bg-slate-300 transition shadow-sm whitespace-nowrap">
             {recomputing ? "Recalculando..." : "Recalcular"}
           </button>
@@ -3054,6 +3086,10 @@ function BombaCalorTab({
   // v1.13.60: "Recalcular" tambem reseta o dimensionamento da recirc (tubo->auto, bomba->melhor,
   // qtd->auto-N). Incrementa este token; o TrocadorPumpPipeCard observa e reseta os overrides.
   const [recircResetToken, setRecircResetToken] = useState(0);
+  // v1.13.61: ao ABRIR a aba Bomba de Calor (mount), dispara o reset da recirc pro otimo —
+  // "sempre refazer pro otimo ao abrir" (decisao do Juliano). O card adia a escolha da bomba
+  // ate os candidatos carregarem (pendingPumpResetRef).
+  useEffect(() => { setRecircResetToken((t) => t + 1); }, []);
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (manualZoom == null) window.localStorage.removeItem("bomba:manualZoom");
@@ -3887,8 +3923,13 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
         if (cancelled) return;
         const cs = res?.candidates ?? [];
         setCandidates(cs);
-        // Auto-default so quando a selecao atual nao e mais candidata (mantem escolha manual valida).
-        if (cs.length && !cs.some((c) => c.productId === selBombaId)) pickBestBomba(cs);
+        if (cs.length) {
+          // v1.13.61: reset pendente (Recalcular/abertura disparou antes dos candidatos
+          // carregarem) -> escolhe o melhor com os candidatos FRESCOS (ja com o DN auto novo).
+          if (pendingPumpResetRef.current) { pendingPumpResetRef.current = false; pickBestBomba(cs); }
+          // Auto-default so quando a selecao atual nao e mais candidata (mantem escolha manual valida).
+          else if (!cs.some((c) => c.productId === selBombaId)) pickBestBomba(cs);
+        }
       })
       .catch(() => { if (!cancelled) setCandidates([]); })
       .finally(() => { if (!cancelled) setCandLoading(false); });
@@ -3899,12 +3940,17 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
   // v1.13.60: "Recalcular" (resetToken muda) reseta o dimensionamento da recirc pro OTIMO —
   // tubo volta pro DN auto-escolhido + bomba pro melhor candidato + qtd pro auto-N. Descarta
   // ajustes manuais (tubo trocado na mao, bomba aleatoria, qtd forcada). Pula o mount inicial.
+  // v1.13.61: tambem disparado AO ABRIR a aba (BombaCalorTab bumpa o token no mount). Se os
+  // candidatos ainda nao carregaram (caso da abertura), marca pendingPumpResetRef e a escolha
+  // da bomba e feita no .then dos candidatos (com a lista fresca pos DN auto).
   const lastResetTokenRef = useRef<number>(resetToken ?? 0);
+  const pendingPumpResetRef = useRef(false);
   useEffect(() => {
     if (resetToken == null || resetToken === lastResetTokenRef.current) return;
     lastResetTokenRef.current = resetToken;
-    recompute(null);            // tubulacao: volta pro DN mais apropriado (auto-pick)
-    pickBestBomba(candidates);  // bomba: melhor candidato + auto-N (qtd 2 -> 1 se uma atende)
+    recompute(null);  // tubulacao: volta pro DN mais apropriado (auto-pick)
+    if (candidates.length) pickBestBomba(candidates);  // bomba + auto-N (qtd 2 -> 1 se uma atende)
+    else pendingPumpResetRef.current = true;           // candidatos carregando -> aplica no .then
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetToken]);
 
