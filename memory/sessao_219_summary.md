@@ -24,5 +24,8 @@ Fecha a auditoria AutoSelect/Formula do modulo Piscina (Chunks A+B feitos antes;
 - **Gatilho "AO SALVAR o orcamento" (backend):** redimensionar a recirc no `recalculateTotals` (porte da selecao por ponto-de-operacao + auto-pick de tubo pro backend, Solar+Bomba de Calor). Grande/sensivel (roda em todo save) — NAO feito nesta sessao por risco no fim de sessao. Mitigacao atual: abrir o Aquecimento ja redimensiona; o indicador "Vazao na faixa" sinaliza recirc stale (vermelho). Decidir o porte numa proxima sessao.
 - Nuance v1.13.61: ao abrir, o Solar recomputa o relatorio (varias chamadas backend + spinner) e descarta bomba manual — comportamento "sempre otimo" pedido; trocavel por "so quando muda input" se incomodar.
 
+## Tambem nesta sessao (modulo OS, fora do Chunk C)
+- **v1.13.62 — OS nao aprovada edita valor/horas:** `service-order.service.ts` bloqueava campos de atribuicao em OS terminal (CONCLUIDA/APROVADA) por PRESENCA (`requiredSpecializationIds`/`directedTechnicianIds` `!== undefined`) — o form de edicao manda esses campos inalterados, entao editar so valor/horas de uma OS concluida (nao aprovada) quebrava com ForbiddenException. Fix: helper `sameIds` (compara arrays ignorando ordem); os 2 checks agora so disparam em MUDANCA real (igual `techAssignmentMode`/`workflowTemplateId`). Conteudo (valor/horas/itens/endereco) editavel; trocar atribuicao em OS terminal segue bloqueado. Confirmado pelo Juliano em prod. (Se quiser trocar especializacao/tecnico em OS nao aprovada tb = tirar CONCLUIDA do lock, nao pedido.)
+
 ## Relacionado
 [[chunk_c_tube_dn_picker_lref]] · [[bomba_recirculacao_calor]] · [[heating_simulator_line_bond]] · [[pool_pump_ponto_operacao]] · [[feedback_autoselect_vars_frontend_backend]]
