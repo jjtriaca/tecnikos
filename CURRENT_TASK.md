@@ -1,5 +1,11 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.13.62 (15/06) — OS não aprovada: editar valor/horas não trava mais no `requiredSpecializationIds`
+## - **Pedido (Juliano):** OS concluída mas NÃO aprovada precisa poder editar (o serviço passou das horas planejadas → cobrar mais). Ao salvar dava `ForbiddenException` "Não é permitido alterar requiredSpecializationIds em OS concluida".
+## - **Causa:** `service-order.service.ts` (~L1224) bloqueava campos de atribuição em OS terminal (CONCLUIDA/APROVADA). `techAssignmentMode`/`workflowTemplateId` checavam **mudança real**, mas `requiredSpecializationIds`/`directedTechnicianIds` checavam só **presença** (`!== undefined`). O form de edição manda esses campos INALTERADOS → bloqueio falso só de editar valor/horas.
+## - **Fix:** helper `sameIds` (compara arrays de IDs ignorando ordem); os 2 checks agora só disparam quando MUDAM de fato (igual aos outros 2). Editar conteúdo (valor/horas/itens/endereço) numa OS concluída/não-aprovada passa; trocar atribuição (especialização/técnico) numa OS terminal continua bloqueado (intencional). Backend-only, sem migration. tsc EXIT 0.
+## - 🟡 Se o Juliano quiser TAMBÉM trocar especialização/técnico em OS não aprovada (CONCLUIDA), é outra regra (tirar CONCLUIDA do lock de atribuição) — não pedido.
+
 ## ✅ DEPLOYED v1.13.61 (15/06) — Auto-recalcular ao ABRIR o Aquecimento (Solar + Bomba de Calor) + paridade do Recalcular do Solar
 ## - **Pedido (Juliano):** ao abrir Aquecimento (e ao salvar) o "Recalcular" deve disparar sozinho nos dois (Solar + Bomba de Calor), SEMPRE refazendo pro ótimo (descarta ajuste manual). E o Solar precisava resetar igual à Bomba de Calor (antes só recomputava o relatório, mantinha bomba/qtd manual).
 ## - **Bomba de Calor (auto ao abrir):** `BombaCalorTab` bumpa `recircResetToken` no mount → o card reseta (tubo→DN auto, bomba→melhor, qtd→auto-N). Effect de reset agora ROBUSTO: se os candidatos ainda não carregaram (caso da abertura), marca `pendingPumpResetRef` e a escolha da bomba é feita no `.then` dos candidatos (lista fresca pós-DN auto).
