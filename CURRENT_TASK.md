@@ -1,5 +1,13 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.13.63 (16/06) — Solar: tubo auto não fica subdimensionado (mira velocidade menor) + não vira MANUAL no recompute
+## - **Pedido (Juliano, testando ORCP-00001):** ao abrir o Solar, o tubo ficou 32mm MANUAL subdimensionado e nenhuma bomba foi escolhida (pressão 15.59 mca alta demais p/ catálogo). Decisão: "mirar velocidade menor".
+## - **B1 — velocidade-alvo do tubo Solar baixada pra 1,5 m/s** (era 2,5; `solar-budget.service.computeAndSavePipe` passa `solarMaxVel` ao `pickOptimalDiameter`; configurável `pipeDefaults.solarMaxVelocidadeMs`). A 2,5 o auto pegava o MENOR tubo (32mm/1,94 m/s) → muita perda de carga → sem bomba. A 1,5 escolhe ~40mm → menos pressão → bomba aparece.
+## - **B2 — re-sync do pipe preserva o "auto":** `computeAndSaveReport` re-sincronizava o tubo FORÇANDO `existingPipeInputs.diametroMm` → marcava MANUAL após qualquer recompute (e impedia o auto de subir o tubo). Agora, se `result.diametroAutoPicked` era true, re-sincroniza com `diametroMm=undefined` (re-auto-pick). DN manual do operador preservado.
+## - **B3 — frontend:** `handleSolarRecalcular` agora `await recomputePipe({diametroMm:null})` ANTES do `onRecompute` — acaba a corrida (recompute lia o DN manual antigo e re-aplicava 32mm).
+## - Backend+frontend tsc EXIT 0. Sem migration. ⚠️ Orçamentos solar com tubo AUTO: próximo recompute escolhe tubo maior (intencional). Tubo manual preservado.
+## - 🔜 **Resta nesta frente:** (C) ícone "salvar default" de comprimento/desnível (Solar + Bomba de Calor) — tirar hardcode; (A) gatilho "ao salvar o orçamento" redimensiona recirc no backend (`recalculateTotals`).
+
 ## ✅ DEPLOYED v1.13.62 (15/06) — OS não aprovada: editar valor/horas não trava mais no `requiredSpecializationIds`
 ## - **Pedido (Juliano):** OS concluída mas NÃO aprovada precisa poder editar (o serviço passou das horas planejadas → cobrar mais). Ao salvar dava `ForbiddenException` "Não é permitido alterar requiredSpecializationIds em OS concluida".
 ## - **Causa:** `service-order.service.ts` (~L1224) bloqueava campos de atribuição em OS terminal (CONCLUIDA/APROVADA). `techAssignmentMode`/`workflowTemplateId` checavam **mudança real**, mas `requiredSpecializationIds`/`directedTechnicianIds` checavam só **presença** (`!== undefined`). O form de edição manda esses campos INALTERADOS → bloqueio falso só de editar valor/horas.
