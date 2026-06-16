@@ -1,6 +1,6 @@
 # TAREFA ATUAL
 
-## 🟡 FEITO local (aguardando deploy) v1.13.65 — Conexões da tubulação viraram DEFAULT CONFIGURÁVEL por contexto (ícone ⚙, Solar × Bomba de Calor)
+## ✅ DEPLOYED v1.13.65 (16/06) — Conexões da tubulação viraram DEFAULT CONFIGURÁVEL por contexto (ícone ⚙, Solar × Bomba de Calor)
 ## - **Pedido (Juliano):** ícone pra ajustar o default de CONEXÕES (material, fator, joelhos, tés, registros, válvulas) no Solar e na Bomba de Calor. Decisão: **separados por contexto** (Solar usa válvula de retenção, Bomba de Calor não).
 ## - **Backend:** `getPipeDimDefaults` agora retorna conexões por contexto (`{solar,trocador}{Material,FatorSegurancaPct,Joelho90Qty,TeQty,RegistroQty,ValvulaQty}`, fallback: key legada sem prefixo → hardcoded; válvula default solar=1, trocador=0). `setPipeDimDefault(context, patch)` = merge parcial (comp/desnível **e/ou** conexões). Os 2 cálculos de tubo (`computeAndSavePipe` solar / `computeTrocadorPipe`) leem `tenantDefaults.{ctx}{Campo} ?? legada ?? hardcoded`. Controller passa o body como patch (C continua compatível).
 ## - **Frontend:** componente compartilhado `PipeConnDefaultsButton` (ícone ⚙ + popover: material/fator/joelhos/tés/registros/válvulas → salva por contexto). No card Solar (substituiu a linha "Defaults:" estática, que ficaria desatualizada) + no header do card da Bomba de Calor.
