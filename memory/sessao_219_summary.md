@@ -1,11 +1,11 @@
 ---
 name: sessao-219-summary
-description: "Sessao 219 (12-15/06/2026) — Chunk C da auditoria AutoSelect (templates de tubo por DN do Simulador + picker LREF) + iteracoes no indicador/catalogo da recirc + auto-recalcular ao abrir o Aquecimento. v1.13.57 -> v1.13.61. Pendente: gatilho 'ao salvar' (backend)."
+description: "Sessao 219 (12-16/06/2026) — Chunk C da auditoria AutoSelect (templates de tubo por DN do Simulador + picker LREF) + iteracoes no indicador/catalogo da recirc + auto-recalcular ao abrir o Aquecimento + gatilho 'ao salvar' (backend, v1.13.66 fecha o item A). v1.13.57 -> v1.13.66."
 metadata:
   type: project
 ---
 
-# Sessao 219 (12-15/06/2026) — Chunk C (auditoria AutoSelect) + recirc/auto-recalcular. v1.13.57 → v1.13.61
+# Sessao 219 (12-16/06/2026) — Chunk C (auditoria AutoSelect) + recirc/auto-recalcular + gatilho ao salvar. v1.13.57 → v1.13.66
 
 Fecha a auditoria AutoSelect/Formula do modulo Piscina (Chunks A+B feitos antes; C aqui) + varias iteracoes de teste do Juliano no ORCP-00001 (aba Bomba de Calor). Doc detalhada da frente: [[chunk_c_tube_dn_picker_lref]].
 
@@ -20,9 +20,10 @@ Fecha a auditoria AutoSelect/Formula do modulo Piscina (Chunks A+B feitos antes;
 - Recalcular = **SEMPRE refazer pro otimo** (descarta ajuste manual). Auto-disparar ao ABRIR e ao SALVAR.
 - Confirmado: o Solar JA tinha tubo/bomba/qtd; faltava resetar igual + persistir o auto-default.
 
-## PENDENTE (proximo passo, documentado)
-- **Gatilho "AO SALVAR o orcamento" (backend):** redimensionar a recirc no `recalculateTotals` (porte da selecao por ponto-de-operacao + auto-pick de tubo pro backend, Solar+Bomba de Calor). Grande/sensivel (roda em todo save) — NAO feito nesta sessao por risco no fim de sessao. Mitigacao atual: abrir o Aquecimento ja redimensiona; o indicador "Vazao na faixa" sinaliza recirc stale (vermelho). Decidir o porte numa proxima sessao.
-- Nuance v1.13.61: ao abrir, o Solar recomputa o relatorio (varias chamadas backend + spinner) e descarta bomba manual — comportamento "sempre otimo" pedido; trocavel por "so quando muda input" se incomodar.
+## Item A FEITO — v1.13.66 (gatilho "AO SALVAR o orcamento", backend)
+- **`pool-budget.service.redimensionarRecirc(budgetId, companyId)`** + `recalculateTotals(budgetId, {redimensionarRecirc})`. SO o `update()` (save do orcamento) passa a flag; edicao de linha/reorder/create NAO disparam. Roda apos o heatingReport fresco e ANTES do PASS 0, com re-leitura do budget (linha useSolarBomba/useTrocadorBomba vincula no mesmo recalc). Injeta SolarBudgetService+TrocadorBudgetService (DI aciclico).
+- **Solar:** `computeAndSaveReport` (sem overrides = re-le ajustes persistidos + re-sincroniza tubo DN-auto). ⚠️ GOTCHA: o recompute substitui `solarReport` pelo output do `simulate()`, que NAO carrega `selectedBombaId/qty/manual` → DROPA a bomba escolhida → re-escolho a otima + re-gravo SEMPRE (`setSelectedBomba(manual=false)`); sem candidata = RESTAURA a anterior (save nunca desvincula a linha). **Trocador:** comp/desnivel preservados (env.trocadorPipe.inputs → default tenant → 30/4) → `computeTrocadorPipe` (DN auto) → `alturaSelecao=max(atrito,desnivel)` → `listBombaCandidatesByFlow('trocadorBombaRule', maxParalelo=6)` → pickBest (= front) → grava so se mudou (computeTrocadorPipe faz MERGE, preserva trocadorBombaId).
+- **Decisao:** "sempre refazer pro otimo, descarta ajuste manual" nos DOIS (igual ao "abrir"). Seguro: congelado nem chega (early-return); try/catch por ramo + no caller (nunca quebra o save); determinista (idempotente). Custo: save dimensional recomputa o relatorio solar + 1 write da bomba (valor estavel) — aceitavel.
 
 ## Tambem nesta sessao
 - **v1.13.63 — Solar tubo auto nao subdimensiona:** alvo de velocidade do tubo solar baixado 2,5→1,5 m/s (`pickOptimalDiameter`, configuravel `pipeDefaults.solarMaxVelocidadeMs`) -> escolhe tubo maior -> menos pressao -> bomba do catalogo atende. + re-sync do pipe preserva "auto" (nao vira MANUAL forcando o DN persistido). + frontend `handleSolarRecalcular` faz `await recomputePipe(null)` antes do recompute (acaba a corrida). Validado: 32mm MANUAL/sem bomba -> 40mm AUTO/bomba escolhida.

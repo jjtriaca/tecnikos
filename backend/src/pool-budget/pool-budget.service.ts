@@ -24,6 +24,8 @@ import {
 } from './pool-formula.service';
 import { HeatingBudgetService } from './heating-budget.service';
 import { BordaInfinitaService } from './borda-infinita.service';
+import { SolarBudgetService } from './solar-budget.service';
+import { TrocadorBudgetService } from './trocador-budget.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -48,6 +50,10 @@ export class PoolBudgetService {
     private readonly formulaService: PoolFormulaService,
     private readonly heatingBudget: HeatingBudgetService,
     private readonly bordaInfinita: BordaInfinitaService,
+    // v1.13.66: redimensionamento da recirc AO SALVAR (gatilho backend). Sem ciclo de DI —
+    // Solar/Trocador injetam so prisma + helpers, nunca PoolBudgetService.
+    private readonly solarBudget: SolarBudgetService,
+    private readonly trocadorBudget: TrocadorBudgetService,
   ) {}
 
   /**
@@ -708,9 +714,157 @@ export class PoolBudgetService {
   }
 
   /**
-   * Recalcula subtotalCents, taxesCents e totalCents do orçamento somando os itens.
+   * v1.13.66: redimensiona a recirculacao (bomba + tubo + N em paralelo) do Solar e da Bomba de
+   * Calor (Trocador) PRO OTIMO — porte backend do que o Simulador ja faz ao ABRIR a aba (v1.13.61),
+   * pro caso do operador SALVAR o orcamento SEM abrir o Aquecimento. Chamado SO pelo save
+   * (recalculateTotals com opts.redimensionarRecirc) e ANTES do PASS 0 (auto-select), pra que a
+   * linha useSolarBomba / useTrocadorBomba vincule ao produto novo no mesmo recalc.
+   *
+   * Determinista: tudo deriva do dimensionamento — salvar 2x sem mudar nada da o MESMO resultado
+   * (conteudo do orcamento estavel). Cada ramo (solar/trocador) tem try/catch isolado — falha num
+   * nao impede o outro nem o save (o caller tambem protege).
+   *
+   * "SEMPRE refazer pro otimo, descarta ajuste manual" (decisao do Juliano, v1.13.60/61) — vale
+   * pros DOIS ramos, igual o gatilho "ao abrir o Aquecimento". SOLAR: o recompute do relatorio
+   * DROPA a selecao da bomba, entao re-escolho a otima + re-persisto com manual=false (so restauro
+   * a anterior se ficar sem candidatos). TROCADOR (nao tem flag manual): re-otimiza e so grava
+   * quando a escolha realmente muda (computeTrocadorPipe preserva trocadorBombaId — sem drop).
    */
-  async recalculateTotals(budgetId: string) {
+  private async redimensionarRecirc(budgetId: string, companyId: string): Promise<void> {
+    // Escolhe a MELHOR bomba dos candidatos + auto-N — IGUAL pickBestBomba do front
+    // (HeatingSimulatorModal): menor que atende SOZINHA (N=1; candidatos ja vem ordenados pela
+    // regra ✨), senao a MAIOR (minimiza N). Auto-N = teto(vazaoAlvo / vazaoOperBomba), clamp [1,6].
+    const pickBest = (
+      cands: Array<{ productId: string; vazaoM3h: number }>,
+      vazaoAlvo: number,
+    ): { productId: string; vazaoM3h: number; qty: number } | null => {
+      if (!cands.length || vazaoAlvo <= 0) return null;
+      const meetsAlone = cands.filter((c) => (c.vazaoM3h || 0) >= vazaoAlvo - 0.01);
+      const def = meetsAlone.length
+        ? meetsAlone[0]
+        : [...cands].sort((a, b) => (b.vazaoM3h || 0) - (a.vazaoM3h || 0))[0];
+      const qty = Math.max(1, Math.min(6, Math.ceil(vazaoAlvo / (def.vazaoM3h || vazaoAlvo))));
+      return { productId: def.productId, vazaoM3h: def.vazaoM3h || 0, qty };
+    };
+
+    // ── SOLAR ──────────────────────────────────────────────────────────────────
+    // So mexe se o orcamento JA tem dimensionamento solar (operador abriu a aba Solar ao menos
+    // uma vez). Sem solarReport => nao ha solar a redimensionar.
+    //
+    // ATENCAO: computeAndSaveReport substitui o solarReport pelo output do simulate(), que NAO
+    // carrega selectedBombaId/qty/manual (so setSelectedBomba grava essas chaves). Ou seja, o
+    // recompute DROPA a selecao da bomba — por isso re-escolho + re-persisto SEMPRE depois (e
+    // restauro a selecao anterior se ficar sem candidatos, pra um save nunca desvincular a linha).
+    try {
+      const b0 = await this.prisma.poolBudget.findFirst({
+        where: { id: budgetId, companyId, deletedAt: null },
+        select: { environmentParams: true },
+      });
+      const env0 = (b0?.environmentParams ?? {}) as Record<string, any>;
+      const sr0 = (env0.solarReport ?? null) as Record<string, any> | null;
+      if (sr0) {
+        // Selecao ANTES do recompute (pra restaurar se ficar sem candidatos).
+        const preId: string | null = sr0.selectedBombaId ?? null;
+        const preManual = sr0.bombaManuallySelected === true;
+        const preQty = Math.max(1, Math.round(Number(sr0.selectedBombaQty) || 1));
+
+        // Recomputa o relatorio solar SEM overrides => re-le todos os ajustes persistidos
+        // (capa/vento/coletor/uf/area/volume/borda) e JA re-sincroniza o tubo (DN auto
+        // preservado, v1.13.63). Mesmo caminho do "abrir" a aba Solar — determinista.
+        await this.solarBudget.computeAndSaveReport(budgetId, companyId);
+        const b1 = await this.prisma.poolBudget.findFirst({
+          where: { id: budgetId, companyId, deletedAt: null },
+          select: { environmentParams: true },
+        });
+        const sr1 = ((b1?.environmentParams ?? {}) as Record<string, any>).solarReport as Record<string, any> | undefined;
+        const vazaoAlvo = Number(sr1?.vazaoTotalM3h) || 0;
+        const cands = vazaoAlvo > 0 ? await this.solarBudget.listSolarBombaCandidates(budgetId, companyId, 6) : [];
+        const best = pickBest(cands as any, vazaoAlvo);
+        if (best) {
+          // "Sempre refazer pro otimo, descarta ajuste manual" (Juliano v1.13.60/61) — re-otimiza
+          // e grava manual=false. O recompute dropou a selecao, entao re-persisto pra restaurar+otimizar.
+          await this.solarBudget.setSelectedBomba(budgetId, companyId, best.productId, false, best.qty);
+        } else if (preId) {
+          // Sem candidatos (transiente/regra) OU vazao 0 — RESTAURA a selecao que o recompute dropou,
+          // pra NAO desvincular a linha useSolarBomba neste save. O indicador "vazao na faixa" sinaliza.
+          await this.solarBudget.setSelectedBomba(budgetId, companyId, preId, preManual, preQty);
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`redimensionarRecirc[solar] falhou: ${(err as Error)?.message}`);
+    }
+
+    // ── TROCADOR (Bomba de Calor) ────────────────────────────────────────────────
+    // So mexe se ha equipamento de bomba de calor selecionado COM vazao (vazaoMinM3h > 0).
+    try {
+      const b2 = await this.prisma.poolBudget.findFirst({
+        where: { id: budgetId, companyId, deletedAt: null },
+        select: { environmentParams: true, heatingReport: true },
+      });
+      const hr = (b2?.heatingReport ?? null) as Record<string, any> | null;
+      const eq = hr?.selectedEquipment as Record<string, any> | undefined;
+      const vMin = Number(eq?.vazaoMinM3h) || 0;
+      if (eq && vMin > 0) {
+        const qtyEq = Math.max(1, Math.round(Number(eq?.quantity) || 1));
+        const vMax = Number(eq?.vazaoMaxM3h) || 0;
+        const vazaoAlvo = Number((vMin * qtyEq).toFixed(2));
+        const vazaoMaxTotal = vMax > 0 ? Number((vMax * qtyEq).toFixed(2)) : 0;
+        if (vazaoAlvo > 0) {
+          const env2 = (b2?.environmentParams ?? {}) as Record<string, any>;
+          // Comp/desnivel: o tamanho fisico da instalacao NAO muda no save — preserva o que o
+          // operador deixou (env.trocadorPipe.inputs); senao defaults do tenant; senao 30/4.
+          const company = await this.prisma.company.findUnique({
+            where: { id: companyId }, select: { systemConfig: true },
+          });
+          const tdef = ((company?.systemConfig as any)?.pool?.pipeDefaults ?? {}) as Record<string, any>;
+          const pin = (env2.trocadorPipe as any)?.inputs ?? {};
+          const comprimentoM = Number(pin.comprimentoM) > 0
+            ? Number(pin.comprimentoM)
+            : (Number(tdef.trocadorComprimentoM) > 0 ? Number(tdef.trocadorComprimentoM) : 30);
+          const desnivelM = Number.isFinite(Number(pin.desnivelM))
+            ? Number(pin.desnivelM)
+            : (Number.isFinite(Number(tdef.trocadorDesnivelM)) ? Number(tdef.trocadorDesnivelM) : 4);
+          // Recomputa o tubo (DN auto-escolhido, sem diametroMm) + persiste env.trocadorPipe.
+          const pipe = await this.trocadorBudget.computeTrocadorPipe(
+            companyId, { comprimentoM, desnivelM, vazaoM3h: vazaoAlvo } as any, budgetId,
+          );
+          const altura = Number(pipe?.result?.alturaManometricaTotal) || 0;
+          // alturaSelecao = max(atrito de operacao, desnivel) — a bomba tem que rodar E romper a
+          // inercia do desnivel (mesma regra do card do Simulador, circuito fechado).
+          const alturaSelecao = Math.max(altura, Number(desnivelM) || 0);
+          const cands = await this.solarBudget.listBombaCandidatesByFlow(
+            companyId, vazaoAlvo, alturaSelecao, 'trocadorBombaRule', vazaoMaxTotal, 6,
+          );
+          const best = pickBest(cands as any, vazaoAlvo);
+          if (best) {
+            const vazaoOperTotal = Number((best.vazaoM3h * best.qty).toFixed(2));
+            const curId: string | null = env2.trocadorBombaId ?? null;
+            const curQty = Math.max(1, Math.round(Number(env2.trocadorBombaQty) || 1));
+            const curOper = Number(env2.trocadorBombaVazaoOperM3h) || 0;
+            const changed = best.productId !== curId
+              || best.qty !== curQty
+              || Math.abs(vazaoOperTotal - curOper) > 0.01;
+            if (changed) {
+              // setSelectedTrocadorBomba vive no SolarBudgetService (dono da persistencia de
+              // bomba + do listBombaCandidatesByFlow); so o computeTrocadorPipe e do TrocadorBudgetService.
+              await this.solarBudget.setSelectedTrocadorBomba(
+                budgetId, companyId, best.productId, best.qty, vazaoOperTotal,
+              );
+            }
+          }
+        }
+      }
+    } catch (err) {
+      this.logger.warn(`redimensionarRecirc[trocador] falhou: ${(err as Error)?.message}`);
+    }
+  }
+
+  /**
+   * Recalcula subtotalCents, taxesCents e totalCents do orçamento somando os itens.
+   * v1.13.66: opts.redimensionarRecirc (so o save de orcamento passa true) re-otimiza a recirc
+   * solar + bomba de calor antes do auto-select — ver redimensionarRecirc.
+   */
+  async recalculateTotals(budgetId: string, opts: { redimensionarRecirc?: boolean } = {}) {
     const HOURS_PER_DAY = 8;
 
     let budget = await this.prisma.poolBudget.findUnique({
@@ -770,6 +924,30 @@ export class PoolBudgetService {
         });
       } catch (err) {
         this.logger.debug(`Auto-compute heatingReport falhou (sem dimensoes/clima?): ${(err as Error)?.message}`);
+      }
+    }
+
+    // v1.13.66: REDIMENSIONA a recirc (bomba + tubo + N) AO SALVAR — fecha a lacuna do
+    // operador que salva o orcamento SEM abrir o Simulador de Aquecimento (onde isso ja
+    // roda desde v1.13.61). Gatilho EXCLUSIVO do save: so update() passa a flag; edicoes de
+    // linha / reorder / create NAO disparam (a recirc so depende do dimensionamento, nao das
+    // linhas, e re-rodar a cada tecla seria pesado/surpreendente). Roda DEPOIS do heatingReport
+    // fresco e ANTES de dimensionVars/PASS 0, com re-leitura do budget pra que as vars
+    // (solarPipeDnMm / trocadorBombaVazaoOperM3h / solarBombaQty / etc.) e o linkLineToSimulator
+    // peguem a escolha nova. NUNCA quebra o save (try/catch). Congelado nem chega aqui (L734).
+    if (opts.redimensionarRecirc && budget?.companyId) {
+      try {
+        await this.redimensionarRecirc(budgetId, budget.companyId);
+        budget = await this.prisma.poolBudget.findUnique({
+          where: { id: budgetId },
+          select: {
+            discountCents: true, discountPercent: true, taxesPercent: true,
+            startDate: true, poolDimensions: true, environmentParams: true,
+            heatingReport: true, companyId: true, frozenAt: true,
+          },
+        });
+      } catch (err) {
+        this.logger.warn(`redimensionarRecirc falhou (save segue normal): ${(err as Error)?.message}`);
       }
     }
 
@@ -1605,7 +1783,10 @@ export class PoolBudgetService {
       dto.startDate !== undefined ||
       shouldInvalidateHeating
     ) {
-      await this.recalculateTotals(id);
+      // v1.13.66: redimensionarRecirc=true SO neste save de orcamento (update). Quando dims/clima
+      // mudam (shouldInvalidateHeating), a recirc precisa re-otimizar — mesma logica do "abrir o
+      // Aquecimento". Edicoes de linha/reorder/create chamam recalculateTotals sem a flag.
+      await this.recalculateTotals(id, { redimensionarRecirc: true });
     }
 
     this.audit.log({
