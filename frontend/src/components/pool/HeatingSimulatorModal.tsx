@@ -1109,6 +1109,11 @@ function SolarTab({
   // reflete o otimo). didSolarAutoRecalcRef garante o auto-recalcular ao abrir rodar so 1x.
   const solarResetPendingRef = useRef(false);
   const didSolarAutoRecalcRef = useRef(false);
+  // v1.13.67: forca o useEffect de candidatos a re-rodar ao FINAL do Recalcular (manual OU auto ao
+  // abrir), garantindo que o reset (solarResetPendingRef) persista o otimo mesmo quando vazao/altura
+  // nao mudaram (orcamento ja no otimo) — antes dependia de uma dep mudar, o que nem sempre ocorria
+  // na abertura, deixando a bomba so no display (linha useSolarBomba nao recebia).
+  const [solarRecalcNonce, setSolarRecalcNonce] = useState(0);
 
   // v1.12.63: regras solares configuraveis
   const [showSolarRulesModal, setShowSolarRulesModal] = useState(false);
@@ -1300,7 +1305,7 @@ function SolarTab({
       });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [budget.id, report?.vazaoTotalM3h, pipeResult?.alturaManometricaTotal, bombaRule?.where, bombaRule?.orderBy, bombaRule?.filterPoolType, bombaRule?.filterDescription, JSON.stringify(bombaRule?.indicator)]);
+  }, [budget.id, report?.vazaoTotalM3h, pipeResult?.alturaManometricaTotal, bombaRule?.where, bombaRule?.orderBy, bombaRule?.filterPoolType, bombaRule?.filterDescription, JSON.stringify(bombaRule?.indicator), solarRecalcNonce]);
 
   async function handleSelectBomba(productId: string | null) {
     setSelectedBombaId(productId);
@@ -1451,6 +1456,7 @@ function SolarTab({
     // senao o recompute re-sincroniza o tubo lendo o DN manual antigo (corrida que deixava 32mm).
     await recomputePipe({ diametroMm: null });               // tubo: DN auto-pick
     onRecompute(undefined, undefined, buildSolarExtras());   // recomputa o relatorio solar
+    setSolarRecalcNonce((n) => n + 1);                       // v1.13.67: re-dispara candidatos (persiste o otimo)
   };
   // v1.13.61: auto-recalcular ao ABRIR a aba Solar (decisao Juliano: sempre refazer pro otimo).
   // Roda 1x quando UF + report estao prontos (apos a abertura carregar o env do orcamento).

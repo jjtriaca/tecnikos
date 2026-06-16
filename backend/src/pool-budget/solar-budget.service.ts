@@ -716,7 +716,12 @@ export class SolarBudgetService {
     const env = (budget.environmentParams ?? {}) as Record<string, any>;
     const solarReport = env.solarReport as Record<string, any> | undefined;
     const vazaoSolarM3h = Number(solarReport?.vazaoTotalM3h) || 0;
-    const alturaTelhadoMca = Number(env.alturaTelhadoM) || 0;
+    // v1.13.67: a altura AUTORITATIVA e a do tubo calculado (env.solarPipe.result) — NAO a legada
+    // env.alturaTelhadoM. As duas podem divergir (ex: alturaTelhadoM antiga/alta de um estado anterior
+    // vs tubo re-auto-pickado mais novo). O front mostra solarPipe.result; ler a legada aqui devolvia
+    // lista VAZIA na abertura ("nenhuma bomba atende a pressao X") ate o operador clicar Recalcular
+    // (que re-sincronizava alturaTelhadoM). Preferir solarPipe.result -> fallback legada -> 0.
+    const alturaTelhadoMca = Number((env.solarPipe as any)?.result?.alturaManometricaTotal) || Number(env.alturaTelhadoM) || 0;
     // Nucleo compartilhado: mesma regra + interpolacao pra Solar e Trocador.
     // v1.13.55: maxParalelo relaxa o filtro pra incluir bombas usaveis com N em paralelo.
     return this.listBombaCandidatesByFlow(companyId, vazaoSolarM3h, alturaTelhadoMca, 'solarBombaRule', 0, maxParalelo);

@@ -1,11 +1,11 @@
 ---
 name: sessao-219-summary
-description: "Sessao 219 (12-16/06/2026) — Chunk C da auditoria AutoSelect (templates de tubo por DN do Simulador + picker LREF) + iteracoes no indicador/catalogo da recirc + auto-recalcular ao abrir o Aquecimento + gatilho 'ao salvar' (backend, v1.13.66 fecha o item A). v1.13.57 -> v1.13.66."
+description: "Sessao 219 (12-16/06/2026) — Chunk C da auditoria AutoSelect (templates de tubo por DN do Simulador + picker LREF) + iteracoes no indicador/catalogo da recirc + auto-recalcular ao abrir o Aquecimento + gatilho 'ao salvar' (backend, v1.13.66 item A) + fix bomba solar nao aparecia ao abrir (altura legada defasada, v1.13.67). v1.13.57 -> v1.13.67."
 metadata:
   type: project
 ---
 
-# Sessao 219 (12-16/06/2026) — Chunk C (auditoria AutoSelect) + recirc/auto-recalcular + gatilho ao salvar. v1.13.57 → v1.13.66
+# Sessao 219 (12-16/06/2026) — Chunk C (auditoria AutoSelect) + recirc/auto-recalcular + gatilho ao salvar + fix altura legada. v1.13.57 → v1.13.67
 
 Fecha a auditoria AutoSelect/Formula do modulo Piscina (Chunks A+B feitos antes; C aqui) + varias iteracoes de teste do Juliano no ORCP-00001 (aba Bomba de Calor). Doc detalhada da frente: [[chunk_c_tube_dn_picker_lref]].
 
@@ -24,6 +24,13 @@ Fecha a auditoria AutoSelect/Formula do modulo Piscina (Chunks A+B feitos antes;
 - **`pool-budget.service.redimensionarRecirc(budgetId, companyId)`** + `recalculateTotals(budgetId, {redimensionarRecirc})`. SO o `update()` (save do orcamento) passa a flag; edicao de linha/reorder/create NAO disparam. Roda apos o heatingReport fresco e ANTES do PASS 0, com re-leitura do budget (linha useSolarBomba/useTrocadorBomba vincula no mesmo recalc). Injeta SolarBudgetService+TrocadorBudgetService (DI aciclico).
 - **Solar:** `computeAndSaveReport` (sem overrides = re-le ajustes persistidos + re-sincroniza tubo DN-auto). ⚠️ GOTCHA: o recompute substitui `solarReport` pelo output do `simulate()`, que NAO carrega `selectedBombaId/qty/manual` → DROPA a bomba escolhida → re-escolho a otima + re-gravo SEMPRE (`setSelectedBomba(manual=false)`); sem candidata = RESTAURA a anterior (save nunca desvincula a linha). **Trocador:** comp/desnivel preservados (env.trocadorPipe.inputs → default tenant → 30/4) → `computeTrocadorPipe` (DN auto) → `alturaSelecao=max(atrito,desnivel)` → `listBombaCandidatesByFlow('trocadorBombaRule', maxParalelo=6)` → pickBest (= front) → grava so se mudou (computeTrocadorPipe faz MERGE, preserva trocadorBombaId).
 - **Decisao:** "sempre refazer pro otimo, descarta ajuste manual" nos DOIS (igual ao "abrir"). Seguro: congelado nem chega (early-return); try/catch por ramo + no caller (nunca quebra o save); determinista (idempotente). Custo: save dimensional recomputa o relatorio solar + 1 write da bomba (valor estavel) — aceitavel.
+
+## v1.13.67 — bomba SOLAR nao aparecia AO ABRIR (so no Recalcular). Causa: altura do campo LEGADO defasada
+- **Sintoma (ORCP-00001):** abrir o Solar mostrava "Nenhuma bomba atende (vazao ≥ 3.39 + pressao ≥ 8.16)"; clicar Recalcular achava. Banco: vazao 3.39 + tubo 40mm/8.16 OK, mas `solarReport.selectedBombaId=NULL`.
+- **CAUSA RAIZ (gotcha reusavel):** `listSolarBombaCandidates` lia a altura de `env.alturaTelhadoM` (campo LEGADO, retrocompat) que DIVERGIU de `env.solarPipe.result.alturaManometricaTotal` (a real/display=8.16). A legada estava mais alta (estado anterior) → where `pressaoTrabalhoMca >= alturaTelhadoMca` reprovava TODAS → lista vazia. Recalcular re-sincronizava a legada (via computeAndSavePipe) → achava. As 2 chaves de altura saem juntas do computeAndSavePipe, mas podem divergir quando um estado antigo so mexeu numa.
+- **Fix #1 (backend):** `listSolarBombaCandidates` le `env.solarPipe.result.alturaManometricaTotal` (fonte de verdade) → fallback `alturaTelhadoM` → 0. Conserta todos os callers. v1.13.66 (redimensao no save) ja era consistente (recomputa o tubo antes), mas tambem passa a ler a fonte certa.
+- **Fix #2 (frontend):** `solarRecalcNonce` (bumpado ao FINAL do `handleSolarRecalcular`, manual+auto-ao-abrir) forca o useEffect de candidatos a re-rodar com `solarResetPendingRef=true` → GRAVA a bomba otima na linha mesmo quando vazao/altura nao mudaram (antes so mostrava no display; a linha useSolarBomba nao recebia). Trocador ja era robusto (endpoint `?altura=` + resetToken) — intocado.
+- ⚠️ Padrao a vigiar: `env.alturaTelhadoM` e LEGADO; preferir SEMPRE `env.solarPipe.result.alturaManometricaTotal` pra altura do solar.
 
 ## Tambem nesta sessao
 - **v1.13.63 — Solar tubo auto nao subdimensiona:** alvo de velocidade do tubo solar baixado 2,5→1,5 m/s (`pickOptimalDiameter`, configuravel `pipeDefaults.solarMaxVelocidadeMs`) -> escolhe tubo maior -> menos pressao -> bomba do catalogo atende. + re-sync do pipe preserva "auto" (nao vira MANUAL forcando o DN persistido). + frontend `handleSolarRecalcular` faz `await recomputePipe(null)` antes do recompute (acaba a corrida). Validado: 32mm MANUAL/sem bomba -> 40mm AUTO/bomba escolhida.
