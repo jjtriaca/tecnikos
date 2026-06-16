@@ -799,16 +799,32 @@ export class SolarBudgetService {
     const frictionKResist = ruleKey === 'trocadorBombaRule' && vazaoAlvoM3h > 0 && alturaMca > 0
       ? alturaMca / (vazaoAlvoM3h * vazaoAlvoM3h)
       : 0;
-    // v1.13.55: N em paralelo — relaxa o filtro de vazao pra incluir bombas usaveis com ate
-    // `maxParalelo` unidades (where `vazaoM3h >= vazaoSolarM3h` passa com vazaoM3h >= alvo/N).
-    // Altura/K seguem REAIS (a bomba ainda precisa vencer a pressao). maxParalelo=1 (default,
-    // todos os callers existentes) = comportamento INALTERADO. O front recomputa o N real.
-    const vazaoFiltro = vazaoAlvoM3h / Math.max(1, maxParalelo);
-    const baseVars = { vazaoSolarM3h: vazaoFiltro, vazaoMaxM3h: vazaoMaxAlvoM3h, alturaTelhadoMca: alturaMca, frictionKResist };
-
-    // Aplica where (filtro de criterio) e orderBy da regra. filterByWhere/orderCandidates
-    // ja interpolam pumpCurve quando candidato tem curva cadastrada (v1.12.41).
-    const passed = filterByWhere(withCurve as any, bombaRule, baseVars);
+    // N em paralelo — relaxa o piso de vazao pra incluir bombas usaveis com ate `maxParalelo`
+    // unidades (where `vazaoM3h >= vazaoSolarM3h` passa com vazaoM3h >= alvo/N). Altura/K seguem
+    // REAIS. maxParalelo=1 (default) = comportamento INALTERADO (relaxVars == fullVars).
+    const fullVars = { vazaoSolarM3h: vazaoAlvoM3h, vazaoMaxM3h: vazaoMaxAlvoM3h, alturaTelhadoMca: alturaMca, frictionKResist };
+    const relaxVars = { ...fullVars, vazaoSolarM3h: vazaoAlvoM3h / Math.max(1, maxParalelo) };
+    let baseVars: typeof fullVars;
+    let passed: any[];
+    // v1.13.68: SOLAR x TROCADOR tratam o paralelo diferente por causa do UPPER BOUND da regra.
+    // - TROCADOR (regra so com piso `vazaoM3h >= vazaoSolarM3h`): dividir o alvo so AMPLIA a lista
+    //   (inclui bombas menores p/ paralelo). Comportamento ORIGINAL — mantido (sempre relaxa).
+    // - SOLAR (regra TEM teto `vazaoM3h <= vazaoSolarM3h*1.5`): dividir o alvo derrubava TAMBEM o teto
+    //   (ex: alvo 3.39 -> janela [0.40, 0.85]) e REJEITAVA bombas que atendem SOZINHAS (~4-5 m³/h) ->
+    //   lista VAZIA (regressao v1.13.56, "nenhuma bomba atende" na abertura). Fix: tenta N=1 (alvo
+    //   CHEIO) primeiro; so se NINGUEM atende sozinha relaxa p/ paralelo. Indicador usa o mesmo regime.
+    if (ruleKey === 'trocadorBombaRule') {
+      baseVars = relaxVars;
+      passed = filterByWhere(withCurve as any, bombaRule, relaxVars);
+    } else {
+      passed = filterByWhere(withCurve as any, bombaRule, fullVars);
+      baseVars = fullVars;
+      if (passed.length === 0 && maxParalelo > 1) {
+        passed = filterByWhere(withCurve as any, bombaRule, relaxVars);
+        baseVars = relaxVars;
+      }
+    }
+    // Aplica orderBy da regra. filterByWhere/orderCandidates ja interpolam pumpCurve (v1.12.41).
     const ordered = orderCandidates(passed as any, bombaRule, baseVars).slice(0, 20);
 
     return ordered.map((p: any) => {

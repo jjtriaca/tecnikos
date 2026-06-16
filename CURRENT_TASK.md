@@ -1,5 +1,12 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.13.68 (16/06) — Solar: CAUSA REAL da bomba não aparecer = maxParalelo derrubava o TETO da regra
+## - **v1.13.67 NÃO resolveu** (continuou vazio) — meu diagnóstico de altura estava incompleto. Causa real descoberta no banco + interpolação na mão.
+## - **Causa raiz:** `listBombaCandidatesByFlow` dividia a vazão-alvo por `maxParalelo` (=6, recurso "N bombas em paralelo" v1.13.55/56) e usava o resultado como `vazaoSolarM3h` na regra. A regra do **Solar** TEM teto (`vazaoM3h <= vazaoSolarM3h*1.5`): com alvo/6, a janela aceitável virava **[0,40–0,85] m³/h** (alvo 3.39) → REJEITAVA toda bomba real (4–5 m³/h) → lista vazia. A da **Bomba de Calor** só tem piso (`>= vazaoSolarM3h`) → dividir só AMPLIA a lista → nunca quebrou. Regressão entrou no v1.13.56 (paralelo no solar).
+## - **Fix (backend, gated por `ruleKey`):** SOLAR tenta N=1 (alvo CHEIO) primeiro; só relaxa pra paralelo (alvo/maxParalelo) se NINGUÉM atende sozinha (piscina grande). TROCADOR **inalterado** (sempre relaxa = comportamento original; regra sem teto). `maxParalelo=1` (callers default) = idêntico. Indicador usa o mesmo regime do filtro.
+## - **Validado na mão:** Syllent 1/3cv interpola 4.66 m³/h @ 8.34 mca (shutoff 18) → passa [2.37, 5.09] + pressão ✓. Backend tsc EXIT 0. Sem migration.
+## - 🟡 Nuance: a bomba aparece ~37% acima do ideal (3.39 → 4.66) pois é a menor de alta-pressão que vence 8.3 mca; indicador pode marcar laranja/vermelho. Funcional; pra "verde" = bomba mais próxima de 3.39 (não cadastrada) ou ajustar a regra/velocidade do tubo. (v1.13.67 — altura autoritativa do `solarPipe.result` + nonce de persist-on-open — mantidos, são melhorias válidas, mas NÃO eram a causa.)
+
 ## ✅ DEPLOYED v1.13.67 (16/06) — Solar: bomba aparece AO ABRIR (não só no Recalcular). Causa: altura defasada no campo legado
 ## - **Bug (Juliano, ORCP-00001):** abrir o Simulador Solar mostrava "Nenhuma bomba atende a regra (vazão ≥ 3.39 + pressão ≥ 8.16)" → só achava ao clicar Recalcular. Banco confirmou: vazão 3.39 + tubo 40mm/8.16 corretos, mas `selectedBombaId=NULL`.
 ## - **Causa raiz:** `listSolarBombaCandidates` lia a altura do campo LEGADO `env.alturaTelhadoM`, que tinha DIVERGIDO (mais alto) da altura real do tubo (`env.solarPipe.result.alturaManometricaTotal`=8.16, a que a tela mostra). Altura inflada → nenhuma bomba "atende a pressão" → lista vazia. Recalcular re-sincronizava o campo legado → aí achava (por isso só funcionava no Recalcular). Há bombas válidas (Syllent, shutoff 18–27 mca) cujo ponto na curva a 8.16 cai na faixa da regra.

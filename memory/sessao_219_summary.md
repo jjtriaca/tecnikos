@@ -1,11 +1,11 @@
 ---
 name: sessao-219-summary
-description: "Sessao 219 (12-16/06/2026) — Chunk C da auditoria AutoSelect (templates de tubo por DN do Simulador + picker LREF) + iteracoes no indicador/catalogo da recirc + auto-recalcular ao abrir o Aquecimento + gatilho 'ao salvar' (backend, v1.13.66 item A) + fix bomba solar nao aparecia ao abrir (altura legada defasada, v1.13.67). v1.13.57 -> v1.13.67."
+description: "Sessao 219 (12-16/06/2026) — Chunk C da auditoria AutoSelect (templates de tubo por DN do Simulador + picker LREF) + iteracoes no indicador/catalogo da recirc + auto-recalcular ao abrir o Aquecimento + gatilho 'ao salvar' (backend, v1.13.66 item A) + fix bomba solar nao aparecia ao abrir (CAUSA REAL: maxParalelo derrubava o teto da regra solar, v1.13.68; v1.13.67 altura+nonce nao era a causa). v1.13.57 -> v1.13.68."
 metadata:
   type: project
 ---
 
-# Sessao 219 (12-16/06/2026) — Chunk C (auditoria AutoSelect) + recirc/auto-recalcular + gatilho ao salvar + fix altura legada. v1.13.57 → v1.13.67
+# Sessao 219 (12-16/06/2026) — Chunk C (auditoria AutoSelect) + recirc/auto-recalcular + gatilho ao salvar + fix maxParalelo (bomba solar). v1.13.57 → v1.13.68
 
 Fecha a auditoria AutoSelect/Formula do modulo Piscina (Chunks A+B feitos antes; C aqui) + varias iteracoes de teste do Juliano no ORCP-00001 (aba Bomba de Calor). Doc detalhada da frente: [[chunk_c_tube_dn_picker_lref]].
 
@@ -31,6 +31,13 @@ Fecha a auditoria AutoSelect/Formula do modulo Piscina (Chunks A+B feitos antes;
 - **Fix #1 (backend):** `listSolarBombaCandidates` le `env.solarPipe.result.alturaManometricaTotal` (fonte de verdade) → fallback `alturaTelhadoM` → 0. Conserta todos os callers. v1.13.66 (redimensao no save) ja era consistente (recomputa o tubo antes), mas tambem passa a ler a fonte certa.
 - **Fix #2 (frontend):** `solarRecalcNonce` (bumpado ao FINAL do `handleSolarRecalcular`, manual+auto-ao-abrir) forca o useEffect de candidatos a re-rodar com `solarResetPendingRef=true` → GRAVA a bomba otima na linha mesmo quando vazao/altura nao mudaram (antes so mostrava no display; a linha useSolarBomba nao recebia). Trocador ja era robusto (endpoint `?altura=` + resetToken) — intocado.
 - ⚠️ Padrao a vigiar: `env.alturaTelhadoM` e LEGADO; preferir SEMPRE `env.solarPipe.result.alturaManometricaTotal` pra altura do solar.
+- ⚠️ NOTA: v1.13.67 NAO resolveu o "bomba nao aparece" (continuou vazio). A altura nao estava defasada — a causa real foi outra (v1.13.68 abaixo). v1.13.67 (altura autoritativa + nonce) sao melhorias validas, so nao eram a causa.
+
+## v1.13.68 — CAUSA REAL: maxParalelo derrubava o TETO da regra solar (lista de bombas vazia)
+- **Causa raiz (gotcha forte):** `listBombaCandidatesByFlow` fazia `vazaoFiltro = vazaoAlvo / maxParalelo` e usava como `vazaoSolarM3h` na regra. Regra SOLAR TEM TETO (`vazaoM3h <= vazaoSolarM3h*1.5`): com maxParalelo=6 e alvo 3.39, a janela virava **[0.40, 0.85] m³/h** → REJEITAVA toda bomba real (4–5 m³/h) → "nenhuma bomba atende" na abertura. Regra TROCADOR so tem PISO (`>= vazaoSolarM3h`) → dividir so AMPLIA a lista → nunca quebrou. Regressao entrou no v1.13.56 (paralelo no solar). Antes disso o solar usava maxParalelo=1 (janela cheia) e funcionava — por isso "Recalcular do passado achava".
+- **Fix (backend, gated por `ruleKey`):** SOLAR tenta N=1 (alvo CHEIO) primeiro; so relaxa p/ paralelo (alvo/maxParalelo) se NINGUEM atende sozinha. TROCADOR inalterado (sempre relaxa = original). `maxParalelo=1` = identico. Indicador usa o regime do filtro. Vale tb pra redimensao do save (v1.13.66 chama o mesmo metodo).
+- **LICAO:** dividir a vazao-alvo por N (p/ incluir bombas em paralelo) so e seguro quando a regra tem SO piso. Se a regra tem TETO, dividir derruba o teto e exclui as bombas que atendem sozinhas. Validar o efeito nos DOIS lados da janela (piso E teto).
+- 🟡 Resultado: Syllent 1/3cv (4.66 m³/h @ 8.34 mca, shutoff 18) aparece, ~37% acima do alvo 3.39 (menor de alta-pressao do catalogo) — indicador pode marcar vermelho; funcional.
 
 ## Tambem nesta sessao
 - **v1.13.63 — Solar tubo auto nao subdimensiona:** alvo de velocidade do tubo solar baixado 2,5→1,5 m/s (`pickOptimalDiameter`, configuravel `pipeDefaults.solarMaxVelocidadeMs`) -> escolhe tubo maior -> menos pressao -> bomba do catalogo atende. + re-sync do pipe preserva "auto" (nao vira MANUAL forcando o DN persistido). + frontend `handleSolarRecalcular` faz `await recomputePipe(null)` antes do recompute (acaba a corrida). Validado: 32mm MANUAL/sem bomba -> 40mm AUTO/bomba escolhida.
