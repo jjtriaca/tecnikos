@@ -2176,7 +2176,10 @@ function SolarTab({
                                 ⚠ Velocidade {pipeResult.velocidade?.toFixed(2)} m/s acima do limite de 2,5 m/s — AUMENTE O DIÂMETRO DO TUBO
                               </div>
                             )}
-                            <div className={`text-[9px] mt-1 italic ${velocidadeAlta ? 'text-red-700' : 'text-amber-700'}`}>Defaults: PVC, fator 20%, 10 joelhos, 4 tês, 1 registro, 1 válvula.</div>
+                            <div className={`text-[9px] mt-1 italic flex items-center gap-1 ${velocidadeAlta ? 'text-red-700' : 'text-amber-700'}`}>
+                              <span>Conexões (material, fator, joelhos, tês, registros, válvulas) — ajuste no</span>
+                              <PipeConnDefaultsButton context="solar" />
+                            </div>
                           </div>
                         );
                       })() : (
@@ -3832,6 +3835,80 @@ interface TrocadorBombaCandidate {
 // mais, verao menos, e bomba de calor mais potente -> menos horas (atinge o alvo mais
 // rapido). Sem vazao cadastrada -> avisa e nao dimensiona. Reusa /trocador-pipe/recompute
 // + /trocador-bomba-candidates (endpoints do nucleo do Solar).
+// v1.13.65 (D): ícone ⚙ + popover pra ajustar as CONEXÕES padrão da tubulação por contexto
+// (material, fator de segurança, joelhos, tés, registros, válvulas). Usado nos 2 cards (Solar +
+// Bomba de Calor). Salva em pipeDefaults.{context}* — os cálculos de tubo leem o do seu contexto.
+function PipeConnDefaultsButton({ context }: { context: 'solar' | 'trocador' }) {
+  const [open, setOpen] = useState(false);
+  const [v, setV] = useState<{ material: string; fatorSegurancaPct: number; joelho90Qty: number; teQty: number; registroQty: number; valvulaQty: number } | null>(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    api.get<Record<string, any>>(`/pool-budgets/pipe-dim-defaults`)
+      .then((r) => {
+        if (cancelled) return;
+        setV({
+          material: String(r[`${context}Material`] ?? 'PVC'),
+          fatorSegurancaPct: Number(r[`${context}FatorSegurancaPct`]) || 0,
+          joelho90Qty: Number(r[`${context}Joelho90Qty`]) || 0,
+          teQty: Number(r[`${context}TeQty`]) || 0,
+          registroQty: Number(r[`${context}RegistroQty`]) || 0,
+          valvulaQty: Number(r[`${context}ValvulaQty`]) || 0,
+        });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [open]);
+  const save = async () => {
+    if (!v) return;
+    setSaving(true);
+    try {
+      await api.post(`/pool-budgets/pipe-dim-defaults`, { context, ...v });
+      setOpen(false);
+    } catch (e: any) {
+      alert(`Erro ao salvar conexões padrão: ${e?.message ?? e}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const numRow = (label: string, key: 'fatorSegurancaPct' | 'joelho90Qty' | 'teQty' | 'registroQty' | 'valvulaQty', suffix?: string) => (
+    <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, fontSize: 11 }}>
+      <span style={{ color: '#475569' }}>{label}</span>
+      <span><input type="number" min={0} value={v ? v[key] : 0} onChange={(e) => setV((p) => (p ? { ...p, [key]: Number(e.target.value) || 0 } : p))} style={{ width: 46, border: '1px solid #cbd5e1', borderRadius: 4, padding: '1px 4px', textAlign: 'center', fontSize: 11, fontFamily: 'inherit' }} />{suffix ? <span style={{ color: '#94a3b8', marginLeft: 2 }}>{suffix}</span> : null}</span>
+    </label>
+  );
+  return (
+    <span className="print:hidden" style={{ position: 'relative', display: 'inline-block' }}>
+      <button type="button" onClick={() => setOpen((o) => !o)} title="Ajustar conexões padrão da tubulação (material, fator, joelhos, tés, registros, válvulas) — vale para os cálculos deste contexto" style={{ fontSize: 11, background: 'none', border: 0, cursor: 'pointer', padding: '0 3px', color: '#64748b', lineHeight: 1 }}>⚙</button>
+      {open && (
+        <div style={{ position: 'absolute', zIndex: 50, right: 0, top: '100%', marginTop: 4, width: 234, background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, boxShadow: '0 6px 18px rgba(0,0,0,.14)', padding: 10, display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'left' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#334155' }}>Conexões padrão · {context === 'solar' ? 'Solar' : 'Bomba de Calor'}</div>
+          {!v ? <div style={{ fontSize: 11, color: '#94a3b8' }}>Carregando…</div> : (
+            <>
+              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, fontSize: 11 }}>
+                <span style={{ color: '#475569' }}>Material</span>
+                <select value={v.material} onChange={(e) => setV((p) => (p ? { ...p, material: e.target.value } : p))} style={{ border: '1px solid #cbd5e1', borderRadius: 4, padding: '1px 4px', fontSize: 11, fontFamily: 'inherit' }}>
+                  {['PVC', 'CPVC', 'PPR', 'COBRE'].map((m) => <option key={m} value={m}>{m}</option>)}
+                </select>
+              </label>
+              {numRow('Fator de segurança', 'fatorSegurancaPct', '%')}
+              {numRow('Joelhos 90°', 'joelho90Qty')}
+              {numRow('Tês', 'teQty')}
+              {numRow('Registros', 'registroQty')}
+              {numRow('Válvulas de retenção', 'valvulaQty')}
+              <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
+                <button type="button" onClick={save} disabled={saving} style={{ flex: 1, background: '#0d9488', color: '#fff', border: 0, borderRadius: 4, padding: '3px 0', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>{saving ? 'Salvando…' : 'Salvar padrão'}</button>
+                <button type="button" onClick={() => setOpen(false)} style={{ background: 'none', border: '1px solid #cbd5e1', borderRadius: 4, padding: '3px 8px', fontSize: 11, color: '#64748b', cursor: 'pointer' }}>Fechar</button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </span>
+  );
+}
+
 function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operatingHoursPerDayAvg, onOpenRulePicker, ruleVersion, resetToken, onConsumoChange, initialBombaId, initialBombaQty, initialVazaoOper, initialPipe, onChanged }: {
   budgetId: string;
   sel?: { vazaoMinM3h?: number; vazaoMaxM3h?: number; quantity?: number } | null;
@@ -4121,7 +4198,7 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
       {/* TUBULAÇÃO — card V1 ambar compacto (label + mca no topo, comp/desnív/tubo numa linha) */}
       <div style={{ border: `1px solid ${velAlta ? "#fca5a5" : "#fcd34d"}`, borderRadius: 8, background: velAlta ? "#fef2f2" : "#fffbeb", padding: "5px 8px" }}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
-          <div style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".07em", color: velAlta ? "#b91c1c" : "#92400e", fontWeight: 700 }}>Tubulação — perda de carga</div>
+          <div style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".07em", color: velAlta ? "#b91c1c" : "#92400e", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 3 }}>Tubulação — perda de carga<PipeConnDefaultsButton context="trocador" /></div>
           <div style={{ fontSize: 14, fontWeight: 800, color: velAlta ? "#b91c1c" : "#78350f" }} className="num" title="Maior entre o atrito (operação) e o desnível (romper a inércia pra começar a circular). A bomba precisa produzir pelo menos isto.">{pipeResult ? alturaSelecao.toFixed(2) : "—"} <span style={{ fontSize: 8.5, fontWeight: 700 }}>mca</span></div>
         </div>
         {pipeResult ? (

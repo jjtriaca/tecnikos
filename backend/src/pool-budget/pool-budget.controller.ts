@@ -363,16 +363,16 @@ export class PoolBudgetController {
     return this.solarBudget.getPipeDimDefaults(user.companyId);
   }
 
-  @ApiOperation({ summary: 'Salva o default de comprimento/desnivel da tubulacao por contexto (solar|trocador). v1.13.64.' })
+  @ApiOperation({ summary: 'Salva defaults da tubulacao por contexto (solar|trocador): comprimento/desnivel + conexoes (material/fator/joelhos/tes/registros/valvulas). Merge parcial. v1.13.64/65.' })
   @RequireVerification()
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)
   @Post('pipe-dim-defaults')
   async setPipeDimDefault(
-    @Body() body: { context?: string; comprimentoM: number; desnivelM: number },
+    @Body() body: { context?: string; comprimentoM?: number; desnivelM?: number; material?: string; fatorSegurancaPct?: number; joelho90Qty?: number; teQty?: number; registroQty?: number; valvulaQty?: number },
     @CurrentUser() user: AuthenticatedUser,
   ) {
     const context = body?.context === 'trocador' ? 'trocador' : 'solar';
-    return this.solarBudget.setPipeDimDefault(user.companyId, context, body.comprimentoM, body.desnivelM);
+    return this.solarBudget.setPipeDimDefault(user.companyId, context, body);
   }
 
   // ========== Demanda Termica Unificada (v1.12.84) ==========

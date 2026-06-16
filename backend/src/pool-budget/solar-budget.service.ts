@@ -510,7 +510,8 @@ export class SolarBudgetService {
       valvulaQty: 1,
     };
 
-    const material = (dto.material ?? tenantDefaults.material ?? HARDCODED_DEFAULTS.material) as PipeMaterial;
+    // v1.13.65 (D): conexoes por CONTEXTO — solar le pipeDefaults.solar* (fallback key legada -> hardcoded).
+    const material = (dto.material ?? tenantDefaults.solarMaterial ?? tenantDefaults.material ?? HARDCODED_DEFAULTS.material) as PipeMaterial;
     const availableDiameters: number[] = Array.isArray(tenantDefaults.availableDiametersMm)
       ? tenantDefaults.availableDiametersMm
       : HARDCODED_DEFAULTS.availableDiametersMm;
@@ -546,11 +547,11 @@ export class SolarBudgetService {
       temperaturaC: 25,
       material,
       diametroMm,
-      fatorSegurancaPct: dto.fatorSegurancaPct ?? tenantDefaults.fatorSegurancaPct ?? HARDCODED_DEFAULTS.fatorSegurancaPct,
-      joelho90Qty: dto.joelho90Qty ?? tenantDefaults.joelho90Qty ?? HARDCODED_DEFAULTS.joelho90Qty,
-      teQty: dto.teQty ?? tenantDefaults.teQty ?? HARDCODED_DEFAULTS.teQty,
-      registroQty: dto.registroQty ?? tenantDefaults.registroQty ?? HARDCODED_DEFAULTS.registroQty,
-      valvulaQty: dto.valvulaQty ?? tenantDefaults.valvulaQty ?? HARDCODED_DEFAULTS.valvulaQty,
+      fatorSegurancaPct: dto.fatorSegurancaPct ?? tenantDefaults.solarFatorSegurancaPct ?? tenantDefaults.fatorSegurancaPct ?? HARDCODED_DEFAULTS.fatorSegurancaPct,
+      joelho90Qty: dto.joelho90Qty ?? tenantDefaults.solarJoelho90Qty ?? tenantDefaults.joelho90Qty ?? HARDCODED_DEFAULTS.joelho90Qty,
+      teQty: dto.teQty ?? tenantDefaults.solarTeQty ?? tenantDefaults.teQty ?? HARDCODED_DEFAULTS.teQty,
+      registroQty: dto.registroQty ?? tenantDefaults.solarRegistroQty ?? tenantDefaults.registroQty ?? HARDCODED_DEFAULTS.registroQty,
+      valvulaQty: dto.valvulaQty ?? tenantDefaults.solarValvulaQty ?? tenantDefaults.valvulaQty ?? HARDCODED_DEFAULTS.valvulaQty,
       coletoresPorBateria: coletPorBat,
       batPorRamo: batSerie,
       perdaPorColetorMca,
@@ -1065,30 +1066,63 @@ export class SolarBudgetService {
   // O card do Simulador inicia desses valores quando NAO ha pipe salvo no orcamento (antes era
   // hardcode 30/4). O operador grava o default pelo icone ao lado dos campos. Por contexto:
   // 'solar' (telhado) e 'trocador' (bomba de calor) tem realidades diferentes.
-  async getPipeDimDefaults(companyId: string): Promise<{ solarComprimentoM: number; solarDesnivelM: number; trocadorComprimentoM: number; trocadorDesnivelM: number }> {
+  // v1.13.65 (D): defaults agora incluem CONEXOES por contexto (material/fator/joelhos/tes/
+  // registros/valvulas). Keys flat com prefixo solar*/trocador*. Os calculos de tubo leem o do
+  // seu contexto (fallback: key sem prefixo legada -> hardcoded). Valvula default difere: solar 1,
+  // trocador 0 (bomba de calor nao usa valvula de retencao, v1.13.31).
+  async getPipeDimDefaults(companyId: string): Promise<Record<string, number | string>> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { systemConfig: true } });
     const pd = ((company?.systemConfig as any)?.pool?.pipeDefaults ?? {}) as Record<string, any>;
     const num = (v: any, d: number) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : d; };
     const numZ = (v: any, d: number) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : d; };
+    const intZ = (v: any, d: number) => { const n = Math.round(Number(v)); return Number.isFinite(n) && n >= 0 ? n : d; };
+    const mat = (v: any, d: string) => (typeof v === 'string' && ['PVC', 'CPVC', 'PPR', 'COBRE'].includes(v) ? v : d);
     return {
       solarComprimentoM: num(pd.solarComprimentoM, 30),
       solarDesnivelM: numZ(pd.solarDesnivelM, 4),
+      solarMaterial: mat(pd.solarMaterial ?? pd.material, 'PVC'),
+      solarFatorSegurancaPct: numZ(pd.solarFatorSegurancaPct ?? pd.fatorSegurancaPct, 20),
+      solarJoelho90Qty: intZ(pd.solarJoelho90Qty ?? pd.joelho90Qty, 10),
+      solarTeQty: intZ(pd.solarTeQty ?? pd.teQty, 4),
+      solarRegistroQty: intZ(pd.solarRegistroQty ?? pd.registroQty, 1),
+      solarValvulaQty: intZ(pd.solarValvulaQty ?? pd.valvulaQty, 1),
       trocadorComprimentoM: num(pd.trocadorComprimentoM, 30),
       trocadorDesnivelM: numZ(pd.trocadorDesnivelM, 4),
+      trocadorMaterial: mat(pd.trocadorMaterial ?? pd.material, 'PVC'),
+      trocadorFatorSegurancaPct: numZ(pd.trocadorFatorSegurancaPct ?? pd.fatorSegurancaPct, 20),
+      trocadorJoelho90Qty: intZ(pd.trocadorJoelho90Qty ?? pd.joelho90Qty, 10),
+      trocadorTeQty: intZ(pd.trocadorTeQty ?? pd.teQty, 4),
+      trocadorRegistroQty: intZ(pd.trocadorRegistroQty ?? pd.registroQty, 1),
+      trocadorValvulaQty: intZ(pd.trocadorValvulaQty ?? pd.valvulaQty, 0),
     };
   }
 
-  async setPipeDimDefault(companyId: string, context: 'solar' | 'trocador', comprimentoM: number, desnivelM: number) {
-    const comp = Number(comprimentoM);
-    const desn = Number(desnivelM);
-    if (!Number.isFinite(comp) || comp <= 0 || comp > 1000) throw new BadRequestException('Comprimento invalido (1 a 1000 m).');
-    if (!Number.isFinite(desn) || desn < 0 || desn > 200) throw new BadRequestException('Desnivel invalido (0 a 200 m).');
+  async setPipeDimDefault(
+    companyId: string,
+    context: 'solar' | 'trocador',
+    patch: { comprimentoM?: number; desnivelM?: number; material?: string; fatorSegurancaPct?: number; joelho90Qty?: number; teQty?: number; registroQty?: number; valvulaQty?: number },
+  ) {
+    const pfx = context === 'trocador' ? 'trocador' : 'solar';
     const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { systemConfig: true } });
     const systemConfig = (company?.systemConfig ?? {}) as Record<string, any>;
     const pool = (systemConfig.pool ?? {}) as Record<string, any>;
     const pd = (pool.pipeDefaults ?? {}) as Record<string, any>;
-    if (context === 'trocador') { pd.trocadorComprimentoM = comp; pd.trocadorDesnivelM = desn; }
-    else { pd.solarComprimentoM = comp; pd.solarDesnivelM = desn; }
+    const rng = (v: any, lo: number, hi: number, label: string) => {
+      const n = Number(v);
+      if (!Number.isFinite(n) || n < lo || n > hi) throw new BadRequestException(`${label} invalido (${lo} a ${hi}).`);
+      return n;
+    };
+    if (patch.comprimentoM !== undefined) pd[`${pfx}ComprimentoM`] = rng(patch.comprimentoM, 1, 1000, 'Comprimento');
+    if (patch.desnivelM !== undefined) pd[`${pfx}DesnivelM`] = rng(patch.desnivelM, 0, 200, 'Desnivel');
+    if (patch.material !== undefined) {
+      if (!['PVC', 'CPVC', 'PPR', 'COBRE'].includes(patch.material)) throw new BadRequestException('Material invalido (PVC/CPVC/PPR/COBRE).');
+      pd[`${pfx}Material`] = patch.material;
+    }
+    if (patch.fatorSegurancaPct !== undefined) pd[`${pfx}FatorSegurancaPct`] = rng(patch.fatorSegurancaPct, 0, 200, 'Fator de seguranca');
+    if (patch.joelho90Qty !== undefined) pd[`${pfx}Joelho90Qty`] = Math.round(rng(patch.joelho90Qty, 0, 100, 'Joelhos'));
+    if (patch.teQty !== undefined) pd[`${pfx}TeQty`] = Math.round(rng(patch.teQty, 0, 100, 'Tes'));
+    if (patch.registroQty !== undefined) pd[`${pfx}RegistroQty`] = Math.round(rng(patch.registroQty, 0, 100, 'Registros'));
+    if (patch.valvulaQty !== undefined) pd[`${pfx}ValvulaQty`] = Math.round(rng(patch.valvulaQty, 0, 100, 'Valvulas'));
     pool.pipeDefaults = pd;
     systemConfig.pool = pool;
     await this.prisma.company.update({ where: { id: companyId }, data: { systemConfig: systemConfig as any } });

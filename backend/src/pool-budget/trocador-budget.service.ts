@@ -123,7 +123,8 @@ export class TrocadorBudgetService {
       maxVelocidadeMs: 2.0,
     };
 
-    const material = (dto.material ?? tenantDefaults.material ?? HARDCODED_DEFAULTS.material) as PipeMaterial;
+    // v1.13.65 (D): conexoes por CONTEXTO — bomba de calor le pipeDefaults.trocador* (fallback key legada -> hardcoded).
+    const material = (dto.material ?? tenantDefaults.trocadorMaterial ?? tenantDefaults.material ?? HARDCODED_DEFAULTS.material) as PipeMaterial;
     const availableDiameters: number[] = Array.isArray(tenantDefaults.availableDiametersMm)
       ? tenantDefaults.availableDiametersMm
       : HARDCODED_DEFAULTS.availableDiametersMm;
@@ -147,11 +148,11 @@ export class TrocadorBudgetService {
       temperaturaC: 25,
       material,
       diametroMm,
-      fatorSegurancaPct: dto.fatorSegurancaPct ?? tenantDefaults.fatorSegurancaPct ?? HARDCODED_DEFAULTS.fatorSegurancaPct,
-      joelho90Qty: dto.joelho90Qty ?? tenantDefaults.joelho90Qty ?? HARDCODED_DEFAULTS.joelho90Qty,
-      teQty: dto.teQty ?? tenantDefaults.teQty ?? HARDCODED_DEFAULTS.teQty,
-      registroQty: dto.registroQty ?? tenantDefaults.registroQty ?? HARDCODED_DEFAULTS.registroQty,
-      valvulaQty: dto.valvulaQty ?? tenantDefaults.valvulaQty ?? HARDCODED_DEFAULTS.valvulaQty,
+      fatorSegurancaPct: dto.fatorSegurancaPct ?? tenantDefaults.trocadorFatorSegurancaPct ?? tenantDefaults.fatorSegurancaPct ?? HARDCODED_DEFAULTS.fatorSegurancaPct,
+      joelho90Qty: dto.joelho90Qty ?? tenantDefaults.trocadorJoelho90Qty ?? tenantDefaults.joelho90Qty ?? HARDCODED_DEFAULTS.joelho90Qty,
+      teQty: dto.teQty ?? tenantDefaults.trocadorTeQty ?? tenantDefaults.teQty ?? HARDCODED_DEFAULTS.teQty,
+      registroQty: dto.registroQty ?? tenantDefaults.trocadorRegistroQty ?? tenantDefaults.registroQty ?? HARDCODED_DEFAULTS.registroQty,
+      valvulaQty: dto.valvulaQty ?? tenantDefaults.trocadorValvulaQty ?? tenantDefaults.valvulaQty ?? HARDCODED_DEFAULTS.valvulaQty,
       // Trocadores em PARALELO compartilham a mesma perda interna (vazao se divide,
       // perda por ramo eh a mesma) — por isso NAO multiplica por qtdTrocadores.
       perdaInternaExtraMca: Number(dto.perdaInternaMca) || 0,
