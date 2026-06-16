@@ -324,13 +324,18 @@ export class SolarBudgetService {
     // o operador clicasse novamente em Comp/Desniv. Agora o backend cuida da
     // sincronia — elimina race condition do useEffect frontend.
     const existingPipeInputs = (env.solarPipe as any)?.inputs;
+    // v1.13.63: se o DN tinha sido AUTO-escolhido, NAO force o valor persistido no re-sync —
+    // re-auto-escolhe (diametroMm undefined). Antes forcava existingPipeInputs.diametroMm, o que
+    // marcava o tubo como MANUAL apos qualquer recompute do relatorio (bug do badge "MANUAL" +
+    // impedia o auto de subir o tubo quando a vazao mudava). DN manual (operador escolheu) e preservado.
+    const pipeWasAutoPicked = (env.solarPipe as any)?.result?.diametroAutoPicked === true;
     if (existingPipeInputs?.comprimentoM > 0) {
       try {
         await this.computeAndSavePipe(budgetId, companyId, {
           comprimentoM: Number(existingPipeInputs.comprimentoM),
           desnivelM: Number(existingPipeInputs.desnivelM) || 0,
           material: existingPipeInputs.material,
-          diametroMm: existingPipeInputs.diametroMm,
+          diametroMm: pipeWasAutoPicked ? undefined : existingPipeInputs.diametroMm,
           fatorSegurancaPct: existingPipeInputs.fatorSegurancaPct,
           joelho90Qty: existingPipeInputs.joelho90Qty,
           teQty: existingPipeInputs.teQty,
@@ -510,14 +515,18 @@ export class SolarBudgetService {
       ? tenantDefaults.availableDiametersMm
       : HARDCODED_DEFAULTS.availableDiametersMm;
 
-    // Se operador especificou diametro, usa direto. Senao, auto-pick: menor
-    // diametro com velocidade <= 2,5 m/s.
+    // Se operador especificou diametro, usa direto. Senao, auto-pick: menor diametro com
+    // velocidade <= alvo. v1.13.63: alvo do SOLAR baixado pra 1,5 m/s (era 2,5) — decisao do
+    // Juliano "mirar velocidade menor": com 2,5 o auto pegava o tubo MENOR (ex: 32mm a 1,94 m/s),
+    // que gera alta perda de carga -> nenhuma bomba do catalogo atende a pressao. Tubo maior
+    // (menor velocidade) = menos pressao = bomba aparece. Configuravel via pipeDefaults.solarMaxVelocidadeMs.
+    const solarMaxVel = Number(tenantDefaults.solarMaxVelocidadeMs) || 1.5;
     let diametroMm: number;
     let autoPickInfo: { diametroMm: number; velocidade: number; suficiente: boolean } | null = null;
     if (dto.diametroMm) {
       diametroMm = dto.diametroMm;
     } else {
-      autoPickInfo = this.pipeHeadLoss.pickOptimalDiameter(material, vazaoM3h, availableDiameters);
+      autoPickInfo = this.pipeHeadLoss.pickOptimalDiameter(material, vazaoM3h, availableDiameters, solarMaxVel);
       diametroMm = autoPickInfo.diametroMm;
     }
 

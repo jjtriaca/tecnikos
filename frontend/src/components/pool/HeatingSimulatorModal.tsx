@@ -1416,10 +1416,12 @@ function SolarTab({
     if (Number.isFinite(temperaturaInicial) && temperaturaInicial > 0) extras.temperaturaAguaInicial = temperaturaInicial;
     return extras;
   };
-  const handleSolarRecalcular = () => {
+  const handleSolarRecalcular = async () => {
     solarResetPendingRef.current = true;                     // candidates useEffect adota+persiste o melhor
     setBombaManuallySelected(false);
-    recomputePipe({ diametroMm: null });                     // tubo: DN auto-pick
+    // v1.13.63: AGUARDA o tubo voltar pro DN auto (persistir) ANTES de recomputar o relatorio —
+    // senao o recompute re-sincroniza o tubo lendo o DN manual antigo (corrida que deixava 32mm).
+    await recomputePipe({ diametroMm: null });               // tubo: DN auto-pick
     onRecompute(undefined, undefined, buildSolarExtras());   // recomputa o relatorio solar
   };
   // v1.13.61: auto-recalcular ao ABRIR a aba Solar (decisao Juliano: sempre refazer pro otimo).
