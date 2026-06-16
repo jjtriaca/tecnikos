@@ -354,6 +354,27 @@ export class PoolBudgetController {
     return { tarifaKwhBRLCents: cents };
   }
 
+  // ========== Defaults de tubulacao comprimento/desnivel (v1.13.64) ==========
+  // Storage: Company.systemConfig.pool.pipeDefaults. O card do Simulador inicia desses valores
+  // quando nao ha pipe salvo (antes hardcode 30/4). Operador grava pelo icone ao lado dos campos.
+  @ApiOperation({ summary: 'Le os defaults de comprimento/desnivel da tubulacao (solar + bomba de calor). v1.13.64.' })
+  @Get('pipe-dim-defaults')
+  async getPipeDimDefaults(@CurrentUser() user: AuthenticatedUser) {
+    return this.solarBudget.getPipeDimDefaults(user.companyId);
+  }
+
+  @ApiOperation({ summary: 'Salva o default de comprimento/desnivel da tubulacao por contexto (solar|trocador). v1.13.64.' })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post('pipe-dim-defaults')
+  async setPipeDimDefault(
+    @Body() body: { context?: string; comprimentoM: number; desnivelM: number },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const context = body?.context === 'trocador' ? 'trocador' : 'solar';
+    return this.solarBudget.setPipeDimDefault(user.companyId, context, body.comprimentoM, body.desnivelM);
+  }
+
   // ========== Demanda Termica Unificada (v1.12.84) ==========
   // Calculo central que retorna kWh/mes necessario (perdas) + oferta solar (coletores)
   // + horas/dia da bomba + consumo eletrico. Usa heating.service (Tabela78) por composicao.

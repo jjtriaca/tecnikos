@@ -1045,6 +1045,34 @@ function SolarTab({
   const [pipeDesnivel, setPipeDesnivel] = useState<number>(initPipeDesnivel);
   const [pipeResult, setPipeResult] = useState<any | null>(initPipeResult);
   const [pipeRecomputing, setPipeRecomputing] = useState(false);
+  // v1.13.64: default de comprimento/desnivel do tenant (configuravel, contexto 'solar'). Pre-
+  // preenche quando NAO ha tubo salvo (orcamento novo) e o operador nao mexeu. Salvo pelo icone 💾.
+  // So mexe no state — o recompute do tubo segue pelo auto-recalcular ao abrir / blur ja existentes.
+  const pipeDimTouchedRef = useRef(false);
+  const [savingPipeDefault, setSavingPipeDefault] = useState(false);
+  useEffect(() => {
+    if (pipeDimTouchedRef.current || Number(initPipe?.inputs?.comprimentoM) > 0) return;
+    let cancelled = false;
+    api.get<{ solarComprimentoM: number; solarDesnivelM: number }>(`/pool-budgets/pipe-dim-defaults`)
+      .then((r) => {
+        if (cancelled || pipeDimTouchedRef.current) return;
+        if (Number(r?.solarComprimentoM) > 0) setPipeComprimento(Number(r.solarComprimentoM));
+        if (Number.isFinite(Number(r?.solarDesnivelM))) setPipeDesnivel(Number(r.solarDesnivelM));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const saveSolarPipeDefault = async () => {
+    setSavingPipeDefault(true);
+    try {
+      await api.post(`/pool-budgets/pipe-dim-defaults`, { context: 'solar', comprimentoM: pipeComprimento, desnivelM: pipeDesnivel || 0 });
+    } catch (e: any) {
+      alert(`Erro ao salvar o padrao: ${e?.message ?? e}`);
+    } finally {
+      setSavingPipeDefault(false);
+    }
+  };
 
   // v1.13.29: recalcula a tubulacao no 1o acesso (defaults 30/4) pra nao mostrar "preencha"
   // com os campos ja preenchidos. !pipeResult evita re-rodar depois de ja ter calculado.
@@ -2059,7 +2087,7 @@ function SolarTab({
                           <input
                             type="number" step="0.5" min="0"
                             value={pipeComprimento || ""}
-                            onChange={(e) => setPipeComprimento(Number(e.target.value) || 0)}
+                            onChange={(e) => { pipeDimTouchedRef.current = true; setPipeComprimento(Number(e.target.value) || 0); }}
                             onBlur={() => recomputePipe({ comprimentoM: pipeComprimento })}
                             placeholder="30"
                             className="flex-1 min-w-0 rounded border border-slate-300 px-1.5 py-0.5 text-[12px] font-semibold focus:border-amber-500 focus:outline-none h-6"
@@ -2072,11 +2100,14 @@ function SolarTab({
                           <input
                             type="number" step="0.5" min="0"
                             value={pipeDesnivel || ""}
-                            onChange={(e) => setPipeDesnivel(Number(e.target.value) || 0)}
+                            onChange={(e) => { pipeDimTouchedRef.current = true; setPipeDesnivel(Number(e.target.value) || 0); }}
                             onBlur={() => recomputePipe({ desnivelM: pipeDesnivel })}
                             placeholder="4"
                             className="flex-1 min-w-0 rounded border border-slate-300 px-1.5 py-0.5 text-[12px] font-semibold focus:border-amber-500 focus:outline-none h-6"
                           />
+                          <button type="button" onClick={saveSolarPipeDefault} disabled={savingPipeDefault}
+                            title="Salvar este comprimento + desnível como padrão do tenant (orçamentos novos começam com estes valores)"
+                            className="text-[13px] leading-none px-1 text-slate-400 hover:text-amber-600 disabled:opacity-50">{savingPipeDefault ? "⏳" : "💾"}</button>
                         </div>
                       </div>
                       {/* v1.12.69: no print, mostra Comp+Desniv como texto simples (sem input) */}
@@ -3845,6 +3876,36 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
   const [selBombaQty, setSelBombaQty] = useState<number>(Math.max(1, Math.round(Number(initialBombaQty) || 1)));
   const [candLoading, setCandLoading] = useState(false);
 
+  // v1.13.64: default de comprimento/desnivel do tenant (configuravel). Pre-preenche os campos
+  // quando NAO ha tubo salvo (orcamento novo) e o operador nao mexeu. Salvo pelo icone 💾 ao lado
+  // dos campos (POST pipe-dim-defaults, contexto 'trocador'). O recompute do tubo segue pelo
+  // auto-recalcular/blur ja existentes.
+  const pipeDimTouchedRef = useRef(false);
+  const [savingPipeDefault, setSavingPipeDefault] = useState(false);
+  useEffect(() => {
+    if (pipeDimTouchedRef.current || Number(initialPipe?.inputs?.comprimentoM) > 0) return;
+    let cancelled = false;
+    api.get<{ trocadorComprimentoM: number; trocadorDesnivelM: number }>(`/pool-budgets/pipe-dim-defaults`)
+      .then((r) => {
+        if (cancelled || pipeDimTouchedRef.current) return;
+        if (Number(r?.trocadorComprimentoM) > 0) setComprimento(Number(r.trocadorComprimentoM));
+        if (Number.isFinite(Number(r?.trocadorDesnivelM))) setDesnivel(Number(r.trocadorDesnivelM));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const saveTrocadorPipeDefault = async () => {
+    setSavingPipeDefault(true);
+    try {
+      await api.post(`/pool-budgets/pipe-dim-defaults`, { context: 'trocador', comprimentoM: comprimento, desnivelM: desnivel || 0 });
+    } catch (e: any) {
+      alert(`Erro ao salvar o padrao: ${e?.message ?? e}`);
+    } finally {
+      setSavingPipeDefault(false);
+    }
+  };
+
   // Tarifa de energia (R$/kWh em centavos) — tenant global, MESMA do Solar (💡).
   const [tarifaKwhBRLCents, setTarifaKwhBRLCents] = useState<number>(95);
   const [showTarifaPopover, setShowTarifaPopover] = useState(false);
@@ -4069,8 +4130,8 @@ function TrocadorPumpPipeCard({ budgetId, sel, operatingHoursPerMonth, operating
           <div style={{ fontSize: 8.5, color: "#92400e", marginTop: 1, fontStyle: "italic" }}>{pipeBusy ? "Calculando…" : "Preencha comprimento + desnível para escolher o tubo."}</div>
         )}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 6, alignItems: "center", marginTop: 4 }}>
-          <span style={{ fontSize: 9, color: "#92400e", display: "inline-flex", alignItems: "center", gap: 3 }}><span style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".05em", color: "#a16207", fontWeight: 700 }}>Comp.</span><input className="ds-edit num" type="number" step="0.5" min={0} value={comprimento || ""} onChange={(e) => setComprimento(Number(e.target.value) || 0)} onBlur={() => recompute()} placeholder="30" style={{ width: 32, border: "1px solid #fcd34d", borderRadius: 3, background: "#fff", fontSize: 9, fontWeight: 700, color: "#78350f", padding: "0 2px", textAlign: "center", fontFamily: "inherit" }} /><b className="ds-print num" style={{ color: "#78350f" }}>{comprimento}</b> m</span>
-          <span style={{ fontSize: 9, color: "#92400e", display: "inline-flex", alignItems: "center", gap: 3 }}><span style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".05em", color: "#a16207", fontWeight: 700 }}>Desnív.</span><input className="ds-edit num" type="number" step="0.5" min={0} value={desnivel || ""} onChange={(e) => setDesnivel(Number(e.target.value) || 0)} onBlur={() => recompute()} placeholder="2" style={{ width: 32, border: "1px solid #fcd34d", borderRadius: 3, background: "#fff", fontSize: 9, fontWeight: 700, color: "#78350f", padding: "0 2px", textAlign: "center", fontFamily: "inherit" }} /><b className="ds-print num" style={{ color: "#78350f" }}>{desnivel}</b> m</span>
+          <span style={{ fontSize: 9, color: "#92400e", display: "inline-flex", alignItems: "center", gap: 3 }}><span style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".05em", color: "#a16207", fontWeight: 700 }}>Comp.</span><input className="ds-edit num" type="number" step="0.5" min={0} value={comprimento || ""} onChange={(e) => { pipeDimTouchedRef.current = true; setComprimento(Number(e.target.value) || 0); }} onBlur={() => recompute()} placeholder="30" style={{ width: 32, border: "1px solid #fcd34d", borderRadius: 3, background: "#fff", fontSize: 9, fontWeight: 700, color: "#78350f", padding: "0 2px", textAlign: "center", fontFamily: "inherit" }} /><b className="ds-print num" style={{ color: "#78350f" }}>{comprimento}</b> m</span>
+          <span style={{ fontSize: 9, color: "#92400e", display: "inline-flex", alignItems: "center", gap: 3 }}><span style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".05em", color: "#a16207", fontWeight: 700 }}>Desnív.</span><input className="ds-edit num" type="number" step="0.5" min={0} value={desnivel || ""} onChange={(e) => { pipeDimTouchedRef.current = true; setDesnivel(Number(e.target.value) || 0); }} onBlur={() => recompute()} placeholder="2" style={{ width: 32, border: "1px solid #fcd34d", borderRadius: 3, background: "#fff", fontSize: 9, fontWeight: 700, color: "#78350f", padding: "0 2px", textAlign: "center", fontFamily: "inherit" }} /><b className="ds-print num" style={{ color: "#78350f" }}>{desnivel}</b> m<button type="button" className="ds-edit" onClick={saveTrocadorPipeDefault} disabled={savingPipeDefault} title="Salvar este comprimento + desnível como padrão do tenant (orçamentos novos começam com estes valores)" style={{ fontSize: 11, background: "none", border: 0, cursor: "pointer", padding: "0 0 0 3px", lineHeight: 1 }}>{savingPipeDefault ? "⏳" : "💾"}</button></span>
           {pipeResult ? (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5, justifyContent: "flex-end" }}><b style={{ color: "#92400e", fontSize: 8, textTransform: "uppercase", letterSpacing: ".05em" }}>Tubo de {pipeResult.material ?? "PVC"}:</b><select className="ds-edit num" value={dnAtual} onChange={(e) => recompute(Number(e.target.value))} style={{ fontSize: 10.5, fontWeight: 700, color: "#78350f", border: "1px solid #fcd34d", borderRadius: 3, background: "#fff", padding: "0 2px", fontFamily: "inherit" }}>{dns.map((d) => <option key={d} value={d}>{d} mm DN</option>)}</select><b className="ds-print num" style={{ fontSize: 10.5, color: "#78350f" }}>{dnAtual} mm DN</b>{pipeResult.diametroAutoPicked ? <span style={{ fontSize: 8, textTransform: "uppercase", letterSpacing: ".05em", color: "#047857", background: "#d1fae5", padding: "1px 5px", borderRadius: 3, fontWeight: 700 }}>auto</span> : <button type="button" className="ds-edit" onClick={() => recompute(null)} style={{ fontSize: 9, textDecoration: "underline", color: "#64748b", background: "none", border: 0, cursor: "pointer" }}>↺ auto</button>}</span>
           ) : <span />}

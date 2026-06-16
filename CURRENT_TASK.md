@@ -1,5 +1,12 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.13.64 (16/06) — Comprimento/desnível da tubulação viraram DEFAULT CONFIGURÁVEL (ícone 💾, Solar + Bomba de Calor)
+## - **Pedido (Juliano):** comp/desnível estavam com default hardcode (30/4) no Solar e na Bomba de Calor — botar um ícone pro operador gravar o default (depois das setinhas).
+## - **Backend:** `solar-budget.service.getPipeDimDefaults` / `setPipeDimDefault(context)` (storage `Company.systemConfig.pool.pipeDefaults.{solar,trocador}{ComprimentoM,DesnivelM}`, fallback 30/4) + endpoints `GET/POST /pool-budgets/pipe-dim-defaults`.
+## - **Frontend (os 2 cards):** ao abrir um orçamento NOVO (sem tubo salvo) e o operador não ter mexido, busca o default do tenant e pré-preenche comp/desnível. Ícone **💾** ao lado dos campos salva o comp/desnível atual como padrão do contexto (solar/trocador). `pipeDimTouchedRef` evita sobrescrever edição do operador. Só mexe no state — recompute do tubo segue pelo auto-recalcular/blur (decisão de baixo risco; pode haver mismatch breve input×tubo no 1º open, corrige no próximo recompute).
+## - Backend+frontend tsc EXIT 0. Sem migration. Orçamento com tubo salvo = preservado (não pré-preenche).
+## - 🔜 **Resta (A, documentado p/ próxima sessão):** gatilho "ao salvar o orçamento" redimensiona a recirc no backend (`recalculateTotals`) — porte grande/sensível da seleção por ponto-de-operação. Mitigação atual: abrir o Aquecimento já redimensiona.
+
 ## ✅ DEPLOYED v1.13.63 (16/06) — Solar: tubo auto não fica subdimensionado (mira velocidade menor) + não vira MANUAL no recompute
 ## - **Pedido (Juliano, testando ORCP-00001):** ao abrir o Solar, o tubo ficou 32mm MANUAL subdimensionado e nenhuma bomba foi escolhida (pressão 15.59 mca alta demais p/ catálogo). Decisão: "mirar velocidade menor".
 ## - **B1 — velocidade-alvo do tubo Solar baixada pra 1,5 m/s** (era 2,5; `solar-budget.service.computeAndSavePipe` passa `solarMaxVel` ao `pickOptimalDiameter`; configurável `pipeDefaults.solarMaxVelocidadeMs`). A 2,5 o auto pegava o MENOR tubo (32mm/1,94 m/s) → muita perda de carga → sem bomba. A 1,5 escolhe ~40mm → menos pressão → bomba aparece.

@@ -1060,6 +1060,41 @@ export class SolarBudgetService {
     return Math.round(valueCents);
   }
 
+  // ============ Defaults de tubulacao (comprimento/desnivel) — v1.13.64 ============
+  // Storage: Company.systemConfig.pool.pipeDefaults.{solar,trocador}{ComprimentoM,DesnivelM}.
+  // O card do Simulador inicia desses valores quando NAO ha pipe salvo no orcamento (antes era
+  // hardcode 30/4). O operador grava o default pelo icone ao lado dos campos. Por contexto:
+  // 'solar' (telhado) e 'trocador' (bomba de calor) tem realidades diferentes.
+  async getPipeDimDefaults(companyId: string): Promise<{ solarComprimentoM: number; solarDesnivelM: number; trocadorComprimentoM: number; trocadorDesnivelM: number }> {
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { systemConfig: true } });
+    const pd = ((company?.systemConfig as any)?.pool?.pipeDefaults ?? {}) as Record<string, any>;
+    const num = (v: any, d: number) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : d; };
+    const numZ = (v: any, d: number) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : d; };
+    return {
+      solarComprimentoM: num(pd.solarComprimentoM, 30),
+      solarDesnivelM: numZ(pd.solarDesnivelM, 4),
+      trocadorComprimentoM: num(pd.trocadorComprimentoM, 30),
+      trocadorDesnivelM: numZ(pd.trocadorDesnivelM, 4),
+    };
+  }
+
+  async setPipeDimDefault(companyId: string, context: 'solar' | 'trocador', comprimentoM: number, desnivelM: number) {
+    const comp = Number(comprimentoM);
+    const desn = Number(desnivelM);
+    if (!Number.isFinite(comp) || comp <= 0 || comp > 1000) throw new BadRequestException('Comprimento invalido (1 a 1000 m).');
+    if (!Number.isFinite(desn) || desn < 0 || desn > 200) throw new BadRequestException('Desnivel invalido (0 a 200 m).');
+    const company = await this.prisma.company.findUnique({ where: { id: companyId }, select: { systemConfig: true } });
+    const systemConfig = (company?.systemConfig ?? {}) as Record<string, any>;
+    const pool = (systemConfig.pool ?? {}) as Record<string, any>;
+    const pd = (pool.pipeDefaults ?? {}) as Record<string, any>;
+    if (context === 'trocador') { pd.trocadorComprimentoM = comp; pd.trocadorDesnivelM = desn; }
+    else { pd.solarComprimentoM = comp; pd.solarDesnivelM = desn; }
+    pool.pipeDefaults = pd;
+    systemConfig.pool = pool;
+    await this.prisma.company.update({ where: { id: companyId }, data: { systemConfig: systemConfig as any } });
+    return this.getPipeDimDefaults(companyId);
+  }
+
   // ============ CRUD de Regras Solares (v1.12.63) ============
   //
   // Storage: Company.systemConfig.pool.solarRules: SolarRuleConfig[].
