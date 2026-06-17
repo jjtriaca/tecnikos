@@ -304,6 +304,7 @@
 - 🟡 Auditoria de responsividade MOBILE de TODO o sistema (regra ja no CLAUDE.md "Responsividade / Mobile"; spawn task criado).
 
 ## Outros pendentes (menores)
+- Conciliação: opção CONFIGURÁVEL de BLOQUEAR a conciliação de um lançamento de ENTRADA (receita) que não tenha nota fiscal emitida — força emitir a NF antes de conciliar.
 - Central de Avisos: levar pra outros cadastros + expandir regras de faixa por campo.
 - ✅ Conferido: 6 Tholz X23 vs datasheet (kcal/COP/vazao OK). Pendente ainda: remover painel debug violeta (aguardando Solis 7+ baterias); preencher 3 nao-Tholz vazias.
 - Roadmap: vazao min/max -> bomba de circulacao por curva; defaults de tubulacao configuraveis.
