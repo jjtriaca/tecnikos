@@ -1,5 +1,9 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.13.76 (18/06) — Linha de SERVIÇO mostra "Sem Serviço" (era "Sem Produto"). Sessão: [memory/sessao_221_summary.md]
+## - **Pedido (Juliano):** linha `kind=SERVICE` sem item vinculado mostrava "Sem Produto" — deve ser "Sem Serviço" (exibição + opção no picker).
+## - **Fix (frontend [quotes/pool/[id]/page.tsx], 7 pontos):** (1) exibição da descrição traduz `kind==='SERVICE' && description==='Sem Produto'` → "Sem Serviço" (cobre linhas ANTIGAS já salvas, sem refazer); (2) onPick cenário A grava `description='Sem Serviço'` (+ setDesc) pra serviço; (3) botão do picker (`CatalogPickModal`, já recebe `currentKind`) → texto "🚫 Sem Serviço" + onClick passa `__NONE__` (não vincula o Product "Sem Produto" numa linha de serviço) + title/subtexto. Backend só tinha "Sem Produto" em comentário (não força). tsc EXIT 0. Sem migration. Health prod 1.13.76 ✓.
+
 ## ✅ DEPLOYED v1.13.75 (18/06) — Qty da fórmula arredondada a 2 casas (some o lixo de float)
 ## - **Bug (Juliano):** linha com fórmula (areaParedeEFundo/areaParede) mostrava qty com lixo de ponto flutuante (ex: 85.59100000000001 em vez de 85.59). Quer 2 casas padrão pra TODAS as linhas, inclusive novas.
 ## - **Fix (backend [formula-eval.ts]):** `evaluateFormula` arredonda o retorno a 2 casas (`Math.round(r*100)/100`) — é a FONTE de todos os cálculos de qty (updateItem, addItem, recalculateTotals) → cobre linhas existentes (no recalc) E novas.
