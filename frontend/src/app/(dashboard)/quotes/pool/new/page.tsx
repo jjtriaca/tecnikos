@@ -201,9 +201,8 @@ export default function NewPoolBudgetPage() {
       setLayouts(l.data || []);
       // Em modo edit, defaults nao sao auto-aplicados (preserva o que ja foi salvo)
       if (!isEditMode) {
-        const dt = t.data?.find((x: Template) => x.isDefault);
+        // Template NAO auto-seleciona mais o padrao — operador escolhe conscientemente (obrigatorio).
         const dl = l.data?.find((x: Layout) => x.isDefault);
-        if (dt) setForm((f) => ({ ...f, templateId: dt.id }));
         if (dl) setForm((f) => ({ ...f, printLayoutId: dl.id }));
       }
     });
@@ -349,6 +348,10 @@ export default function NewPoolBudgetPage() {
     e.preventDefault();
     if (!form.clientPartnerId || !form.title) {
       toast("Cliente e titulo sao obrigatorios", "error");
+      return;
+    }
+    if (!form.templateId) {
+      toast("Selecione um modelo (template) — campo obrigatorio", "error");
       return;
     }
     if (avisos.some((a) => a.nivel === "erro") && !confirm("⚠ A pagina tem ERROS (veja a Central de avisos no topo) — os calculos vao ficar ERRADOS. Tem certeza que quer salvar assim mesmo?")) {
@@ -514,13 +517,13 @@ export default function NewPoolBudgetPage() {
               </p>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Template (opcional)</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Template <span className="text-red-500">*</span></label>
               <select
                 value={form.templateId}
                 onChange={(e) => setForm({ ...form, templateId: e.target.value })}
                 className={inputClass}
               >
-                <option value="">Sem template (items manuais)</option>
+                <option value="" disabled>Selecione um modelo...</option>
                 {templates.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name} {t.isDefault ? "(padrao)" : ""}
