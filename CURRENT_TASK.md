@@ -1,5 +1,11 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.13.75 (18/06) — Qty da fórmula arredondada a 2 casas (some o lixo de float)
+## - **Bug (Juliano):** linha com fórmula (areaParedeEFundo/areaParede) mostrava qty com lixo de ponto flutuante (ex: 85.59100000000001 em vez de 85.59). Quer 2 casas padrão pra TODAS as linhas, inclusive novas.
+## - **Fix (backend [formula-eval.ts]):** `evaluateFormula` arredonda o retorno a 2 casas (`Math.round(r*100)/100`) — é a FONTE de todos os cálculos de qty (updateItem, addItem, recalculateTotals) → cobre linhas existentes (no recalc) E novas.
+## - **Fix (frontend [quotes/pool/[id]/page.tsx]):** helper `fmtQty` (arredonda 2 casas + remove zeros) na exibição da qty das linhas (locked + editável) → limpa até valores ANTIGOS já salvos com lixo, sem refazer; + preview do FormulaModal `toFixed(4)`→`toFixed(2)`.
+## - 🟡 Totais de linhas com fórmula podem ajustar centavos (qty agora 2 casas exatas). Backend+frontend tsc EXIT 0. Sem migration. Health prod 1.13.75 ✓.
+
 ## ✅ DEPLOYED v1.13.74 (18/06) — Template do orçamento: sem default automático + OBRIGATÓRIO
 ## - **Pedido (Juliano):** "Template (opcional)" vinha com o padrão (Piscina Pré moldada) pré-selecionado → operador podia criar orçamento com modelo errado sem perceber. Tirar o default + tornar obrigatório (em branco mas obrigatório).
 ## - **Fix (frontend [quotes/pool/new/page.tsx]):** (1) removido o auto-select do `isDefault` no Template (printLayout segue auto-selecionando "Padrao"); (2) label "Template (opcional)" → "Template *"; (3) placeholder "Sem template (items manuais)" → "Selecione um modelo..." (option disabled); (4) validação no `handleSubmit` bloqueia salvar sem `templateId` (vale criação E edição). Consequências avisadas + Juliano OK: não dá mais pra criar do zero (sem modelo); editar orçamento antigo sem modelo pede escolher um (não-destrutivo, só vincula a etiqueta, NÃO re-aplica linhas). tsc EXIT 0. Sem migration. Health prod 1.13.74 ✓.
