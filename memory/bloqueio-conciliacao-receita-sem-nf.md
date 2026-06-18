@@ -23,9 +23,10 @@ Impedir que uma RECEITA (RECEIVABLE) seja **conciliada/recebida sem NFS-e autori
 ## Schema / multi-tenant
 - `FinancialAccount.requiresNfse Boolean @default(false)`. Migration `20260617120000_financial_account_requires_nfse` (ADD COLUMN IF NOT EXISTS). Também no `prisma.service.ensureFinancialAccountTable` (CREATE + ALTER, self-healing do public). **TenantMigrator é genérico** (lê colunas do public e faz ADD COLUMN IF NOT EXISTS nos tenants) → propaga sozinho. ✓ Verificado em prod: coluna em `public` E `tenant_sls`.
 
-## Pra ATIVAR no SLS
-1. Plano de Contas → marcar "Exige NFS-e" nos planos de serviço (ex: *Receita de Serviços*).
-2. Configurações → Fiscal → "Receber/conciliar sem NFS-e" = **Bloquear**.
+## Ativação no SLS (FEITO 18/06/2026)
+- `receiveWithoutNfse` = **BLOCK** (já estava).
+- **Receita de Serviços (cód. 1100) marcada `requiresNfse=true`** via SQL na prod (tenant_sls). Só ela — Produtos (1200), Juros (7100), Ajuste (1301), Descontos (1300), Entrada Sócios (1400) ficam LIVRES.
+- Efeito: conciliar/receber receita de SERVIÇO sem NFS-e autorizada agora **BLOQUEIA**. Pra incluir outro plano (ex: Receita de Produtos) ou abrandar pra Avisar → UI (Finanças → Plano de Contas / Configurações → Fiscal).
 
 ## Gaps conhecidos
 - Conciliação só-installment (`dto.installmentId` sem `entryId`) não passa pelo guard (nicho).
