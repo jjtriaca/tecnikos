@@ -19,6 +19,7 @@ interface FinanceAccount {
   isSystem: boolean;
   isActive: boolean;
   sortOrder: number;
+  requiresNfse?: boolean;
   parentId: string | null;
   children: FinanceAccount[];
   _count?: { entries: number };
@@ -30,6 +31,7 @@ interface AccountFormData {
   type: AccountType;
   parentId: string | null;
   sortOrder: string;
+  requiresNfse: boolean;
 }
 
 const EMPTY_FORM: AccountFormData = {
@@ -38,6 +40,7 @@ const EMPTY_FORM: AccountFormData = {
   type: "EXPENSE",
   parentId: null,
   sortOrder: "0",
+  requiresNfse: false,
 };
 
 /* ── Type color map ───────────────────────────────────── */
@@ -194,6 +197,7 @@ export default function AccountsTab() {
       type: account.type,
       parentId: account.parentId,
       sortOrder: String(account.sortOrder),
+      requiresNfse: account.requiresNfse ?? false,
     });
     setShowForm(true);
   }
@@ -223,6 +227,7 @@ export default function AccountsTab() {
           name: formData.name.trim(),
           isActive: editingAccount.isActive,
           sortOrder: parseInt(formData.sortOrder, 10) || 0,
+          requiresNfse: formData.requiresNfse,
         });
         toast("Conta atualizada!", "success");
       } else {
@@ -231,6 +236,7 @@ export default function AccountsTab() {
           name: formData.name.trim(),
           type: formData.type,
           sortOrder: parseInt(formData.sortOrder, 10) || 0,
+          requiresNfse: formData.requiresNfse,
         };
         if (formData.parentId) {
           payload.parentId = formData.parentId;
@@ -476,6 +482,25 @@ export default function AccountsTab() {
                 />
               </div>
             </div>
+
+            {/* Exige NFS-e — opt-in por plano de contas (so receita) pra trava de receber/conciliar sem NF */}
+            {formData.type === "REVENUE" && (
+              <label className="mt-4 flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.requiresNfse}
+                  onChange={(e) => setFormData({ ...formData, requiresNfse: e.target.checked })}
+                  className="mt-0.5 rounded border-slate-300"
+                />
+                <span className="text-sm text-slate-700">
+                  Exige NFS-e
+                  <span className="block text-xs text-slate-500">
+                    Receita neste plano so pode ser recebida/conciliada com NFS-e autorizada (conforme
+                    Configuracoes &rarr; Fiscal). Deixe desmarcado para juros, reembolsos e receitas financeiras.
+                  </span>
+                </span>
+              </label>
+            )}
 
             {/* Actions */}
             <div className="flex justify-end gap-2 mt-6">

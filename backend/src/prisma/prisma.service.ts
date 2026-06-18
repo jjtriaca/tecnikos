@@ -559,6 +559,7 @@ export class PrismaService
           "isSystem" BOOLEAN NOT NULL DEFAULT false,
           "isActive" BOOLEAN NOT NULL DEFAULT true,
           "sortOrder" INTEGER NOT NULL DEFAULT 0,
+          "requiresNfse" BOOLEAN NOT NULL DEFAULT false,
           "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           "deletedAt" TIMESTAMP(3),
@@ -568,6 +569,8 @@ export class PrismaService
       await this.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "FinancialAccount_companyId_code_key" ON "FinancialAccount"("companyId", "code")`);
       await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "FinancialAccount_companyId_parentId_idx" ON "FinancialAccount"("companyId", "parentId")`);
       await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "FinancialAccount_companyId_type_idx" ON "FinancialAccount"("companyId", "type")`);
+      // requiresNfse: coluna pode faltar em tabela ja criada (self-healing pro schema public).
+      await this.$executeRawUnsafe(`ALTER TABLE "FinancialAccount" ADD COLUMN IF NOT EXISTS "requiresNfse" BOOLEAN NOT NULL DEFAULT false`);
       // Add financialAccountId column to FinancialEntry if missing
       await this.$executeRawUnsafe(`ALTER TABLE "FinancialEntry" ADD COLUMN IF NOT EXISTS "financialAccountId" TEXT`);
       await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "FinancialEntry_financialAccountId_idx" ON "FinancialEntry"("financialAccountId")`);

@@ -17,6 +17,10 @@ export class CreateFinancialAccountDto {
   @IsOptional()
   @IsInt()
   sortOrder?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  requiresNfse?: boolean;
 }
 
 export class UpdateFinancialAccountDto {
@@ -31,4 +35,8 @@ export class UpdateFinancialAccountDto {
   @IsOptional()
   @IsInt()
   sortOrder?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  requiresNfse?: boolean;
 }

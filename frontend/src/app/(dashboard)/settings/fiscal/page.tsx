@@ -1187,7 +1187,7 @@ export default function FiscalSettingsPage() {
           </label>
 
           <div>
-            <label className={labelClass}>Recebimento sem NFS-e emitida</label>
+            <label className={labelClass}>Recebimento / conciliação sem NFS-e emitida</label>
             <select
               value={config.receiveWithoutNfse}
               onChange={(e) => setConfig({ ...config, receiveWithoutNfse: e.target.value })}
@@ -1198,7 +1198,9 @@ export default function FiscalSettingsPage() {
               ))}
             </select>
             <p className="text-xs text-slate-600 mt-1">
-              Controla o que acontece ao tentar dar baixa em uma conta a receber sem nota fiscal emitida
+              Controla o que acontece ao dar baixa OU conciliar uma conta a receber sem NFS-e emitida.
+              Vale só para receitas em planos de contas marcados "Exige NFS-e" (juros e receitas
+              financeiras ficam livres). Avisar pede confirmação, Bloquear impede até emitir a nota, Ignorar libera.
             </p>
           </div>
         </div>

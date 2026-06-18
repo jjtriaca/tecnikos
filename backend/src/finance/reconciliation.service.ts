@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  forwardRef,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -12,6 +14,7 @@ import { CodeGeneratorService } from '../common/code-generator.service';
 import { breakInTenantTz, endOfTenantDay } from '../common/util/tenant-date.util';
 import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
 import { ClosedMonthGuardService } from './closed-month-guard.service';
+import { NfseEmissionService } from '../nfse-emission/nfse-emission.service';
 
 /**
  * Detecta paymentMethod pela descricao da linha do extrato bancario.
@@ -43,6 +46,8 @@ export class ReconciliationService {
     private readonly csvParser: CsvParserService,
     private readonly codeGenerator: CodeGeneratorService,
     private readonly closedMonthGuard: ClosedMonthGuardService,
+    @Inject(forwardRef(() => NfseEmissionService))
+    private readonly nfseService: NfseEmissionService,
   ) {}
 
   /**
@@ -665,6 +670,25 @@ export class ReconciliationService {
   }
 
   /**
+   * Politica "Receber sem NFS-e" (Configuracoes > Fiscal) aplicada na CONCILIACAO.
+   * Conciliar uma receita = confirmar o recebimento contra o banco — mesma intencao do
+   * "receber sem NFS-e". Reusa checkNfseBeforePayment (so RECEIVABLE; herda a NF do
+   * lancamento-pai em renegociacao; devolve IGNORE quando o tenant nao tem modulo fiscal).
+   * BLOCK + sem NFS-e autorizada => bloqueia a conciliacao. WARN/IGNORE => deixa passar
+   * (o WARN vira confirmacao no front, espelhando o fluxo de recebimento). Enforcement no
+   * backend cobre tambem a conciliacao automatica (tryAutoReconciliation chama matchLine).
+   */
+  private async assertNfseForReconcile(companyId: string, entryId: string) {
+    const check = await this.nfseService.checkNfseBeforePayment(companyId, entryId);
+    if (check.requiresNfse && check.behavior === 'BLOCK') {
+      throw new BadRequestException(
+        'Conciliação bloqueada: este recebimento não tem NFS-e autorizada. ' +
+        'Emita a nota fiscal antes de conciliar (Configurações → Fiscal: "Receber sem NFS-e" = Bloquear).',
+      );
+    }
+  }
+
+  /**
    * Match a statement line to an entry or installment.
    * Se a entry estiver PENDING, e marcada automaticamente como PAID (consistencia com extrato bancario
    * — se o valor saiu do banco, a conta foi paga). Flag entry.autoMarkedPaid permite reverter no unmatch.
@@ -748,6 +772,12 @@ export class ReconciliationService {
           'Desfaça aquela conciliação primeiro.',
         );
       }
+    }
+
+    // NF guard: conciliar uma receita (RECEIVABLE, nao tecnica) segue a politica
+    // "Receber sem NFS-e". Estorno (isRefundEntry) e isento; installment-only nao passa aqui.
+    if (dto.entryId && entryBefore?.type === 'RECEIVABLE' && !entryBefore.isRefundEntry) {
+      await this.assertNfseForReconcile(companyId, dto.entryId);
     }
 
     // Protecao: installment ja conciliada com outra linha
@@ -1683,6 +1713,18 @@ export class ReconciliationService {
         `Lançamento ${conflictingMatch.matchedEntryId} já conciliado com outra linha ` +
         `(${dateStr} — ${conflictingMatch.description}). Remova da seleção ou desfaça.`,
       );
+    }
+
+    // NF guard: so quando a linha e credito (expectedType RECEIVABLE = receita entrando).
+    // Cada receita (nao estorno) do grupo segue a politica "Receber sem NFS-e". No cenario
+    // misto com linha de debito (expectedType PAYABLE) os RECEIVABLE sao ajustes/creditos,
+    // nao receita de venda — por isso nao entram nesta trava.
+    if (expectedType === 'RECEIVABLE') {
+      for (const e of entries) {
+        if (e.type === 'RECEIVABLE' && !e.isRefundEntry) {
+          await this.assertNfseForReconcile(companyId, e.id);
+        }
+      }
     }
 
     // v1.10.07: aceita mistura RECEIVABLE+PAYABLE (cenario operadora cartao com taxa+aluguel descontados)

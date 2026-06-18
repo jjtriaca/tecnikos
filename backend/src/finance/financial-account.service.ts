@@ -171,6 +171,7 @@ export class FinancialAccountService {
         level,
         allowPosting: level === 2, // Only subgroups allow posting
         sortOrder: dto.sortOrder || 0,
+        requiresNfse: dto.requiresNfse ?? false,
       }),
     });
   }
@@ -185,6 +186,7 @@ export class FinancialAccountService {
     if (dto.name !== undefined) data.name = dto.name;
     if (dto.isActive !== undefined) data.isActive = dto.isActive;
     if (dto.sortOrder !== undefined) data.sortOrder = dto.sortOrder;
+    if (dto.requiresNfse !== undefined) data.requiresNfse = dto.requiresNfse;
 
     return this.prisma.financialAccount.update({ where: { id }, data: withUpdate(data) });
   }

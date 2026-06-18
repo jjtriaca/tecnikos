@@ -1647,6 +1647,21 @@ export class NfseEmissionService {
     // Only check for RECEIVABLE entries
     if (entry.type !== 'RECEIVABLE') return { requiresNfse: false, behavior: 'IGNORE', nfseStatus: entry.nfseStatus };
 
+    // Opt-in por plano de contas: so exige NF se a conta do lancamento estiver marcada como
+    // "Exige NFS-e". Sem plano, ou plano nao marcado => nao exige (juros, reembolso, receita
+    // financeira ficam livres). Mesma checagem vale pra RECEBER e pra CONCILIAR.
+    let accountRequiresNfse = false;
+    if (entry.financialAccountId) {
+      const acc = await this.prisma.financialAccount.findFirst({
+        where: { id: entry.financialAccountId, companyId },
+        select: { requiresNfse: true },
+      });
+      accountRequiresNfse = acc?.requiresNfse === true;
+    }
+    if (!accountRequiresNfse) {
+      return { requiresNfse: false, behavior: config.receiveWithoutNfse, nfseStatus: entry.nfseStatus };
+    }
+
     // Check if this entry OR its parent (renegotiation source) has NFS-e authorized
     let effectiveNfseStatus = entry.nfseStatus;
     if (effectiveNfseStatus !== 'AUTHORIZED' && entry.parentEntryId) {

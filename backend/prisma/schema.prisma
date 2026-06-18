@@ -2177,6 +2177,11 @@ model FinancialAccount {
   isActive     Boolean @default(true)
   sortOrder    Int     @default(0)
 
+  // v1.13.x — exige NFS-e autorizada pra RECEBER/CONCILIAR lancamentos deste plano de contas.
+  // Opt-in por conta: so receita num plano marcado avisa/bloqueia sem NF (regra receiveWithoutNfse).
+  // Juros, reembolso, receita financeira ficam livres (conta nao marcada).
+  requiresNfse Boolean @default(false)
+
   // Tracking universal (v1.10.87+) — quem criou/alterou/excluiu
   createdByUserId String?
   createdByName   String?

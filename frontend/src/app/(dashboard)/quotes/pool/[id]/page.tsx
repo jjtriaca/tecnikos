@@ -458,10 +458,11 @@ export default function PoolBudgetDetailPage() {
   }
 
   async function handleDeleteSection(key: string) {
-    // Move items dessa etapa pra OUTROS (se houver).
+    // Exclui PERMANENTEMENTE as linhas dessa etapa (antes movia pra OUTROS — mudanca pedida pelo usuario).
+    // persistSections() ao final recarrega o orcamento (totais + lista ja sem as linhas).
     const itemsInSection = (budget?.items ?? []).filter((it) => it.poolSection === key);
     for (const it of itemsInSection) {
-      try { await api.put(`/pool-budgets/items/${it.id}`, { poolSection: "OUTROS" }); } catch { /* segue */ }
+      try { await api.del(`/pool-budgets/items/${it.id}`); } catch { /* segue */ }
     }
     // Esconde a etapa e remove da ordem
     const hidden = Array.from(hiddenSections);
@@ -471,7 +472,7 @@ export default function PoolBudgetDetailPage() {
     await persistSections({ hidden, order: nextOrder });
     setExtraSections((prev) => prev.filter((k) => k !== key));
     setDeleteSectionConfirm(null);
-    toast(itemsInSection.length > 0 ? `Etapa excluida. ${itemsInSection.length} item(s) movido(s) pra Outros.` : "Etapa excluida.", "success");
+    toast(itemsInSection.length > 0 ? `Etapa excluida. ${itemsInSection.length} linha(s) excluida(s) permanentemente.` : "Etapa excluida.", "success");
   }
 
   const load = useCallback(async () => {
@@ -1380,7 +1381,7 @@ export default function PoolBudgetDetailPage() {
             <h3 className="text-base font-bold text-slate-900 mb-2">Excluir etapa "{secLabel(deleteSectionConfirm.key)}"?</h3>
             <p className="text-sm text-slate-700 mb-4">
               {deleteSectionConfirm.count > 0
-                ? `Esta etapa tem ${deleteSectionConfirm.count} linha(s). Eles serao movidos pra etapa "Outros" — voce pode reclassificar depois.`
+                ? `Esta etapa tem ${deleteSectionConfirm.count} linha(s). Elas serao EXCLUIDAS PERMANENTEMENTE — esta acao nao pode ser desfeita.`
                 : `Esta etapa nao tem linhas. Sera removida da lista.`}
             </p>
             <div className="flex items-center justify-end gap-2">

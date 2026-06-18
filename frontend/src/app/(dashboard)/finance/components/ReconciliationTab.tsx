@@ -1029,6 +1029,26 @@ function ConciliationModal({
       return;
     }
 
+    // NF guard: conciliar uma receita (linha de credito) segue a politica "Receber sem NFS-e"
+    // (Configuracoes > Fiscal). Espelha o fluxo de recebimento: BLOCK trava, WARN confirma.
+    // O endpoint devolve IGNORE quando nao ha modulo fiscal, entao so chama em linha de credito.
+    if (line.amountCents >= 0 && entry?.nfseStatus !== "AUTHORIZED") {
+      try {
+        const check = await api.get<{ requiresNfse: boolean; behavior: string }>(
+          `/nfse-emission/check-payment/${entryId}`,
+        );
+        if (check.requiresNfse && check.behavior === "BLOCK") {
+          toast("NFS-e obrigatoria: emita a nota deste recebimento antes de conciliar.", "error");
+          return;
+        }
+        if (check.requiresNfse && check.behavior === "WARN") {
+          if (!confirm("Este recebimento ainda nao tem NFS-e autorizada. Conciliar mesmo assim?")) return;
+        }
+      } catch {
+        /* sem config fiscal ou erro de checagem: segue (o backend ainda barra se for BLOCK) */
+      }
+    }
+
     // Auto-deteccao de diferenca:
     // - Nao-cartao: diff > 0 → juros/multa; diff < 0 → descontos
     // - Cartão: divergencia da taxa implicita > taxa configurada + 5pp → descontos
@@ -1127,7 +1147,7 @@ function ConciliationModal({
       toast(wasPending ? "Conciliado e marcado como PAGO!" : "Conciliado com sucesso!", "success");
       onMatched();
     } catch (err: any) {
-      toast(err?.response?.data?.message || "Erro ao conciliar.", "error");
+      toast(err?.response?.data?.message || err?.message || "Erro ao conciliar.", "error");
     } finally {
       setMatching(null);
     }
