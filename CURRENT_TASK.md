@@ -1,5 +1,14 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.13.69 (17/06) — Bloquear conciliação de receita sem NF (configurável, por plano de contas) + excluir etapa apaga as linhas. Doc: [memory/bloqueio-conciliacao-receita-sem-nf.md]
+## - **Pedido (Juliano):** opção CONFIGURÁVEL de bloquear a conciliação de uma receita (RECEIVABLE) sem NFS-e emitida. Dúvida do juros (receita não-serviço): resolvida com **trava por plano de contas** (opt-in).
+## - **REUSA o padrão existente (REGRA #9):** `NfseConfig.receiveWithoutNfse` (Avisar/Bloquear/Ignorar, já em Config→Fiscal) + helper `checkNfseBeforePayment`. NÃO inventei flag nova. Vale igual pra RECEBER e CONCILIAR.
+## - **Opt-in por plano de contas:** campo novo `FinancialAccount.requiresNfse` (migration `20260617120000`, default false; ✓ propagou pra public+tenant_sls). Checkbox "Exige NFS-e" no cadastro do plano (AccountsTab, só tipo REVENUE). `checkNfseBeforePayment` só exige NF se a conta do lançamento estiver marcada → juros/reembolso/receita financeira ficam LIVRES. Mudou também o guard de RECEBER (agora só conta marcada).
+## - **Enforcement BACKEND na conciliação** (`reconciliation.service`): `assertNfseForReconcile` em `matchLine` (cobre conciliação manual única + automática, que chama matchLine) e `matchAsMultiple` (só `expectedType=RECEIVABLE`). BLOCK = `BadRequestException`. Isenta estorno (`isRefundEntry`), crédito/ajuste de fatura de cartão (matchAsCardInvoice intocado) e transferência. Injeta `NfseEmissionService` via `@Inject(forwardRef)` (FinanceModule já importa NfseEmissionModule). Front: pré-check WARN/BLOCK no `handleMatch` do ReconciliationTab + fix do catch L1130 (engolia a msg do backend, bug v1.13.33).
+## - **🟡 Pra ATIVAR no SLS:** (1) marcar "Exige NFS-e" nos planos de serviço (ex: Receita de Serviços); (2) Config→Fiscal: "Receber/conciliar sem NFS-e" = Bloquear. Sem isso, NADA muda (default desmarcado). 🟡 Trava no botão "Receber" segue só no front (não ampliei escopo); conciliação é backend. 🟡 Conciliação só-installment (sem entryId) não passa pelo guard (nicho).
+## - **Excluir etapa (módulo Piscina, [quotes/pool/[id]/page.tsx]):** `handleDeleteSection` MOVIA as linhas pra OUTROS de propósito → agora **apaga permanentemente** (`api.del` por linha; `persistSections` recarrega). Aviso virou "X linha(s) serão EXCLUÍDAS PERMANENTEMENTE — não pode ser desfeita". Excluir LINHA individual já apagava de verdade (não mexido). Era a causa das linhas borda/abastecimento/automação aparecendo no OUTROS do ORCP-00004.
+## - Backend tsc + frontend tsc + next build EXIT 0. Prisma client regenerado. Health prod 1.13.69 ✓.
+
 ## ✅ DEPLOYED v1.13.68 (16/06) — Solar: CAUSA REAL da bomba não aparecer = maxParalelo derrubava o TETO da regra
 ## - **v1.13.67 NÃO resolveu** (continuou vazio) — meu diagnóstico de altura estava incompleto. Causa real descoberta no banco + interpolação na mão.
 ## - **Causa raiz:** `listBombaCandidatesByFlow` dividia a vazão-alvo por `maxParalelo` (=6, recurso "N bombas em paralelo" v1.13.55/56) e usava o resultado como `vazaoSolarM3h` na regra. A regra do **Solar** TEM teto (`vazaoM3h <= vazaoSolarM3h*1.5`): com alvo/6, a janela aceitável virava **[0,40–0,85] m³/h** (alvo 3.39) → REJEITAVA toda bomba real (4–5 m³/h) → lista vazia. A da **Bomba de Calor** só tem piso (`>= vazaoSolarM3h`) → dividir só AMPLIA a lista → nunca quebrou. Regressão entrou no v1.13.56 (paralelo no solar).
@@ -304,7 +313,6 @@
 - 🟡 Auditoria de responsividade MOBILE de TODO o sistema (regra ja no CLAUDE.md "Responsividade / Mobile"; spawn task criado).
 
 ## Outros pendentes (menores)
-- Conciliação: opção CONFIGURÁVEL de BLOQUEAR a conciliação de um lançamento de ENTRADA (receita) que não tenha nota fiscal emitida — força emitir a NF antes de conciliar.
 - Central de Avisos: levar pra outros cadastros + expandir regras de faixa por campo.
 - ✅ Conferido: 6 Tholz X23 vs datasheet (kcal/COP/vazao OK). Pendente ainda: remover painel debug violeta (aguardando Solis 7+ baterias); preencher 3 nao-Tholz vazias.
 - Roadmap: vazao min/max -> bomba de circulacao por curva; defaults de tubulacao configuraveis.
