@@ -859,6 +859,11 @@ export default function PoolBudgetDetailPage() {
             <span className="text-xs text-slate-500">
               <span className="font-mono">{budget.code || "—"}</span> · {budget.clientPartner?.name}
             </span>
+            {budget.template && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700" title={`Modelo usado como base: ${budget.template.name}`}>
+                📋 {budget.template.name}
+              </span>
+            )}
             <span className="ml-auto flex items-center gap-3 text-xs">
               <span className="text-slate-500">📐 {budget.poolDimensions?.length}×{budget.poolDimensions?.width}×{budget.poolDimensions?.depth}m</span>
               <span className="text-slate-500">📋 {budget.items.length} items</span>
@@ -887,11 +892,23 @@ export default function PoolBudgetDetailPage() {
                     🔥 Aquecimento
                   </button>
                 </div>
-                <p className="mt-1 text-xs text-slate-500">
-                  <span className="font-mono text-slate-600">{budget.code || "—"}</span>
-                  <span className="mx-1.5 text-slate-300">·</span>
-                  Cliente: <strong className="text-slate-700">{budget.clientPartner?.name}</strong>
-                </p>
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                  <span>
+                    <span className="font-mono text-slate-600">{budget.code || "—"}</span>
+                    <span className="mx-1.5 text-slate-300">·</span>
+                    Cliente: <strong className="text-slate-700">{budget.clientPartner?.name}</strong>
+                  </span>
+                  {budget.template && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 font-medium text-indigo-700" title="Modelo (template) usado como base deste orçamento — definido ao criar o orçamento">
+                      📋 Modelo: {budget.template.name}
+                    </span>
+                  )}
+                  {budget.printLayout && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 font-medium text-slate-600" title="Layout de impressão do PDF deste orçamento">
+                      🖨️ Layout: {budget.printLayout.name}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
