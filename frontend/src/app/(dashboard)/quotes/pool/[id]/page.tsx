@@ -1443,12 +1443,13 @@ export default function PoolBudgetDetailPage() {
           itemsCount={budget.items.length}
           currentTemplateId={budget.template?.id}
           onClose={() => setShowSaveAsTemplate(false)}
-          onSaved={(name, mode) => {
+          onSaved={async (name, mode) => {
             setShowSaveAsTemplate(false);
+            await load();
             toast(
               mode === "update"
-                ? `Modelo "${name}" atualizado. Orcamentos novos vao usar a versao atualizada.`
-                : `Modelo "${name}" criado. Use ao criar novo orcamento.`,
+                ? `Modelo "${name}" atualizado e aplicado a este orcamento. Orcamentos novos tambem usam a versao atualizada.`
+                : `Modelo "${name}" criado e aplicado a este orcamento.`,
               "success",
             );
           }}

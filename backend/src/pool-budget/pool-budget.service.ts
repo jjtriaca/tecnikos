@@ -2800,6 +2800,14 @@ export class PoolBudgetService {
       after: { sourceBudgetId: budgetId, name: template.name } as unknown as Record<string, unknown>,
     });
 
+    // O orcamento de origem ADOTA o modelo salvo/atualizado: o selo "Modelo: X" do
+    // cabecalho passa a refletir este modelo na hora, sem precisar ir em "Editar dados".
+    // NAO toca nas linhas do orcamento (so o vinculo/etiqueta). Pedido Juliano.
+    await this.prisma.poolBudget.update({
+      where: { id: budgetId },
+      data: { templateId: template.id },
+    });
+
     return template;
   }
 }
