@@ -219,6 +219,15 @@ function fmtCurrency(c: number) {
   return (c / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+// Formata a quantidade da linha: arredonda a 2 casas e remove zeros a direita.
+// Limpa lixo de ponto flutuante (85.59100000000001 -> "85.59") na EXIBICAO, inclusive
+// pra valores antigos ja salvos no banco antes do fix do evaluateFormula.
+function fmtQty(n: number | null | undefined) {
+  const v = Number(n);
+  if (!isFinite(v)) return "0";
+  return String(Math.round(v * 100) / 100);
+}
+
 // Formata valor do indicador de eficiencia da auto-selecao.
 // Pra unit='h' converte decimal em "Xh Ymin" (ex: 3.67 -> "3h 40min"). Outras
 // unidades (kcal/m³h, A, mm, etc) usam decimal padrao com 2 casas.
@@ -1834,7 +1843,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
       <td className="px-2 py-1.5 text-center">
         {locked ? (
           <div className="flex flex-col items-center">
-            <span className="text-sm tabular-nums">{item.qty}</span>
+            <span className="text-sm tabular-nums">{fmtQty(item.qty)}</span>
             {item.formulaExpr && (
               <span className="text-[9px] font-mono text-cyan-600 truncate max-w-full" title={`= ${item.formulaExpr}`}>= {item.formulaExpr}</span>
             )}
@@ -1849,7 +1858,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
               {item.formulaExpr ? (
                 <button type="button" onClick={() => setShowFormula(true)}
                   className="text-sm tabular-nums text-cyan-700 font-medium hover:underline"
-                  title="Clique pra editar a formula">{item.qty}</button>
+                  title="Clique pra editar a formula">{fmtQty(item.qty)}</button>
               ) : (
                 <input type="number"
                   step={(() => {
@@ -2840,7 +2849,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
                   <div className="text-sm">
                     {result.ok ? (
                       <span className="text-green-700">
-                        = <span className="text-2xl font-extrabold tabular-nums text-green-800">{result.value!.toFixed(4).replace(/\.?0+$/, "")}</span>
+                        = <span className="text-2xl font-extrabold tabular-nums text-green-800">{result.value!.toFixed(2).replace(/\.?0+$/, "")}</span>
                         <span className="text-xs text-slate-500 ml-2">resultado da quantidade</span>
                       </span>
                     ) : expr.trim() ? (
@@ -2890,7 +2899,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
                     <div className="mt-2 pt-2 border-t border-cyan-200 text-[11px] text-slate-600">
                       <span className="font-medium text-slate-700">Avaliacao:</span>{" "}
                       <code className="font-mono text-cyan-800 bg-white px-1.5 py-0.5 rounded border border-slate-200">{expanded}</code>{" "}
-                      <span className="text-slate-500">→ {result.value!.toFixed(4).replace(/\.?0+$/, "")}</span>
+                      <span className="text-slate-500">→ {result.value!.toFixed(2).replace(/\.?0+$/, "")}</span>
                     </div>
                   );
                 })()}

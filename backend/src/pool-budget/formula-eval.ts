@@ -225,7 +225,10 @@ export function evaluateFormula(
   if (typeof result !== 'number' || !isFinite(result)) {
     throw new Error('Resultado invalido (NaN/Infinity)');
   }
-  return result;
+  // Qty do orcamento e SEMPRE 2 casas decimais: arredonda aqui (fonte unica de TODOS os
+  // calculos de formula — updateItem, addItem, recalculateTotals) pra eliminar lixo de
+  // ponto flutuante (ex: 85.59100000000001 -> 85.59) e padronizar todas as linhas, inclusive novas.
+  return Math.round(result * 100) / 100;
 }
 
 // Mapeia strings da UI pra numeros (vento/capa/construcao).
