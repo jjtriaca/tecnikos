@@ -1,5 +1,11 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.13.70 (18/06) — Orçamento de piscina mostra o MODELO (e Layout de impressão) no cabeçalho
+## - **Pedido (Juliano):** ver na página do orçamento qual "layout" está em uso (ele tem 2+ salvos via "Salvar modelo"). Esclarecido: o sistema guarda DOIS vínculos por orçamento — `templateId` (Modelo/template = botão "Salvar modelo") e `printLayoutId` (Layout de impressão/PDF, conceito separado).
+## - **Fix (FRONTEND-only, [quotes/pool/[id]/page.tsx]):** selo no cabeçalho (versão aberta + compacta) — `📋 Modelo: <nome>` quando `budget.template` existe + `🖨️ Layout: <nome>` quando `budget.printLayout` existe. Backend JÁ entregava ambos (`findOne` L1548-1549 inclui `template`+`printLayout` {id,name}); o tipo `Budget` do front já tinha os campos (L117-118). ZERO mudança no backend, sem migration. tsc `--incremental false` EXIT 0. Health prod 1.13.70 ✓.
+## - ⚠️ O selo do Modelo só aparece em orçamento CRIADO a partir de um modelo (campo "Template" no /quotes/pool/new; auto-seleciona o `isDefault`). "Salvar modelo" a partir de um orçamento NÃO seta o `templateId` da origem → orçamentos feitos do zero ficam SEM o selo. 🟡 Pendência aberta (se Juliano pedir): mostrar "Sem modelo (manual)" nos do zero.
+## - **Esclarecido o badge "Rascunho":** é o status (`PoolBudgetStatus`: RASCUNHO/ENVIADO/APROVADO/REJEITADO/CANCELADO/EXPIRADO) — proposital (ciclo de vida do orçamento), não é lixo. "Cadastrar" congela (`frozenAt`) mas mantém o status Rascunho até Aprovar.
+
 ## ✅ DEPLOYED v1.13.69 (17/06) — Bloquear conciliação de receita sem NF (configurável, por plano de contas) + excluir etapa apaga as linhas. Doc: [memory/bloqueio-conciliacao-receita-sem-nf.md]
 ## - **Pedido (Juliano):** opção CONFIGURÁVEL de bloquear a conciliação de uma receita (RECEIVABLE) sem NFS-e emitida. Dúvida do juros (receita não-serviço): resolvida com **trava por plano de contas** (opt-in).
 ## - **REUSA o padrão existente (REGRA #9):** `NfseConfig.receiveWithoutNfse` (Avisar/Bloquear/Ignorar, já em Config→Fiscal) + helper `checkNfseBeforePayment`. NÃO inventei flag nova. Vale igual pra RECEBER e CONCILIAR.
