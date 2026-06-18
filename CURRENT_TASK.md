@@ -1,5 +1,11 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.13.72 (18/06) — Fix: mover linha do orçamento estourava o Throttler (ThrottlerException 429)
+## - **Bug (Juliano):** mover uma linha ▲/▼ no orçamento de piscina dava "ThrottlerException: Too Many Requests" após poucos movimentos.
+## - **Causa:** `moveItem` ([quotes/pool/[id]/page.tsx]) renumerava TODAS as linhas da etapa e disparava 1 `PUT /pool-budgets/items/:id` por linha em PARALELO (`Promise.all`). Etapa com 12-16 linhas = burst de 12-16 requests simultâneas → 3-4 movimentos seguidos estouravam o Throttler global (60 req/60s, `common/throttler.ts`).
+## - **Fix (padrão `workflow.reorder`, REGRA #9):** endpoint novo `PUT /pool-budgets/:id/items/reorder` (`ReorderItemsDto {orderedIds}`) + `reorderItems()` no service: atualiza sortOrder de todas as linhas numa `$transaction` (1 request → N updates atômicos). NÃO recalcula (reordenar não muda valores — cellRef L1/L2 é estável). Guardas: assertModuleActive + não-APROVADO + assertNotFrozen + where (budgetId+companyId) tenant-safe. Front: `moveItem` faz 1 chamada em lote.
+## - Backend+frontend tsc EXIT 0. Sem migration. Health prod 1.13.72 ✓.
+
 ## ✅ DEPLOYED v1.13.71 (18/06) — "Salvar modelo" agora APLICA o modelo ao orçamento (selo atualiza na hora)
 ## - **Pedido (Juliano, follow-up da v1.13.70):** ao usar "Salvar modelo" (Novo OU Atualizar existente), o orçamento deve ADOTAR aquele modelo — sem precisar ir em "Editar dados". Confusão que motivou: ele foi em "Salvar modelo → Atualizar existente → Construção Manta Armada → Sobrescrever" esperando trocar o modelo DO orçamento, mas esse fluxo EXPORTA o conteúdo do orçamento PARA o modelo (sobrescreveu o modelo Manta Armada com a pré-moldada); o `templateId` do orçamento não mudava → selo seguia "Pré moldada".
 ## - **Fix (backend [pool-budget.service.ts] `saveAsTemplate`):** após criar/atualizar o template, grava `budget.templateId = template.id` no orçamento de origem. SÓ o vínculo/etiqueta — NÃO re-aplica linhas (não-destrutivo). Vale p/ "Novo modelo" e "Atualizar existente".
