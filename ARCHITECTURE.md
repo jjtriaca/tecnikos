@@ -216,11 +216,11 @@ Disparada apos cada mutacao de ServiceOrder/Partner (fire-and-forget).
 - **PaymentMethod/PaymentInstrument**: metodos + instrumentos especificos
 - **CardSettlement/CardFeeRate**: liquidacao de cartao com taxas
 - **BankStatementImport/Line**: conciliacao OFX/CSV
-- **FinancialAccount**: plano de contas hierarquico (2 niveis)
+- **FinancialAccount**: plano de contas hierarquico (2 niveis); flag `requiresNfse` (v1.13.69) = receita deste plano exige NFS-e pra receber/conciliar
 - **CollectionRule/Execution**: regua de cobranca automatica
 
 ### Fiscal
-- **NfseConfig**: Focus NFe token (encrypted), auto-emit, RPS series
+- **NfseConfig**: Focus NFe token (encrypted), auto-emit, RPS series, `receiveWithoutNfse` (WARN/BLOCK/IGNORE — vale receber + conciliar)
 - **NfseEmission**: status PROCESSING->AUTHORIZED->ERROR->CANCELLED, XML/PDF URLs
 - **NfseEntrada**: NFS-e recebidas (prestador, tomador, valores, tributos)
 - **SefazConfig**: certificado PFX (encrypted), auto-fetch
@@ -476,6 +476,7 @@ Arquivo `version.json` na raiz. Formato: `MAJOR.MINOR.PATCH` (ex: 1.04.33). Patc
 21. **Filtro Prisma `not:` em campo nullable** (v1.12.17): `{ campo: { not: { contains/equals/in/etc: X } } }` em campo String **nullable** EXCLUI silenciosamente rows com `campo=NULL` (em Postgres, `NULL LIKE X` = NULL, `NOT NULL` = NULL, WHERE NULL = FALSE). Sempre usar `{ OR: [{ campo: null }, { campo: { not: ... } }] }` ou helpers `notContainsNullSafe/notEqualsNullSafe/notInNullSafe` de `backend/src/common/util/prisma-null-safe.ts`. Json fields sao NULL-safe via `Prisma.JsonNull/DbNull/AnyNull` — nao precisam de OR. Ver CLAUDE.md secao dedicada + `memory/bug-filtro-notes-null.md`.
 22. **Encargo de fatura sem cartao** (v1.12.16): `FinancialEntry` com `isInvoiceCharge=true` + `paymentInstrumentId=null` PRECISA ter `cashAccountId=bankAccountId` apos match em `matchAsCardInvoice`. Sem isso, o encargo fica orfao (`cashAccountId=null`) e quebra `balance-compare` retroativamente em todos os meses anteriores ao `paidAt` da fatura. Ver `memory/bug-encargo-fatura-orfao.md`.
 23. **Mes fechado nao pode quebrar** (v1.12.16): conferencia de saldo batendo = mes fechado. Qualquer mutacao retroativa e bloqueada pelo `ClosedMonthGuardService`. Pra alterar, reabrir mes (editar saldo do banco em Conciliacao).
+24. **NF obrigatoria pra receber/conciliar receita** (v1.13.69): se `NfseConfig.receiveWithoutNfse=BLOCK` E o plano de contas do lancamento tem `FinancialAccount.requiresNfse=true`, receber OU conciliar uma receita (RECEIVABLE) sem NFS-e autorizada e BLOQUEADO (WARN = confirma). Opt-in por plano (so contas marcadas; juros/estorno/cartao-fatura/transferencia isentos). Backend enforce em `reconciliation.matchLine`+`matchAsMultiple` via `nfse.checkNfseBeforePayment`. SLS: Receita de Servicos (1100) marcada, config BLOCK. Ver `memory/bloqueio-conciliacao-receita-sem-nf.md`.
 
 ---
 
@@ -493,7 +494,7 @@ Arquivo `version.json` na raiz. Formato: `MAJOR.MINOR.PATCH` (ex: 1.04.33). Patc
 | `backend/src/common/saas-config.service.ts` | Config global (DB + env fallback) |
 | `backend/src/notification/push-notification.service.ts` | Web Push API |
 | `backend/src/finance/finance.service.ts` | Lancamentos, parcelas, renegociacao |
-| `backend/src/finance/reconciliation.service.ts` | Conciliacao OFX: match/unmatch line/multiple/cardInvoice/transfer/refund + balance-compare |
+| `backend/src/finance/reconciliation.service.ts` | Conciliacao OFX: match/unmatch line/multiple/cardInvoice/transfer/refund + balance-compare + guard NF na receita (v1.13.69) |
 | `backend/src/finance/closed-month-guard.service.ts` | Trava de mes fechado (v1.12.16) |
 | `backend/src/common/util/prisma-null-safe.ts` | Helpers null-safe pra filtros Prisma `not:` em campos nullable (v1.12.18) |
 | `backend/src/common/util/tenant-date.util.ts` | Helpers de data BRT (tenantNoon, endOfTenantDay, etc) |

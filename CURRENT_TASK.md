@@ -318,4 +318,6 @@
 - Roadmap: vazao min/max -> bomba de circulacao por curva; defaults de tubulacao configuraveis.
 
 ## Sessoes anteriores
+- Sessao 220 (17-18/06, v1.13.69): bloqueio conciliacao/recebimento de receita sem NFS-e (opt-in por plano de contas `FinancialAccount.requiresNfse`) + excluir etapa apaga linhas. Ativado no SLS (Receita de Servicos, BLOCK). Resumo: [memory/sessao_220_summary.md].
+- Sessao 219 (12-15/06, v1.13.57-61): Chunk C AutoSelect (templates de tubo por DN + picker LREF) + recirc. Resumo: [memory/sessao_219_summary.md].
 - Sessao 215 (v1.12.94-98): Aba Bomba de Calor (datasheet clone da Solar). Sessao 214 (v1.12.94): consumo bomba solar calibrado + PDF.
