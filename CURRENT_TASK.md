@@ -1,5 +1,10 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.13.73 (18/06) — Campo "Area da parede (m²)" pra blocos + 3 melhorias de UX na tela de dimensões
+## - **Campo "Area da parede (m²)" (manual):** novo campo em Editar dados (`poolDimensions.areaParedeM2`) → vira variável de fórmula `areaParede`. Back: `ALLOWED_VARS` + `extractDimensionVars` (formula-eval.ts). Front: `FORMULA_VARS` + 3 montadores de vars + grupos + descrições (os ~6 lugares do incidente v1.12.41). Receita pronta "Blocos de parede (un)" = `ceil(areaParede / 0.0741)`. Decisão Juliano: campo MANUAL (sem sugestão automática). Uso: linha de blocos com `areaParede / area_do_bloco`.
+## - **UX da tela de dimensões ([quotes/pool/new/page.tsx], 3 pedidos do Juliano):** (1) cards "Area/Volume total" saíram do MEIO (entre os 2 grids) → viraram chips de resumo (Area/Volume/Perímetro) logo abaixo da tabela; componente `Calc` removido. (2) componente novo `NumInput` (controlado, state de string): apaga com backspace (campo vazio OK), digita decimais parciais (0.20), trava em 2 casas, aceita vírgula. Aplicado nos 13 inputs de medida (sections length/width/depth + bounding box + parede/radier/escavação). Resolve "campo não apaga" (era `type=number` + `value||0` preso em 0) + "só 2 casas decimais".
+## - tsc `--incremental false` + `next build` EXIT 0. Sem migration (areaParedeM2 em `poolDimensions` Json). Health prod 1.13.73 ✓.
+
 ## ✅ DEPLOYED v1.13.72 (18/06) — Fix: mover linha do orçamento estourava o Throttler (ThrottlerException 429)
 ## - **Bug (Juliano):** mover uma linha ▲/▼ no orçamento de piscina dava "ThrottlerException: Too Many Requests" após poucos movimentos.
 ## - **Causa:** `moveItem` ([quotes/pool/[id]/page.tsx]) renumerava TODAS as linhas da etapa e disparava 1 `PUT /pool-budgets/items/:id` por linha em PARALELO (`Promise.all`). Etapa com 12-16 linhas = burst de 12-16 requests simultâneas → 3-4 movimentos seguidos estouravam o Throttler global (60 req/60s, `common/throttler.ts`).
