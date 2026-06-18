@@ -2400,7 +2400,7 @@ const FORMULA_VARS = [
   // Bounding box (envelope externo)
   'cantos', 'perimExterno', 'perimInterno',
   // Areas extras
-  'areaParedeEFundo',
+  'areaParedeEFundo', 'areaParede',
   // Radier
   'radierM2', 'radierEspessura', 'radierM3',
   // Escavacao
@@ -2544,6 +2544,8 @@ const FORMULA_RECIPES_PISCINA: FormulaRecipe[] = [
   { label: "Parede interna (m/l)", expr: "perimInterno", hint: "Paredes internas (degraus, divisorias)" },
   // ── Parede + fundo (impermeabilizacao, pintura, azulejo) ──
   { label: "Impermeabilizante caixa 18kg", expr: "ceil(areaParedeEFundo * 0.5 / 18)", hint: "0.5 kg/m² em parede+fundo, arredonda pra cima" },
+  // ── Parede (blocos de concreto) ──
+  { label: "Blocos de parede (un)", expr: "ceil(areaParede / 0.0741)", hint: "Area SO da parede ÷ area de 1 bloco. 0.0741 m² = bloco 39×19cm (face). Ajuste pro seu bloco." },
   // ── Radier (concreto do fundo) ──
   { label: "Radier — concreto (m³)", expr: "radierM3", hint: "Volume de concreto = radier m² × espessura" },
   // ── Escavacao ──
@@ -2651,6 +2653,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
     perimExterno: Number(dimensions?.perimetroExternoBorda) || 0,
     perimInterno: Number(dimensions?.perimetroParedesInternas) || 0,
     areaParedeEFundo: Number(dimensions?.areaParedeEFundo) || 0,
+    areaParede: Number(dimensions?.areaParedeM2) || 0,
     radierM2: radierM2Val,
     radierEspessura: radierEspVal,
     radierM3: Number(dimensions?.radierM3) || (radierM2Val * radierEspVal) || 0,
@@ -2743,8 +2746,8 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
       vars: ["perimExterno", "cantos", "perimInterno"],
     },
     paredeFundo: {
-      label: "Parede + fundo (impermeabilizacao, pintura, azulejo)",
-      vars: ["areaParedeEFundo"],
+      label: "Parede + fundo (impermeabilizacao, pintura, azulejo) / blocos",
+      vars: ["areaParedeEFundo", "areaParede"],
     },
     radier: {
       label: "Radier (concreto do fundo)",
@@ -2774,6 +2777,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
     perimExterno: "Perimetro externo / borda real (m/l) — use pra parede externa",
     perimInterno: "Perimetro paredes internas (m/l) — divisorias internas",
     areaParedeEFundo: "Area parede + fundo (m²) — impermeabilizante, pintura, azulejo",
+    areaParede: "Area so das paredes (m²) — manual, pra contar blocos de concreto",
     radierM2: "Radier — area (m²)",
     radierEspessura: "Radier — espessura (m)",
     radierM3: "Radier — volume concreto (m³) = m² × espessura",
@@ -3851,6 +3855,7 @@ export function AutoSelectModal({
       perimExterno: Number(dimensions?.perimetroExternoBorda) || 0,
       perimInterno: Number(dimensions?.perimetroParedesInternas) || 0,
       areaParedeEFundo: Number(dimensions?.areaParedeEFundo) || 0,
+      areaParede: Number(dimensions?.areaParedeM2) || 0,
       radierM2: radierM2Val,
       radierEspessura: radierEspVal,
       radierM3: Number(dimensions?.radierM3) || (radierM2Val * radierEspVal) || 0,
@@ -4746,6 +4751,7 @@ function CatalogPickModal({ catalog, currentSection, currentKind, autoSelectRule
       perimExterno: Number(dimensions?.perimetroExternoBorda) || 0,
       perimInterno: Number(dimensions?.perimetroParedesInternas) || 0,
       areaParedeEFundo: Number(dimensions?.areaParedeEFundo) || 0,
+      areaParede: Number(dimensions?.areaParedeM2) || 0,
       radierM2: Number(dimensions?.radierM2) || 0,
       radierEspessura: Number(dimensions?.radierEspessura) || 0,
       radierM3: Number(dimensions?.radierM3) || 0,

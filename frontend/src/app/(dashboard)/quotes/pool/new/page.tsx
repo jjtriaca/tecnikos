@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
@@ -13,6 +13,49 @@ import { CentralAvisos, type Aviso } from "@/components/pool/CentralAvisos";
 type Partner = { id: string; name: string; document?: string | null; phone?: string | null; city?: string | null; state?: string | null };
 type Template = { id: string; name: string; isDefault: boolean };
 type Layout = { id: string; name: string; isDefault: boolean };
+
+// Input numerico controlado: permite apagar (campo vazio), digitar decimais parciais
+// ("0.", "0.2") e trava em 2 casas decimais. Aceita virgula como separador. Converte pra
+// number no onChange (vazio = 0). Resolve o "backspace preso" dos type=number + value||0.
+function NumInput({ value, onChange, placeholder, className, title }: {
+  value: number;
+  onChange: (v: number) => void;
+  placeholder?: string;
+  className?: string;
+  title?: string;
+}) {
+  const [text, setText] = useState<string>(value ? String(value) : "");
+  const focused = useRef(false);
+  // Sincroniza com o valor externo so quando NAO focado (carregar orcamento / sugestao auto).
+  useEffect(() => {
+    if (!focused.current) setText(value ? String(value) : "");
+  }, [value]);
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={text}
+      placeholder={placeholder}
+      title={title}
+      className={className}
+      onFocus={() => { focused.current = true; }}
+      onChange={(e) => {
+        let v = e.target.value.replace(",", ".").replace(/[^0-9.]/g, "");
+        const dot = v.indexOf(".");
+        if (dot !== -1) v = v.slice(0, dot + 1) + v.slice(dot + 1).replace(/\./g, "").slice(0, 2);
+        setText(v);
+        const n = parseFloat(v);
+        onChange(isNaN(n) ? 0 : n);
+      }}
+      onBlur={() => {
+        focused.current = false;
+        const n = parseFloat(text);
+        if (isNaN(n)) { setText(""); onChange(0); }
+        else { const r = Math.round(n * 100) / 100; setText(r ? String(r) : ""); onChange(r); }
+      }}
+    />
+  );
+}
 
 // Validacao system-wide da pagina (alem da borda, que reporta via onIssuesChange).
 // Faixas/sanidade dos campos -> alimenta a Central de Avisos.
@@ -85,6 +128,7 @@ export default function NewPoolBudgetPage() {
     // como sugestao no placeholder mas o user precisa preencher pra valer no
     // orcamento. 0 = nao preenchido.
     areaParedeEFundo: 0,
+    areaParedeM2: 0,
     radierM2: 0,
     radierEspessura: 0.20,  // metros — espessura tipica 20cm
     escavacaoM3: 0,
@@ -189,6 +233,7 @@ export default function NewPoolBudgetPage() {
           perimetroExternoBorda: b.poolDimensions?.perimetroExternoBorda ?? 0,
           perimetroParedesInternas: b.poolDimensions?.perimetroParedesInternas ?? 0,
           areaParedeEFundo: b.poolDimensions?.areaParedeEFundo ?? 0,
+          areaParedeM2: b.poolDimensions?.areaParedeM2 ?? 0,
           radierM2: b.poolDimensions?.radierM2 ?? 0,
           radierEspessura: b.poolDimensions?.radierEspessura ?? 0.20,
           escavacaoM3: b.poolDimensions?.escavacaoM3 ?? 0,
@@ -350,6 +395,7 @@ export default function NewPoolBudgetPage() {
           perimetroParedesInternas: form.perimetroParedesInternas || cantosVal,
           // Calculos derivados (snapshot pra impressao — piscineiro pode editar depois)
           areaParedeEFundo,
+          areaParedeM2: form.areaParedeM2 || 0,
           radierM2,
           radierM3,
           escavacaoM3,
@@ -398,16 +444,6 @@ export default function NewPoolBudgetPage() {
   }
 
   const inputClass = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-200";
-
-  // Helper pra exibir um calculo derivado em formato consistente
-  function Calc({ label, value }: { label: string; value: string }) {
-    return (
-      <div className="rounded bg-white border border-slate-200 px-2 py-1.5">
-        <div className="text-[10px] uppercase text-slate-500">{label}</div>
-        <div className="text-sm font-semibold text-slate-800 tabular-nums">{value}</div>
-      </div>
-    );
-  }
 
   const avisos: Aviso[] = [
     ...validatePage(form),
@@ -563,18 +599,18 @@ export default function NewPoolBudgetPage() {
                           className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-cyan-500 outline-none" />
                       </td>
                       <td className="px-3 py-2">
-                        <input type="number" step="0.01" min="0" value={s.length}
-                          onChange={(e) => updateSection(idx, "length", parseFloat(e.target.value) || 0)}
+                        <NumInput value={s.length}
+                          onChange={(v) => updateSection(idx, "length", v)}
                           className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-cyan-500 outline-none" />
                       </td>
                       <td className="px-3 py-2">
-                        <input type="number" step="0.01" min="0" value={s.width}
-                          onChange={(e) => updateSection(idx, "width", parseFloat(e.target.value) || 0)}
+                        <NumInput value={s.width}
+                          onChange={(v) => updateSection(idx, "width", v)}
                           className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-cyan-500 outline-none" />
                       </td>
                       <td className="px-3 py-2">
-                        <input type="number" step="0.01" min="0" value={s.depth}
-                          onChange={(e) => updateSection(idx, "depth", parseFloat(e.target.value) || 0)}
+                        <NumInput value={s.depth}
+                          onChange={(v) => updateSection(idx, "depth", v)}
                           className="w-full rounded border border-slate-300 px-2 py-1 text-sm focus:border-cyan-500 outline-none" />
                       </td>
                       <td className="px-3 py-2 text-right text-slate-600 tabular-nums">{m.area.toFixed(2)}</td>
@@ -601,14 +637,16 @@ export default function NewPoolBudgetPage() {
             </table>
           </div>
 
-          <div className="mt-2 flex items-center justify-between">
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
             <button type="button" onClick={addSection}
               className="rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-1.5 text-xs font-medium text-cyan-700 hover:bg-cyan-100 transition">
               + Adicionar mais uma linha
             </button>
-            <span className="text-xs text-slate-500">
-              Perimetro total (somatorio): <strong className="text-slate-700 tabular-nums">{totals.perimeter.toFixed(2)} m</strong>
-            </span>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="rounded-md border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-cyan-800">Area total <strong className="tabular-nums">{totals.area.toFixed(2)} m²</strong></span>
+              <span className="rounded-md border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-cyan-800">Volume total <strong className="tabular-nums">{totals.volume.toFixed(2)} m³</strong></span>
+              <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-600">Perimetro <strong className="tabular-nums">{totals.perimeter.toFixed(2)} m</strong></span>
+            </div>
           </div>
           <p className="mt-2 text-xs text-slate-600">
             Use multiplas linhas pra piscinas irregulares ou com niveis diferentes (ex: parte rasa + parte funda).
@@ -620,8 +658,8 @@ export default function NewPoolBudgetPage() {
               <label className="block text-xs font-medium text-slate-600 mb-1">
                 Comprimento total interno (m)
               </label>
-              <input type="number" step="0.01" min="0" value={form.comprimentoTotal || ""}
-                onChange={(e) => setForm({ ...form, comprimentoTotal: parseFloat(e.target.value) || 0 })}
+              <NumInput value={form.comprimentoTotal}
+                onChange={(v) => setForm({ ...form, comprimentoTotal: v })}
                 placeholder={`auto: ${bbCompr.toFixed(2)}`}
                 className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
               <p className="mt-1 text-xs text-slate-600">Bounding box (formato externo)</p>
@@ -630,8 +668,8 @@ export default function NewPoolBudgetPage() {
               <label className="block text-xs font-medium text-slate-600 mb-1">
                 Largura total interno (m)
               </label>
-              <input type="number" step="0.01" min="0" value={form.larguraTotal || ""}
-                onChange={(e) => setForm({ ...form, larguraTotal: parseFloat(e.target.value) || 0 })}
+              <NumInput value={form.larguraTotal}
+                onChange={(v) => setForm({ ...form, larguraTotal: v })}
                 placeholder={`auto: ${bbLarg.toFixed(2)}`}
                 className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
               <p className="mt-1 text-xs text-slate-600">Bounding box (formato externo)</p>
@@ -640,8 +678,8 @@ export default function NewPoolBudgetPage() {
               <label className="block text-xs font-medium text-slate-600 mb-1">
                 Cantos / Cantoneiras internas (m/l)
               </label>
-              <input type="number" step="0.01" min="0" value={form.cantos || ""}
-                onChange={(e) => setForm({ ...form, cantos: parseFloat(e.target.value) || 0 })}
+              <NumInput value={form.cantos}
+                onChange={(v) => setForm({ ...form, cantos: v })}
                 placeholder={`auto: ${cantosVal.toFixed(2)}`}
                 className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
               <p className="mt-1 text-xs text-slate-600">Cantoneiras internas (m/l)</p>
@@ -650,8 +688,8 @@ export default function NewPoolBudgetPage() {
               <label className="block text-xs font-medium text-slate-600 mb-1">
                 Perimetro externo borda (m/l)
               </label>
-              <input type="number" step="0.01" min="0" value={form.perimetroExternoBorda || ""}
-                onChange={(e) => setForm({ ...form, perimetroExternoBorda: parseFloat(e.target.value) || 0 })}
+              <NumInput value={form.perimetroExternoBorda}
+                onChange={(v) => setForm({ ...form, perimetroExternoBorda: v })}
                 placeholder={`auto: ${cantosVal.toFixed(2)}`}
                 className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
               <p className="mt-1 text-xs text-slate-600">Borda corrida externa (m/l)</p>
@@ -660,18 +698,12 @@ export default function NewPoolBudgetPage() {
               <label className="block text-xs font-medium text-slate-600 mb-1">
                 Perimetro paredes internas (m/l)
               </label>
-              <input type="number" step="0.01" min="0" value={form.perimetroParedesInternas || ""}
-                onChange={(e) => setForm({ ...form, perimetroParedesInternas: parseFloat(e.target.value) || 0 })}
+              <NumInput value={form.perimetroParedesInternas}
+                onChange={(v) => setForm({ ...form, perimetroParedesInternas: v })}
                 placeholder={`auto: ${cantosVal.toFixed(2)}`}
                 className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
               <p className="mt-1 text-xs text-slate-600">Paredes internas linear (m/l)</p>
             </div>
-          </div>
-
-          {/* Auto-calculados a partir das sections (somatorio direto, nao editavel) */}
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <Calc label="Area total (auto)" value={`${totals.area.toFixed(2)} m²`} />
-            <Calc label="Volume total (auto)" value={`${totals.volume.toFixed(2)} m³`} />
           </div>
 
           {/* Inputs manuais — piscineiro digita conforme projeto real */}
@@ -680,17 +712,27 @@ export default function NewPoolBudgetPage() {
               <label className="block text-xs font-medium text-slate-600 mb-1">
                 Area parede + fundo (m²)
               </label>
-              <input type="number" step="0.01" min="0" value={form.areaParedeEFundo || ""}
-                onChange={(e) => setForm({ ...form, areaParedeEFundo: parseFloat(e.target.value) || 0 })}
+              <NumInput value={form.areaParedeEFundo}
+                onChange={(v) => setForm({ ...form, areaParedeEFundo: v })}
                 placeholder={`sug: ${sugAreaParedeEFundo.toFixed(2)}`}
+                className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Area da parede (m²) <span className="text-slate-500 font-normal">— so paredes, pra blocos</span>
+              </label>
+              <NumInput value={form.areaParedeM2}
+                onChange={(v) => setForm({ ...form, areaParedeM2: v })}
+                placeholder="ex: 35 (manual)"
+                title="Area somente das paredes (sem o fundo). Use na formula da linha de blocos: ceil(areaParede / area_do_bloco)."
                 className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
                 Radier (m²)
               </label>
-              <input type="number" step="0.01" min="0" value={form.radierM2 || ""}
-                onChange={(e) => setForm({ ...form, radierM2: parseFloat(e.target.value) || 0 })}
+              <NumInput value={form.radierM2}
+                onChange={(v) => setForm({ ...form, radierM2: v })}
                 placeholder={`sug: ${sugRadierM2.toFixed(2)}`}
                 className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
             </div>
@@ -698,8 +740,8 @@ export default function NewPoolBudgetPage() {
               <label className="block text-xs font-medium text-slate-600 mb-1">
                 Espessura radier (m)
               </label>
-              <input type="number" step="0.01" min="0" value={form.radierEspessura}
-                onChange={(e) => setForm({ ...form, radierEspessura: parseFloat(e.target.value) || 0 })}
+              <NumInput value={form.radierEspessura}
+                onChange={(v) => setForm({ ...form, radierEspessura: v })}
                 placeholder="0.20"
                 className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
             </div>
@@ -715,8 +757,8 @@ export default function NewPoolBudgetPage() {
               <label className="block text-xs font-medium text-slate-600 mb-1">
                 Escavacao (m³)
               </label>
-              <input type="number" step="0.01" min="0" value={form.escavacaoM3 || ""}
-                onChange={(e) => setForm({ ...form, escavacaoM3: parseFloat(e.target.value) || 0 })}
+              <NumInput value={form.escavacaoM3}
+                onChange={(v) => setForm({ ...form, escavacaoM3: v })}
                 placeholder={`sug: ${sugEscavacaoM3.toFixed(2)}`}
                 className="w-full rounded-lg border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm focus:border-yellow-500 focus:ring-1 focus:ring-yellow-200 outline-none" />
             </div>

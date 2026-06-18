@@ -24,6 +24,7 @@ export const ALLOWED_VARS = [
   'perimInterno',   // m/l - perimetro paredes internas
   // Areas especificas (parede + fundo, pra impermeabilizacao/pintura)
   'areaParedeEFundo', // m² - area total parede + fundo (impermeabilizante, pintura)
+  'areaParede',       // m² - area SO das paredes (manual) — pra contar blocos de concreto
   // Radier (concreto do fundo)
   'radierM2',         // m² - area do radier
   'radierEspessura',  // m  - espessura do radier
@@ -370,6 +371,7 @@ export function extractDimensionVars(poolDimensions: any): FormulaVars {
     perimExterno: typeof d.perimetroExternoBorda === 'number' ? d.perimetroExternoBorda : undefined,
     perimInterno: typeof d.perimetroParedesInternas === 'number' ? d.perimetroParedesInternas : undefined,
     areaParedeEFundo: typeof d.areaParedeEFundo === 'number' ? d.areaParedeEFundo : undefined,
+    areaParede: typeof d.areaParedeM2 === 'number' ? d.areaParedeM2 : undefined,
     radierM2: typeof d.radierM2 === 'number' ? d.radierM2 : undefined,
     radierEspessura: typeof d.radierEspessura === 'number' ? d.radierEspessura : undefined,
     radierM3: typeof d.radierM3 === 'number'
