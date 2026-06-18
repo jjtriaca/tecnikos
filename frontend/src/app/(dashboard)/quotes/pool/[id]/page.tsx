@@ -1729,7 +1729,9 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
                 "flex-1 px-1 py-0.5 text-sm truncate cursor-pointer hover:bg-cyan-50 rounded " +
                 (item.description ? "text-slate-700 hover:underline" : "text-slate-400 italic hover:text-slate-600")
               }>
-              {item.description || (item.kind === 'SERVICE' ? 'Sem serviço — clique pra escolher' : 'Sem produto — clique pra escolher')}
+              {(item.kind === 'SERVICE' && item.description === 'Sem Produto')
+                ? 'Sem Serviço'
+                : (item.description || (item.kind === 'SERVICE' ? 'Sem serviço — clique pra escolher' : 'Sem produto — clique pra escolher'))}
             </span>
           </div>
         )}
@@ -2024,14 +2026,14 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
               catalogConfigId: cfg.id === '__NONE__' ? null : cfg.id,
               productId: cfg.product?.id ?? null,
               serviceId: cfg.service?.id ?? null,
-              description: 'Sem Produto',
+              description: item.kind === 'SERVICE' ? 'Sem Serviço' : 'Sem Produto',
               unit: cfg.product?.unit || '',
               unitPriceCents: cfg.product?.salePriceCents ?? 0,
               ...(newQty !== undefined ? { qty: newQty } : {}),
               manualUnlink: true,
             } as any);
             if (newQty !== undefined) setQty(newQty);
-            setDesc('Sem Produto');
+            setDesc(item.kind === 'SERVICE' ? 'Sem Serviço' : 'Sem Produto');
             setPrice(((cfg.product?.salePriceCents ?? 0) / 100).toFixed(2));
             return;
           }
@@ -4936,15 +4938,15 @@ function CatalogPickModal({ catalog, currentSection, currentKind, autoSelectRule
                     envia sentinel __NONE__ que apenas remove vinculos. */}
                 <button
                   type="button"
-                  onClick={() => onPick(semProdutoCfg || { id: '__NONE__', poolSection: '' as any, product: null, service: null })}
+                  onClick={() => onPick((currentKind === 'SERVICE' ? null : semProdutoCfg) || { id: '__NONE__', poolSection: '' as any, product: null, service: null })}
                   className="w-full text-left px-3 py-2 hover:bg-slate-100 bg-slate-50 transition border-b border-slate-200"
-                  title="Vincula ao Product 'Sem Produto' do cadastro — todos os valores ja sao 0, qualquer formula que dependa do produto retorna 0 naturalmente."
+                  title={currentKind === 'SERVICE' ? "Deixa a linha sem servico vinculado (valores 0)." : "Vincula ao Product 'Sem Produto' do cadastro — todos os valores ja sao 0, qualquer formula que dependa do produto retorna 0 naturalmente."}
                 >
                   <div className="flex items-center gap-2">
                     <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">UNIVERSAL</span>
-                    <span className="text-sm font-medium text-slate-700">🚫 Sem Produto</span>
+                    <span className="text-sm font-medium text-slate-700">🚫 {currentKind === 'SERVICE' ? 'Sem Serviço' : 'Sem Produto'}</span>
                     <span className="text-[10px] text-slate-500">
-                      {semProdutoCfg ? 'aparece sempre no topo, independente do filtro' : 'cadastro nao encontrado — desvincula a linha'}
+                      {currentKind === 'SERVICE' ? 'deixa a linha sem servico vinculado' : (semProdutoCfg ? 'aparece sempre no topo, independente do filtro' : 'cadastro nao encontrado — desvincula a linha')}
                     </span>
                   </div>
                 </button>
