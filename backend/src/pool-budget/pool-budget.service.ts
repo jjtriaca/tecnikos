@@ -1964,6 +1964,45 @@ export class PoolBudgetService {
     return item;
   }
 
+  // Reordena items em LOTE numa unica transacao (1 request -> N updates atomicos).
+  // Substitui o burst de N PUTs paralelas do front (moveItem), que estourava o Throttler
+  // (60 req/60s) numa etapa com muitas linhas. Reordenar NAO muda valores: o cellRef
+  // (L1, L2, ...) e o endereco estavel das formulas, independente do sortOrder -> NAO
+  // chama recalculateTotals. O where (budgetId + companyId) garante tenant isolation e
+  // que so linhas DESTE orcamento mudam (IDs estranhos viram no-op, count 0).
+  async reorderItems(
+    budgetId: string,
+    orderedIds: string[],
+    companyId: string,
+    _user: AuthenticatedUser,
+  ) {
+    await this.assertModuleActive(companyId);
+    if (!Array.isArray(orderedIds) || orderedIds.length === 0) {
+      throw new BadRequestException('Lista de IDs e obrigatoria');
+    }
+
+    const budget = await this.prisma.poolBudget.findFirst({
+      where: { id: budgetId, companyId, deletedAt: null },
+      select: { id: true, status: true, frozenAt: true },
+    });
+    if (!budget) throw new NotFoundException('Orçamento não encontrado');
+    if (budget.status === PoolBudgetStatus.APROVADO) {
+      throw new BadRequestException('Orçamento aprovado — não pode editar items');
+    }
+    this.assertNotFrozen(budget);
+
+    await this.prisma.$transaction(
+      orderedIds.map((itemId, index) =>
+        this.prisma.poolBudgetItem.updateMany({
+          where: { id: itemId, budgetId, budget: { companyId } },
+          data: { sortOrder: index },
+        }),
+      ),
+    );
+
+    return { success: true };
+  }
+
   async updateItem(
     itemId: string,
     dto: UpdateBudgetItemDto,

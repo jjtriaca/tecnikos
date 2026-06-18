@@ -630,13 +630,11 @@ export default function PoolBudgetDetailPage() {
     const reordered = [...sectionItems];
     [reordered[idx], reordered[newIdx]] = [reordered[newIdx], reordered[idx]];
     try {
-      await Promise.all(
-        reordered.map((it, i) =>
-          it.sortOrder !== i
-            ? api.put(`/pool-budgets/items/${it.id}`, { sortOrder: i })
-            : Promise.resolve(),
-        ),
-      );
+      // 1 request em lote (antes era 1 PUT por linha em paralelo — burst que estourava
+      // o Throttler 60/60s numa etapa com muitas linhas). O backend grava sortOrder=indice.
+      await api.put(`/pool-budgets/${id}/items/reorder`, {
+        orderedIds: reordered.map((it) => it.id),
+      });
       await load();
     } catch (err: any) {
       toast(err?.payload?.message || "Erro ao mover linha", "error");

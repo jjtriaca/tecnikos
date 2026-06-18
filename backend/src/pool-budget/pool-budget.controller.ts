@@ -27,7 +27,7 @@ import { TrocadorPipeDto } from './dto/trocador-pipe.dto';
 import { CreatePoolBudgetDto } from './dto/create-pool-budget.dto';
 import { UpdatePoolBudgetDto } from './dto/update-pool-budget.dto';
 import { QueryPoolBudgetDto } from './dto/query-pool-budget.dto';
-import { CreateBudgetItemDto, UpdateBudgetItemDto } from './dto/budget-item.dto';
+import { CreateBudgetItemDto, UpdateBudgetItemDto, ReorderItemsDto } from './dto/budget-item.dto';
 import { HeatingSimulateDto } from './dto/heating-simulate.dto';
 import { SolarSimulateDto, SolarRecomputeDto } from './dto/solar-simulate.dto';
 import { CreateSolarRuleDto, UpdateSolarRuleDto } from './dto/solar-rule.dto';
@@ -562,6 +562,18 @@ export class PoolBudgetController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.updateItem(itemId, body, user.companyId, user);
+  }
+
+  @ApiOperation({ summary: 'Reordena items de uma etapa em lote (1 request — evita burst no Throttler)' })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Put(':id/items/reorder')
+  reorderItems(
+    @Param('id') id: string,
+    @Body() body: ReorderItemsDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.reorderItems(id, body.orderedIds, user.companyId, user);
   }
 
   @ApiOperation({ summary: 'Remove item do orçamento' })

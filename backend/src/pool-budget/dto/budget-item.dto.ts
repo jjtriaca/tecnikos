@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
+import { ArrayNotEmpty, IsArray, IsBoolean, IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
 
 const POOL_ITEM_KINDS = ['PRODUCT', 'SERVICE'] as const;
 type PoolItemKind = (typeof POOL_ITEM_KINDS)[number];
@@ -199,4 +199,15 @@ export class UpdateBudgetItemDto {
   @ValidateIf((_o, v) => v !== null)
   @IsNumber()
   previousQty?: number | null;
+}
+
+export class ReorderItemsDto {
+  // Reordenacao em LOTE: 1 request com os IDs na nova ordem (o indice vira o sortOrder).
+  // Substitui o burst de N PUTs paralelas do front (1 por linha), que estourava o
+  // Throttler (60 req/60s) numa etapa com muitas linhas. v1.13.72.
+  @ApiProperty({ description: 'IDs das linhas na nova ordem. O indice de cada ID vira o sortOrder.', type: [String] })
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  orderedIds!: string[];
 }
