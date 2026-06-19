@@ -3546,18 +3546,21 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
   {
     icon: '🔌',
     label: 'Quadro por soma de espacos',
-    description: 'Quadro de distribuicao com numero de polos >= soma de bifTrifConta (espacos) dos equipamentos eletricos. Eh independente do tipo (Bif/Trif) — modulos de automacao podem ser Bif e ainda ocupar varios espacos.',
+    description: 'Quadro de distribuicao com polos >= soma de "Espacos no quadro" (bifTrifConta) das LINHAS que voce apontar (bombas, automacao, aquecedor...). Ao aplicar, marque no seletor as linhas — varias SOMAM (espacos × qtd de cada). So conta as linhas escolhidas — NAO o proprio quadro nem outras linhas (era sum() antes, que somava toda linha com espacos). Pra margem de seguranca, multiplique o criterio por um fator (ex: ... * 1.1).',
+    lineRef: { unit: 'prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha")', combine: 'sum' },
     rule: {
       filterCategoria: null,
       filterDescription: 'quadro distr',
-      where: 'polos >= sum("bifTrifConta")',
+      where: 'polos >= (prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha"))',
       orderBy: 'polos asc',
       indicator: {
-        label: 'Espacos usados',
-        expr: 'sum("bifTrifConta")',
-        unit: '',
+        label: 'Folga de espacos',
+        expr: 'polos - (prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha"))',
+        unit: 'espacos',
         levels: [
-          { max: 999, label: 'OK', color: 'green' },
+          { max: -0.01, label: 'Nao cabe', color: 'red' },
+          { max: 0, label: 'Exato (sem folga)', color: 'orange' },
+          { max: 9999, label: 'Folga OK', color: 'green' },
         ],
       },
     },
@@ -3565,25 +3568,30 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
   {
     icon: '💡',
     label: 'Fonte de iluminacao por potencia total',
-    description: 'Fonte 12V que aguenta a soma da potencia (W) dos refletores',
+    description: 'Fonte 12V que aguenta a soma da potencia (W) dos REFLETORES que voce apontar. Ao aplicar, marque no seletor a(s) linha(s) dos refletores — varias SOMAM (potencia × qtd de cada). Le potenciaWatts do cadastro do produto vinculado e divide por 12 (sistema 12V). So conta as linhas escolhidas — NAO a propria fonte nem outras cargas (era sum() antes, que somava toda linha com potenciaWatts, inclusive a fonte). Pra margem de seguranca, multiplique a carga no criterio por um fator (ex: ... / 12 * 1.2).',
+    lineRef: { unit: 'prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha")', combine: 'sum' },
     rule: {
       filterCategoria: null,
       filterDescription: 'fonte',
-      where: 'amperagem >= sum("potenciaWatts") / 12',
+      where: 'amperagem >= (prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha")) / 12',
       orderBy: 'amperagem asc',
       indicator: {
-        label: 'A carga ilum',
-        expr: 'sum("potenciaWatts") / 12',
+        label: 'Folga de corrente',
+        expr: 'amperagem - (prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha")) / 12',
         unit: 'A',
         levels: [
-          { max: 999, label: 'OK', color: 'green' },
+          { max: -0.01, label: 'Estoura a fonte', color: 'red' },
+          { max: 0, label: 'No limite', color: 'orange' },
+          { max: 9999, label: 'Folga OK', color: 'green' },
         ],
       },
     },
   },
 ];
 
-const INDICATOR_TEMPLATES: Array<{ label: string; preset: { label: string; expr: string; unit: string; levels: { max: number; label: string; color: string }[] } }> = [
+// lineRef (opcional): preset cujo expr usa o placeholder LREF. Ao clicar, abre o seletor de
+// linha(s) (igual aos templates de auto-selecao) e troca LREF pelas linhas escolhidas no indExpr.
+const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; combine: 'sum' | 'max' }; preset: { label: string; expr: string; unit: string; levels: { max: number; label: string; color: string }[] } }> = [
   {
     label: 'Tempo de filtragem (volume / vazaoM3h)',
     preset: {
@@ -3649,6 +3657,38 @@ const INDICATOR_TEMPLATES: Array<{ label: string; preset: { label: string; expr:
         { max: 200, label: 'Insuficiente', color: 'red' },
         { max: 500, label: 'Adequado', color: 'yellow' },
         { max: 9999, label: 'Excelente', color: 'green' },
+      ],
+    },
+  },
+  {
+    // Folga de espacos do QUADRO: polos do quadro - soma de "Espacos no quadro" (bifTrifConta)
+    // das linhas apontadas (× qtd de cada). LREF -> abre o seletor de linha(s) ao clicar.
+    label: 'Folga de espacos (Quadro) — escolha as linhas',
+    lineRef: { unit: 'prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha")', combine: 'sum' },
+    preset: {
+      label: 'Folga de espacos',
+      expr: 'polos - (prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha"))',
+      unit: 'espacos',
+      levels: [
+        { max: -0.01, label: 'Nao cabe', color: 'red' },
+        { max: 0, label: 'Exato (sem folga)', color: 'orange' },
+        { max: 9999, label: 'Folga OK', color: 'green' },
+      ],
+    },
+  },
+  {
+    // Folga de corrente da FONTE 12V: amperagem da fonte - carga (potenciaWatts × qtd das linhas
+    // apontadas) / 12. LREF -> abre o seletor de linha(s) (refletores) ao clicar.
+    label: 'Folga de corrente (Fonte) — escolha as linhas',
+    lineRef: { unit: 'prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha")', combine: 'sum' },
+    preset: {
+      label: 'Folga de corrente',
+      expr: 'amperagem - (prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha")) / 12',
+      unit: 'A',
+      levels: [
+        { max: -0.01, label: 'Estoura a fonte', color: 'red' },
+        { max: 0, label: 'No limite', color: 'orange' },
+        { max: 9999, label: 'Folga OK', color: 'green' },
       ],
     },
   },
@@ -3728,8 +3768,19 @@ export function AutoSelectModal({
   // v1.13.57 (Chunk C): picker LREF (porte do needsLineRef do FormulaModal). Ao aplicar uma
   // template com lineRef, guarda a template + mostra o seletor de linha(s); ao confirmar, troca
   // o placeholder LREF no where + indicator pela(s) linha(s) escolhida(s).
-  const [pendingLineRefTemplate, setPendingLineRefTemplate] = useState<AutoSelectTemplate | null>(null);
+  // Picker LREF compartilhado por templates de auto-selecao E presets de indicador. So precisa do
+  // icone (titulo do popover) + lineRef (unit/combine). applyLineRefSelection troca o LREF no
+  // where + indExpr; pra preset de indicador, o where nao tem o `unit` -> fica intacto.
+  const [pendingLineRefTemplate, setPendingLineRefTemplate] = useState<{ icon: string; lineRef: { unit: string; combine: 'sum' | 'max' } } | null>(null);
   const [pendingLineRefs, setPendingLineRefs] = useState<Set<string>>(new Set());
+  const lineRefPickerRef = useRef<HTMLDivElement | null>(null);
+  // Rola o seletor de linha(s) pra visivel quando ele abre (importante quando vem de um preset de
+  // indicador la embaixo, mas o picker e renderizado no topo do modal).
+  useEffect(() => {
+    if (pendingLineRefTemplate && lineRefPickerRef.current) {
+      lineRefPickerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [pendingLineRefTemplate]);
 
   useEffect(() => {
     if (!pinnedTemplateLabel) return;
@@ -3770,7 +3821,7 @@ export function AutoSelectModal({
     }
     // v1.13.57 (Chunk C): template com LREF -> abre o seletor de linha(s). O where/indicator
     // ficam com o placeholder LREF ate o operador escolher; a trava de salvar bloqueia LREF cru.
-    if (t.lineRef) { setPendingLineRefTemplate(t); setPendingLineRefs(new Set()); }
+    if (t.lineRef) { setPendingLineRefTemplate({ icon: t.icon, lineRef: t.lineRef }); setPendingLineRefs(new Set()); }
     else { setPendingLineRefTemplate(null); setPendingLineRefs(new Set()); }
   };
 
@@ -4057,7 +4108,10 @@ export function AutoSelectModal({
     setIndLabel(t.preset.label);
     setIndExpr(t.preset.expr);
     setIndUnit(t.preset.unit);
-    setIndLevels(t.preset.levels);
+    setIndLevels(t.preset.levels.map((l) => ({ ...l }))); // clone — nao mutar o template
+    // Preset com LREF (Folga de espacos/corrente): abre o seletor de linha(s). O indExpr fica com
+    // LREF ate escolher; applyLineRefSelection troca no indExpr (e no where, se ele tiver o `unit`).
+    if (t.lineRef) { setPendingLineRefTemplate({ icon: '📊', lineRef: t.lineRef }); setPendingLineRefs(new Set()); }
   }
 
   function buildRule(): AutoSelectRule {
@@ -4247,7 +4301,7 @@ export function AutoSelectModal({
                 const specKey = lr.unit.match(/"([a-zA-Z_][a-zA-Z0-9_]*)"/)?.[1] || null;
                 const lines = (sectionItems || []).filter((it) => it.cellRef);
                 return (
-                  <div className="rounded-lg border-2 border-violet-300 bg-violet-50 p-3">
+                  <div ref={lineRefPickerRef} className="rounded-lg border-2 border-violet-300 bg-violet-50 p-3">
                     <div className="text-xs font-bold text-violet-900 mb-1">
                       🔗 {pendingLineRefTemplate.icon} Escolha a(s) linha(s) {pendingLineRefs.size > 0 && <span className="text-violet-700">— {pendingLineRefs.size} selecionada(s)</span>}
                     </div>
