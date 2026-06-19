@@ -1249,12 +1249,35 @@ export class PoolBudgetService {
     const items = await this.prisma.poolBudgetItem.findMany({
       where: { budgetId },
       select: {
-        id: true, qty: true, unit: true, unitPriceCents: true, formulaExpr: true, cellRef: true,
-        poolSection: true, autoSelectRule: true,
-        product: { select: { technicalSpecs: true } },
+        id: true, qty: true, qtyCalculated: true, unit: true, unitPriceCents: true,
+        formulaExpr: true, cellRef: true, poolSection: true, autoSelectRule: true,
+        manualUnlink: true, productId: true, serviceId: true,
+        product: { select: { technicalSpecs: true, isSystemProduct: true } },
         service: { select: { technicalSpecs: true } },
       },
     });
+    // v1.13.77: "Sem Produto" / "Sem Servico" = operador escolheu o placeholder no picker
+    // (manualUnlink=true) e NAO ha item REAL vinculado (productId nulo ou o Product universal
+    // isSystemProduct; serviceId nulo). Nessas linhas a qty e SEMPRE 0, mesmo com formula — a
+    // formula so volta a valer quando o operador revincula um produto/servico real (cenario B/C
+    // do picker). NAO pega linha de mao-de-obra manual com formula (essa tem manualUnlink=false).
+    const hasRealProduct = (it: typeof items[number]) =>
+      !!it.productId && (it.product as any)?.isSystemProduct !== true;
+    const isSemItem = (it: typeof items[number]) =>
+      it.manualUnlink === true && !hasRealProduct(it) && !it.serviceId;
+    // Pre-pass: zera qty/qtyCalculated/total dessas linhas ANTES de reavaliar formulas (os loops
+    // de formula abaixo as PULAM, pra a formula nao re-sobrescrever a qty zerada). Idempotente:
+    // so escreve quando ha algo a zerar. Self-healing pra orcamentos antigos (qty de formula salva).
+    for (const it of items) {
+      if (!isSemItem(it)) continue;
+      if (Number(it.qty) === 0 && Number(it.qtyCalculated ?? 0) === 0) continue;
+      await this.prisma.poolBudgetItem.update({
+        where: { id: it.id },
+        data: { qty: 0, qtyCalculated: 0, totalCents: 0 },
+      });
+      it.qty = 0;
+      it.qtyCalculated = 0;
+    }
     // Calcula sibling vars POR ITEM. Modo preferido: linkedCellRef da regra
     // (vinculo explicito a uma linha). Fallback: outros items da mesma etapa
     // excluindo o proprio (evita auto-referencia).
@@ -1350,6 +1373,7 @@ export class PoolBudgetService {
     // PASSO 1a: items sem nenhuma dependencia (so dimensions)
     for (const it of items) {
       if (!it.formulaExpr) continue;
+      if (isSemItem(it)) continue; // Sem Produto/Servico: qty fica 0 (zerada no pre-pass)
       if (usesDias(it.formulaExpr) || usesCellRef(it.formulaExpr)) continue;
       try {
         const newQty = evaluateFormula(it.formulaExpr, varsForItem(it), new Map(), buildBudgetItemsForFormula());
@@ -1375,6 +1399,7 @@ export class PoolBudgetService {
     // PASSO 1b: items que usam APENAS dias (sem cellRef)
     for (const it of items) {
       if (!it.formulaExpr) continue;
+      if (isSemItem(it)) continue; // Sem Produto/Servico: qty fica 0 (zerada no pre-pass)
       if (!usesDias(it.formulaExpr) || usesCellRef(it.formulaExpr)) continue;
       const diasForThis = computeDias(it.id);
       try {
@@ -1394,6 +1419,7 @@ export class PoolBudgetService {
       let progressed = false;
       for (const it of itemsWithCellRef) {
         if (resolved.has(it.id)) continue;
+        if (isSemItem(it)) { resolved.add(it.id); continue; } // Sem Produto/Servico: qty fica 0 (pre-pass)
         const refs = extractCellRefs(it.formulaExpr!);
         // Verifica auto-referencia
         if (it.cellRef && refs.includes(it.cellRef)) {
@@ -1551,7 +1577,7 @@ export class PoolBudgetService {
         items: {
           orderBy: [{ poolSection: 'asc' }, { sortOrder: 'asc' }],
           include: {
-            product: { select: { id: true, code: true, description: true, imageUrl: true, technicalSpecs: true, defaultQty: true } },
+            product: { select: { id: true, code: true, description: true, imageUrl: true, technicalSpecs: true, defaultQty: true, isSystemProduct: true } },
             service: { select: { id: true, code: true, name: true, imageUrl: true, technicalSpecs: true } },
           },
         },
@@ -1644,6 +1670,21 @@ export class PoolBudgetService {
         (item as any).indicatorColor = calculated.color;
         (item as any).indicatorValue = calculated.value;
         (item as any).indicatorUnit = calculated.unit;
+      }
+    }
+
+    // v1.13.77: linhas "Sem Produto" / "Sem Servico" exibem qty 0 (sem item real = nada a comprar),
+    // mesmo que tenham formula. Read-time apenas (nao escreve no DB) — orcamentos antigos ja mostram 0
+    // ao ABRIR, sem precisar editar; o recalculateTotals grava 0 de fato no proximo save/edit. Totais
+    // nao mudam (linha Sem Produto tem unitPriceCents=0 -> totalCents ja era 0). Zera tambem
+    // qtyCalculated pra a linha nao acender o amarelo de "qty fora da formula". Roda DEPOIS do loop
+    // de indicadores (que usa a qty original — Sem Produto so muda o numero exibido, nao o indicador).
+    for (const item of budget.items) {
+      const semHasRealProduct = !!item.productId && (item.product as any)?.isSystemProduct !== true;
+      const isSem = (item as any).manualUnlink === true && !semHasRealProduct && !item.serviceId;
+      if (isSem && (Number(item.qty) !== 0 || Number(item.qtyCalculated) !== 0)) {
+        (item as any).qty = 0;
+        (item as any).qtyCalculated = 0;
       }
     }
 

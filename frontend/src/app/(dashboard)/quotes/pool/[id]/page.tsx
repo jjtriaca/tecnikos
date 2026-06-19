@@ -2004,8 +2004,8 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
            Excecao REGRA #5: se item.formulaExpr existe, NAO toca qty (formula reavalia).
 
            3 cenarios:
-           A — "Sem Produto" (__NONE__ ou cadastro real): description="Sem Produto",
-               qty=cfg.product.defaultQty (do cadastro), manualUnlink=true.
+           A — "Sem Produto"/"Sem Servico" (__NONE__ ou cadastro real): description="Sem Produto",
+               qty=0 SEMPRE (mesmo com formula — v1.13.77), manualUnlink=true.
            B — Produto manual: qty=cfg.product.defaultQty, manualUnlink=true.
            C — Voltar selecao auto: manualUnlink=false (handler do botao Voltar).
                Backend recalc escolhe produto + processItem seta qty=newProduct.defaultQty.
@@ -2020,7 +2020,10 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
           const newQty: number | undefined = hasFormula
             ? undefined
             : (typeof cfg.product?.defaultQty === 'number' ? cfg.product.defaultQty : undefined);
-          // CENARIO A — Sem Produto
+          // CENARIO A — Sem Produto / Sem Servico: qty SEMPRE 0, mesmo com formula (v1.13.77).
+          // Linha sem item real nao tem o que comprar/cobrar. A formula so volta a valer ao
+          // revincular um produto/servico real (cenario B/C) — o recalc reavalia. Override
+          // pontual da REGRA #5 (formula prevalece) so neste estado. Backend recalc tambem zera.
           if (cfg.id === '__NONE__' || cfgDesc === 'sem produto') {
             onUpdate({
               catalogConfigId: cfg.id === '__NONE__' ? null : cfg.id,
@@ -2029,10 +2032,10 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
               description: item.kind === 'SERVICE' ? 'Sem Serviço' : 'Sem Produto',
               unit: cfg.product?.unit || '',
               unitPriceCents: cfg.product?.salePriceCents ?? 0,
-              ...(newQty !== undefined ? { qty: newQty } : {}),
+              qty: 0,
               manualUnlink: true,
             } as any);
-            if (newQty !== undefined) setQty(newQty);
+            setQty(0);
             setDesc(item.kind === 'SERVICE' ? 'Sem Serviço' : 'Sem Produto');
             setPrice(((cfg.product?.salePriceCents ?? 0) / 100).toFixed(2));
             return;
