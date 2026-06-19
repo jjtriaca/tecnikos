@@ -3546,8 +3546,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
   {
     icon: '🔌',
     label: 'Quadro por soma de espacos',
-    description: 'Quadro de distribuicao com polos >= soma de "Espacos no quadro" (bifTrifConta) das LINHAS que voce apontar (bombas, automacao, aquecedor...). Ao aplicar, marque no seletor as linhas — varias SOMAM (espacos × qtd de cada). So conta as linhas escolhidas — NAO o proprio quadro nem outras linhas (era sum() antes, que somava toda linha com espacos). Pra margem de seguranca, multiplique o criterio por um fator (ex: ... * 1.1).',
-    lineRef: { unit: 'prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha")', combine: 'sum' },
+    description: 'Quadro de distribuicao: polos >= soma de "Espacos no quadro" (bifTrifConta) das LINHAS dos equipamentos. EDITE o criterio a mao — troque LREF pela(s) linha(s) (use o botao "Inserir prod(L?)" abaixo ou digite) e some varias com + . Ex: polos >= prod(L82,"bifTrifConta")*prod(L82,"qtdLinha") + prod(L84,"bifTrifConta")*prod(L84,"qtdLinha"). So conta as linhas que voce colocar (NAO o proprio quadro). Margem de seguranca: multiplique por um fator (ex: ... * 1.1).',
     rule: {
       filterCategoria: null,
       filterDescription: 'quadro distr',
@@ -3568,8 +3567,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
   {
     icon: '💡',
     label: 'Fonte de iluminacao por potencia total',
-    description: 'Fonte 12V que aguenta a soma da potencia (W) dos REFLETORES que voce apontar. Ao aplicar, marque no seletor a(s) linha(s) dos refletores — varias SOMAM (potencia × qtd de cada). Le potenciaWatts do cadastro do produto vinculado e divide por 12 (sistema 12V). So conta as linhas escolhidas — NAO a propria fonte nem outras cargas (era sum() antes, que somava toda linha com potenciaWatts, inclusive a fonte). Pra margem de seguranca, multiplique a carga no criterio por um fator (ex: ... / 12 * 1.2).',
-    lineRef: { unit: 'prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha")', combine: 'sum' },
+    description: 'Fonte 12V que aguenta a soma da potencia (W) dos REFLETORES. EDITE o criterio a mao — troque LREF pela(s) linha(s) dos refletores (use o botao "Inserir prod(L?)" abaixo ou digite) e some varias DENTRO do parenteses, antes do /12. Ex: amperagem >= (prod(L51,"potenciaWatts")*prod(L51,"qtdLinha") + prod(L52,"potenciaWatts")*prod(L52,"qtdLinha")) / 12. So conta as linhas que voce colocar (NAO a propria fonte). Margem de seguranca: multiplique por um fator (ex: ... * 1.2).',
     rule: {
       filterCategoria: null,
       filterDescription: 'fonte',
@@ -3662,9 +3660,8 @@ const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; comb
   },
   {
     // Folga de espacos do QUADRO: polos do quadro - soma de "Espacos no quadro" (bifTrifConta)
-    // das linhas apontadas (× qtd de cada). LREF -> abre o seletor de linha(s) ao clicar.
-    label: 'Folga de espacos (Quadro) — escolha as linhas',
-    lineRef: { unit: 'prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha")', combine: 'sum' },
+    // das linhas. Editar a mao no indExpr: trocar LREF pelas linhas, somar varias com +.
+    label: 'Folga de espacos (Quadro) — edite as linhas',
     preset: {
       label: 'Folga de espacos',
       expr: 'polos - (prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha"))',
@@ -3677,10 +3674,9 @@ const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; comb
     },
   },
   {
-    // Folga de corrente da FONTE 12V: amperagem da fonte - carga (potenciaWatts × qtd das linhas
-    // apontadas) / 12. LREF -> abre o seletor de linha(s) (refletores) ao clicar.
-    label: 'Folga de corrente (Fonte) — escolha as linhas',
-    lineRef: { unit: 'prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha")', combine: 'sum' },
+    // Folga de corrente da FONTE 12V: amperagem da fonte - carga (potenciaWatts × qtd das linhas)
+    // / 12. Editar a mao no indExpr: trocar LREF pelas linhas, somar varias com +.
+    label: 'Folga de corrente (Fonte) — edite as linhas',
     preset: {
       label: 'Folga de corrente',
       expr: 'amperagem - (prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha")) / 12',
