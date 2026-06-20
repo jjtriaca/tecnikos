@@ -1,5 +1,10 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.13.81 (20/06) — Campo "Potência (W)" (potenciaWatts) no cadastro de produto (faltava — a Fonte 12V depende dele)
+## - **Pedido (Juliano):** no cadastro de produto (aba Piscina → ⚡ Elétrico) só tinha "Potência (CV)" (motor/bomba), faltava **Potência em Watts**. O refletor de 15W não tinha onde cadastrar → `prod(Lx,"potenciaWatts")` da Fonte 12V sempre voltava 0. "Temos que pôr."
+## - **Fix ([products/page.tsx], 7 pontos do padrão de spec):** campo novo `specPotenciaWatts` → grava `technicalSpecs.potenciaWatts`. (1) decl no tipo do form; (2) valor inicial; (3) load `numericSpecToStr(p.technicalSpecs?.potenciaWatts)`; (4) save `setOrUnset("potenciaWatts", ...)`; (5) input "Potência (W)" na seção Elétrico (ao lado de Potência CV, placeholder "Ex: 15"); (6) lista de specs por grupo `{key:'potenciaWatts', label:'Potencia (W)'}`; (7) mapping `potenciaWatts: 'specPotenciaWatts'`. Pode virar obrigatório por tipo (typeRequiredFields) se quiser.
+## - Frontend-only, **sem migration** (technicalSpecs é Json livre). tsc + next build EXIT 0. Deploy 1ª tentativa OK. Fecha o pré-requisito de dado das frentes v1.13.79/80 (Fonte de iluminação).
+
 ## ✅ DEPLOYED v1.13.80 (19/06) — Fonte + Quadro: TIRAR o popup de seleção de linha → editar a fórmula À MÃO (Juliano rejeitou o picker)
 ## - **Feedback (Juliano):** o seletor de caixinhas (v1.13.79) NÃO é o que ele quer — quer "somente colocar na fórmula quais linhas vão buscar os espaços", editando o critério direto (ex: `prod(L51,"potenciaWatts")*prod(L51,"qtdLinha") + ... / 12`). Mostrou que estava digitando à mão no campo, ignorando o popup.
 ## - **Fix ([quotes/pool/[id]/page.tsx]):** removido `lineRef` das templates **Fonte** e **Quadro** (AUTOSELECT_TEMPLATES) + dos 2 presets de indicador (Folga de espaços/corrente) → aplicar NÃO abre mais o popup. O critério vem com a estrutura (`prod(LREF,...)`) e o operador edita à mão: troca LREF pelas linhas (botão "📐 Inserir prod(L?)" que JÁ existe — lista linhas vinculadas + specs, insere no cursor) e soma várias com `+`. Descrições reescritas com o exemplo exato da sintaxe.
