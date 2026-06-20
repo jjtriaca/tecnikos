@@ -358,6 +358,7 @@ interface ProductForm {
   specBordaHorasAtivaDia: string;   // Borda Infinita — horas/dia que a bomba fica ativa
   // =================================================================
   specPotenciaCv: string;     // CV (motores)
+  specPotenciaWatts: string;  // W (refletores/iluminacao) — Fonte 12V le potenciaWatts
   specVoltagem: string;       // V (eletricos)
   specAmperagem: string;      // A (eletricos)
   specBifTrif: string;        // 'Bif' | 'Trif' | '' (tipo eletrico)
@@ -428,6 +429,7 @@ const EMPTY_FORM: ProductForm = {
   specBordaVazaoLminPorM: "",
   specBordaHorasAtivaDia: "",
   specPotenciaCv: "",
+  specPotenciaWatts: "",
   specVoltagem: "",
   specAmperagem: "",
   specBifTrif: "",
@@ -513,6 +515,7 @@ function productToForm(p: Product): ProductForm {
     specBordaVazaoLminPorM: numericSpecToStr(p.technicalSpecs?.bordaVazaoLminPorM),
     specBordaHorasAtivaDia: numericSpecToStr(p.technicalSpecs?.bordaHorasAtivaDia),
     specPotenciaCv: numericSpecToStr(p.technicalSpecs?.potenciaCv),
+    specPotenciaWatts: numericSpecToStr(p.technicalSpecs?.potenciaWatts),
     specVoltagem: numericSpecToStr(p.technicalSpecs?.voltagem),
     specAmperagem: numericSpecToStr(p.technicalSpecs?.amperagem),
     specBifTrif: typeof p.technicalSpecs?.bifTrif === 'string' ? p.technicalSpecs.bifTrif : "",
@@ -596,6 +599,7 @@ function buildTechnicalSpecs(f: ProductForm, existing?: Record<string, any>): Re
   setOrUnset("bordaVazaoLminPorM", f.specBordaVazaoLminPorM);
   setOrUnset("bordaHorasAtivaDia", f.specBordaHorasAtivaDia);
   setOrUnset("potenciaCv", f.specPotenciaCv);
+  setOrUnset("potenciaWatts", f.specPotenciaWatts);
   setOrUnset("voltagem", f.specVoltagem);
   setOrUnset("amperagem", f.specAmperagem);
   setOrUnset("bifTrifConta", f.specBifTrifConta);
@@ -2518,6 +2522,10 @@ export default function ProductsPage() {
                         <input type="number" step="0.1" value={form.specPotenciaCv} onChange={(e) => setField("specPotenciaCv", e.target.value)} placeholder="Ex: 0.75" className={inputClass} />
                       </div>
                       <div>
+                        <FieldLabel required={currentRequiredSpecs.has('potenciaWatts')} help="Potencia eletrica em Watts (W). Use pra refletores/iluminacao LED. A auto-selecao da Fonte 12V soma a potencia (W) das linhas dos refletores e divide por 12 pra achar a corrente.">Potencia (W)</FieldLabel>
+                        <input type="number" step="1" min="0" value={form.specPotenciaWatts} onChange={(e) => setField("specPotenciaWatts", e.target.value)} placeholder="Ex: 15" className={inputClass} />
+                      </div>
+                      <div>
                         <FieldLabel required={currentRequiredSpecs.has('voltagem')} help="Tensao de operacao em Volts. 220V eh padrao residencial BR, 380V eh trifasico industrial.">Voltagem (V)</FieldLabel>
                         <input type="number" step="1" value={form.specVoltagem} onChange={(e) => setField("specVoltagem", e.target.value)} placeholder="Ex: 220" className={inputClass} />
                       </div>
@@ -2766,6 +2774,7 @@ export const PRODUCT_SPECS_GROUPED: Array<{ block: string; group: string; specs:
   ]},
   { block: 'eletrico', group: '⚡ Eletrico', specs: [
     { key: 'potenciaCv', label: 'Potencia (CV)' },
+    { key: 'potenciaWatts', label: 'Potencia (W)' },
     { key: 'voltagem', label: 'Voltagem (V)' },
     { key: 'amperagem', label: 'Amperagem (A)' },
     { key: 'bifTrif', label: 'Tipo eletrico (Bif/Trif)' },
@@ -2817,6 +2826,7 @@ export const SPEC_KEY_TO_FORM_FIELD: Record<string, string> = {
   perdaCargaTrocadorMca: 'specTrocadorPerdaCargaMca',
   pressaoMaxTrocadorMca: 'specTrocadorPressaoMaxMca',
   potenciaCv: 'specPotenciaCv',
+  potenciaWatts: 'specPotenciaWatts',
   voltagem: 'specVoltagem',
   amperagem: 'specAmperagem',
   bifTrif: 'specBifTrif',
