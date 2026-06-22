@@ -1,5 +1,12 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.13.83 (22/06) — `sum()` aceita filtro por ETAPA (`@`) + receita "Tempo de montagem de TODA a etapa (× qtd)"
+## - **Pedido (Juliano):** receita de fórmula que soma `tempoMontagemH × qtd` de TODAS as linhas de uma etapa (ex: Serviço de Eletrotécnica = soma do tempo de montagem dos equipamentos elétricos). Não existia (a receita de tempo pega 1 linha via `prod(LREF)` sem × qtd; `sum()` somava todas as etapas).
+## - **Decisão Juliano:** etapa da PRÓPRIA linha por padrão, mas editável (se o operador mudar a chave manualmente, usa a que ele pôs).
+## - **Backend (`formula-eval.ts` + `pool-budget.service`):** `sum("spec", "@ETAPA")` filtra por `poolSection` (prefixo `@` distingue de filtro por categoria). `BudgetItemForFormula` ganhou `section`; `buildBudgetItemsForFormula` (recalc PASSO 1) popula `section: poolSection`. `sum()` já multiplicava × qty.
+## - **Frontend ([quotes/pool/[id]/page.tsx]):** `evalLocal` ganhou 5º param `cellRefSections` (cellRef→poolSection) + `sum()` do preview entende `@ETAPA`. FormulaModal monta o mapa (de `otherItems`, que cobrem todas as etapas + têm poolSection). Receita nova `useOwnSection` "⏱ Tempo de montagem de TODA a etapa (× qtd)" = `sum("tempoMontagemH","@SECTION")`; ao clicar, `@SECTION` → `@<etapa da linha>` (editável depois).
+## - Aditivo (sum/receitas/where/indicador existentes intactos). Backend tsc + frontend tsc + next build EXIT 0. Sem migration. Deploy 1ª OK. ⚠️ Só conta linhas com `tempoMontagemH` cadastrado e produto vinculado.
+
 ## ✅ DEPLOYED v1.13.82 (22/06) — Fonte (watts×watts) + Quadro (espaços×espaços) + fix do indicador read-time (qtdLinha). Diagnóstico via SQL prod.
 ## - **Contexto:** Fonte de iluminação não auto-selecionava + indicador não aparecia. Diagnóstico no banco (SSH→psql, login bloqueia por CAPTCHA): (1) fórmula do operador com **bug de precedência** `(A)+(B)/12`; (2) **🔴 as 5 fontes têm `amperagem=1`** cadastrado (corrente de ENTRADA 220V, não a saída 8.3A) → `amperagem >= carga` falha sempre; (3) `qtdLinha` **não chegava no indicador read-time** → folga "sempre verde".
 ## - **Fonte → watts × watts (decisão Juliano):** template `potenciaWatts (da fonte) >= soma dos watts dos refletores` (sem amperagem, sem ÷12 → some o #2 E a armadilha de precedência). `orderBy potenciaWatts asc`. Indicador = folga em W. Refletor L51 tem `potenciaWatts=6`×qty3=18 → fonte de 36W (menor que passa).
