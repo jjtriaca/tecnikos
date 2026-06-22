@@ -1635,7 +1635,11 @@ export class PoolBudgetService {
     for (const it of budget.items) {
       if (!it.cellRef) continue;
       const specs = ((it.product as any)?.technicalSpecs ?? (it.service as any)?.technicalSpecs) as Record<string, unknown> | null | undefined;
-      if (specs) indicatorCellRefSpecs.set(it.cellRef, specs);
+      // v1.13.82: qtdLinha = quantidade da linha como pseudo-spec (igual ao where da auto-selecao,
+      // L1041). Sem isso, `prod(Lx,"spec") * prod(Lx,"qtdLinha")` no indicador read-time dava
+      // qtdLinha=0 -> carga zerada -> folga sempre "cheia"/verde (bug em Fonte/Quadro/Grade).
+      // Seta pra TODA linha com cellRef (mesmo sem specs) pra qtdLinha estar sempre disponivel.
+      indicatorCellRefSpecs.set(it.cellRef, { ...(specs ?? {}), qtdLinha: Number(it.qty) || 0 });
     }
     // Specs cumulativos: capacidade total = qty × unitario. Indicator "Folga aquec."
     // deve refletir 2× X23-40C como 68.800 kcal/h, nao 34.400. v1.11.86.

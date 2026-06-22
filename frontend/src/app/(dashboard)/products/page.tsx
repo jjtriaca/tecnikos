@@ -2544,7 +2544,7 @@ export default function ProductsPage() {
                         </select>
                       </div>
                       <div>
-                        <FieldLabel required={currentRequiredSpecs.has('bifTrifConta')} help="Quantos modulos/espacos o disjuntor ou contactor desse equipamento ocupa no quadro. Usado pra dimensionar quadro automaticamente.">Espacos no quadro</FieldLabel>
+                        <FieldLabel required={currentRequiredSpecs.has('bifTrifConta')} help="Espacos/modulos no quadro de distribuicao. No EQUIPAMENTO (disjuntor, contactor): quantos espacos OCUPA (Mono=1, Bif=2, Trif=3). No QUADRO: a CAPACIDADE total (quantos espacos/modulos ele tem, ex: 16). A auto-selecao do quadro compara a capacidade com a soma dos equipamentos.">Espacos no quadro</FieldLabel>
                         <input type="number" step="1" min="0" value={form.specBifTrifConta} onChange={(e) => setField("specBifTrifConta", e.target.value)} placeholder="Ex: 2 (Bif) ou 3 (Trif)" className={inputClass} />
                       </div>
                     </div>

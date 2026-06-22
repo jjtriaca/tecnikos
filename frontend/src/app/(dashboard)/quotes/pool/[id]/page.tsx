@@ -3546,15 +3546,15 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
   {
     icon: '🔌',
     label: 'Quadro por soma de espacos',
-    description: 'Quadro de distribuicao: polos >= soma de "Espacos no quadro" (bifTrifConta) das LINHAS dos equipamentos. EDITE o criterio a mao — troque LREF pela(s) linha(s) (use o botao "Inserir prod(L?)" abaixo ou digite) e some varias com + . Ex: polos >= prod(L82,"bifTrifConta")*prod(L82,"qtdLinha") + prod(L84,"bifTrifConta")*prod(L84,"qtdLinha"). So conta as linhas que voce colocar (NAO o proprio quadro). Margem de seguranca: multiplique por um fator (ex: ... * 1.1).',
+    description: 'Quadro de distribuicao: "Espacos no quadro" do QUADRO (capacidade) >= soma dos "Espacos no quadro" das LINHAS dos equipamentos. Cadastre a capacidade do quadro no MESMO campo "Espacos no quadro" (ex: quadro de 16 modulos = 16). EDITE o criterio — troque LREF pela(s) linha(s) (botao "Inserir prod(L?)" ou digite) e some varias DENTRO do parenteses. Ex: bifTrifConta >= (prod(L82,"bifTrifConta")*prod(L82,"qtdLinha") + prod(L84,"bifTrifConta")*prod(L84,"qtdLinha")). Os disjuntores precisam estar VINCULADOS a um produto (senao o espaco conta 0). Margem: multiplique por um fator (ex: ... * 1.1).',
     rule: {
       filterCategoria: null,
       filterDescription: 'quadro distr',
-      where: 'polos >= (prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha"))',
-      orderBy: 'polos asc',
+      where: 'bifTrifConta >= (prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha"))',
+      orderBy: 'bifTrifConta asc',
       indicator: {
         label: 'Folga de espacos',
-        expr: 'polos - (prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha"))',
+        expr: 'bifTrifConta - (prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha"))',
         unit: 'espacos',
         levels: [
           { max: -0.01, label: 'Nao cabe', color: 'red' },
@@ -3567,18 +3567,18 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
   {
     icon: '💡',
     label: 'Fonte de iluminacao por potencia total',
-    description: 'Fonte 12V que aguenta a soma da potencia (W) dos REFLETORES. EDITE o criterio a mao — troque LREF pela(s) linha(s) dos refletores (use o botao "Inserir prod(L?)" abaixo ou digite) e some varias DENTRO do parenteses, antes do /12. Ex: amperagem >= (prod(L51,"potenciaWatts")*prod(L51,"qtdLinha") + prod(L52,"potenciaWatts")*prod(L52,"qtdLinha")) / 12. So conta as linhas que voce colocar (NAO a propria fonte). Margem de seguranca: multiplique por um fator (ex: ... * 1.2).',
+    description: 'Fonte que aguenta a soma da potencia (W) dos REFLETORES. Compara a potencia (W) DA FONTE com a soma dos watts dos refletores (a amperagem da fonte costuma vir como corrente de ENTRADA 220V, por isso comparamos por WATTS). EDITE o criterio: troque LREF pela(s) linha(s) dos refletores (botao "Inserir prod(L?)" abaixo ou digite) e some varias DENTRO do parenteses. Ex: potenciaWatts >= (prod(L51,"potenciaWatts")*prod(L51,"qtdLinha") + prod(L52,"potenciaWatts")*prod(L52,"qtdLinha")). So conta as linhas que voce colocar. Margem de seguranca: multiplique por um fator (ex: ... * 1.25).',
     rule: {
       filterCategoria: null,
       filterDescription: 'fonte',
-      where: 'amperagem >= (prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha")) / 12',
-      orderBy: 'amperagem asc',
+      where: 'potenciaWatts >= (prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha"))',
+      orderBy: 'potenciaWatts asc',
       indicator: {
-        label: 'Folga de corrente',
-        expr: 'amperagem - (prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha")) / 12',
-        unit: 'A',
+        label: 'Folga de potencia',
+        expr: 'potenciaWatts - (prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha"))',
+        unit: 'W',
         levels: [
-          { max: -0.01, label: 'Estoura a fonte', color: 'red' },
+          { max: -0.01, label: 'Nao atende', color: 'red' },
           { max: 0, label: 'No limite', color: 'orange' },
           { max: 9999, label: 'Folga OK', color: 'green' },
         ],
@@ -3659,12 +3659,12 @@ const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; comb
     },
   },
   {
-    // Folga de espacos do QUADRO: polos do quadro - soma de "Espacos no quadro" (bifTrifConta)
-    // das linhas. Editar a mao no indExpr: trocar LREF pelas linhas, somar varias com +.
+    // Folga de espacos do QUADRO: "Espacos no quadro" do quadro (capacidade) - soma dos espacos
+    // dos equipamentos (bifTrifConta x qtd). Editar a mao: trocar LREF pelas linhas, somar com +.
     label: 'Folga de espacos (Quadro) — edite as linhas',
     preset: {
       label: 'Folga de espacos',
-      expr: 'polos - (prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha"))',
+      expr: 'bifTrifConta - (prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha"))',
       unit: 'espacos',
       levels: [
         { max: -0.01, label: 'Nao cabe', color: 'red' },
@@ -3674,15 +3674,16 @@ const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; comb
     },
   },
   {
-    // Folga de corrente da FONTE 12V: amperagem da fonte - carga (potenciaWatts × qtd das linhas)
-    // / 12. Editar a mao no indExpr: trocar LREF pelas linhas, somar varias com +.
-    label: 'Folga de corrente (Fonte) — edite as linhas',
+    // Folga de potencia da FONTE: potenciaWatts da fonte - soma dos watts dos refletores
+    // (potenciaWatts × qtd das linhas). Watts x watts (a amperagem cadastrada costuma ser a de
+    // ENTRADA 220V). Editar a mao: trocar LREF pelas linhas, somar com + DENTRO do parenteses.
+    label: 'Folga de potencia (Fonte) — edite as linhas',
     preset: {
-      label: 'Folga de corrente',
-      expr: 'amperagem - (prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha")) / 12',
-      unit: 'A',
+      label: 'Folga de potencia',
+      expr: 'potenciaWatts - (prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha"))',
+      unit: 'W',
       levels: [
-        { max: -0.01, label: 'Estoura a fonte', color: 'red' },
+        { max: -0.01, label: 'Nao atende', color: 'red' },
         { max: 0, label: 'No limite', color: 'orange' },
         { max: 9999, label: 'Folga OK', color: 'green' },
       ],
