@@ -95,7 +95,7 @@ Tecnikos e uma plataforma SaaS B2B de Gestao de Servicos Tecnicos (Field Service
 - Variaveis dinamicas do produto vinculado: chaves arbitrarias do `technicalSpecs` (pesoKg, consumoKgM2, vazaoM3h, kcalHMin/Max, amperagem, espacosQuadro, ...)
 - Funcoes whitelisted: `ceil`, `floor`, `round`, `min`, `max`
 - Referencias entre linhas: `qty(LX)`, `total(LX)`, `unitPrice(LX)` + `prod(LX, "spec")` (spec do produto da linha)
-- Agregacoes: `sum("spec")` ou `sum("spec", "categoriaPlanilha")` — soma `qty × spec` de items do orcamento
+- Agregacoes: `sum("spec")`, `sum("spec", "categoriaPlanilha")` (filtro por categoria) ou `sum("spec", "@ETAPA")` (filtro por etapa/poolSection, prefixo `@`, v1.13.83) — soma `qty × spec` de items do orcamento. So em `evaluateFormula` (qty), NAO no where/indicador de auto-select (`auto-select.helper` so tem `prod()`)
 - Decimal aceita virgula ou ponto (`0,1` ou `0.1`)
 - `recalculateTotals` em 4 passos: (0) auto-select de produto via `autoSelectRule`, (1a/b) formulas sem deps, formulas com `dias`, (2) formulas com cellRef em ordem topologica, (3) totais finais
 

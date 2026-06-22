@@ -397,6 +397,8 @@
 - Roadmap: vazao min/max -> bomba de circulacao por curva; defaults de tubulacao configuraveis.
 
 ## Sessoes anteriores
+- Sessao 222 (19-22/06, v1.13.78→83): Piscina/eletrica — Sem Produto zera qty (mesmo com formula); Fonte/Quadro por EDICAO MANUAL da formula (picker rejeitado); campo Potencia(W); Fonte watts×watts; Quadro reusa "Espacos no quadro"; fix qtdLinha indicador; `sum("spec","@ETAPA")` + receita tempo de montagem da etapa. Resumo: [memory/sessao_222_summary.md].
+- Sessao 221 (18/06, v1.13.70→76): Piscina/orcamento — selo Modelo, "Salvar modelo" aplica modelo, fix Throttler reorder, campo Area da parede, NumInput, Template obrigatorio, qty formula 2 casas. Resumo: [memory/sessao_221_summary.md].
 - Sessao 220 (17-18/06, v1.13.69): bloqueio conciliacao/recebimento de receita sem NFS-e (opt-in por plano de contas `FinancialAccount.requiresNfse`) + excluir etapa apaga linhas. Ativado no SLS (Receita de Servicos, BLOCK). Resumo: [memory/sessao_220_summary.md].
 - Sessao 219 (12-15/06, v1.13.57-61): Chunk C AutoSelect (templates de tubo por DN + picker LREF) + recirc. Resumo: [memory/sessao_219_summary.md].
 - Sessao 215 (v1.12.94-98): Aba Bomba de Calor (datasheet clone da Solar). Sessao 214 (v1.12.94): consumo bomba solar calibrado + PDF.
