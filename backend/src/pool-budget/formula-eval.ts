@@ -98,6 +98,7 @@ export interface BudgetItemForFormula {
   qty: number;
   specs?: Record<string, number> | null;
   categoria?: string | null; // categoriaPlanilha do produto vinculado
+  section?: string | null;   // poolSection (etapa) — usado por sum("spec", "@ETAPA")
 }
 
 // Extrai cellRefs referenciados em uma formula. Reconhece qty/total/unitPrice/prod.
@@ -129,16 +130,23 @@ export function evaluateFormula(
 
   // sum("spec") — soma spec_value × qty de todos os items do orcamento (com produto vinculado)
   // sum("spec", "categoriaPlanilha") — somatorio filtrado pela categoria do produto
+  // sum("spec", "@ETAPA") — somatorio filtrado pela ETAPA (poolSection). O prefixo "@" distingue
+  //   filtro de etapa do filtro de categoria. Ex: sum("tempoMontagemH", "@FILTRO") = soma o tempo
+  //   de montagem x qty de todas as linhas da etapa FILTRO.
   normalized = normalized.replace(
     /\bsum\s*\(\s*"([a-zA-Z_][a-zA-Z0-9_]*)"\s*(?:,\s*"([^"]*)"\s*)?\)/g,
-    (_m, key: string, cat?: string) => {
+    (_m, key: string, filter?: string) => {
+      const f = (filter || '').trim();
+      const sectionKey = f.startsWith('@') ? f.slice(1).trim() : '';
+      const cat = sectionKey ? '' : f;
       let total = 0;
       for (const it of budgetItems) {
+        if (sectionKey && String(it.section || '') !== sectionKey) continue;
         const specs = it.specs;
         if (!specs) continue;
         const v = Number(specs[key]);
         if (!Number.isFinite(v) || v === 0) continue;
-        if (cat && cat.trim()) {
+        if (cat) {
           const c = (it.categoria || '').toLowerCase().trim();
           if (c !== cat.toLowerCase().trim()) continue;
         }

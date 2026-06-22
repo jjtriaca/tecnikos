@@ -1367,7 +1367,7 @@ export class PoolBudgetService {
           }
         }
       }
-      return { qty: Number(it.qty) || 0, specs: numericSpecs, categoria };
+      return { qty: Number(it.qty) || 0, specs: numericSpecs, categoria, section: String(it.poolSection) };
     });
 
     // PASSO 1a: items sem nenhuma dependencia (so dimensions)

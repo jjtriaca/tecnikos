@@ -2457,6 +2457,7 @@ function evalLocal(
   vars: Record<string, number>,
   cellRefs: Map<string, CellRefDataLocal> = new Map(),
   cellRefProductSpecs: Map<string, Record<string, any>> = new Map(),
+  cellRefSections: Map<string, string> = new Map(), // cellRef -> poolSection, p/ sum("spec","@ETAPA")
 ): { ok: boolean; value?: number; error?: string } {
   if (!expr.trim()) return { ok: false, error: 'vazia' };
   // Aceita decimal com virgula (padrao BR) — auto-converte "0,1" -> "0.1".
@@ -2491,10 +2492,13 @@ function evalLocal(
   // sum("spec") = soma de spec × qty de TODAS as linhas com produto vinculado (espelha o
   // backend evaluateFormula). v1.13.53: antes era stub (0) -> indicador/preview dos templates
   // eletricos (Disjuntor/Quadro/Fonte) sempre dava 0. Filtro de categoria (2o arg) e ignorado
-  // no preview por falta do dado de categoria nas linhas.
-  s = s.replace(/\bsum\s*\(\s*"([a-zA-Z_][a-zA-Z0-9_]*)"\s*(?:,\s*"[^"]*"\s*)?\)/g, (_m, key: string) => {
+  // no preview por falta do dado de categoria nas linhas. sum("spec","@ETAPA") filtra por etapa.
+  s = s.replace(/\bsum\s*\(\s*"([a-zA-Z_][a-zA-Z0-9_]*)"\s*(?:,\s*"([^"]*)"\s*)?\)/g, (_m, key: string, filter?: string) => {
+    const f = (filter || '').trim();
+    const sectionKey = f.startsWith('@') ? f.slice(1).trim() : null;
     let total = 0;
     for (const [ref, specs] of cellRefProductSpecs) {
+      if (sectionKey !== null && (cellRefSections.get(ref) || '') !== sectionKey) continue;
       const val = Number(specs?.[key]);
       if (!Number.isFinite(val) || val === 0) continue;
       total += val * (Number(cellRefs.get(ref)?.qty) || 0);
@@ -2544,6 +2548,9 @@ type FormulaRecipe = {
   // pelo cellRef escolhido (ex: prod(LREF, "tempoMontagemH") -> prod(L40, "tempoMontagemH")).
   // Mais robusto que usar siblingXxx — funciona em qualquer etapa, sem ambiguidade.
   needsLineRef?: boolean;
+  // Quando true, ao clicar substitui o placeholder `@SECTION` pela etapa DESTA linha
+  // (ex: sum("tempoMontagemH","@SECTION") -> sum("tempoMontagemH","@FILTRO")). Editavel depois.
+  useOwnSection?: boolean;
 };
 
 const FORMULA_RECIPES_PISCINA: FormulaRecipe[] = [
@@ -2571,6 +2578,7 @@ const FORMULA_RECIPES_PISCINA: FormulaRecipe[] = [
   // principal e substitui LREF pelo cellRef escolhido. Mais robusto que sibling*
   // (que dependia da ordem dos items na etapa).
   { label: "⏱ Tempo de montagem do equipamento (h)", expr: 'prod(LREF, "tempoMontagemH")', hint: "Le tempoMontagemH (horas) do cadastro do produto vinculado a uma linha especifica (filtro, aquecedor, kit cascata/SPA). Clique pra escolher a linha.", needsLineRef: true },
+  { label: "⏱ Tempo de montagem de TODA a etapa (× qtd)", expr: 'sum("tempoMontagemH", "@SECTION")', hint: "Soma tempoMontagemH × qtd de TODAS as linhas da etapa (so as que tem tempo de montagem cadastrado contam). Ja vem com a etapa DESTA linha; pra somar outra etapa, edite a chave depois do @ no criterio.", useOwnSection: true },
   // ── Aquecimento — qty amarrada ao Simulador (preferencial) ──
   { label: "🔥 Quantidade do Simulador (recomendado)", expr: "bombaCalorQty", hint: "Reflete a Quantidade escolhida na pagina Aquecimento (Simulador). Quando operador muda Quant ou volta pra auto no Simulador, a qty da linha atualiza automaticamente. Single source of truth." },
   { label: "🌀 Qtd da bomba de recirculacao (Bomba de Calor)", expr: "trocadorBombaQty", hint: "Reflete a Quantidade (N em paralelo) da bomba de recirculacao escolhida no card do Simulador (aba Bomba de Calor). Quando 1 bomba nao atende a vazao sozinha, o Simulador sugere N=teto(vazao-alvo/vazao-bomba); a qty da linha acompanha." },
@@ -2740,10 +2748,13 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
   // Map de cellRef -> productSpecs do produto/servico vinculado.
   // Usado pelo evalLocal pra avaliar prod(LX, "key") com valor real no preview.
   const cellRefProductSpecs = new Map<string, Record<string, any>>();
+  // cellRef -> etapa (poolSection), p/ sum("spec","@ETAPA") no preview.
+  const cellRefSections = new Map<string, string>();
   for (const o of otherItems ?? []) {
     if (o.cellRef && o.cellRef !== itemCellRef) {
       cellRefMap.set(o.cellRef, { qty: o.qty, total: o.total, unitPrice: o.unitPrice });
       if (o.productSpecs) cellRefProductSpecs.set(o.cellRef, o.productSpecs);
+      cellRefSections.set(o.cellRef, o.poolSection);
     }
   }
   const VAR_GROUPS: Record<string, { label: string; vars: string[] }> = {
@@ -2804,7 +2815,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
     construcao: "Tipo construcao (1=ABERTA, 2=FECHADA)",
   };
 
-  const result = evalLocal(expr, vars, cellRefMap, cellRefProductSpecs);
+  const result = evalLocal(expr, vars, cellRefMap, cellRefProductSpecs, cellRefSections);
 
   function insert(text: string) {
     const el = inputRef.current;
@@ -2924,6 +2935,11 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
                     <button key={r.label} type="button" onClick={() => {
                       if (r.needsLineRef) {
                         setPendingRecipe(r);
+                        setPendingLineRefs(new Set());
+                      } else if (r.useOwnSection) {
+                        // Pre-preenche a etapa DESTA linha; operador pode editar a chave depois do @.
+                        setExpr(r.expr.replace('@SECTION', '@' + (itemPoolSection || '')));
+                        setPendingRecipe(null);
                         setPendingLineRefs(new Set());
                       } else {
                         setExpr(r.expr);
