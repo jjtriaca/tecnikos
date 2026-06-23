@@ -50,11 +50,16 @@ export class CashAccountService {
   /**
    * Composicao da conta: quanto do saldo e dinheiro e quanto e cheque de terceiro em carteira.
    * Cheque em carteira = RECEIVABLE PAID com paymentMethod CHEQUE nesta conta e checkOutAt null
-   * (ainda nao depositado/repassado). dinheiro = saldo total - cheques em carteira. v1.13.86.
+   * (ainda nao depositado/repassado). dinheiro = saldo total - cheques em carteira.
+   *
+   * AGRUPA por cheque FISICO (mesmo checkNumber + checkBank) — um cheque pode cobrir varios
+   * lancamentos (ex: 1 cheque pro lote todo, v1.13.84). Cada item da lista = 1 cheque (soma dos
+   * lancamentos), com entryIds[] de todos os lancamentos pra depositar juntos (nao da pra depositar
+   * "meio cheque"). Sem checkNumber = cada lancamento vira um item proprio. v1.13.86 (agrupado v1.13.87).
    */
   async getCheckWallet(id: string, companyId: string) {
     const account = await this.findOne(id, companyId);
-    const checks = await this.prisma.financialEntry.findMany({
+    const entries = await this.prisma.financialEntry.findMany({
       where: {
         companyId,
         deletedAt: null,
@@ -66,7 +71,6 @@ export class CashAccountService {
       },
       select: {
         id: true,
-        code: true,
         description: true,
         netCents: true,
         checkNumber: true,
@@ -77,24 +81,48 @@ export class CashAccountService {
       },
       orderBy: { paidAt: 'asc' },
     });
-    const checksCents = checks.reduce((sum, c) => sum + c.netCents, 0);
+    const checksCents = entries.reduce((sum, e) => sum + e.netCents, 0);
+
+    type Group = {
+      key: string;
+      checkNumber: string | null;
+      checkBank: string | null;
+      checkHolder: string | null;
+      partnerName: string | null;
+      netCents: number;
+      entryIds: string[];
+      count: number;
+    };
+    const groups = new Map<string, Group>();
+    for (const e of entries) {
+      // Chave do cheque fisico: numero + banco. Sem numero -> item proprio (id), nao agrupa.
+      const key = e.checkNumber ? `${e.checkNumber}|${e.checkBank ?? ''}` : `__${e.id}`;
+      const g = groups.get(key);
+      if (g) {
+        g.netCents += e.netCents;
+        g.entryIds.push(e.id);
+        g.count += 1;
+      } else {
+        groups.set(key, {
+          key,
+          checkNumber: e.checkNumber,
+          checkBank: e.checkBank,
+          checkHolder: e.checkHolder,
+          partnerName: e.partner?.name ?? null,
+          netCents: e.netCents,
+          entryIds: [e.id],
+          count: 1,
+        });
+      }
+    }
+
     return {
       accountId: id,
       accountType: account.type,
       currentBalanceCents: account.currentBalanceCents,
       checksCents,
       cashCents: account.currentBalanceCents - checksCents,
-      checks: checks.map((c) => ({
-        id: c.id,
-        code: c.code,
-        description: c.description,
-        netCents: c.netCents,
-        checkNumber: c.checkNumber,
-        checkBank: c.checkBank,
-        checkHolder: c.checkHolder,
-        paidAt: c.paidAt,
-        partnerName: c.partner?.name ?? null,
-      })),
+      checks: Array.from(groups.values()),
     };
   }
 

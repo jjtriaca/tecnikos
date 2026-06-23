@@ -929,7 +929,7 @@ function TransfersSection() {
     accountType: string;
     cashCents: number;
     checksCents: number;
-    checks: { id: string; netCents: number; checkNumber: string | null; checkBank: string | null; partnerName: string | null; description: string | null }[];
+    checks: { key: string; netCents: number; checkNumber: string | null; checkBank: string | null; partnerName: string | null; count: number; entryIds: string[] }[];
   } | null>(null);
   const [selectedCheckIds, setSelectedCheckIds] = useState<Set<string>>(new Set());
   const [depositBankId, setDepositBankId] = useState("");
@@ -1001,11 +1001,13 @@ function TransfersSection() {
     }
   }
 
-  function toggleCheck(id: string) {
+  // Marca/desmarca um cheque INTEIRO (todos os lancamentos do mesmo cheque fisico de uma vez).
+  function toggleCheckGroup(entryIds: string[]) {
     setSelectedCheckIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      const allSelected = entryIds.every((id) => next.has(id));
+      if (allSelected) entryIds.forEach((id) => next.delete(id));
+      else entryIds.forEach((id) => next.add(id));
       return next;
     });
   }
@@ -1020,9 +1022,10 @@ function TransfersSection() {
 
   // depositMode: ha cheque(s) marcado(s) -> o modal vira "deposito de cheque" (vai pra Cheques a Compensar)
   const depositMode = selectedCheckIds.size > 0;
-  const selectedChecksTotal = checkWallet
-    ? checkWallet.checks.filter((c) => selectedCheckIds.has(c.id)).reduce((s, c) => s + c.netCents, 0)
-    : 0;
+  const selectedCheckGroups = checkWallet
+    ? checkWallet.checks.filter((g) => g.entryIds.every((id) => selectedCheckIds.has(id)))
+    : [];
+  const selectedChecksTotal = selectedCheckGroups.reduce((s, g) => s + g.netCents, 0);
 
   async function handleDepositChecks() {
     if (selectedCheckIds.size === 0) return;
@@ -1139,12 +1142,13 @@ function TransfersSection() {
                         <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Depositar cheque(s)</p>
                         <div className="space-y-1 max-h-40 overflow-y-auto">
                           {checkWallet.checks.map((c) => (
-                            <label key={c.id} className="flex items-center gap-2 rounded px-1 py-1 text-xs cursor-pointer hover:bg-white">
-                              <input type="checkbox" checked={selectedCheckIds.has(c.id)} onChange={() => toggleCheck(c.id)} className="accent-indigo-600" />
+                            <label key={c.key} className="flex items-center gap-2 rounded px-1 py-1 text-xs cursor-pointer hover:bg-white">
+                              <input type="checkbox" checked={c.entryIds.every((id) => selectedCheckIds.has(id))} onChange={() => toggleCheckGroup(c.entryIds)} className="accent-indigo-600" />
                               <span className="flex-1 truncate text-slate-700">
                                 {c.checkNumber ? `Cheque ${c.checkNumber}` : "Cheque"}
                                 {c.checkBank ? ` · ${c.checkBank}` : ""}
                                 {c.partnerName ? ` · ${c.partnerName}` : ""}
+                                {c.count > 1 ? ` · ${c.count} lançamentos` : ""}
                               </span>
                               <span className="whitespace-nowrap font-medium text-slate-800">{formatCurrency(c.netCents)}</span>
                             </label>
@@ -1159,7 +1163,7 @@ function TransfersSection() {
               {depositMode ? (
                 <>
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-                    {selectedCheckIds.size} cheque(s) vao para <strong>Cheques a Compensar</strong>. Entram no banco quando voce conciliar o extrato.
+                    {selectedCheckGroups.length} cheque(s) vao para <strong>Cheques a Compensar</strong>. Entram no banco quando voce conciliar o extrato.
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">Banco onde vai depositar (opcional)</label>
