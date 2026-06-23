@@ -940,10 +940,24 @@ export class FinanceService {
       cashAccountId?: string;
       paymentInstrumentId?: string;
       skipCashAccount?: boolean;
+      checkNumber?: string;
+      checkBank?: string;
+      checkAgency?: string;
+      checkAccount?: string;
+      checkClearanceDate?: string;
+      checkHolder?: string;
     },
   ) {
     if (!body.entryIds?.length) throw new BadRequestException('Nenhuma entrada selecionada');
     if (!body.paymentMethod) throw new BadRequestException('Forma de pagamento obrigatoria');
+
+    // IC-04 no lote: 1 cheque vale pra todos os selecionados. Valida numero+banco
+    // UMA vez aqui (antes do loop) — senao changeEntryStatus rejeitaria CADA entry
+    // com o mesmo erro e o usuario via "0 de N recebidos. N erro(s)." (sem dizer o porque).
+    if (body.paymentMethod.toUpperCase().includes('CHEQUE')) {
+      if (!body.checkNumber) throw new BadRequestException('Numero do cheque e obrigatorio para pagamento com cheque.');
+      if (!body.checkBank) throw new BadRequestException('Banco emissor do cheque e obrigatorio.');
+    }
 
     const batchId = `BATCH_${Date.now().toString(36)}`;
     const paidAt = body.paidAt ? new Date(body.paidAt) : new Date();
@@ -963,6 +977,12 @@ export class FinanceService {
           cashAccountId: body.skipCashAccount ? undefined : body.cashAccountId,
           paymentInstrumentId: body.skipCashAccount ? undefined : body.paymentInstrumentId,
           skipCashAccount: body.skipCashAccount,
+          checkNumber: body.checkNumber,
+          checkBank: body.checkBank,
+          checkAgency: body.checkAgency,
+          checkAccount: body.checkAccount,
+          checkClearanceDate: body.checkClearanceDate,
+          checkHolder: body.checkHolder,
         } as ChangeEntryStatusDto);
 
         // Set batchPaymentId

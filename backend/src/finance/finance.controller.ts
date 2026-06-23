@@ -711,6 +711,13 @@ export class FinanceController {
       paidAt?: string;
       cashAccountId?: string;
       paymentInstrumentId?: string;
+      skipCashAccount?: boolean;
+      checkNumber?: string;
+      checkBank?: string;
+      checkAgency?: string;
+      checkAccount?: string;
+      checkClearanceDate?: string;
+      checkHolder?: string;
     },
     @CurrentUser() user: AuthenticatedUser,
   ) {

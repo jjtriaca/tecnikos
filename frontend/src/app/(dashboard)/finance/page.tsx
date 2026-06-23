@@ -1499,6 +1499,12 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
 
   async function handleBatchPay() {
     if (selectedIds.size === 0 || !batchPayMethod) return;
+    // Cheque no lote: 1 cheque vale pra todos os selecionados — exige numero+banco (IC-04)
+    const isCheckBatch = type === "RECEIVABLE" && !!activePMs.find((p) => p.code === batchPayMethod)?.requiresCheckData;
+    if (isCheckBatch) {
+      if (!checkNumber.trim()) { toast("Informe o número do cheque.", "error"); return; }
+      if (!checkBank.trim()) { toast("Informe o banco emissor do cheque.", "error"); return; }
+    }
     setBatchProcessing(true);
     try {
       const result = await api.post<{ paidCount: number; totalPaidCents: number; errors: string[] }>("/finance/entries/batch-pay", {
@@ -1507,6 +1513,14 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
         paidAt: batchDate || undefined,
         cashAccountId: batchUpdateFinancials ? (batchAccountId || undefined) : undefined,
         skipCashAccount: !batchUpdateFinancials ? true : undefined,
+        ...(isCheckBatch && {
+          checkNumber: checkNumber || undefined,
+          checkBank: checkBank || undefined,
+          checkAgency: checkAgency || undefined,
+          checkAccount: checkAccount || undefined,
+          checkClearanceDate: checkClearanceDate || undefined,
+          checkHolder: checkHolder || undefined,
+        }),
       });
       if (result.errors.length > 0) {
         toast(`${result.paidCount} de ${selectedIds.size} ${type === "RECEIVABLE" ? "recebidos" : "pagos"}. ${result.errors.length} erro(s).`, "error");
@@ -1517,6 +1531,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
       setSelectedIds(new Set());
       setBatchPayMethod("");
       setBatchAccountId("");
+      setCheckNumber(""); setCheckBank(""); setCheckAgency(""); setCheckAccount(""); setCheckClearanceDate(""); setCheckHolder("");
       await loadEntries();
     } catch (err: any) {
       toast(err?.message || "Erro ao processar pagamento em lote", "error");
@@ -1812,7 +1827,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
             {selectedIds.size} selecionado{selectedIds.size !== 1 ? "s" : ""} — {formatCurrency(selectedTotal)}
           </span>
           <button
-            onClick={() => { setBatchDate(new Date().toISOString().slice(0, 10)); setBatchPayMethod(""); setBatchAccountId(""); setShowBatchModal(true); }}
+            onClick={() => { setBatchDate(new Date().toISOString().slice(0, 10)); setBatchPayMethod(""); setBatchAccountId(""); setCheckNumber(""); setCheckBank(""); setCheckAgency(""); setCheckAccount(""); setCheckClearanceDate(""); setCheckHolder(""); setShowBatchModal(true); }}
             className={`px-4 py-1.5 text-sm font-semibold rounded-lg transition-colors ${type === "RECEIVABLE" ? "bg-green-600 hover:bg-green-700" : "bg-blue-600 hover:bg-blue-700"}`}
           >
             {type === "RECEIVABLE" ? "Receber todos" : "Pagar todos"}
@@ -1853,6 +1868,44 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                   {activePMs.map((m) => <option key={m.code} value={m.code}>{m.name}</option>)}
                 </select>
               </div>
+              {/* Dados do cheque — 1 cheque vale pra TODOS os selecionados (only RECEIVABLE + CHEQUE) */}
+              {type === "RECEIVABLE" && activePMs.find((p) => p.code === batchPayMethod)?.requiresCheckData && (
+                <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-xs font-medium text-amber-700">Dados do Cheque <span className="font-normal text-amber-600">(vale para os {selectedIds.size} selecionados)</span></p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] text-slate-600 mb-0.5">Número do Cheque *</label>
+                      <input type="text" value={checkNumber} onChange={(e) => setCheckNumber(e.target.value)}
+                        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-500 outline-none" placeholder="000001" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-600 mb-0.5">Banco Emissor *</label>
+                      <input type="text" value={checkBank} onChange={(e) => setCheckBank(e.target.value)}
+                        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-500 outline-none" placeholder="Bradesco" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-600 mb-0.5">Agencia</label>
+                      <input type="text" value={checkAgency} onChange={(e) => setCheckAgency(e.target.value)}
+                        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-500 outline-none" placeholder="0001" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-600 mb-0.5">Conta</label>
+                      <input type="text" value={checkAccount} onChange={(e) => setCheckAccount(e.target.value)}
+                        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-500 outline-none" placeholder="12345-6" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-600 mb-0.5">Compensacao</label>
+                      <input type="date" value={checkClearanceDate} onChange={(e) => setCheckClearanceDate(e.target.value)}
+                        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-500 outline-none" />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-600 mb-0.5">Titular</label>
+                      <input type="text" value={checkHolder} onChange={(e) => setCheckHolder(e.target.value)}
+                        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-500 outline-none" placeholder="Nome do titular" />
+                    </div>
+                  </div>
+                </div>
+              )}
               {/* Toggle "Lancar financeiro" — identico ao modal individual */}
               <label className="flex items-center justify-between cursor-pointer select-none">
                 <span className="text-xs font-medium text-slate-600">Lancar financeiro</span>
