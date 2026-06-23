@@ -9,7 +9,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { OfxParserService } from './ofx-parser.service';
 import { CsvParserService } from './csv-parser.service';
-import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto, EntryAccountAssignmentDto, MatchAsTransferDto } from './dto/reconciliation.dto';
+import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto, EntryAccountAssignmentDto, MatchAsTransferDto, MatchCheckReturnDto } from './dto/reconciliation.dto';
 import { CodeGeneratorService } from '../common/code-generator.service';
 import { breakInTenantTz, endOfTenantDay } from '../common/util/tenant-date.util';
 import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
@@ -2043,6 +2043,116 @@ export class ReconciliationService {
    * Unmatch (revert) a matched line. For refund pairs, unmatches BOTH lines and
    * deletes the two technical entries that were created.
    */
+  /**
+   * Concilia a linha "DEVOLUCAO CHEQUE" (debito) como devolucao de um cheque DEPOSITADO que voltou
+   * sem fundo. Desfaz a trilha Caixa->Compensar->Banco ao contrario (2 AccountTransfers reversos),
+   * estorna o recebimento (lancamento volta pra "a receber", mantendo os dados do cheque + marcando
+   * checkReturnedAt) e, opcionalmente, lanca a tarifa de devolucao. Saldo fecha: Banco perde o valor
+   * do cheque (a devolucao), Compensar e Caixa voltam a zero. v1.13.93.
+   */
+  async matchAsCheckReturn(lineId: string, companyId: string, dto: MatchCheckReturnDto, matchedByName: string) {
+    const line = await this.prisma.bankStatementLine.findUnique({
+      where: { id: lineId },
+      include: { import: { select: { companyId: true } } },
+    });
+    if (!line || line.import.companyId !== companyId) throw new NotFoundException('Linha não encontrada.');
+    if (line.status !== 'UNMATCHED') throw new BadRequestException('Linha já está conciliada.');
+    if (line.amountCents >= 0) throw new BadRequestException('A devolução de cheque é uma SAÍDA (débito) no extrato.');
+
+    const cheques = await this.prisma.financialEntry.findMany({
+      where: { id: { in: dto.entryIds }, companyId, deletedAt: null },
+      select: {
+        id: true, type: true, status: true, netCents: true, paymentMethod: true,
+        checkOutKind: true, checkOutAt: true, checkReturnedAt: true, cashAccountId: true,
+        notes: true, checkNumber: true,
+      },
+    });
+    if (cheques.length !== dto.entryIds.length) throw new BadRequestException('Um ou mais lançamentos do cheque não foram encontrados.');
+    const caixaId = cheques[0].cashAccountId;
+    if (!caixaId) throw new BadRequestException('Cheque sem conta de origem.');
+    for (const c of cheques) {
+      if (c.type !== 'RECEIVABLE' || c.paymentMethod !== 'CHEQUE') throw new BadRequestException('O lançamento apontado não é um cheque recebido.');
+      if (c.checkOutKind !== 'DEPOSIT' || !c.checkOutAt) throw new BadRequestException('Esse cheque não foi depositado — só dá pra registrar devolução de cheque depositado.');
+      if (c.checkReturnedAt) throw new BadRequestException('Esse cheque já foi marcado como devolvido.');
+      if (c.cashAccountId !== caixaId) throw new BadRequestException('Os lançamentos do cheque são de contas diferentes.');
+    }
+
+    const bankId = line.cashAccountId; // conta do extrato (banco onde a devolução caiu)
+    const clearing = await this.prisma.cashAccount.findFirst({
+      where: { companyId, deletedAt: null, type: 'TRANSITO', name: { equals: 'Cheques a Compensar', mode: 'insensitive' } },
+      select: { id: true },
+    });
+    if (!clearing) throw new BadRequestException('Conta "Cheques a Compensar" não encontrada.');
+
+    const X = cheques.reduce((s, c) => s + c.netCents, 0);
+    const lineAbs = Math.abs(line.amountCents);
+    const feeCents = dto.feeCents && dto.feeCents > 0 ? dto.feeCents : 0;
+    // A linha de devolução pode ser só o cheque (X) OU cheque + tarifa (X + fee), quando o banco
+    // debita os dois juntos. Aceita os dois casos (tolerância 1c).
+    if (Math.abs(lineAbs - X) > 1 && Math.abs(lineAbs - (X + feeCents)) > 1) {
+      throw new BadRequestException(
+        `O valor da linha (R$ ${(lineAbs / 100).toFixed(2)}) não bate com o cheque (R$ ${(X / 100).toFixed(2)})${feeCents ? ` + tarifa (R$ ${(feeCents / 100).toFixed(2)})` : ''}.`,
+      );
+    }
+
+    const date = line.transactionDate;
+    const feeAccountId = feeCents ? (dto.feeAccountId || bankId) : null;
+    await this.closedMonthGuard.assertNoneClosed(companyId, [
+      { cashAccountId: bankId, affectedDate: date },
+      { cashAccountId: clearing.id, affectedDate: date },
+      { cashAccountId: caixaId, affectedDate: date },
+      ...(feeAccountId ? [{ cashAccountId: feeAccountId, affectedDate: date }] : []),
+    ], 'Devolução de cheque');
+
+    const tsLog = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const chkLabel = cheques[0].checkNumber ? `cheque ${cheques[0].checkNumber}` : 'cheque';
+    const feeCode = feeCents ? await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY') : null;
+
+    return this.prisma.$transaction(async (tx) => {
+      // T3: Banco -> "Cheques a Compensar" (cheque volta de compensado pra a compensar)
+      await tx.accountTransfer.create({ data: withCreate({ companyId, fromAccountId: bankId, toAccountId: clearing.id, amountCents: X, description: `Devolução ${chkLabel} — volta do banco (linha ${line.id.substring(0, 8)})`, transferDate: date, createdByName: matchedByName }) });
+      await tx.cashAccount.update({ where: { id: bankId }, data: withUpdate({ currentBalanceCents: { decrement: X } }) });
+      await tx.cashAccount.update({ where: { id: clearing.id }, data: withUpdate({ currentBalanceCents: { increment: X } }) });
+
+      // T4: "Cheques a Compensar" -> Caixa (desfaz o depósito)
+      await tx.accountTransfer.create({ data: withCreate({ companyId, fromAccountId: clearing.id, toAccountId: caixaId, amountCents: X, description: `Devolução ${chkLabel} — volta pro caixa`, transferDate: date, createdByName: matchedByName }) });
+      await tx.cashAccount.update({ where: { id: clearing.id }, data: withUpdate({ currentBalanceCents: { decrement: X } }) });
+      await tx.cashAccount.update({ where: { id: caixaId }, data: withUpdate({ currentBalanceCents: { increment: X } }) });
+
+      // Estorno do recebimento: volta pra "a receber", mantém dados do cheque, marca devolvido. Debita Caixa
+      // (reverte o +X do recebimento; com o T4, o Caixa fecha em 0). O entry PENDING some do balance-compare.
+      const log = `[${tsLog}] CHEQUE DEVOLVIDO (sem fundo) — voltou pra "a receber"`;
+      for (const c of cheques) {
+        await tx.financialEntry.update({
+          where: { id: c.id },
+          data: { status: 'PENDING', paidAt: null, autoMarkedPaid: false, checkReturnedAt: date, notes: c.notes ? `${c.notes}\n${log}` : log },
+        });
+      }
+      await tx.cashAccount.update({ where: { id: caixaId }, data: withUpdate({ currentBalanceCents: { decrement: X } }) });
+
+      // Tarifa de devolução (opcional): despesa PAID na conta escolhida
+      if (feeCents && feeAccountId && feeCode) {
+        await tx.financialEntry.create({
+          data: {
+            companyId, code: feeCode, type: 'PAYABLE', status: 'PAID',
+            description: `Tarifa devolução de ${chkLabel}`,
+            grossCents: feeCents, netCents: feeCents, paidAt: date,
+            cashAccountId: feeAccountId, autoMarkedPaid: true, isRefundEntry: true,
+            notes: `[${tsLog}] Tarifa de devolução de cheque`,
+          },
+        });
+        await tx.cashAccount.update({ where: { id: feeAccountId }, data: withUpdate({ currentBalanceCents: { decrement: feeCents } }) });
+      }
+
+      const updated = await tx.bankStatementLine.update({
+        where: { id: lineId },
+        data: withUpdate({ status: 'MATCHED', matchedEntryId: cheques[0].id, matchedAt: new Date(), matchedByName, notes: dto.notes ?? 'Devolução de cheque' }),
+      });
+      await this.recalcCounts(tx, line.importId, line.statementId);
+      return updated;
+    });
+  }
+
   async unmatchLine(lineId: string, companyId: string) {
     const line = await this.prisma.bankStatementLine.findUnique({
       where: { id: lineId },

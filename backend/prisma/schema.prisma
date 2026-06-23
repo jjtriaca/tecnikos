@@ -938,6 +938,9 @@ model FinancialEntry {
   checkOutAt   DateTime? // quando o cheque saiu da carteira (null = ainda em carteira)
   checkOutKind String?   // como saiu: 'DEPOSIT' (deposito no banco) | 'ENDORSE' (repasse p/ pagar fornecedor)
   checkOutRef  String?   // ref do destino: id do AccountTransfer (deposito) ou da FinancialEntry PAYABLE quitada (repasse)
+  // Devolucao (sem fundo) — v1.13.93. Cheque depositado que VOLTOU: a trilha Caixa->Compensar->Banco
+  // e desfeita ao contrario, o lancamento volta pra "a receber" e o cheque fica marcado devolvido aqui.
+  checkReturnedAt DateTime? // quando o cheque foi devolvido (null = nao devolvido)
 
   // Parcelas e Juros (v2.0)
   installmentCount    Int? // Nro de parcelas (null = à vista)

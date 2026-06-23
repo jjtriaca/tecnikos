@@ -48,6 +48,7 @@ function LineActionsDropdown({
   onConciliarCardInvoice,
   onConciliarMultiple,
   onConciliarTransfer,
+  onConciliarCheckReturn,
   onIgnore,
   onUnignore,
   onUnmatch,
@@ -59,6 +60,7 @@ function LineActionsDropdown({
   onConciliarCardInvoice: () => void;
   onConciliarMultiple: () => void;
   onConciliarTransfer: () => void;
+  onConciliarCheckReturn: () => void;
   onIgnore: () => void;
   onUnignore: () => void;
   onUnmatch: () => void;
@@ -76,7 +78,7 @@ function LineActionsDropdown({
     if (open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
       // UNMATCHED: Conciliar + Devolucao + Transferencia + [Fatura cartao se debito] + sep + Ignorar
-      const itemCount = line.status === "UNMATCHED" ? (isDebit ? 5 : 4) : 1;
+      const itemCount = line.status === "UNMATCHED" ? (isDebit ? 6 : 4) : 1;
       const hasSeparator = line.status === "UNMATCHED";
       const estHeight = 8 + itemCount * 36 + (hasSeparator ? 9 : 0);
       const spaceBelow = window.innerHeight - rect.bottom;
@@ -160,6 +162,15 @@ function LineActionsDropdown({
                   <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-green-100 text-green-700 font-semibold">cheque a compensar</span>
                 )}
               </button>
+              {isDebit && (
+                <button
+                  onClick={() => { setOpen(false); onConciliarCheckReturn(); }}
+                  className="block w-full text-left px-3 py-2 text-sm font-medium text-orange-700 hover:bg-orange-50"
+                  title="Cheque depositado que voltou sem fundo — desfaz a trilha e devolve o lancamento pra a receber"
+                >
+                  &#8617; Conciliar como devolucao de cheque
+                </button>
+              )}
               <div className="my-1 border-t border-slate-100" />
               <button
                 onClick={() => { setOpen(false); onIgnore(); }}
@@ -4025,6 +4036,125 @@ function StatementsSection() {
 }
 
 /* ══════════════════════════════════════════════════════════
+   CHECK RETURN MODAL (v1.13.93)
+   Concilia a linha "DEVOLUCAO CHEQUE" como devolucao de cheque depositado.
+   ══════════════════════════════════════════════════════════ */
+function CheckReturnModal({
+  open,
+  line,
+  onClose,
+  onMatched,
+}: {
+  open: boolean;
+  line: BankStatementLine | null;
+  onClose: () => void;
+  onMatched: () => void;
+}) {
+  const { toast } = useToast();
+  const [checks, setChecks] = useState<{ key: string; netCents: number; checkNumber: string | null; checkBank: string | null; partnerName: string | null; count: number; entryIds: string[] }[]>([]);
+  const [selectedKey, setSelectedKey] = useState("");
+  const [feeText, setFeeText] = useState("");
+  const [feeAccountId, setFeeAccountId] = useState("");
+  const [accounts, setAccounts] = useState<CashAccountOption[]>([]);
+  const [matching, setMatching] = useState(false);
+
+  const amount = line ? Math.abs(line.amountCents) : 0;
+
+  useEffect(() => {
+    if (!open || !line) return;
+    setSelectedKey(""); setFeeText(""); setFeeAccountId("");
+    api.get<typeof checks>("/finance/deposited-checks").then((c) => {
+      const list = c || [];
+      setChecks(list);
+      const exact = list.find((g) => Math.abs(g.netCents - amount) <= 1);
+      if (exact) setSelectedKey(exact.key);
+    }).catch(() => setChecks([]));
+    api.get<CashAccountOption[]>("/finance/cash-accounts").then((l) => setAccounts((l || []).filter((a) => a.isActive))).catch(() => setAccounts([]));
+  }, [open, line, amount]);
+
+  if (!open || !line) return null;
+
+  const selected = checks.find((g) => g.key === selectedKey);
+  const feeCents = Math.round((parseFloat(feeText.replace(",", ".")) || 0) * 100);
+
+  async function handleConfirm() {
+    if (!line || !selected) { toast("Selecione o cheque que voltou.", "error"); return; }
+    setMatching(true);
+    try {
+      await api.post(`/finance/reconciliation/lines/${line.id}/match-as-check-return`, {
+        entryIds: selected.entryIds,
+        feeCents: feeCents > 0 ? feeCents : undefined,
+        feeAccountId: feeCents > 0 ? (feeAccountId || undefined) : undefined,
+      });
+      toast("Devolução registrada — lançamento voltou pra a receber.", "success");
+      onMatched();
+    } catch (err: any) {
+      toast(err?.response?.data?.message || err?.message || "Erro ao registrar devolução.", "error");
+    } finally {
+      setMatching(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+        <div className="px-5 py-4 border-b border-slate-200">
+          <h3 className="text-base font-semibold text-slate-800">&#8617; Devolução de cheque</h3>
+          <p className="text-[11px] text-slate-500 mt-0.5">Cheque depositado que voltou sem fundo. O dinheiro sai, o lançamento volta pra &quot;a receber&quot; e o cheque fica marcado devolvido.</p>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-[11px] text-slate-600">
+            <div className="flex items-center justify-between">
+              <span className="truncate">{line.description}</span>
+              <span className="font-semibold ml-2 text-red-700">{formatCurrency(line.amountCents)}</span>
+            </div>
+            <div className="text-slate-600 mt-0.5">{formatDate(line.transactionDate)}</div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Qual cheque voltou? <span className="text-red-500">*</span></label>
+            {checks.length === 0 ? (
+              <p className="text-[11px] text-slate-500">Nenhum cheque depositado encontrado.</p>
+            ) : (
+              <select value={selectedKey} onChange={(e) => setSelectedKey(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                <option value="">Selecione...</option>
+                {checks.map((g) => (
+                  <option key={g.key} value={g.key}>
+                    {g.checkNumber ? `Cheque ${g.checkNumber}` : "Cheque"}{g.checkBank ? ` · ${g.checkBank}` : ""}{g.partnerName ? ` · ${g.partnerName}` : ""} — {formatCurrency(g.netCents)}{g.count > 1 ? ` (${g.count} lanç.)` : ""}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Tarifa de devolução (opcional)</label>
+            <input type="text" inputMode="decimal" value={feeText} onChange={(e) => setFeeText(e.target.value)} placeholder="Ex: 30,00"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
+          </div>
+          {feeCents > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Tarifa sai de</label>
+              <select value={feeAccountId} onChange={(e) => setFeeAccountId(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                <option value="">Conta do extrato (banco)</option>
+                {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+        <div className="px-5 py-3 border-t border-slate-200 flex justify-end gap-2">
+          <button onClick={onClose} disabled={matching} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
+          <button onClick={handleConfirm} disabled={matching || !selected}
+            className="px-4 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 rounded-lg disabled:opacity-50">
+            {matching ? "Registrando..." : "Registrar devolução"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
    LINES DETAIL VIEW
    ══════════════════════════════════════════════════════════ */
 
@@ -4049,6 +4179,7 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
   const [cardInvoiceLine, setCardInvoiceLine] = useState<BankStatementLine | null>(null);
   const [multipleLine, setMultipleLine] = useState<BankStatementLine | null>(null);
   const [transferLine, setTransferLine] = useState<BankStatementLine | null>(null);
+  const [checkReturnLine, setCheckReturnLine] = useState<BankStatementLine | null>(null);
   const [balanceCompare, setBalanceCompare] = useState<BalanceCompare | null>(null);
   const [balanceModalOpen, setBalanceModalOpen] = useState(false);
   const [balanceInputValue, setBalanceInputValue] = useState("");
@@ -4472,6 +4603,7 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
                             onConciliarCardInvoice={() => setCardInvoiceLine(line)}
                             onConciliarMultiple={() => setMultipleLine(line)}
                             onConciliarTransfer={() => setTransferLine(line)}
+                            onConciliarCheckReturn={() => setCheckReturnLine(line)}
                             onIgnore={() => handleIgnore(line.id)}
                             onUnignore={() => handleUnignore(line.id)}
                             onUnmatch={() => setUnmatchLine(line)}
@@ -4588,6 +4720,12 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
         line={transferLine}
         onClose={() => setTransferLine(null)}
         onMatched={() => { setTransferLine(null); refreshAll(); }}
+      />
+      <CheckReturnModal
+        open={!!checkReturnLine}
+        line={checkReturnLine}
+        onClose={() => setCheckReturnLine(null)}
+        onMatched={() => { setCheckReturnLine(null); refreshAll(); }}
       />
     </div>
   );

@@ -201,6 +201,33 @@ export class CashAccountService {
   }
 
   /**
+   * Cheques DEPOSITADOS e ainda nao devolvidos (checkOutKind='DEPOSIT', checkReturnedAt null),
+   * agrupados por cheque fisico (numero+banco). Candidatos a registrar devolucao (sem fundo). v1.13.93.
+   */
+  async getDepositedChecks(companyId: string) {
+    const entries = await this.prisma.financialEntry.findMany({
+      where: {
+        companyId, deletedAt: null, type: 'RECEIVABLE', paymentMethod: 'CHEQUE',
+        checkOutKind: 'DEPOSIT', checkReturnedAt: null,
+      },
+      select: {
+        id: true, netCents: true, checkNumber: true, checkBank: true, checkOutAt: true,
+        partner: { select: { name: true } },
+      },
+      orderBy: { checkOutAt: 'desc' },
+    });
+    type G = { key: string; checkNumber: string | null; checkBank: string | null; partnerName: string | null; netCents: number; entryIds: string[]; count: number; depositedAt: Date | null };
+    const groups = new Map<string, G>();
+    for (const e of entries) {
+      const key = e.checkNumber ? `${e.checkNumber}|${e.checkBank ?? ''}` : `__${e.id}`;
+      const g = groups.get(key);
+      if (g) { g.netCents += e.netCents; g.entryIds.push(e.id); g.count += 1; }
+      else groups.set(key, { key, checkNumber: e.checkNumber, checkBank: e.checkBank, partnerName: e.partner?.name ?? null, netCents: e.netCents, entryIds: [e.id], count: 1, depositedAt: e.checkOutAt });
+    }
+    return Array.from(groups.values());
+  }
+
+  /**
    * Create a new cash account
    */
   async create(companyId: string, dto: CreateCashAccountDto) {

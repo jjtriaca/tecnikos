@@ -31,7 +31,7 @@ import { CreatePaymentMethodDto, UpdatePaymentMethodDto } from './dto/payment-me
 import { CreatePaymentInstrumentDto, UpdatePaymentInstrumentDto } from './dto/payment-instrument.dto';
 import { CreateCashAccountDto, UpdateCashAccountDto, RebalanceCashAccountDto } from './dto/cash-account.dto';
 import { CreateTransferDto, DepositChecksDto, EndorseChecksDto } from './dto/transfer.dto';
-import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto, MatchAsTransferDto } from './dto/reconciliation.dto';
+import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto, MatchAsTransferDto, MatchCheckReturnDto } from './dto/reconciliation.dto';
 
 @ApiTags('Finance')
 @Controller('finance')
@@ -270,6 +270,13 @@ export class FinanceController {
   @Get('checks-in-wallet')
   getChecksInWalletAll(@CurrentUser() user: AuthenticatedUser) {
     return this.cashAccountService.getChecksInWalletAll(user.companyId);
+  }
+
+  // Cheques depositados (candidatos a devolucao). v1.13.93
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('deposited-checks')
+  getDepositedChecks(@CurrentUser() user: AuthenticatedUser) {
+    return this.cashAccountService.getDepositedChecks(user.companyId);
   }
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
@@ -529,6 +536,17 @@ export class FinanceController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.reconciliationService.matchAsTransfer(lineId, user.companyId, dto, user.email);
+  }
+
+  // Conciliar a linha "DEVOLUCAO CHEQUE" como devolucao de cheque depositado. v1.13.93
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('reconciliation/lines/:lineId/match-as-check-return')
+  matchAsCheckReturn(
+    @Param('lineId') lineId: string,
+    @Body() dto: MatchCheckReturnDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reconciliationService.matchAsCheckReturn(lineId, user.companyId, dto, user.email);
   }
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
