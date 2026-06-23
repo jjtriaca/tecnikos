@@ -608,6 +608,8 @@ function loadSectionOrder(): string[] {
 function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void }) {
   const [data, setData] = useState<FinanceSummaryV2 | null>(null);
   const [dashData, setDashData] = useState<any>(null);
+  // Cheques de terceiro em carteira por conta (pro card do Caixa mostrar Dinheiro × Cheques) — v1.13.92
+  const [checksByAccount, setChecksByAccount] = useState<Record<string, { cents: number; count: number }>>({});
   const [statementData, setStatementData] = useState<any[]>([]);
   const [stmtDateFrom, setStmtDateFrom] = useState(() => {
     const d = new Date(); d.setDate(1);
@@ -648,10 +650,19 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
       api.get<FinanceSummaryV2>("/finance/summary-v2").catch(() => null),
       api.get(`/finance/dashboard?dateFrom=${first}&dateTo=${last}`).catch(() => null),
       api.get<any[]>(`/finance/statement?limit=200&dateFrom=${stmtDateFrom}&dateTo=${stmtDateTo}`).catch(() => []),
-    ]).then(([summary, dash, statement]) => {
+      api.get<any[]>("/finance/checks-in-wallet").catch(() => []),
+    ]).then(([summary, dash, statement, checks]) => {
       setData(summary);
       setDashData(dash);
       setStatementData(statement ?? []);
+      const byAcc: Record<string, { cents: number; count: number }> = {};
+      for (const g of (checks ?? [])) {
+        const cur = byAcc[g.cashAccountId] || { cents: 0, count: 0 };
+        cur.cents += g.netCents;
+        cur.count += 1;
+        byAcc[g.cashAccountId] = cur;
+      }
+      setChecksByAccount(byAcc);
     }).finally(() => setLoading(false));
     // Load instruments for type filter
     api.get<any[]>("/finance/payment-instruments/active").then(setStmtInstruments).catch(() => {});
@@ -840,11 +851,16 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
           </div>
         )});
         for (const a of active.filter((a: any) => a.type === "CAIXA")) {
+          const chk = checksByAccount[a.id];
           allCards.push({ id: a.id, render: () => (
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
               <span className="text-[11px] font-medium text-amber-700">💰 {a.name}</span>
               <p className={`mt-0.5 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-amber-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
-              <p className="text-[10px] text-slate-600">Caixa</p>
+              {chk && chk.cents > 0 ? (
+                <p className="text-[10px] text-slate-600">Dinheiro {formatCurrency(a.currentBalanceCents - chk.cents)} · <span className="font-medium text-amber-700">Cheques {formatCurrency(chk.cents)} ({chk.count})</span></p>
+              ) : (
+                <p className="text-[10px] text-slate-600">Caixa</p>
+              )}
             </div>
           )});
         }
