@@ -127,6 +127,80 @@ export class CashAccountService {
   }
 
   /**
+   * Lista TODOS os cheques de terceiro em carteira (qualquer conta CAIXA), agrupados por cheque
+   * fisico (conta+numero+banco). Usado no repasse — pagar uma conta com cheque de terceiro. v1.13.91.
+   */
+  async getChecksInWalletAll(companyId: string) {
+    const caixas = await this.prisma.cashAccount.findMany({
+      where: { companyId, deletedAt: null, type: 'CAIXA' },
+      select: { id: true, name: true },
+    });
+    const caixaIds = caixas.map((c) => c.id);
+    const nameById = new Map(caixas.map((c) => [c.id, c.name]));
+    if (caixaIds.length === 0) return [];
+
+    const entries = await this.prisma.financialEntry.findMany({
+      where: {
+        companyId,
+        deletedAt: null,
+        type: 'RECEIVABLE',
+        paymentMethod: 'CHEQUE',
+        status: 'PAID',
+        checkOutAt: null,
+        cashAccountId: { in: caixaIds },
+      },
+      select: {
+        id: true,
+        netCents: true,
+        checkNumber: true,
+        checkBank: true,
+        checkHolder: true,
+        paidAt: true,
+        cashAccountId: true,
+        partner: { select: { name: true } },
+      },
+      orderBy: { paidAt: 'asc' },
+    });
+
+    type G = {
+      key: string;
+      checkNumber: string | null;
+      checkBank: string | null;
+      checkHolder: string | null;
+      partnerName: string | null;
+      netCents: number;
+      entryIds: string[];
+      count: number;
+      cashAccountId: string;
+      cashAccountName: string;
+    };
+    const groups = new Map<string, G>();
+    for (const e of entries) {
+      const key = `${e.cashAccountId}|${e.checkNumber || e.id}|${e.checkBank ?? ''}`;
+      const g = groups.get(key);
+      if (g) {
+        g.netCents += e.netCents;
+        g.entryIds.push(e.id);
+        g.count += 1;
+      } else {
+        groups.set(key, {
+          key,
+          checkNumber: e.checkNumber,
+          checkBank: e.checkBank,
+          checkHolder: e.checkHolder,
+          partnerName: e.partner?.name ?? null,
+          netCents: e.netCents,
+          entryIds: [e.id],
+          count: 1,
+          cashAccountId: e.cashAccountId!,
+          cashAccountName: nameById.get(e.cashAccountId!) ?? '',
+        });
+      }
+    }
+    return Array.from(groups.values());
+  }
+
+  /**
    * Create a new cash account
    */
   async create(companyId: string, dto: CreateCashAccountDto) {

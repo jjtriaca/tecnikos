@@ -25,6 +25,32 @@ export class DepositChecksDto {
   transferDate?: string;
 }
 
+/**
+ * Repasse/endosso de cheque(s) de terceiro em carteira pra PAGAR uma conta (PAYABLE). v1.13.91.
+ * O cheque sai da carteira (checkOutKind='ENDORSE') e quita a conta debitando o Caixa onde ele esta.
+ * A diferenca (cheque vs conta) vira transferencia pra/da conta escolhida (changeAccountId):
+ *   - cheque > conta (SOBRA/troco): Caixa -> changeAccount pela sobra.
+ *   - cheque < conta (FALTA/complemento): changeAccount -> Caixa pelo complemento.
+ *   - igual: sem diferenca. Se changeAccountId vazio/=Caixa, troco fica / complemento sai do proprio Caixa.
+ */
+export class EndorseChecksDto {
+  @IsString()
+  payableEntryId: string;
+
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsString({ each: true })
+  checkEntryIds: string[];
+
+  @IsOptional()
+  @IsString()
+  changeAccountId?: string; // conta do troco (sobra) ou de onde sai o complemento (falta)
+
+  @IsOptional()
+  @IsDateString()
+  paidAt?: string;
+}
+
 export class CreateTransferDto {
   @IsString()
   fromAccountId: string;

@@ -1122,6 +1122,12 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
 
   // Pay/Confirm with payment method
   const [payAction, setPayAction] = useState<{ entry: FinancialEntry; action: "PAID" } | null>(null);
+  // Repasse: pagar uma conta (PAYABLE) com cheque de terceiro em carteira (v1.13.91)
+  const [payWithCheck, setPayWithCheck] = useState(false);
+  const [walletChecksAll, setWalletChecksAll] = useState<{ key: string; netCents: number; checkNumber: string | null; checkBank: string | null; partnerName: string | null; count: number; entryIds: string[]; cashAccountId: string; cashAccountName: string }[]>([]);
+  const [selectedEndorseIds, setSelectedEndorseIds] = useState<Set<string>>(new Set());
+  const [endorseChangeAccountId, setEndorseChangeAccountId] = useState("");
+  const [endorsing, setEndorsing] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("");
   const [selectedCardRateId, setSelectedCardRateId] = useState("");
   const [activePMs, setActivePMs] = useState<PaymentMethod[]>([]);
@@ -1540,7 +1546,58 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
     }
   }
 
+  // ── Repasse: pagar uma conta com cheque de terceiro em carteira (v1.13.91) ──
+  function togglePayWithCheck() {
+    const next = !payWithCheck;
+    setPayWithCheck(next);
+    setSelectedEndorseIds(new Set());
+    setEndorseChangeAccountId("");
+    if (next && walletChecksAll.length === 0) {
+      api.get<typeof walletChecksAll>("/finance/checks-in-wallet")
+        .then((w) => setWalletChecksAll(w || []))
+        .catch(() => setWalletChecksAll([]));
+    }
+  }
+
+  function toggleEndorseGroup(entryIds: string[]) {
+    setSelectedEndorseIds((prev) => {
+      const next = new Set(prev);
+      const all = entryIds.every((id) => next.has(id));
+      if (all) entryIds.forEach((id) => next.delete(id));
+      else entryIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }
+
+  async function handleEndorseChecks() {
+    if (!payAction) return;
+    if (selectedEndorseIds.size === 0) { toast("Selecione ao menos um cheque.", "error"); return; }
+    setEndorsing(true);
+    try {
+      await api.post("/finance/transfers/endorse-checks", {
+        payableEntryId: payAction.entry.id,
+        checkEntryIds: Array.from(selectedEndorseIds),
+        changeAccountId: endorseChangeAccountId || undefined,
+        paidAt: payDate || undefined,
+      });
+      toast("Conta paga com cheque(s) de terceiro!", "success");
+      setPayAction(null);
+      setPayWithCheck(false);
+      setSelectedEndorseIds(new Set());
+      setEndorseChangeAccountId("");
+      await loadEntries();
+    } catch (err: any) {
+      toast(err?.message || "Erro ao repassar cheque.", "error");
+    } finally {
+      setEndorsing(false);
+    }
+  }
+
   // Compute selected entries total
+  // Repasse: grupos de cheque selecionados + total + diferença vs a conta (>0 troco | <0 falta)
+  const endorseSelGroups = walletChecksAll.filter((g) => g.entryIds.every((id) => selectedEndorseIds.has(id)));
+  const endorseTotal = endorseSelGroups.reduce((s, g) => s + g.netCents, 0);
+  const endorseDiff = payAction?.entry.netCents != null ? endorseTotal - payAction.entry.netCents : 0;
   const selectedEntries = entries.filter(e => selectedIds.has(e.id));
   const selectedTotal = selectedEntries.reduce((sum, e) => sum + e.netCents, 0);
   const selectableEntries = entries.filter(e => e.status === "PENDING" || e.status === "CONFIRMED");
@@ -2013,7 +2070,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
       {/* Payment method modal */}
       {payAction && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setPayAction(null); setPaymentMethod(""); setSelectedCardRateId(""); setSelectedInstrumentId(""); setAvailableInstruments([]); setShowManualPayable(false); setCheckNumber(""); setCheckBank(""); setCheckAgency(""); setCheckAccount(""); setCheckClearanceDate(""); setCheckHolder(""); setPayCardLast4(""); }} />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setPayAction(null); setPaymentMethod(""); setSelectedCardRateId(""); setSelectedInstrumentId(""); setAvailableInstruments([]); setShowManualPayable(false); setCheckNumber(""); setCheckBank(""); setCheckAgency(""); setCheckAccount(""); setCheckClearanceDate(""); setCheckHolder(""); setPayCardLast4(""); setPayWithCheck(false); setSelectedEndorseIds(new Set()); setEndorseChangeAccountId(""); }} />
           <div className="relative mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl animate-scale-in">
             <div className="flex items-start gap-4">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-100">
@@ -2045,6 +2102,61 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                 />
               </div>
 
+              {/* Repasse: pagar a conta com cheque de terceiro em carteira (só PAYABLE) — v1.13.91 */}
+              {type === "PAYABLE" && (
+                <label className="flex items-center justify-between cursor-pointer select-none rounded-lg border border-slate-200 px-3 py-2">
+                  <span className="text-xs font-medium text-slate-700">Pagar com cheque de terceiro em carteira</span>
+                  <button type="button" role="switch" aria-checked={payWithCheck} onClick={togglePayWithCheck}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${payWithCheck ? "bg-indigo-600" : "bg-slate-300"}`}>
+                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${payWithCheck ? "translate-x-5" : "translate-x-1"}`} />
+                  </button>
+                </label>
+              )}
+
+              {payWithCheck && type === "PAYABLE" && (
+                <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  {walletChecksAll.length === 0 ? (
+                    <p className="text-xs text-slate-600">Nenhum cheque de terceiro em carteira.</p>
+                  ) : (
+                    <>
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-700">Cheques em carteira</p>
+                      <div className="space-y-1 max-h-40 overflow-y-auto">
+                        {walletChecksAll.map((c) => (
+                          <label key={c.key} className="flex items-center gap-2 rounded px-1 py-1 text-xs cursor-pointer hover:bg-white">
+                            <input type="checkbox" checked={c.entryIds.every((id) => selectedEndorseIds.has(id))} onChange={() => toggleEndorseGroup(c.entryIds)} className="accent-indigo-600" />
+                            <span className="flex-1 truncate text-slate-700">
+                              {c.checkNumber ? `Cheque ${c.checkNumber}` : "Cheque"}
+                              {c.checkBank ? ` · ${c.checkBank}` : ""}
+                              {c.partnerName ? ` · ${c.partnerName}` : ""}
+                              {c.count > 1 ? ` · ${c.count} lanç.` : ""}
+                              <span className="text-slate-400"> · {c.cashAccountName}</span>
+                            </span>
+                            <span className="whitespace-nowrap font-medium text-slate-800">{formatCurrency(c.netCents)}</span>
+                          </label>
+                        ))}
+                      </div>
+                      <div className="border-t border-amber-200 pt-2 text-xs space-y-1">
+                        <div className="flex justify-between"><span className="text-slate-600">Cheques selecionados</span><span className="font-semibold text-slate-800">{formatCurrency(endorseTotal)}</span></div>
+                        <div className="flex justify-between"><span className="text-slate-600">Valor da conta</span><span className="font-semibold text-slate-800">{formatCurrency(payAction.entry.netCents)}</span></div>
+                        {endorseDiff > 0 && <div className="flex justify-between text-emerald-700"><span>Troco a receber</span><span className="font-semibold">{formatCurrency(endorseDiff)}</span></div>}
+                        {endorseDiff < 0 && <div className="flex justify-between text-red-700"><span>Falta (completar)</span><span className="font-semibold">{formatCurrency(-endorseDiff)}</span></div>}
+                      </div>
+                      {endorseDiff !== 0 && selectedEndorseIds.size > 0 && (
+                        <div>
+                          <label className="block text-[10px] text-slate-600 mb-0.5">{endorseDiff > 0 ? "Receber o troco em" : "Completar o restante com"}</label>
+                          <select value={endorseChangeAccountId} onChange={(e) => setEndorseChangeAccountId(e.target.value)}
+                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:border-blue-500 outline-none bg-white">
+                            <option value="">{endorseDiff > 0 ? "Troco fica no caixa do cheque" : "Sai do caixa do cheque"}</option>
+                            {activeAccounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                          </select>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {!payWithCheck && (<>
               {/* Instrument-first dropdown (PAYABLE e RECEIVABLE) — mostra meios configurados pra direcao */}
               {allInstruments.length > 0 && (
                 <div>
@@ -2368,22 +2480,27 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                   <p className="mt-0.5 text-[10px] text-slate-600">Selecione o instrumento especifico para conciliacao</p>
                 </div>
               )}
+              </>)}
             </div>
 
             <div className="mt-5 flex justify-end gap-2">
               <button
-                onClick={() => { setPayAction(null); setPaymentMethod(""); setSelectedCardRateId(""); setSelectedAccountId(""); setSelectedInstrumentId(""); setAvailableInstruments([]); }}
+                onClick={() => { setPayAction(null); setPaymentMethod(""); setSelectedCardRateId(""); setSelectedAccountId(""); setSelectedInstrumentId(""); setAvailableInstruments([]); setPayWithCheck(false); setSelectedEndorseIds(new Set()); setEndorseChangeAccountId(""); }}
                 disabled={!!actionLoading}
                 className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50"
               >
                 Cancelar
               </button>
               <button
-                onClick={handlePayConfirm}
-                disabled={!!actionLoading || (!paymentMethod && !selectedInstrumentId) || !!(type === "RECEIVABLE" && !selectedInstrumentId && activePMs.find((p) => p.code === paymentMethod)?.requiresBrand && !selectedCardRateId)}
+                onClick={payWithCheck ? handleEndorseChecks : handlePayConfirm}
+                disabled={
+                  payWithCheck
+                    ? (endorsing || selectedEndorseIds.size === 0)
+                    : (!!actionLoading || (!paymentMethod && !selectedInstrumentId) || !!(type === "RECEIVABLE" && !selectedInstrumentId && activePMs.find((p) => p.code === paymentMethod)?.requiresBrand && !selectedCardRateId))
+                }
                 className="rounded-lg bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-sm font-medium text-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
               >
-                {actionLoading ? (
+                {(actionLoading || endorsing) ? (
                   <span className="flex items-center gap-2">
                     <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -2392,7 +2509,7 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                     Processando...
                   </span>
                 ) : (
-                  type === "RECEIVABLE" ? "Receber" : "Pagar"
+                  payWithCheck ? "Pagar com cheque" : (type === "RECEIVABLE" ? "Receber" : "Pagar")
                 )}
               </button>
             </div>
