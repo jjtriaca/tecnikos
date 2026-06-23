@@ -931,6 +931,14 @@ model FinancialEntry {
   checkClearanceDate DateTime?
   checkHolder        String?
 
+  // Cheque de terceiro em carteira (v1.13.85) — cheque recebido fica "em carteira" no caixa
+  // (campos null) e pode SAIR por 2 caminhos: depositar no banco (saldo vai pra conta de transito
+  // "Cheques a Compensar") ou repassar/endossar pra pagar um fornecedor (vai direto, sem banco).
+  // Em carteira = paymentMethod CHEQUE + status PAID + cashAccount tipo CAIXA + checkOutAt null.
+  checkOutAt   DateTime? // quando o cheque saiu da carteira (null = ainda em carteira)
+  checkOutKind String?   // como saiu: 'DEPOSIT' (deposito no banco) | 'ENDORSE' (repasse p/ pagar fornecedor)
+  checkOutRef  String?   // ref do destino: id do AccountTransfer (deposito) ou da FinancialEntry PAYABLE quitada (repasse)
+
   // Parcelas e Juros (v2.0)
   installmentCount    Int? // Nro de parcelas (null = à vista)
   interestType        String? // "SIMPLE" ou "COMPOUND"

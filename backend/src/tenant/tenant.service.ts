@@ -322,6 +322,24 @@ export class TenantService {
     } catch (err) {
       this.logger.warn(`Failed to seed TRANSITO account in "${schemaName}": ${(err as Error).message}`);
     }
+
+    // 6. Seed conta de transito "Cheques a Compensar" (deposito de cheque v1.13.85).
+    // Destino dos cheques depositados: caixa -> aqui -> banco (na conciliacao do extrato).
+    // showInReceivables/Payables = false (conta interna, nao aparece como forma de receber/pagar).
+    try {
+      const existing: { id: string }[] = await this.prisma.$queryRawUnsafe(
+        `SELECT id FROM "${schemaName}"."CashAccount" WHERE type = 'TRANSITO' AND lower(name) = 'cheques a compensar' AND "deletedAt" IS NULL LIMIT 1`,
+      );
+      if (existing.length === 0) {
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO "${schemaName}"."CashAccount" (id, "companyId", code, name, type, "initialBalanceCents", "currentBalanceCents", "showInReceivables", "showInPayables", "isActive", "createdAt", "updatedAt")
+           VALUES (gen_random_uuid(), (SELECT id FROM "${schemaName}"."Company" LIMIT 1), 'CX-CHEQUES', 'Cheques a Compensar', 'TRANSITO', 0, 0, false, false, true, now(), now())`,
+        );
+        this.logger.log(`Created "Cheques a Compensar" TRANSITO account in "${schemaName}"`);
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to seed "Cheques a Compensar" account in "${schemaName}": ${(err as Error).message}`);
+    }
   }
 
   /**

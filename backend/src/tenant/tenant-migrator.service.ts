@@ -64,6 +64,14 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
     } catch (err) {
       this.logger.error(`Sem Produto provisioning failed: ${(err as Error).message}`);
     }
+
+    // Garante a conta de transito "Cheques a Compensar" em todos os tenants (deposito de
+    // cheque v1.13.85). Idempotente: cria so se nao existir. Cobre tenants existentes (SLS).
+    try {
+      await this.ensureChequesACompensarInAllTenants();
+    } catch (err) {
+      this.logger.error(`Cheques a Compensar provisioning failed: ${(err as Error).message}`);
+    }
   }
 
   /**
@@ -128,6 +136,56 @@ export class TenantMigratorService implements OnApplicationBootstrap, OnModuleDe
     }
     if (created > 0 || marked > 0) {
       this.logger.log(`Sem Produto provisioning: ${created} criado(s), ${marked} marcado(s) como system.`);
+    }
+  }
+
+  /**
+   * Cria a conta de transito "Cheques a Compensar" em todos os tenants ativos (idempotente).
+   * E o destino dos cheques depositados: caixa -> "Cheques a Compensar" -> banco (na conciliacao
+   * do extrato). showInReceivables/Payables=false (conta interna). Identificada por nome (igual
+   * o "Sem Produto" por description). v1.13.85.
+   */
+  async ensureChequesACompensarInAllTenants() {
+    const tenants = await this.rawPrisma.$queryRawUnsafe<{ schemaName: string; slug: string }[]>(`
+      SELECT "schemaName", slug FROM public."Tenant"
+      WHERE "deletedAt" IS NULL
+        AND status NOT IN ('CANCELLED')
+        AND "schemaName" IS NOT NULL
+    `);
+    if (tenants.length === 0) return;
+
+    let created = 0;
+    for (const t of tenants) {
+      try {
+        const companies = await this.rawPrisma.$queryRawUnsafe<{ id: string }[]>(
+          `SELECT id FROM "${t.schemaName}"."Company" LIMIT 1`,
+        );
+        if (companies.length === 0) continue;
+        const companyId = companies[0].id;
+
+        const existing = await this.rawPrisma.$queryRawUnsafe<{ id: string }[]>(
+          `SELECT id FROM "${t.schemaName}"."CashAccount"
+           WHERE "companyId" = $1 AND type = 'TRANSITO' AND lower(name) = 'cheques a compensar' AND "deletedAt" IS NULL
+           LIMIT 1`,
+          companyId,
+        );
+        if (existing.length > 0) continue;
+
+        await this.rawPrisma.$executeRawUnsafe(
+          `INSERT INTO "${t.schemaName}"."CashAccount"
+           (id, "companyId", code, name, type, "initialBalanceCents", "currentBalanceCents",
+            "showInReceivables", "showInPayables", "isActive", "createdAt", "updatedAt")
+           VALUES (gen_random_uuid(), $1, 'CX-CHEQUES', 'Cheques a Compensar', 'TRANSITO', 0, 0,
+                   false, false, true, NOW(), NOW())`,
+          companyId,
+        );
+        created++;
+      } catch (err) {
+        this.logger.warn(`Cheques a Compensar provisioning falhou pra tenant ${t.slug}: ${(err as Error).message}`);
+      }
+    }
+    if (created > 0) {
+      this.logger.log(`Cheques a Compensar provisioning: ${created} conta(s) criada(s).`);
     }
   }
 
