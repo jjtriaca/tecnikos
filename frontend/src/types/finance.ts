@@ -166,6 +166,9 @@ export interface BankStatement {
   lastImportAt?: string | null;
   lastImportByName?: string | null;
   lastFileName?: string | null;
+  /** v1.13.89 — fechamento manual do mes (trava alteracoes de saldo). null = aberto. */
+  closedAt?: string | null;
+  closedByName?: string | null;
   createdAt: string;
   updatedAt: string;
   cashAccount?: {

@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { breakInTenantTz, endOfTenantDay } from '../common/util/tenant-date.util';
+import { breakInTenantTz } from '../common/util/tenant-date.util';
 
 /**
  * Trava de "mes fechado" — bloqueia operacoes financeiras que afetariam o saldo
@@ -48,79 +48,32 @@ export class ClosedMonthGuardService {
 
     const { year, month } = breakInTenantTz(affectedDate);
 
+    // v1.13.89: trava so vale pra mes FECHADO MANUALMENTE (closedAt preenchido). Antes inferia
+    // "fechado" pela conferencia batendo (saldo declarado + diff<=1c) — isso pegava o mes corrente
+    // que o usuario ainda concilia no dia a dia (OFX diario), bloqueando desfazer conciliacoes
+    // recentes. Agora so o fechamento de proposito (botao na Conciliacao) trava.
     const statement = await this.prisma.bankStatement.findFirst({
       where: {
         companyId,
         cashAccountId,
         periodYear: year,
         periodMonth: month,
-        statementBalanceCents: { not: null },
-        statementBalanceDate: { not: null },
+        closedAt: { not: null },
       },
       select: {
-        id: true,
         periodYear: true,
         periodMonth: true,
-        statementBalanceCents: true,
-        statementBalanceDate: true,
-        cashAccountId: true,
-        cashAccount: { select: { name: true, currentBalanceCents: true } },
+        cashAccount: { select: { name: true } },
       },
     });
-    if (!statement) return; // mes sem saldo declarado = aberto
-
-    const D = endOfTenantDay(statement.statementBalanceDate!);
-    const currentBalance = statement.cashAccount.currentBalanceCents;
-
-    const [rec, pay, transferIn, transferOut] = await Promise.all([
-      this.prisma.financialEntry.aggregate({
-        where: {
-          cashAccountId: statement.cashAccountId,
-          status: 'PAID',
-          paidAt: { gt: D },
-          type: 'RECEIVABLE',
-          deletedAt: null,
-        },
-        _sum: { netCents: true },
-      }),
-      this.prisma.financialEntry.aggregate({
-        where: {
-          cashAccountId: statement.cashAccountId,
-          status: 'PAID',
-          paidAt: { gt: D },
-          type: 'PAYABLE',
-          deletedAt: null,
-        },
-        _sum: { netCents: true },
-      }),
-      this.prisma.accountTransfer.aggregate({
-        where: { toAccountId: statement.cashAccountId, transferDate: { gt: D } },
-        _sum: { amountCents: true },
-      }),
-      this.prisma.accountTransfer.aggregate({
-        where: { fromAccountId: statement.cashAccountId, transferDate: { gt: D } },
-        _sum: { amountCents: true },
-      }),
-    ]);
-
-    const movsAfterD =
-      (rec._sum.netCents || 0)
-      - (pay._sum.netCents || 0)
-      + (transferIn._sum.amountCents || 0)
-      - (transferOut._sum.amountCents || 0);
-
-    const systemBalanceAtD = currentBalance - movsAfterD;
-    const diff = Math.abs(statement.statementBalanceCents! - systemBalanceAtD);
-
-    if (diff > 1) return; // tolerancia 1 centavo — mes nao bate = aberto
+    if (!statement) return; // mes nao fechado manualmente = aberto
 
     const monthLabel = `${String(statement.periodMonth).padStart(2, '0')}/${statement.periodYear}`;
     const accountName = statement.cashAccount.name;
     throw new BadRequestException(
-      `Mês ${monthLabel} da conta "${accountName}" está fechado (conferência de saldo bate exata com o banco). ` +
-      `Operação "${operation}" foi BLOQUEADA pra preservar a integridade do saldo conferido. ` +
-      `Para alterar, reabra a conferência: vá em Finanças > Conciliação > extrato de ${monthLabel} ` +
-      `e edite/remova o saldo do banco. Depois aplique a alteração e refaça a conferência.`,
+      `Mês ${monthLabel} da conta "${accountName}" está FECHADO. ` +
+      `Operação "${operation}" foi BLOQUEADA pra preservar o saldo conferido. ` +
+      `Para alterar, reabra o mês: Finanças > Conciliação > extrato de ${monthLabel} > botão "Reabrir mês".`,
     );
   }
 

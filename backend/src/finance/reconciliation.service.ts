@@ -350,6 +350,36 @@ export class ReconciliationService {
     });
   }
 
+  /** Fecha um mes (extrato) manualmente — trava alteracoes de saldo naquele mes+conta. v1.13.89 */
+  async closeStatement(statementId: string, companyId: string, userName: string) {
+    const statement = await this.prisma.bankStatement.findFirst({
+      where: { id: statementId, companyId },
+      select: { id: true, closedAt: true },
+    });
+    if (!statement) throw new NotFoundException('Extrato não encontrado.');
+    if (statement.closedAt) throw new BadRequestException('Mês já está fechado.');
+    return this.prisma.bankStatement.update({
+      where: { id: statementId },
+      data: { closedAt: new Date(), closedByName: userName },
+      select: { id: true, closedAt: true, closedByName: true },
+    });
+  }
+
+  /** Reabre um mes fechado — libera alteracoes de saldo. v1.13.89 */
+  async reopenStatement(statementId: string, companyId: string) {
+    const statement = await this.prisma.bankStatement.findFirst({
+      where: { id: statementId, companyId },
+      select: { id: true, closedAt: true },
+    });
+    if (!statement) throw new NotFoundException('Extrato não encontrado.');
+    if (!statement.closedAt) throw new BadRequestException('Mês não está fechado.');
+    return this.prisma.bankStatement.update({
+      where: { id: statementId },
+      data: { closedAt: null, closedByName: null },
+      select: { id: true, closedAt: true },
+    });
+  }
+
   /**
    * Calcula o saldo do SISTEMA na data informada pelo OFX (statementBalanceDate)
    * e compara com o saldo do banco (statementBalanceCents).

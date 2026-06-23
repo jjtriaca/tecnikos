@@ -1805,6 +1805,12 @@ model BankStatement {
   // Usado pra comparar com o saldo calculado do sistema (auditoria de fechamento)
   statementBalanceCents Int?
   statementBalanceDate  DateTime?
+  // Fechamento MANUAL do mes (v1.13.89): trava alteracoes de saldo (conciliar/desfazer/entry/
+  // transfer) naquele mes+conta. So o usuario fecha de proposito (botao na Conciliacao). Substitui
+  // a antiga trava automatica "por conferencia batendo" (v1.12.16), que pegava o mes corrente que
+  // o usuario ainda esta conciliando no dia a dia (OFX diario).
+  closedAt              DateTime?
+  closedByName          String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 

@@ -4071,6 +4071,26 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
       .catch(() => setClearingBalanceCents(0));
   }, [statement?.id]);
 
+  // Fechamento manual do mes (v1.13.89): trava alteracoes de saldo. Estado local pra refletir na hora.
+  const [monthClosed, setMonthClosed] = useState(!!statement.closedAt);
+  const [closingMonth, setClosingMonth] = useState(false);
+  useEffect(() => { setMonthClosed(!!statement.closedAt); }, [statement.closedAt]);
+
+  async function toggleMonthClosed() {
+    setClosingMonth(true);
+    try {
+      const action = monthClosed ? "reopen" : "close";
+      await api.post(`/finance/reconciliation/statements/${statement.id}/${action}`);
+      setMonthClosed(!monthClosed);
+      toast(monthClosed ? "Mês reaberto — alterações liberadas." : "Mês fechado — alterações de saldo travadas.", "success");
+      onChanged?.();
+    } catch (err: any) {
+      toast(err?.response?.data?.message || err?.message || "Erro ao alterar o fechamento do mês.", "error");
+    } finally {
+      setClosingMonth(false);
+    }
+  }
+
   // Carrega o comparativo de saldo (banco vs sistema) quando o statement muda
   const loadBalanceCompare = useCallback(() => {
     if (!statement?.id) return;
@@ -4253,13 +4273,26 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
                 Data de referencia: {formatDate(balanceCompare.bankBalanceDate)}
               </span>
             </div>
-            <button
-              onClick={openBalanceModal}
-              className="text-[10px] font-medium text-blue-600 hover:text-blue-700 hover:underline"
-              title="Corrigir o saldo informado"
-            >
-              Editar
-            </button>
+            <div className="flex items-center gap-3">
+              {monthClosed && (
+                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">Mês fechado</span>
+              )}
+              <button
+                onClick={toggleMonthClosed}
+                disabled={closingMonth}
+                className={`text-[10px] font-medium hover:underline disabled:opacity-50 ${monthClosed ? "text-amber-700 hover:text-amber-800" : "text-slate-500 hover:text-slate-700"}`}
+                title={monthClosed ? "Reabrir o mês pra permitir alterações de saldo" : "Fechar o mês pra travar alterações de saldo"}
+              >
+                {closingMonth ? "..." : monthClosed ? "Reabrir mês" : "Fechar mês"}
+              </button>
+              <button
+                onClick={openBalanceModal}
+                className="text-[10px] font-medium text-blue-600 hover:text-blue-700 hover:underline"
+                title="Corrigir o saldo informado"
+              >
+                Editar
+              </button>
+            </div>
           </div>
           <div className="grid grid-cols-3 gap-3 text-sm">
             <div>

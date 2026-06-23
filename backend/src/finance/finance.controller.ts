@@ -363,6 +363,26 @@ export class FinanceController {
     return this.reconciliationService.getStatementBalanceCompare(statementId, user.companyId);
   }
 
+  // Fechar / reabrir mes manualmente (v1.13.89). Mes fechado trava alteracoes de saldo naquele
+  // mes+conta (closedMonthGuard). Substitui a antiga trava automatica "por conferencia batendo".
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('reconciliation/statements/:statementId/close')
+  closeStatement(
+    @Param('statementId') statementId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reconciliationService.closeStatement(statementId, user.companyId, user.email);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('reconciliation/statements/:statementId/reopen')
+  reopenStatement(
+    @Param('statementId') statementId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reconciliationService.reopenStatement(statementId, user.companyId);
+  }
+
   // Saude financeira (guardrails): detecta trafego no transito fora de zero, pago sem conta,
   // importacao duplicada. Somente leitura. Ver memory/plano_setup_financeiro_robusto.md.
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
