@@ -48,6 +48,57 @@ export class CashAccountService {
   }
 
   /**
+   * Composicao da conta: quanto do saldo e dinheiro e quanto e cheque de terceiro em carteira.
+   * Cheque em carteira = RECEIVABLE PAID com paymentMethod CHEQUE nesta conta e checkOutAt null
+   * (ainda nao depositado/repassado). dinheiro = saldo total - cheques em carteira. v1.13.86.
+   */
+  async getCheckWallet(id: string, companyId: string) {
+    const account = await this.findOne(id, companyId);
+    const checks = await this.prisma.financialEntry.findMany({
+      where: {
+        companyId,
+        deletedAt: null,
+        cashAccountId: id,
+        type: 'RECEIVABLE',
+        paymentMethod: 'CHEQUE',
+        status: 'PAID',
+        checkOutAt: null,
+      },
+      select: {
+        id: true,
+        code: true,
+        description: true,
+        netCents: true,
+        checkNumber: true,
+        checkBank: true,
+        checkHolder: true,
+        paidAt: true,
+        partner: { select: { name: true } },
+      },
+      orderBy: { paidAt: 'asc' },
+    });
+    const checksCents = checks.reduce((sum, c) => sum + c.netCents, 0);
+    return {
+      accountId: id,
+      accountType: account.type,
+      currentBalanceCents: account.currentBalanceCents,
+      checksCents,
+      cashCents: account.currentBalanceCents - checksCents,
+      checks: checks.map((c) => ({
+        id: c.id,
+        code: c.code,
+        description: c.description,
+        netCents: c.netCents,
+        checkNumber: c.checkNumber,
+        checkBank: c.checkBank,
+        checkHolder: c.checkHolder,
+        paidAt: c.paidAt,
+        partnerName: c.partner?.name ?? null,
+      })),
+    };
+  }
+
+  /**
    * Create a new cash account
    */
   async create(companyId: string, dto: CreateCashAccountDto) {

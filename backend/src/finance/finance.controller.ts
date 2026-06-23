@@ -30,7 +30,7 @@ import { CreateCollectionRuleDto, UpdateCollectionRuleDto } from './dto/collecti
 import { CreatePaymentMethodDto, UpdatePaymentMethodDto } from './dto/payment-method.dto';
 import { CreatePaymentInstrumentDto, UpdatePaymentInstrumentDto } from './dto/payment-instrument.dto';
 import { CreateCashAccountDto, UpdateCashAccountDto, RebalanceCashAccountDto } from './dto/cash-account.dto';
-import { CreateTransferDto } from './dto/transfer.dto';
+import { CreateTransferDto, DepositChecksDto } from './dto/transfer.dto';
 import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto, MatchAsTransferDto } from './dto/reconciliation.dto';
 
 @ApiTags('Finance')
@@ -255,6 +255,16 @@ export class FinanceController {
     return this.cashAccountService.findOne(id, user.companyId);
   }
 
+  // Composicao da conta: dinheiro vs cheque de terceiro em carteira (+ lista de cheques). v1.13.86
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('cash-accounts/:id/checks-in-wallet')
+  getCheckWallet(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.cashAccountService.getCheckWallet(id, user.companyId);
+  }
+
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
   @Post('cash-accounts')
   createCashAccount(
@@ -312,6 +322,16 @@ export class FinanceController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.transferService.create(user.companyId, dto, user.email);
+  }
+
+  // Deposito de cheque(s) de terceiro em carteira: caixa -> "Cheques a Compensar". v1.13.86 (Fase 2a)
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('transfers/deposit-checks')
+  depositChecks(
+    @Body() dto: DepositChecksDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.transferService.depositChecks(user.companyId, dto, user.email);
   }
 
   /* ── Reconciliation ──────────────────────────────────── */

@@ -924,6 +924,16 @@ function TransfersSection() {
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
+  // Fase 2a — deposito de cheque de terceiro em carteira
+  const [checkWallet, setCheckWallet] = useState<{
+    accountType: string;
+    cashCents: number;
+    checksCents: number;
+    checks: { id: string; netCents: number; checkNumber: string | null; checkBank: string | null; partnerName: string | null; description: string | null }[];
+  } | null>(null);
+  const [selectedCheckIds, setSelectedCheckIds] = useState<Set<string>>(new Set());
+  const [depositBankId, setDepositBankId] = useState("");
+
   const loadData = useCallback(async () => {
     try {
       const [accs, txs] = await Promise.all([
@@ -942,6 +952,19 @@ function TransfersSection() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Ao trocar a conta de origem: busca a composicao (dinheiro vs cheque) se for conta tipo CAIXA.
+  useEffect(() => {
+    setSelectedCheckIds(new Set());
+    setCheckWallet(null);
+    const acc = accounts.find((a) => a.id === formData.fromAccountId);
+    if (acc && acc.type === "CAIXA") {
+      api
+        .get<typeof checkWallet>(`/finance/cash-accounts/${acc.id}/checks-in-wallet`)
+        .then((w) => setCheckWallet(w))
+        .catch(() => setCheckWallet(null));
+    }
+  }, [formData.fromAccountId, accounts]);
 
   async function handleTransfer() {
     if (!formData.fromAccountId || !formData.toAccountId) {
@@ -972,6 +995,48 @@ function TransfersSection() {
       await loadData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Erro ao transferir.";
+      toast(msg, "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function toggleCheck(id: string) {
+    setSelectedCheckIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function resetTransferForm() {
+    setShowForm(false);
+    setFormData(EMPTY_TRANSFER);
+    setSelectedCheckIds(new Set());
+    setCheckWallet(null);
+    setDepositBankId("");
+  }
+
+  // depositMode: ha cheque(s) marcado(s) -> o modal vira "deposito de cheque" (vai pra Cheques a Compensar)
+  const depositMode = selectedCheckIds.size > 0;
+  const selectedChecksTotal = checkWallet
+    ? checkWallet.checks.filter((c) => selectedCheckIds.has(c.id)).reduce((s, c) => s + c.netCents, 0)
+    : 0;
+
+  async function handleDepositChecks() {
+    if (selectedCheckIds.size === 0) return;
+    setSaving(true);
+    try {
+      await api.post("/finance/transfers/deposit-checks", {
+        checkEntryIds: Array.from(selectedCheckIds),
+        targetBankAccountId: depositBankId || undefined,
+      });
+      toast("Cheque(s) depositado(s) — aguardando compensar no banco.", "success");
+      resetTransferForm();
+      await loadData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao depositar cheque(s).";
       toast(msg, "error");
     } finally {
       setSaving(false);
@@ -1037,7 +1102,7 @@ function TransfersSection() {
       {/* Transfer form modal */}
       {showForm && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setShowForm(false); setFormData(EMPTY_TRANSFER); }} />
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={resetTransferForm} />
           <div className="relative mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl animate-scale-in">
             <h3 className="text-lg font-bold text-slate-900 mb-4">Nova Transferencia</h3>
             <div className="space-y-4">
@@ -1056,6 +1121,66 @@ function TransfersSection() {
                   ))}
                 </select>
               </div>
+
+              {/* Composicao da origem (dinheiro vs cheque) + cheques em carteira (Fase 2a) */}
+              {checkWallet && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-600">Dinheiro disponivel</span>
+                    <span className="font-semibold text-slate-800">{formatCurrency(checkWallet.cashCents)}</span>
+                  </div>
+                  {checkWallet.checks.length > 0 && (
+                    <>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-slate-600">Cheques em carteira ({checkWallet.checks.length})</span>
+                        <span className="font-semibold text-amber-700">{formatCurrency(checkWallet.checksCents)}</span>
+                      </div>
+                      <div className="border-t border-slate-200 pt-2">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Depositar cheque(s)</p>
+                        <div className="space-y-1 max-h-40 overflow-y-auto">
+                          {checkWallet.checks.map((c) => (
+                            <label key={c.id} className="flex items-center gap-2 rounded px-1 py-1 text-xs cursor-pointer hover:bg-white">
+                              <input type="checkbox" checked={selectedCheckIds.has(c.id)} onChange={() => toggleCheck(c.id)} className="accent-indigo-600" />
+                              <span className="flex-1 truncate text-slate-700">
+                                {c.checkNumber ? `Cheque ${c.checkNumber}` : "Cheque"}
+                                {c.checkBank ? ` · ${c.checkBank}` : ""}
+                                {c.partnerName ? ` · ${c.partnerName}` : ""}
+                              </span>
+                              <span className="whitespace-nowrap font-medium text-slate-800">{formatCurrency(c.netCents)}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {depositMode ? (
+                <>
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                    {selectedCheckIds.size} cheque(s) vao para <strong>Cheques a Compensar</strong>. Entram no banco quando voce conciliar o extrato.
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Banco onde vai depositar (opcional)</label>
+                    <select
+                      value={depositBankId}
+                      onChange={(e) => setDepositBankId(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
+                    >
+                      <option value="">Selecione o banco...</option>
+                      {accounts.filter((a) => a.type === "BANCO").map((a) => (
+                        <option key={a.id} value={a.id}>{a.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg bg-slate-100 px-3 py-2 text-sm">
+                    <span className="text-slate-600">Total a depositar</span>
+                    <span className="font-bold text-slate-900">{formatCurrency(selectedChecksTotal)}</span>
+                  </div>
+                </>
+              ) : (
+                <>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Conta Destino *</label>
                 <select
@@ -1095,17 +1220,19 @@ function TransfersSection() {
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                 />
               </div>
+                </>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 mt-6">
               <button
-                onClick={() => { setShowForm(false); setFormData(EMPTY_TRANSFER); }}
+                onClick={resetTransferForm}
                 className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
               >
                 Cancelar
               </button>
               <button
-                onClick={handleTransfer}
+                onClick={depositMode ? handleDepositChecks : handleTransfer}
                 disabled={saving}
                 className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
               >
@@ -1115,8 +1242,10 @@ function TransfersSection() {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                     </svg>
-                    Transferindo...
+                    {depositMode ? "Depositando..." : "Transferindo..."}
                   </span>
+                ) : depositMode ? (
+                  `Depositar ${formatCurrency(selectedChecksTotal)}`
                 ) : (
                   "Transferir"
                 )}
