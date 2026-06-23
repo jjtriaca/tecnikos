@@ -380,6 +380,18 @@ Disparada apos cada mutacao de ServiceOrder/Partner (fire-and-forget).
 - Webhook: verificacao signature + status updates
 - **RISCO DE BAN**: ver memory/whatsapp-audit-2026-03.md
 
+### Cheque de terceiro em carteira (v1.13.84→93, sessao 223)
+Cheque recebido de cliente = **ativo rastreavel no Caixa**. Campos no `FinancialEntry`: `checkOutAt` (saiu da carteira), `checkOutKind` ('DEPOSIT'|'ENDORSE'), `checkOutRef`, `checkReturnedAt`. Conta de transito **"Cheques a Compensar"** (CashAccountType TRANSITO, seedada em todo tenant).
+- **Em carteira** = RECEIVABLE PAID + paymentMethod CHEQUE + conta CAIXA + checkOutAt null.
+- **DEPOSITAR** (`transfer.service.depositChecks`): AccountTransfer Caixa→"Cheques a Compensar", marca DEPOSIT. Na conciliacao do extrato (DEP CHEQUE), `matchAsTransfer` Compensar→Banco. **Entry FICA no Caixa** — saldo move SO por AccountTransfer (preserva historico, balance-compare bate, sem dupla contagem). NUNCA mover `cashAccountId` do entry.
+- **REPASSAR** (`transfer.service.endorseChecks`): pagar PAYABLE com cheque — PAYABLE→PAID debita Caixa pelo VALOR DA CONTA, cheques ENDORSE, diferenca (troco/complemento) via AccountTransfer pra/da conta escolhida. Fecha nos 3 casos (igual/sobra/falta).
+- **DEVOLVER** (`reconciliation.matchAsCheckReturn`): linha DEBITO "DEVOLUCAO CHEQUE" → reversao em cadeia (T3 Banco→Compensar + T4 Compensar→Caixa + estorno do recebimento, entry volta PENDING mantendo dados, marca checkReturnedAt + tarifa).
+- Endpoints: `GET checks-in-wallet[/​:id]`, `GET deposited-checks`, `POST transfers/deposit-checks`, `POST transfers/endorse-checks`, `POST reconciliation/lines/:id/match-as-check-return`.
+- Detalhe completo: `memory/sessao_223_summary.md`.
+
+### Fechar mes MANUAL na conciliacao (v1.13.89)
+`ClosedMonthGuardService.assertNotClosed` trava alteracoes de saldo so quando o mes e FECHADO de proposito (`BankStatement.closedAt` preenchido — botao "Fechar/Reabrir mes"). **Substituiu** a trava automatica "por conferencia batendo" (v1.12.16), que travava indevidamente o mes corrente de quem concilia OFX diario (saldo declarado + tudo conciliado = batia = travava). Endpoints `POST reconciliation/statements/:id/close|reopen`. A conferencia de saldo (balance-compare) continua mostrando a diferenca — e separada da trava.
+
 ---
 
 ## 11. Auth e Seguranca
