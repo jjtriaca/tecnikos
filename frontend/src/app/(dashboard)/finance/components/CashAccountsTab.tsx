@@ -933,6 +933,7 @@ function TransfersSection() {
   } | null>(null);
   const [selectedCheckIds, setSelectedCheckIds] = useState<Set<string>>(new Set());
   const [depositBankId, setDepositBankId] = useState("");
+  const [depositDate, setDepositDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const loadData = useCallback(async () => {
     try {
@@ -1018,6 +1019,7 @@ function TransfersSection() {
     setSelectedCheckIds(new Set());
     setCheckWallet(null);
     setDepositBankId("");
+    setDepositDate(new Date().toISOString().slice(0, 10));
   }
 
   // depositMode: ha cheque(s) marcado(s) -> o modal vira "deposito de cheque" (vai pra Cheques a Compensar)
@@ -1034,6 +1036,7 @@ function TransfersSection() {
       await api.post("/finance/transfers/deposit-checks", {
         checkEntryIds: Array.from(selectedCheckIds),
         targetBankAccountId: depositBankId || undefined,
+        transferDate: depositDate || undefined,
       });
       toast("Cheque(s) depositado(s) — aguardando compensar no banco.", "success");
       resetTransferForm();
@@ -1164,6 +1167,15 @@ function TransfersSection() {
                 <>
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
                     {selectedCheckGroups.length} cheque(s) vao para <strong>Cheques a Compensar</strong>. Entram no banco quando voce conciliar o extrato.
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Data do depósito</label>
+                    <input
+                      type="date"
+                      value={depositDate}
+                      onChange={(e) => setDepositDate(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">Banco onde vai depositar (opcional)</label>

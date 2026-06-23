@@ -51,6 +51,7 @@ function LineActionsDropdown({
   onIgnore,
   onUnignore,
   onUnmatch,
+  checkClearingHint,
 }: {
   line: BankStatementLine;
   onConciliar: () => void;
@@ -61,6 +62,7 @@ function LineActionsDropdown({
   onIgnore: () => void;
   onUnignore: () => void;
   onUnmatch: () => void;
+  checkClearingHint?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -151,9 +153,12 @@ function LineActionsDropdown({
               <button
                 onClick={() => { setOpen(false); onConciliarTransfer(); }}
                 className="block w-full text-left px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
-                title="Deposito em dinheiro, saque, transferencia entre contas proprias"
+                title="Deposito em dinheiro, saque, transferencia entre contas proprias, ou deposito de cheque a compensar"
               >
                 &#8644; Conciliar como transferencia
+                {checkClearingHint && (
+                  <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-green-100 text-green-700 font-semibold">cheque a compensar</span>
+                )}
               </button>
               <div className="my-1 border-t border-slate-100" />
               <button
@@ -3577,6 +3582,7 @@ function TransferMatchModal({
   const [sourceAccountId, setSourceAccountId] = useState("");
   const [description, setDescription] = useState("");
   const [matching, setMatching] = useState(false);
+  const [suggestedClearingId, setSuggestedClearingId] = useState<string | null>(null);
 
   const isCredit = line ? line.amountCents > 0 : false;
   const amount = line ? Math.abs(line.amountCents) : 0;
@@ -3584,6 +3590,7 @@ function TransferMatchModal({
   useEffect(() => {
     if (!open || !line) return;
     setSourceAccountId("");
+    setSuggestedClearingId(null);
     setDescription(isCredit
       ? `Depósito em ${line.description}`
       : `Saque de ${line.description}`);
@@ -3594,9 +3601,25 @@ function TransferMatchModal({
       .then((list) => {
         const filtered = (list || []).filter((a) => a.isActive && a.id !== line.cashAccountId);
         setAccounts(filtered);
+        // Sugestao (v1.13.88): credito que provavelmente e deposito de cheque compensando.
+        // Se ha conta "Cheques a Compensar" (TRANSITO) com saldo que cobre o valor da linha,
+        // pre-seleciona como origem — o operador so confere e confirma.
+        if (isCredit) {
+          const clearing = filtered.find(
+            (a) =>
+              a.type === "TRANSITO" &&
+              /cheques a compensar/i.test(a.name) &&
+              typeof a.currentBalanceCents === "number" &&
+              a.currentBalanceCents >= amount,
+          );
+          if (clearing) {
+            setSourceAccountId(clearing.id);
+            setSuggestedClearingId(clearing.id);
+          }
+        }
       })
       .catch(() => setAccounts([]));
-  }, [open, line, isCredit]);
+  }, [open, line, isCredit, amount]);
 
   if (!open || !line) return null;
 
@@ -3655,6 +3678,13 @@ function TransferMatchModal({
               </>
             )}
           </div>
+
+          {/* Sugestao automatica de cheque a compensar (v1.13.88) */}
+          {suggestedClearingId && sourceAccountId === suggestedClearingId && (
+            <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-[11px] text-green-800">
+              <strong>Sugestão:</strong> há cheque(s) a compensar batendo com este crédito — já selecionamos a conta <strong>Cheques a Compensar</strong> abaixo. Confira e confirme.
+            </div>
+          )}
 
           {/* Source account */}
           <div>
@@ -4026,6 +4056,21 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
   const [balanceSaving, setBalanceSaving] = useState(false);
   const { toast } = useToast();
 
+  // Saldo de "Cheques a Compensar" — usado pra sugerir, numa linha de credito, que ela e
+  // provavelmente o deposito de cheque compensando (badge no menu de acoes). v1.13.88
+  const [clearingBalanceCents, setClearingBalanceCents] = useState(0);
+  useEffect(() => {
+    api
+      .get<CashAccountOption[]>("/finance/cash-accounts/active")
+      .then((list) => {
+        const clearing = (list || []).find(
+          (a) => a.type === "TRANSITO" && /cheques a compensar/i.test(a.name),
+        );
+        setClearingBalanceCents(clearing?.currentBalanceCents ?? 0);
+      })
+      .catch(() => setClearingBalanceCents(0));
+  }, [statement?.id]);
+
   // Carrega o comparativo de saldo (banco vs sistema) quando o statement muda
   const loadBalanceCompare = useCallback(() => {
     if (!statement?.id) return;
@@ -4181,8 +4226,10 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
       toast("Conciliação desfeita. Saldos revertidos.", "success");
       setUnmatchLine(null);
       await refreshAll();
-    } catch {
-      toast("Erro ao desfazer conciliacao.", "error");
+    } catch (err: any) {
+      // Mostra a mensagem real do backend (ex: "Mês fechado — reabra a conferência").
+      // Antes engolia tudo num "Erro ao desfazer" generico (bug irmao do v1.13.33).
+      toast(err?.response?.data?.message || err?.message || "Erro ao desfazer conciliacao.", "error");
     } finally {
       setUnmatchLoading(false);
     }
@@ -4388,6 +4435,7 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
                             onIgnore={() => handleIgnore(line.id)}
                             onUnignore={() => handleUnignore(line.id)}
                             onUnmatch={() => setUnmatchLine(line)}
+                            checkClearingHint={line.status === "UNMATCHED" && line.amountCents > 0 && clearingBalanceCents >= line.amountCents}
                           />
                         )
                       ) : col.render ? col.render(line) : null}
