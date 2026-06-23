@@ -4069,7 +4069,9 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
         setClearingBalanceCents(clearing?.currentBalanceCents ?? 0);
       })
       .catch(() => setClearingBalanceCents(0));
-  }, [statement?.id]);
+    // dep `lines`: recarrega o saldo de cheques a compensar quando as linhas mudam (apos
+    // desfazer/conciliar) — senao o chip "cheque a compensar" some/persiste errado. v1.13.90
+  }, [statement?.id, lines]);
 
   // Fechamento manual do mes (v1.13.89): trava alteracoes de saldo. Estado local pra refletir na hora.
   const [monthClosed, setMonthClosed] = useState(!!statement.closedAt);
@@ -4156,6 +4158,11 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
         {l.suggestedPairLineId && l.status === "UNMATCHED" && (
           <span className="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-purple-100 text-purple-700 border border-purple-300 whitespace-nowrap align-middle">
             Possivel estorno
+          </span>
+        )}
+        {l.status === "UNMATCHED" && l.amountCents > 0 && clearingBalanceCents >= l.amountCents && (
+          <span className="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold bg-green-100 text-green-700 border border-green-300 whitespace-nowrap align-middle" title='Há cheque(s) a compensar nesse valor. Concilie pelo menu "..." → Conciliar como transferência (já vem preenchido).'>
+            cheque a compensar
           </span>
         )}
         {l.isRefund && l.status === "MATCHED" && (
