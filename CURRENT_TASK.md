@@ -1,5 +1,11 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.13.84 (23/06) — Receber EM LOTE com cheque (antes "0 de N recebidos. N erro(s)." SEMPRE)
+## - **Bug (Juliano):** "Receber todos" com forma=Cheque falhava 100% — recusava todos os lançamentos ("0 de 2 recebidos. 2 erro(s)."). Causa: `changeEntryStatus` (IC-04, L1069) exige `checkNumber`+`checkBank` pra método CHEQUE; o modal de lote (`showBatchModal`/`handleBatchPay`) não tinha os campos nem enviava os dados → cada entry estourava `BadRequestException` no loop e era contada como erro.
+## - **Decisão Juliano:** "1 cheque vale pro lote todo" — mesmo número/banco gravado em TODOS os selecionados (ideal quando é UM cheque cobrindo vários lançamentos; cheques diferentes = receber 1 a 1).
+## - **Frontend ([finance/page.tsx]):** modal de lote ganhou o bloco "Dados do Cheque" (6 campos, igual ao individual) quando `activePMs.find(batchPayMethod).requiresCheckData`, com nota "vale para os N selecionados"; `handleBatchPay` valida número+banco antes de enviar + manda os 6 campos no POST; reset dos campos ao abrir e ao concluir.
+## - **Backend (`finance.service.batchPay` + `finance.controller`):** body aceita os 6 campos de cheque; validação ÚNICA no topo do `batchPay` (1 erro claro em vez de N idênticos no loop); repassa ao `changeEntryStatus` de cada entry. Sem migration (campos `check*` já no schema FinancialEntry). tsc back+front + next build EXIT 0. Deploy 1ª OK, health prod 1.13.84 ✓.
+
 ## ✅ DEPLOYED v1.13.83 (22/06) — `sum()` aceita filtro por ETAPA (`@`) + receita "Tempo de montagem de TODA a etapa (× qtd)"
 ## - **Pedido (Juliano):** receita de fórmula que soma `tempoMontagemH × qtd` de TODAS as linhas de uma etapa (ex: Serviço de Eletrotécnica = soma do tempo de montagem dos equipamentos elétricos). Não existia (a receita de tempo pega 1 linha via `prod(LREF)` sem × qtd; `sum()` somava todas as etapas).
 ## - **Decisão Juliano:** etapa da PRÓPRIA linha por padrão, mas editável (se o operador mudar a chave manualmente, usa a que ele pôs).
