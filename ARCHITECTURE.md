@@ -50,6 +50,14 @@ Tecnikos e uma plataforma SaaS B2B de Gestao de Servicos Tecnicos (Field Service
 
 **ClosedMonthGuardService** (v1.12.16): bloqueia qualquer mutacao financeira (create/update/delete entry pago, match/unmatch, transfer) em mes com `BankStatement.statementBalanceCents` preenchido E diff banco/sistema = 0. Pra reabrir o mes, usuario edita/remove o saldo do banco em Conciliacao. Aplicado em ReconciliationService (matchLine/matchAsCardInvoice/matchAsMultiple/matchAsTransfer/matchAsRefund/unmatchLine), FinanceService (createEntry/changeEntryStatus/deleteEntry) e TransferService (create).
 
+**Trava de categoria por direcao** (v1.13.98): `FinancialAccountService.assertAccountDirection(companyId, accountId, entryType, {isRefundEntry})` — RECEIVABLE so aceita plano REVENUE; PAYABLE so COST/EXPENSE (libera sem-categoria e estorno). Chamada em todo ponto que grava `financialAccountId`: createEntry, updateEntry, nfse-entrada (import NF). Endpoint `GET /finance/accounts/postable?direction=RECEIVABLE|PAYABLE`. UI central: `frontend/components/finance/CategorySelect.tsx` (esconde categoria errada em A Receber/Pagar, OS, baixa de cartao, import NF; **tela mista usa direcao POR ENTRADA**). Origem: a **DRE** (`generateDre`, base caixa) agrupa pelo TIPO DA CATEGORIA, nao do lancamento — recebimento com categoria de custo distorce o resultado. 🔜 falta migrar a Conciliacao pro CategorySelect. Ver `memory/trava_categoria_por_direcao.md`.
+
+**Conciliacao por lote + pagamento parcial** (v1.13.94/96): `ReconciliationService.matchAsBatch` + `getBatchCandidates` conciliam N lancamentos com 1 linha do extrato via `batchPaymentId` (reusa matchAsMultiple) — generaliza o "cartao agrupado" (1 passada = N parcelas). `FinanceService.partialPay` (modelo split): reduz o lancamento original ao valor pago + marca PAID, e cria um lancamento do restante PENDING (vencimento perguntado na hora). Vale receber E pagar.
+
+**Cheque de terceiro** (v1.13.84-97): em carteira (CAIXA) → depositar (AccountTransfer p/ conta transito "Cheques a Compensar" → Banco na conciliacao, que grava `checkClearedAt`) / repassar (quita PAYABLE) / devolver (reversao em cadeia). Cadastro/historico: `FinancialAccountService.getChecksRegistry` (status EM_CARTEIRA/CONCILIADO/DEPOSITADO/... derivado de checkOutAt/cleared/returned + tipo da conta) + `updateCheckInfo`. Saldo move SO por AccountTransfer (balance-compare bate). Ver `memory/sessao_223_summary.md`.
+
+**Filtro de periodo dos KPIs do Resumo** (v1.13.98/v1.14.01): atalhos Mes/Trimestre/Semestre/Ano/Tudo = **rolling da data de hoje pra tras** (hoje−1/3/6/12 meses → hoje; Tudo = 2000-2100) + campos De/Ate sempre visiveis (refletem o atalho) + botao Filtrar (data manual) + reset no mes atual ao reentrar na aba. So afeta os 3 cards de Resultado (`GET /finance/dashboard?dateFrom&dateTo`); nao mexe em saldo.
+
 ### Fiscal
 | Modulo | Responsabilidade | Service principal |
 |--------|-----------------|-------------------|
@@ -210,13 +218,13 @@ Disparada apos cada mutacao de ServiceOrder/Partner (fire-and-forget).
 - **PendingWorkflowWait**: blocos WAIT_FOR aguardando evento
 
 ### Financeiro
-- **FinancialEntry**: RECEIVABLE/PAYABLE, parcelas, renegociacao chain (parentEntryId), nfseStatus
+- **FinancialEntry**: RECEIVABLE/PAYABLE, parcelas, renegociacao chain (parentEntryId), nfseStatus. Cheque de terceiro: `checkOutAt/Kind/Ref` (deposito/repasse) + `checkReturnedAt` (devolucao) + `checkClearedAt` (compensacao capturada na conciliacao, v1.13.97). `batchPaymentId` agrupa N lancamentos conciliados/pagos numa passada/lote (v1.13.94)
 - **FinancialInstallment**: parcela individual com juros/multa/desconto
 - **CashAccount**: CAIXA/BANCO, saldo, PIX
 - **PaymentMethod/PaymentInstrument**: metodos + instrumentos especificos
-- **CardSettlement/CardFeeRate**: liquidacao de cartao com taxas
+- **CardSettlement/CardFeeRate**: liquidacao de cartao com taxas; `batchPaymentId` (= FinancialEntry.batchPaymentId) agrupa baixas do mesmo swipe (v1.13.94)
 - **BankStatementImport/Line**: conciliacao OFX/CSV
-- **FinancialAccount**: plano de contas hierarquico (2 niveis); flag `requiresNfse` (v1.13.69) = receita deste plano exige NFS-e pra receber/conciliar
+- **FinancialAccount**: plano de contas hierarquico (2 niveis); type REVENUE/COST/EXPENSE (base da trava de categoria por direcao); flag `requiresNfse` (v1.13.69) = receita deste plano exige NFS-e pra receber/conciliar
 - **CollectionRule/Execution**: regua de cobranca automatica
 
 ### Fiscal
