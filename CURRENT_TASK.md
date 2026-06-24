@@ -1,5 +1,11 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.14.01 (24/06) — Filtro de período dos KPIs redesenhado (rolling + data sempre visível + Filtrar)
+## - (número rolou: 1.13.99 → **1.14.01**; comentários no código dizem "v1.13.100" — é a mesma release.)
+## - **Pedido Juliano:** atalhos Trimestre/Semestre/Ano = da **data de hoje pra trás** (não trimestre/semestre/ano de calendário); campos De/Até **sempre visíveis** que atualizam ao clicar no atalho (operador vê o que filtra); botão **Filtrar** pra data manual; ao sair/voltar reseta no mês atual.
+## - **Fix (SummaryTab finance/page.tsx):** `kpiPeriodRange` agora rolling — quarter/semester/year = `hoje − 3/6/12 meses → hoje`; month = 1º do mês → hoje; all = 2000→2100 (tudo, passado+futuro). State: `kpiFrom/kpiTo` (sempre visíveis) + `kpiPreset` (chip ativo/highlight, "" = manual). `loadKpis` (useCallback) busca o dashboard SÓ no atalho/Filtrar (não ao digitar). Mount effect reseta no mês atual (sair/voltar volta pro mês). Removido o chip "Data livre"/tipo "custom" (datas agora fixas). Editar data → `kpiPreset=""` (tira highlight).
+## - Diferença Semestre/Ano/Tudo ANTES era parcelas futuras de cartão (pagas com data futura); com rolling até hoje, Trimestre/Semestre/Ano não pegam mais futuro (só Tudo). `next build` EXIT 0. Sem migration.
+
 ## ✅ DEPLOYED v1.13.99 (24/06) — fix regressão OS (categoria) + CategorySelect em mais telas + data livre nos KPIs
 ## - **🔴 Regressão da v1.13.98 corrigida:** ao filtrar os modais de OS (`EarlyFinancialModal`/`ApprovalConfirmModal`) por `?direction=RECEIVABLE`, quebrei o select de categoria do PAGAMENTO da OS (são telas MISTAS receber+pagar). Fix: reverter o fetch pra sem filtro (mantém defaults 1100/2100) + `renderAccountSelect` recebe a direção POR ENTRADA (`isRec ? RECEIVABLE : PAYABLE`) usando `CategorySelect`. **Lição: checar se a tela é mista antes de filtrar por direção.**
 ## - **Migração pro `CategorySelect`** (componente central): OS (2 modais), baixa de cartão (`CardSettlementTab`), import NF (`nfe/page`, `nfe/entrada`). Faltam: conciliação (mista, vários selects) — protegida pela trava de backend; migrar depois.
