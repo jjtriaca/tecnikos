@@ -127,6 +127,24 @@ function EditQuotePage() {
   const [discountType, setDiscountType] = useState<"percent" | "fixed">("percent");
   const [discountValue, setDiscountValue] = useState("");
 
+  // Validade (dias a partir da criacao)
+  const [validityDays, setValidityDays] = useState("30");
+  const [savingValidity, setSavingValidity] = useState(false);
+
+  async function saveValidityDefault() {
+    const d = parseInt(validityDays.replace(/\D/g, ""), 10) || 0;
+    if (d < 1) { toast("Informe a validade em dias (mínimo 1).", "error"); return; }
+    setSavingValidity(true);
+    try {
+      await api.post("/quotes/settings/validity-default", { days: d });
+      toast(`Validade padrão salva: ${d} dias.`, "success");
+    } catch (err: any) {
+      toast(err?.response?.data?.message || "Erro ao salvar validade padrão.", "error");
+    } finally {
+      setSavingValidity(false);
+    }
+  }
+
   // Product value
   const [productValue, setProductValue] = useState("");
 
@@ -190,6 +208,8 @@ function EditQuotePage() {
         if (q.productValueCents) {
           setProductValue((q.productValueCents / 100).toFixed(2).replace(".", ","));
         }
+
+        if (q.validityDays) setValidityDays(String(q.validityDays));
 
         // Items
         const loadedItems: QuoteItemRow[] = (q.items || [])
@@ -289,8 +309,12 @@ function EditQuotePage() {
         description: description.trim() || undefined,
         clientPartnerId: selectedClient.id,
         serviceOrderId: selectedOS?.id || undefined,
-        discountPercent: discountType === "percent" ? (parseFloat(discountValue.replace(",", ".")) || undefined) : undefined,
-        discountCents: discountType === "fixed" ? Math.round(parseBRL(discountValue) * 100) || undefined : undefined,
+        // Envia 0 EXPLICITO (nao undefined) — senao zerar/limpar o desconto nao persiste
+        // (backend usa `dto.X !== undefined`; `0 || undefined` mandava undefined = "nao mexer",
+        // mantendo o desconto antigo). Zera tambem o campo do outro tipo ao trocar %/R$.
+        discountPercent: discountType === "percent" ? (parseFloat(discountValue.replace(",", ".")) || 0) : 0,
+        discountCents: discountType === "fixed" ? (Math.round(parseBRL(discountValue) * 100) || 0) : 0,
+        validityDays: parseInt(validityDays.replace(/\D/g, ""), 10) || undefined,
         productValueCents: productValueCents || 0,
         notes: notes.trim() || undefined,
         termsConditions: termsConditions.trim() || undefined,
@@ -474,6 +498,19 @@ function EditQuotePage() {
                     className="w-28 rounded border border-slate-300 pl-7 pr-2 py-1 text-sm text-right outline-none focus:border-blue-500" />
                 </div>
               </div>}
+              {/* Validade (dias a partir da criacao) + salvar como padrao */}
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-slate-600">Validade (dias):</span>
+                <input type="text" inputMode="numeric" value={validityDays}
+                  onChange={e => setValidityDays(e.target.value.replace(/\D/g, ""))}
+                  placeholder="30"
+                  className="w-20 rounded border border-slate-300 px-2 py-1 text-sm text-right outline-none focus:border-blue-500" />
+                <button type="button" onClick={saveValidityDefault} disabled={savingValidity}
+                  title="Salvar como validade padrao para novos orcamentos"
+                  className="rounded border border-slate-300 px-1.5 py-1 text-sm text-slate-500 hover:bg-slate-100 hover:text-blue-600 disabled:opacity-50">
+                  &#128190;
+                </button>
+              </div>
               <div className="flex items-center gap-4 text-base font-bold border-t border-slate-300 pt-2 mt-1">
                 <span className="text-slate-800">TOTAL:</span>
                 <span className="text-blue-700 w-32 text-right">{formatCurrency(totalCents)}</span>

@@ -8,9 +8,10 @@ import { NotificationModule } from '../notification/notification.module';
 import { AuditModule } from '../common/audit/audit.module';
 import { WorkflowModule } from '../workflow/workflow.module';
 import { EmailModule } from '../email/email.module';
+import { TenantModule } from '../tenant/tenant.module';
 
 @Module({
-  imports: [NotificationModule, AuditModule, MulterModule, EmailModule, forwardRef(() => WorkflowModule)],
+  imports: [NotificationModule, AuditModule, MulterModule, EmailModule, forwardRef(() => WorkflowModule), TenantModule],
   controllers: [QuoteController, QuotePublicController],
   providers: [QuoteService, QuotePdfService],
   exports: [QuoteService, QuotePdfService],

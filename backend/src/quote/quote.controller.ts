@@ -73,6 +73,28 @@ export class QuoteController {
     return this.service.stats(user.companyId);
   }
 
+  // Default de validade (dias) do tenant — usado no form de novo orcamento + icone "salvar padrao".
+  @Get('settings')
+  getSettings(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.getQuoteSettings(user.companyId);
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post('settings/validity-default')
+  setValidityDefault(
+    @Body('days') days: number,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.setDefaultValidityDays(user.companyId, days);
+  }
+
+  // Expira agora os orcamentos ENVIADO ja vencidos deste tenant (sem esperar o cron da meia-noite).
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post('expire-now')
+  expireNow(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.expireNowForCompany(user.companyId);
+  }
+
   @Get(':id')
   findOne(
     @Param('id') id: string,

@@ -97,6 +97,14 @@ export class CreateQuoteDto {
   @Min(0)
   productValueCents?: number;
 
+  // Prazo de validade em dias a partir da criacao. expiresAt = createdAt + validityDays.
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  validityDays?: number;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CreateQuoteItemDto)

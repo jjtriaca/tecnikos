@@ -17,6 +17,7 @@ import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { NotificationService } from '../notification/notification.service';
 import { EmailService } from '../email/email.service';
 import { WorkflowEngineService } from '../workflow/workflow-engine.service';
+import { TenantResolverService } from '../tenant/tenant-resolver.service';
 import { randomUUID } from 'crypto';
 import { QuoteStatus, Prisma } from '@prisma/client';
 import { Inject, Optional } from '@nestjs/common';
@@ -31,6 +32,7 @@ export class QuoteService {
     private readonly codeGenerator: CodeGeneratorService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationService,
+    private readonly tenantResolver: TenantResolverService,
     @Optional() @Inject(EmailService) private readonly emailService?: EmailService,
     @Optional() @Inject(WorkflowEngineService) private readonly workflowEngine?: WorkflowEngineService,
   ) {}
@@ -66,6 +68,33 @@ export class QuoteService {
     return { subtotalCents, totalCents, itemTotals };
   }
 
+  // ---- Settings (default de validade por tenant, em Company.systemConfig.quote) ----
+
+  async getQuoteSettings(companyId: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    const cfg = (company?.systemConfig as any) || {};
+    const days = cfg?.quote?.defaultValidityDays;
+    return { defaultValidityDays: (typeof days === 'number' && days >= 1) ? days : 30 };
+  }
+
+  async setDefaultValidityDays(companyId: string, days: number) {
+    const d = Math.max(1, Math.min(365, Math.round(days || 0)));
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    const cfg = (company?.systemConfig as any) || {};
+    const next = { ...cfg, quote: { ...(cfg.quote || {}), defaultValidityDays: d } };
+    await this.prisma.company.update({
+      where: { id: companyId },
+      data: { systemConfig: next },
+    });
+    return { defaultValidityDays: d };
+  }
+
   // ---- CRUD ----
 
   async create(dto: CreateQuoteDto, companyId: string, user: AuthenticatedUser) {
@@ -77,8 +106,9 @@ export class QuoteService {
       dto.productValueCents,
     );
 
-    // TODO: validityDays, deliveryMethod, approvalMode will come from workflow config in the future
-    const validityDays = 30;
+    // Validade: valor informado no form OU o default do tenant (systemConfig.quote.defaultValidityDays, fallback 30).
+    const settings = await this.getQuoteSettings(companyId);
+    const validityDays = dto.validityDays ?? settings.defaultValidityDays;
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + validityDays);
 
@@ -287,7 +317,16 @@ export class QuoteService {
       totalCents = result.totalCents;
     }
 
-    const expiresAt = quote.expiresAt;
+    // Validade: se o form mandou validityDays, recalcula expiresAt a partir da DATA DE CRIACAO
+    // (o cliente pediu "passando esses dias da data de criacao o orcamento expira"). Senao preserva.
+    let expiresAt = quote.expiresAt;
+    let validityDays = quote.validityDays;
+    if (dto.validityDays !== undefined && dto.validityDays !== quote.validityDays) {
+      validityDays = dto.validityDays;
+      const base = quote.createdAt ? new Date(quote.createdAt) : new Date();
+      expiresAt = new Date(base);
+      expiresAt.setDate(expiresAt.getDate() + validityDays);
+    }
 
     const updated = await this.prisma.$transaction(async (tx) => {
       // Delete and recreate items if provided
@@ -324,6 +363,7 @@ export class QuoteService {
           ...(dto.productValueCents !== undefined && { productValueCents: dto.productValueCents }),
           subtotalCents,
           totalCents,
+          validityDays,
           expiresAt,
         }),
         include: { items: true, clientPartner: true },
@@ -804,6 +844,10 @@ export class QuoteService {
     if (quote.status !== 'ENVIADO') {
       throw new BadRequestException('Este orçamento não está aguardando aprovação');
     }
+    // Bloqueia aprovacao de orcamento expirado (mesmo que o cron ENVIADO->EXPIRADO ainda nao tenha rodado).
+    if (quote.expiresAt && new Date() > quote.expiresAt) {
+      throw new BadRequestException('Este orçamento expirou e não pode mais ser aprovado.');
+    }
     if (quote.publicTokenExpiresAt && new Date() > quote.publicTokenExpiresAt) {
       throw new BadRequestException('Link expirado');
     }
@@ -877,18 +921,44 @@ export class QuoteService {
 
   @Cron('0 0 * * *') // Midnight daily
   async expireQuotes() {
+    // CRON roda SEM contexto de request -> precisa ITERAR os tenants e rodar a query DENTRO do schema
+    // de cada um. Sem isso, this.prisma cai no schema `public` (vazio) e NENHUM orcamento de tenant
+    // expira (bug confirmado: 13 ENVIADO ja vencidos no SLS nunca viraram EXPIRADO). v1.13.95
+    let totalExpired = 0;
+    await this.tenantResolver.forEachTenant(async (_tenantId, tenantSlug) => {
+      const result = await this.prisma.quote.updateMany({
+        where: {
+          status: 'ENVIADO',
+          expiresAt: { lt: new Date() },
+          deletedAt: null,
+        },
+        data: withUpdate({ status: 'EXPIRADO' }, { via: 'CRON' }),
+      });
+      if (result.count > 0) {
+        totalExpired += result.count;
+        this.logger.log(`[${tenantSlug}] Expired ${result.count} quote(s)`);
+      }
+    });
+    if (totalExpired > 0) {
+      this.logger.log(`Expired ${totalExpired} quote(s) across all tenants`);
+    }
+  }
+
+  /**
+   * Expira AGORA os orcamentos ENVIADO vencidos DESTE tenant (request tem contexto -> this.prisma
+   * cai no schema certo). Util pra verificar sem esperar o cron da meia-noite. v1.13.95
+   */
+  async expireNowForCompany(companyId: string) {
     const result = await this.prisma.quote.updateMany({
       where: {
+        companyId,
         status: 'ENVIADO',
         expiresAt: { lt: new Date() },
         deletedAt: null,
       },
-      data: withUpdate({ status: 'EXPIRADO' }, { via: 'CRON' }),
+      data: withUpdate({ status: 'EXPIRADO' }, { via: 'MANUAL' }),
     });
-
-    if (result.count > 0) {
-      this.logger.log(`Expired ${result.count} quotes`);
-    }
+    return { expired: result.count };
   }
 
   // ---- Attachment management ----
