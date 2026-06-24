@@ -19,6 +19,8 @@ A **DRE** (`financial-report.service.generateDre`) soma os lancamentos PAID do p
 - **Ao gravar categoria num fluxo novo: chamar `assertAccountDirection`.**
 
 ## Componente central de UI
-`frontend/src/components/finance/CategorySelect.tsx` — `<CategorySelect direction value onChange />`. Fetch por direcao (cache de modulo) + agrupado + aparencia unica. **Muda nele, muda em todas.** Ja usado em A Receber/A Pagar (criar/editar/receber/pagar). 🔜 migrar OS (Early/ApprovalConfirmModal), baixa de cartao, wizards NF (nfe/page, nfe/entrada), conciliacao pro mesmo componente (hoje filtrados por `?direction=` mas com select proprio). NAO recriar dropdown de categoria proprio — usar o `CategorySelect`.
+`frontend/src/components/finance/CategorySelect.tsx` — `<CategorySelect direction value onChange />`. Fetch por direcao (cache de modulo) + agrupado + aparencia unica. **Muda nele, muda em todas.** Usado em A Receber/A Pagar, OS (Early/ApprovalConfirmModal — direcao POR ENTRADA), baixa de cartao, wizards NF (nfe/page, nfe/entrada). 🔜 falta conciliacao (mista, varios selects). NAO recriar dropdown de categoria proprio — usar o `CategorySelect`.
+
+⚠️ **LICAO (regressao v1.13.98→99):** ANTES de filtrar um fetch de categoria por `?direction=`, checar se a tela e MISTA (recebe E paga na mesma tela — ex: os modais de OS tem `receivableAccountId` + `payableAccountId`). Filtrar uma tela mista por uma so direcao QUEBRA o outro select. Em tela mista: fetch SEM filtro (pros defaults) + `CategorySelect` com a direcao POR LINHA/ENTRADA.
 
 Relacionado: [[feedback_backend_enforcement]] (validar sempre no backend).
