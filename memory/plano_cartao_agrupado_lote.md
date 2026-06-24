@@ -1,11 +1,13 @@
 ---
 name: plano_cartao_agrupado_lote
-description: PLANO (proposto, sessao 224) — agrupar 1 passada de cartao (e qualquer lote) como 1 unidade conciliavel. Estudo do fluxo CardSettlement + plano em 3 camadas.
+description: DEPLOYED v1.13.94 (sessao 224) — agrupar 1 passada de cartao (e qualquer lote) como 1 unidade conciliavel. Estudo do fluxo CardSettlement + 3 camadas (carimbar lote / conciliar deposito em lote / Baixa ciente).
 metadata:
   type: project
 ---
 
-# Cartao agrupado / Conciliacao por lote (GLOBAL) — proposto sessao 224 (24/06)
+# Cartao agrupado / Conciliacao por lote (GLOBAL) — DEPLOYED v1.13.94, sessao 224 (24/06)
+
+**STATUS: DEPLOYED v1.13.94.** Migration `batchPaymentId` em public+tenant_sls ✓ (verificado no banco prod). Backend tsc + next build EXIT 0. ⚠️ NAO testado com depósito real em prod — validar saldo no 1º caso (passada de cartao -> conciliar lote pelo extrato -> conferir banco). Arquivos: `reconciliation.service.matchAsBatch`/`getBatchCandidates` + fix `alreadyInBankCents` no matchAsMultiple; `BatchMatchModal` + acao "📦 Conciliar deposito em lote" (linha credito) no ReconciliationTab; `CardSettlement.batchPaymentId` + chip "lote N×" + selecao tudo-ou-nada no CardSettlementTab; `batchPay` carimba as baixas. Endpoints `GET/POST /reconciliation/lines/:id/batch-candidates|match-as-batch`. 🔜 Proxima frente: RECEBER PARCIAL de 1 conta (separada).
 
 **Decisao Juliano:** fazer GLOBAL por lote (nao so cartao). O problema nao e "cartao", e "1 transacao real que o sistema quebrou em N lancamentos" — vale pra cartao, PIX, dinheiro, transferencia, cheque e forma nova de tenant. Elo universal ja existe: `batchPaymentId` (todo lote leva o mesmo, qualquer forma).
 
