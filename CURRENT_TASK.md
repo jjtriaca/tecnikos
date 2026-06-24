@@ -1,5 +1,11 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.13.99 (24/06) — fix regressão OS (categoria) + CategorySelect em mais telas + data livre nos KPIs
+## - **🔴 Regressão da v1.13.98 corrigida:** ao filtrar os modais de OS (`EarlyFinancialModal`/`ApprovalConfirmModal`) por `?direction=RECEIVABLE`, quebrei o select de categoria do PAGAMENTO da OS (são telas MISTAS receber+pagar). Fix: reverter o fetch pra sem filtro (mantém defaults 1100/2100) + `renderAccountSelect` recebe a direção POR ENTRADA (`isRec ? RECEIVABLE : PAYABLE`) usando `CategorySelect`. **Lição: checar se a tela é mista antes de filtrar por direção.**
+## - **Migração pro `CategorySelect`** (componente central): OS (2 modais), baixa de cartão (`CardSettlementTab`), import NF (`nfe/page`, `nfe/entrada`). Faltam: conciliação (mista, vários selects) — protegida pela trava de backend; migrar depois.
+## - **Data livre nos KPIs:** chip "Data livre" + campos De/Até (`kpiFrom`/`kpiTo`); effect do dashboard usa o range custom quando ativo. Diferença Semestre/Ano/Tudo EXPLICADA = 16 **parcelas futuras de cartão** marcadas PAGAS com data futura (jul/26→jan/27); DRE base caixa conta na data de cada parcela. Não é bug.
+## - Backend tsc + `next build` EXIT 0. Sem migration.
+
 ## ✅ DEPLOYED v1.13.98 (24/06) — TRAVA categoria por direção + filtro de período nos KPIs + componente central + Conciliado
 ## - **Incidente que originou:** recebimento (FIN-00550 R$71.280, 2ª parcela piscina Anderson) lançado com categoria de CUSTO "Mão de Obra Técnica". DRE agrupa pelo TIPO da categoria → contou recebimento como custo (swing R$142k) → Resultado junho aparecia −R$94k/−229%. Juliano corrigiu 3 lançamentos (FIN-00550/681/696); auditoria → 0 trocadas. Resultado real junho: **+R$48.414 / +43%** (base CAIXA/paidAt).
 ## - **(1) TRAVA central (`FinancialAccountService.assertAccountDirection`):** recebimento (RECEIVABLE) só aceita categoria REVENUE; pagamento (PAYABLE) só COST/EXPENSE. Backend ENFORCE em `createEntry`, `updateEntry` (caminho do bug) e `nfse-entrada` (import NF, inline). Libera estorno (`isRefundEntry`) e sem-categoria. + `findPostable(type?, direction?)` filtra; endpoint `/finance/accounts/postable?direction=`.
