@@ -608,34 +608,34 @@ function loadSectionOrder(): string[] {
   return DEFAULT_SECTION_ORDER;
 }
 
-// Periodo dos KPIs (Resultado) — v1.13.98. mes/trimestre/semestre/ano/tudo + data livre (custom).
-type KpiPeriod = "month" | "quarter" | "semester" | "year" | "all" | "custom";
+// Periodo dos KPIs (Resultado) — v1.13.100. Atalhos da DATA DE HOJE PARA TRAS (rolling); os campos
+// De/Ate ficam sempre visiveis e refletem o atalho clicado. "Tudo" = tudo (passado + futuro).
+type KpiPeriod = "month" | "quarter" | "semester" | "year" | "all";
 const KPI_PERIODS: { id: KpiPeriod; label: string }[] = [
   { id: "month", label: "Mês" },
   { id: "quarter", label: "Trimestre" },
   { id: "semester", label: "Semestre" },
   { id: "year", label: "Ano" },
   { id: "all", label: "Tudo" },
-  { id: "custom", label: "Data livre" },
 ];
 function kpiPeriodRange(period: KpiPeriod): { from: string; to: string } {
   const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth();
   const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const today = iso(now);
+  const back = (months: number) => { const d = new Date(now); d.setMonth(d.getMonth() - months); return iso(d); };
   if (period === "all") return { from: "2000-01-01", to: "2100-12-31" };
-  if (period === "year") return { from: `${y}-01-01`, to: `${y}-12-31` };
-  if (period === "semester") { const s = m < 6 ? 0 : 6; return { from: iso(new Date(y, s, 1)), to: iso(new Date(y, s + 6, 0)) }; }
-  if (period === "quarter") { const s = Math.floor(m / 3) * 3; return { from: iso(new Date(y, s, 1)), to: iso(new Date(y, s + 3, 0)) }; }
-  return { from: iso(new Date(y, m, 1)), to: iso(new Date(y, m + 1, 0)) };
+  if (period === "year") return { from: back(12), to: today };      // ultimos 12 meses
+  if (period === "semester") return { from: back(6), to: today };   // ultimos 6 meses
+  if (period === "quarter") return { from: back(3), to: today };    // ultimos 3 meses
+  return { from: iso(new Date(now.getFullYear(), now.getMonth(), 1)), to: today }; // mes atual ate hoje
 }
 
 function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void }) {
   const [data, setData] = useState<FinanceSummaryV2 | null>(null);
   const [dashData, setDashData] = useState<any>(null);
-  const [kpiPeriod, setKpiPeriod] = useState<KpiPeriod>("month");
   const [kpiFrom, setKpiFrom] = useState(() => kpiPeriodRange("month").from);
   const [kpiTo, setKpiTo] = useState(() => kpiPeriodRange("month").to);
+  const [kpiPreset, setKpiPreset] = useState<KpiPeriod | "">("month"); // chip ativo (highlight); "" = data manual
   // Cheques de terceiro em carteira por conta (pro card do Caixa mostrar Dinheiro × Cheques) — v1.13.92
   const [checksByAccount, setChecksByAccount] = useState<Record<string, { cents: number; count: number }>>({});
   // Extrato interno por conta (clicar no card abre o modal). v1.13.96
@@ -693,19 +693,23 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
     api.get<any[]>("/finance/payment-instruments/active").then(setStmtInstruments).catch(() => {});
   }, []);
 
-  // KPIs (Resultado) por periodo selecionado — recarrega ao trocar periodo OU as datas livres. v1.13.98
-  useEffect(() => {
-    let from: string;
-    let to: string;
-    if (kpiPeriod === "custom") {
-      if (!kpiFrom || !kpiTo) return; // espera as 2 datas
-      from = kpiFrom;
-      to = kpiTo;
-    } else {
-      ({ from, to } = kpiPeriodRange(kpiPeriod));
-    }
+  // KPIs (Resultado): busca o dashboard pro intervalo. Disparado por atalho/Filtrar (NAO ao digitar). v1.13.100
+  const loadKpis = useCallback((from: string, to: string) => {
+    if (!from || !to) return;
     api.get(`/finance/dashboard?dateFrom=${from}&dateTo=${to}`).then(setDashData).catch(() => setDashData(null));
-  }, [kpiPeriod, kpiFrom, kpiTo]);
+  }, []);
+  // Ao entrar/voltar na aba: reseta no mes atual.
+  useEffect(() => {
+    const r = kpiPeriodRange("month");
+    setKpiFrom(r.from); setKpiTo(r.to); setKpiPreset("month");
+    loadKpis(r.from, r.to);
+  }, [loadKpis]);
+  // Atalho (Mes/Trimestre/...): seta as datas + busca na hora.
+  function applyKpiPreset(preset: KpiPeriod) {
+    const r = kpiPeriodRange(preset);
+    setKpiFrom(r.from); setKpiTo(r.to); setKpiPreset(preset);
+    loadKpis(r.from, r.to);
+  }
 
   const reloadStatement = useCallback(() => {
     setStmtLoading(true);
@@ -814,23 +818,28 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
             {KPI_PERIODS.map((per) => (
               <button
                 key={per.id}
-                onClick={() => setKpiPeriod(per.id)}
+                onClick={() => applyKpiPreset(per.id)}
                 className={`rounded-full px-3 py-1 text-[11px] font-medium transition-colors ${
-                  kpiPeriod === per.id ? "bg-blue-600 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  kpiPreset === per.id ? "bg-blue-600 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
                 {per.label}
               </button>
             ))}
-            {kpiPeriod === "custom" && (
-              <>
-                <input type="date" value={kpiFrom} max={kpiTo || undefined} onChange={(e) => setKpiFrom(e.target.value)}
-                  className="rounded-lg border border-slate-300 px-2 py-1 text-[11px] outline-none focus:border-blue-500" />
-                <span className="text-[11px] text-slate-400">até</span>
-                <input type="date" value={kpiTo} min={kpiFrom || undefined} onChange={(e) => setKpiTo(e.target.value)}
-                  className="rounded-lg border border-slate-300 px-2 py-1 text-[11px] outline-none focus:border-blue-500" />
-              </>
-            )}
+            <span className="mx-1 h-4 w-px bg-slate-200" />
+            <input type="date" value={kpiFrom} max={kpiTo || undefined}
+              onChange={(e) => { setKpiFrom(e.target.value); setKpiPreset(""); }}
+              className="rounded-lg border border-slate-300 px-2 py-1 text-[11px] outline-none focus:border-blue-500" />
+            <span className="text-[11px] text-slate-400">até</span>
+            <input type="date" value={kpiTo} min={kpiFrom || undefined}
+              onChange={(e) => { setKpiTo(e.target.value); setKpiPreset(""); }}
+              className="rounded-lg border border-slate-300 px-2 py-1 text-[11px] outline-none focus:border-blue-500" />
+            <button
+              onClick={() => { setKpiPreset(""); loadKpis(kpiFrom, kpiTo); }}
+              className="rounded-full bg-blue-600 px-3 py-1 text-[11px] font-medium text-white hover:bg-blue-700 transition-colors"
+            >
+              Filtrar
+            </button>
           </div>
           <div className="grid grid-cols-3 gap-3">
           {kpiCards.map((card) => (
