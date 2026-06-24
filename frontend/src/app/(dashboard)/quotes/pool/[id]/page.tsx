@@ -1231,6 +1231,7 @@ export default function PoolBudgetDetailPage() {
                           heatingReport={(budget as any).heatingReport}
                           dias={budget.estimatedDurationDays ?? 0}
                           allItems={budget.items}
+                          sectionOrder={(budget.sectionOrder && budget.sectionOrder.length > 0) ? budget.sectionOrder : SECTION_ORDER}
                           catalog={catalog}
                           tenantPoolTypes={tenantPoolTypes}
                           onUpdate={(patch) => updateItem(it.id, patch)}
@@ -1565,7 +1566,7 @@ function itemNeedsVazaoAlert(item: BudgetItem, refMap: Map<string, string[]>): b
   return itemVazaoM3h(item) <= 0;
 }
 
-function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentParams, heatingReport, dias, allItems, catalog, tenantPoolTypes, onUpdate, onRemove, onEdit, onMove }: {
+function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentParams, heatingReport, dias, allItems, sectionOrder, catalog, tenantPoolTypes, onUpdate, onRemove, onEdit, onMove }: {
   item: BudgetItem;
   seq?: number;
   locked: boolean;
@@ -1576,6 +1577,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
   heatingReport?: any;
   dias?: number;
   allItems?: BudgetItem[];
+  sectionOrder?: string[];
   catalog?: CatalogConfig[];
   tenantPoolTypes?: string[];
   onUpdate: (patch: Partial<BudgetItem> & { formulaExpr?: string | null }) => void;
@@ -1972,6 +1974,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             kind: x.kind,
             linked: !!(x.productId || x.serviceId),
           }))}
+        sectionOrder={sectionOrder}
         siblingVars={siblingVars}
         initialQtyDecimals={(item as any).qtyDecimals ?? 0}
         onClose={() => setShowFormula(false)}
@@ -2009,6 +2012,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
           }))}
         itemDescription={item.description}
         itemKind={item.kind}
+        sectionOrder={sectionOrder}
         currentProductName={item.product?.description ?? item.service?.name ?? null}
         onClose={() => setShowAutoSelect(false)}
         // 'Aplicar regra' salva a regra E limpa productId/serviceId pra forcar
@@ -2663,7 +2667,7 @@ type LineRefPickerLine = {
   qty?: number;
 };
 function LineRefPicker({
-  icon, specKey, combine, refKind = 'PRODUCT', lines, environmentParams,
+  icon, specKey, combine, refKind = 'PRODUCT', lines, environmentParams, sectionOrder,
   selected, onToggle, onApply, onCancel, innerRef,
 }: {
   icon?: string;
@@ -2672,6 +2676,7 @@ function LineRefPicker({
   refKind?: 'PRODUCT' | 'SERVICE';
   lines: LineRefPickerLine[];
   environmentParams?: any;
+  sectionOrder?: string[];
   selected: Set<string>;
   onToggle: (cellRef: string) => void;
   onApply: () => void;
@@ -2681,17 +2686,21 @@ function LineRefPicker({
   const [expanded, setExpanded] = useState<Set<string>>(new Set()); // colapsadas por padrao
   const customLabels = (environmentParams?.customSections?.labels ?? {}) as Record<string, string>;
   const labelFor = (k: string) => customLabels[k] ?? SECTION_LABEL[k] ?? k;
-  const eligible = lines.filter((l) =>
-    !!l.cellRef && l.linked && (l.kind || 'PRODUCT') === refKind &&
-    l.description !== 'Sem Produto' && l.description !== 'Sem Serviço');
+  // v1.14.05: mostra TODAS as linhas do tipo (kind) — INCLUSIVE "Sem Produto"/sem vinculo. O
+  // operador reconhece pela coluna ITEM (slotName) e pode apontar a regra pra linha antes de
+  // vincular o produto (ex: L26 "Cascata" sem produto ainda). So filtra por kind (produto x servico).
+  const eligible = lines.filter((l) => !!l.cellRef && (l.kind || 'PRODUCT') === refKind);
   const groups = new Map<string, LineRefPickerLine[]>();
   for (const l of eligible) {
     const s = l.poolSection || 'OUTROS';
     if (!groups.has(s)) groups.set(s, []);
     groups.get(s)!.push(l);
   }
+  // v1.14.05: ordena as etapas pela ordem do MODELO (sectionOrder do budget), nao alfabetica nem
+  // SECTION_ORDER fixa — assim etapas custom (ex: AQUECEDOR SOLAR) ficam na posicao certa.
+  const secOrder = (sectionOrder && sectionOrder.length > 0) ? sectionOrder : SECTION_ORDER;
   const orderedSecs = Array.from(groups.keys()).sort((a, b) => {
-    const ia = SECTION_ORDER.indexOf(a); const ib = SECTION_ORDER.indexOf(b);
+    const ia = secOrder.indexOf(a); const ib = secOrder.indexOf(b);
     return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
   });
   return (
@@ -2706,7 +2715,7 @@ function LineRefPicker({
       </div>
       {eligible.length === 0 ? (
         <div className="text-[11px] text-amber-700 italic px-1 py-2">
-          Nenhuma linha de {refKind === 'SERVICE' ? 'servico' : 'produto'} vinculada disponivel. Vincule os equipamentos primeiro.
+          Nenhuma linha de {refKind === 'SERVICE' ? 'servico' : 'produto'} neste orcamento.
         </div>
       ) : (
         <div className="space-y-1 max-h-64 overflow-y-auto">
@@ -2767,7 +2776,7 @@ function LineRefPicker({
   );
 }
 
-function FormulaModal({ initialExpr, dimensions, environmentParams, heatingReport, dias, itemDescription, itemUnit, itemCellRef, itemPoolSection, productSpecs, productName, otherItems, siblingVars, initialQtyDecimals, onClose, onSave, onClear }: {
+function FormulaModal({ initialExpr, dimensions, environmentParams, heatingReport, dias, itemDescription, itemUnit, itemCellRef, itemPoolSection, productSpecs, productName, otherItems, sectionOrder, siblingVars, initialQtyDecimals, onClose, onSave, onClear }: {
   initialExpr: string;
   dimensions: any;
   environmentParams?: any;
@@ -2781,6 +2790,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
   productSpecs?: Record<string, unknown> | null;
   productName?: string | null;
   otherItems?: OtherItemForModal[];
+  sectionOrder?: string[];
   // v1.11.09: vars 'sibling*' calculadas dos outros items da mesma etapa
   // (mesmo padrao do AutoSelectModal/CatalogPickModal). Permite formulas como
   // 'siblingTempoMontagemH' pra calcular qty a partir do equipamento da etapa.
@@ -3128,6 +3138,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
                       combine="sum"
                       refKind="PRODUCT"
                       environmentParams={environmentParams}
+                      sectionOrder={sectionOrder}
                       lines={(otherItems || []).map((o) => ({
                         cellRef: o.cellRef,
                         slotName: o.slotName,
@@ -3836,6 +3847,7 @@ export function AutoSelectModal({
   siblingVars,
   itemDescription,
   itemKind,
+  sectionOrder,
   currentProductName,
   sectionItems,
   onClose,
@@ -3861,6 +3873,7 @@ export function AutoSelectModal({
   sectionItems?: { id: string; cellRef: string | null; description: string; qty?: number; linked: boolean; specs: Record<string, any> | null; poolSection?: string | null; kind?: string | null; slotName?: string | null }[];
   itemDescription?: string;
   itemKind?: string;
+  sectionOrder?: string[];
   currentProductName?: string | null;
   onClose: () => void;
   onSave: (rule: AutoSelectRule) => void;
@@ -4438,6 +4451,7 @@ export function AutoSelectModal({
                   combine={pendingLineRefTemplate.lineRef.combine}
                   refKind={itemKind === 'SERVICE' ? 'SERVICE' : 'PRODUCT'}
                   environmentParams={environmentParams}
+                  sectionOrder={sectionOrder}
                   lines={(sectionItems || []).map((it) => ({
                     cellRef: it.cellRef || '',
                     slotName: it.slotName,

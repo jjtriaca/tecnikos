@@ -1,5 +1,5 @@
 {
-  "version": "1.14.04",
+  "version": "1.14.05",
   "codename": "v1.13.49: auto-selecao da Grade de Fundo (Ralo) por NBR 10339 — motor do `where` da auto-selecao agora enxerga a quantidade da linha (pseudo-spec `qtdLinha` injetada no cellRefSpecs no back + no preview do front), permitindo somar vazao x qtd de bombas. Template novo '▦ Grade de fundo / ralo (NBR 10339)' no ✨: filtra a menor grade cuja vazaoM3h >= vazao TOTAL das bombas apontadas (cada ralo aguenta tudo sozinho = anti-aprisionamento) + indicador de folga. Operador aponta as linhas das bombas no where e fixa a quantidade do ralo em 2.",
-  "releasedAt": "2026-06-24T21:14:14.507Z"
+  "releasedAt": "2026-06-24T21:37:06.269Z"
 }
