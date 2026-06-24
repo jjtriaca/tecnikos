@@ -1967,6 +1967,10 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             // Enriquecido com technicalSpecs do produto/servico vinculado —
             // permite preview do prod(LX, "key") avaliar com valor real.
             productSpecs: (x.product?.technicalSpecs ?? x.service?.technicalSpecs ?? null) as Record<string, any> | null,
+            // v1.14.04: pro seletor de linhas (LineRefPicker) agrupar/filtrar/mostrar o ITEM.
+            slotName: x.slotName,
+            kind: x.kind,
+            linked: !!(x.productId || x.serviceId),
           }))}
         siblingVars={siblingVars}
         initialQtyDecimals={(item as any).qtyDecimals ?? 0}
@@ -1999,8 +2003,12 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             qty: it.qty,
             linked: !!(it.productId || it.serviceId),
             specs: (it.product?.technicalSpecs ?? it.service?.technicalSpecs) || null,
+            poolSection: it.poolSection,
+            kind: it.kind,
+            slotName: it.slotName,
           }))}
         itemDescription={item.description}
+        itemKind={item.kind}
         currentProductName={item.product?.description ?? item.service?.name ?? null}
         onClose={() => setShowAutoSelect(false)}
         // 'Aplicar regra' salva a regra E limpa productId/serviceId pra forcar
@@ -2631,7 +2639,133 @@ const FORMULA_FN_HELP: Record<typeof FORMULA_FUNCTIONS[number], string> = {
   max: "Maior entre 2 valores: max(area, 10). Garante minimo.",
 };
 
-type OtherItemForModal = { cellRef: string; description: string; poolSection: string; qty: number; total: number; unitPrice: number; productSpecs?: Record<string, any> | null };
+type OtherItemForModal = { cellRef: string; description: string; poolSection: string; qty: number; total: number; unitPrice: number; productSpecs?: Record<string, any> | null; slotName?: string | null; kind?: string | null; linked?: boolean };
+
+// ─────────────────────────────────────────────────────────
+// LineRefPicker — seletor de linhas (LREF) COMPARTILHADO entre o montador de formula
+// (FormulaModal) e a auto-selecao/indicador (AutoSelectModal). v1.14.04.
+//   • Linhas AGRUPADAS por etapa, todas COLAPSADAS (operador abre a etapa e marca a linha).
+//   • FILTRA por tipo: so linhas com produto/servico vinculado do mesmo kind (refKind) do criterio
+//     — esconde "Sem Produto"/orfas (nao tem spec pra somar).
+//   • Mostra a coluna ITEM (slotName) + a descricao, pro operador reconhecer a linha mesmo
+//     quando o produto e generico ou ainda nao escolhido.
+// O componente so cuida da SELECAO/visual; cada modal passa o onApply (a logica de inserir a
+// expressao difere: AutoSelect troca o LREF no where/indicator; Formula insere soma de prods).
+// ─────────────────────────────────────────────────────────
+type LineRefPickerLine = {
+  cellRef: string;
+  slotName?: string | null;
+  description: string;
+  poolSection?: string | null;
+  kind?: string | null;
+  linked: boolean;
+  specs: Record<string, any> | null;
+  qty?: number;
+};
+function LineRefPicker({
+  icon, specKey, combine, refKind = 'PRODUCT', lines, environmentParams,
+  selected, onToggle, onApply, onCancel, innerRef,
+}: {
+  icon?: string;
+  specKey: string | null;
+  combine: 'sum' | 'max';
+  refKind?: 'PRODUCT' | 'SERVICE';
+  lines: LineRefPickerLine[];
+  environmentParams?: any;
+  selected: Set<string>;
+  onToggle: (cellRef: string) => void;
+  onApply: () => void;
+  onCancel: () => void;
+  innerRef?: { current: HTMLDivElement | null };
+}) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set()); // colapsadas por padrao
+  const customLabels = (environmentParams?.customSections?.labels ?? {}) as Record<string, string>;
+  const labelFor = (k: string) => customLabels[k] ?? SECTION_LABEL[k] ?? k;
+  const eligible = lines.filter((l) =>
+    !!l.cellRef && l.linked && (l.kind || 'PRODUCT') === refKind &&
+    l.description !== 'Sem Produto' && l.description !== 'Sem Serviço');
+  const groups = new Map<string, LineRefPickerLine[]>();
+  for (const l of eligible) {
+    const s = l.poolSection || 'OUTROS';
+    if (!groups.has(s)) groups.set(s, []);
+    groups.get(s)!.push(l);
+  }
+  const orderedSecs = Array.from(groups.keys()).sort((a, b) => {
+    const ia = SECTION_ORDER.indexOf(a); const ib = SECTION_ORDER.indexOf(b);
+    return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+  });
+  return (
+    <div ref={innerRef} className="rounded-lg border-2 border-violet-300 bg-violet-50 p-3">
+      <div className="text-xs font-bold text-violet-900 mb-1">
+        🔗 {icon} Escolha a(s) linha(s) {selected.size > 0 && <span className="text-violet-700">— {selected.size} selecionada(s)</span>}
+      </div>
+      <div className="text-[11px] text-violet-800 mb-2 leading-tight">
+        Abra a etapa e marque a(s) linha(s) que entra(m) no calculo. {combine === 'sum'
+          ? 'Varias linhas SOMAM (ex: vazao × qtd de cada).'
+          : 'Varias linhas usam o MAIOR valor entre elas.'}
+      </div>
+      {eligible.length === 0 ? (
+        <div className="text-[11px] text-amber-700 italic px-1 py-2">
+          Nenhuma linha de {refKind === 'SERVICE' ? 'servico' : 'produto'} vinculada disponivel. Vincule os equipamentos primeiro.
+        </div>
+      ) : (
+        <div className="space-y-1 max-h-64 overflow-y-auto">
+          {orderedSecs.map((sec) => {
+            const lns = groups.get(sec)!;
+            const selCount = lns.filter((l) => selected.has(l.cellRef)).length;
+            const open = expanded.has(sec);
+            return (
+              <div key={sec} className="rounded border border-violet-200 bg-white overflow-hidden">
+                <button type="button"
+                  onClick={() => setExpanded((p) => { const n = new Set(p); if (n.has(sec)) n.delete(sec); else n.add(sec); return n; })}
+                  className="w-full flex items-center gap-2 px-2 py-1.5 text-left hover:bg-violet-50">
+                  <span className="text-violet-600 text-[10px] w-3 shrink-0">{open ? '▼' : '▶'}</span>
+                  <span className="text-xs font-semibold text-slate-800 flex-1 truncate">{labelFor(sec)}</span>
+                  <span className="text-[10px] text-slate-500 shrink-0">{lns.length} linha{lns.length > 1 ? 's' : ''}</span>
+                  {selCount > 0 && <span className="text-[10px] font-bold text-violet-700 bg-violet-100 px-1.5 py-0.5 rounded shrink-0">{selCount} ✓</span>}
+                </button>
+                {open && (
+                  <div className="border-t border-violet-100 p-1 space-y-1">
+                    {lns.map((o) => {
+                      const sv = specKey ? Number(o.specs?.[specKey]) : null;
+                      const hasSpec = sv !== null && Number.isFinite(sv);
+                      const checked = selected.has(o.cellRef);
+                      const itemLabel = (o.slotName && o.slotName.trim()) ? o.slotName.trim() : null;
+                      return (
+                        <label key={o.cellRef}
+                          className={`flex items-center gap-2 rounded border px-2 py-1.5 cursor-pointer transition ${checked ? 'bg-violet-100 border-violet-500' : 'bg-white border-slate-200 hover:border-violet-400 hover:bg-violet-50'}`}>
+                          <input type="checkbox" checked={checked} onChange={() => onToggle(o.cellRef)} className="h-3.5 w-3.5 accent-violet-600 shrink-0" />
+                          <span className="font-mono text-[10px] text-violet-700 w-9 shrink-0">{o.cellRef}</span>
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-xs text-slate-800 truncate" title={itemLabel || o.description}>{itemLabel || o.description}</span>
+                            {itemLabel && o.description && o.description !== itemLabel && (
+                              <span className="block text-[10px] text-slate-500 truncate" title={o.description}>{o.description}</span>
+                            )}
+                          </span>
+                          {hasSpec
+                            ? <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">{specKey}={sv}</span>
+                            : (specKey ? <span className="text-[10px] text-amber-700 shrink-0">sem {specKey}</span> : null)}
+                          {specKey && combine === 'sum' && Number(o.qty) > 0 && <span className="text-[10px] text-slate-500 shrink-0">×{Number(o.qty)}</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <div className="flex items-center gap-2 mt-2">
+        <button type="button" disabled={selected.size === 0} onClick={onApply}
+          className="rounded bg-violet-600 hover:bg-violet-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-3 py-1 text-xs font-semibold">
+          Aplicar {selected.size > 0 && `(${selected.size})`}
+        </button>
+        <button type="button" onClick={onCancel} className="text-[10px] text-violet-700 hover:text-violet-900 underline">Cancelar</button>
+      </div>
+    </div>
+  );
+}
 
 function FormulaModal({ initialExpr, dimensions, environmentParams, heatingReport, dias, itemDescription, itemUnit, itemCellRef, itemPoolSection, productSpecs, productName, otherItems, siblingVars, initialQtyDecimals, onClose, onSave, onClear }: {
   initialExpr: string;
@@ -2987,78 +3121,35 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
                     cellRef. Operador escolhe UMA ou VARIAS linhas — gera prod(LX, "key")
                     ou soma prod(LA, "key") + prod(LB, "key") + ... pra varios equipamentos. */}
                 {pendingRecipe && (
-                  <div className="mx-4 mb-3 rounded-lg border-2 border-violet-300 bg-violet-50 p-3">
-                    <div className="text-xs font-bold text-violet-900 mb-1">
-                      🔗 Escolha as linhas (1 ou mais) {pendingLineRefs.size > 0 && <span className="text-violet-700">— {pendingLineRefs.size} selecionada(s)</span>}
-                    </div>
-                    <div className="text-[11px] text-violet-800 mb-2 leading-tight">
-                      Marque os equipamentos que entram nesta formula. Se escolher varios, a soma vira
-                      <code className="bg-white px-1 rounded ml-1">{pendingRecipe.expr.replace('LREF', 'LA')} + {pendingRecipe.expr.replace('LREF', 'LB')} + ...</code>
-                    </div>
-                    <div className="space-y-1 max-h-40 overflow-y-auto">
-                      {(() => {
-                        const sameSec = (otherItems || []).filter((o) => o.cellRef && itemPoolSection && o.poolSection === itemPoolSection);
-                        const list = sameSec.length > 0 ? sameSec : (otherItems || []).filter((o) => o.cellRef);
-                        if (list.length === 0) {
-                          return <div className="text-[11px] text-amber-700 italic">Nenhuma outra linha disponivel.</div>;
-                        }
-                        return list.map((o) => {
-                          const specs = o.productSpecs as Record<string, any> | null | undefined;
-                          // Detecta a chave da spec usada na expressao da receita (ex: "tempoMontagemH")
-                          const m = pendingRecipe.expr.match(/"([a-zA-Z_][a-zA-Z0-9_]*)"/);
-                          const specKey = m ? m[1] : null;
-                          const specVal = specKey && specs ? Number(specs[specKey]) : null;
-                          const hasSpec = specVal !== null && Number.isFinite(specVal);
-                          const checked = pendingLineRefs.has(o.cellRef);
-                          return (
-                            <label key={o.cellRef}
-                              className={`flex items-center gap-2 rounded border px-2 py-1.5 cursor-pointer transition ${
-                                checked ? 'bg-violet-100 border-violet-500' : 'bg-white border-violet-200 hover:border-violet-400 hover:bg-violet-50'
-                              }`}>
-                              <input type="checkbox" checked={checked}
-                                onChange={(e) => {
-                                  setPendingLineRefs((prev) => {
-                                    const next = new Set(prev);
-                                    if (e.target.checked) next.add(o.cellRef);
-                                    else next.delete(o.cellRef);
-                                    return next;
-                                  });
-                                }}
-                                className="h-3.5 w-3.5 accent-violet-600" />
-                              <span className="font-mono text-[10px] text-violet-700">{o.cellRef}</span>
-                              <span className="text-xs text-slate-800 flex-1">{o.description}</span>
-                              {hasSpec && (
-                                <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                                  {specKey}={specVal}
-                                </span>
-                              )}
-                              {specKey && !hasSpec && (
-                                <span className="text-[10px] text-amber-700">sem {specKey}</span>
-                              )}
-                              <span className="text-[10px] text-slate-500">({SECTION_LABEL[o.poolSection] || o.poolSection})</span>
-                            </label>
-                          );
-                        });
-                      })()}
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      <button type="button" disabled={pendingLineRefs.size === 0}
-                        onClick={() => {
-                          const refs = Array.from(pendingLineRefs);
-                          // Gera prod(LA, "key") + prod(LB, "key") + ... pra cada linha selecionada
-                          const finalExpr = refs.map((r) => pendingRecipe.expr.replace(/\bLREF\b/g, r)).join(' + ');
-                          setExpr(finalExpr);
-                          setPendingRecipe(null);
-                          setPendingLineRefs(new Set());
-                        }}
-                        className="rounded bg-violet-600 hover:bg-violet-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-3 py-1 text-xs font-semibold">
-                        Aplicar {pendingLineRefs.size > 0 && `(${pendingLineRefs.size})`}
-                      </button>
-                      <button type="button" onClick={() => { setPendingRecipe(null); setPendingLineRefs(new Set()); }}
-                        className="text-[10px] text-violet-700 hover:text-violet-900 underline">
-                        Cancelar
-                      </button>
-                    </div>
+                  <div className="mx-4 mb-3">
+                    <LineRefPicker
+                      icon="⏱"
+                      specKey={pendingRecipe.expr.match(/"([a-zA-Z_][a-zA-Z0-9_]*)"/)?.[1] || null}
+                      combine="sum"
+                      refKind="PRODUCT"
+                      environmentParams={environmentParams}
+                      lines={(otherItems || []).map((o) => ({
+                        cellRef: o.cellRef,
+                        slotName: o.slotName,
+                        description: o.description,
+                        poolSection: o.poolSection,
+                        kind: o.kind,
+                        linked: o.linked ?? false,
+                        specs: o.productSpecs ?? null,
+                        qty: o.qty,
+                      }))}
+                      selected={pendingLineRefs}
+                      onToggle={(cref) => setPendingLineRefs((prev) => { const n = new Set(prev); if (n.has(cref)) n.delete(cref); else n.add(cref); return n; })}
+                      onApply={() => {
+                        const refs = Array.from(pendingLineRefs);
+                        // Gera prod(LA, "key") + prod(LB, "key") + ... pra cada linha selecionada
+                        const finalExpr = refs.map((r) => pendingRecipe.expr.replace(/\bLREF\b/g, r)).join(' + ');
+                        setExpr(finalExpr);
+                        setPendingRecipe(null);
+                        setPendingLineRefs(new Set());
+                      }}
+                      onCancel={() => { setPendingRecipe(null); setPendingLineRefs(new Set()); }}
+                    />
                   </div>
                 )}
               </details>
@@ -3568,15 +3659,16 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
   {
     icon: '⚡',
     label: 'Disjuntor geral por amperagem total',
-    description: 'Soma amperagem de todas as linhas eletricas × 1.25 (fator de potencia)',
+    description: 'Disjuntor geral cuja amperagem >= soma das cargas × 1.25 (fator de potencia). Ao aplicar, ESCOLHA no seletor a(s) linha(s) eletricas que entram na soma — varias SOMAM (amperagem × qtd de cada). So conta as linhas que voce marcar.',
+    lineRef: { unit: 'prod(LREF, "amperagem") * prod(LREF, "qtdLinha")', combine: 'sum' },
     rule: {
       filterCategoria: null,
       filterDescription: 'disjuntor',
-      where: 'amperagem >= sum("amperagem") * 1.25',
+      where: 'amperagem >= (prod(LREF, "amperagem") * prod(LREF, "qtdLinha")) * 1.25',
       orderBy: 'amperagem asc',
       indicator: {
         label: 'Carga total',
-        expr: 'sum("amperagem") * 1.25',
+        expr: '(prod(LREF, "amperagem") * prod(LREF, "qtdLinha")) * 1.25',
         unit: 'A',
         levels: [
           { max: 1000, label: 'OK', color: 'green' },
@@ -3587,7 +3679,8 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
   {
     icon: '🔌',
     label: 'Quadro por soma de espacos',
-    description: 'Quadro de distribuicao: "Espacos no quadro" do QUADRO (capacidade) >= soma dos "Espacos no quadro" das LINHAS dos equipamentos. Cadastre a capacidade do quadro no MESMO campo "Espacos no quadro" (ex: quadro de 16 modulos = 16). EDITE o criterio — troque LREF pela(s) linha(s) (botao "Inserir prod(L?)" ou digite) e some varias DENTRO do parenteses. Ex: bifTrifConta >= (prod(L82,"bifTrifConta")*prod(L82,"qtdLinha") + prod(L84,"bifTrifConta")*prod(L84,"qtdLinha")). Os disjuntores precisam estar VINCULADOS a um produto (senao o espaco conta 0). Margem: multiplique por um fator (ex: ... * 1.1).',
+    description: 'Quadro de distribuicao: a capacidade do QUADRO ("Espacos no quadro" do cadastro) >= soma dos espacos dos equipamentos. Ao aplicar, ESCOLHA no seletor a(s) linha(s) dos disjuntores/equipamentos — varias SOMAM (espacos × qtd de cada). Cadastre a capacidade do quadro no MESMO campo "Espacos no quadro" (ex: 16 modulos = 16). Os equipamentos precisam estar VINCULADOS a um produto (senao conta 0). Margem: edite o criterio depois e multiplique por um fator (ex: ... * 1.1).',
+    lineRef: { unit: 'prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha")', combine: 'sum' },
     rule: {
       filterCategoria: null,
       filterDescription: 'quadro distr',
@@ -3608,7 +3701,8 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
   {
     icon: '💡',
     label: 'Fonte de iluminacao por potencia total',
-    description: 'Fonte que aguenta a soma da potencia (W) dos REFLETORES. Compara a potencia (W) DA FONTE com a soma dos watts dos refletores (a amperagem da fonte costuma vir como corrente de ENTRADA 220V, por isso comparamos por WATTS). EDITE o criterio: troque LREF pela(s) linha(s) dos refletores (botao "Inserir prod(L?)" abaixo ou digite) e some varias DENTRO do parenteses. Ex: potenciaWatts >= (prod(L51,"potenciaWatts")*prod(L51,"qtdLinha") + prod(L52,"potenciaWatts")*prod(L52,"qtdLinha")). So conta as linhas que voce colocar. Margem de seguranca: multiplique por um fator (ex: ... * 1.25).',
+    description: 'Fonte que aguenta a soma da potencia (W) dos REFLETORES. Compara a potencia (W) DA FONTE com a soma dos watts dos refletores (a amperagem da fonte costuma vir como corrente de ENTRADA 220V, por isso comparamos por WATTS). Ao aplicar, ESCOLHA no seletor a(s) linha(s) dos refletores — varias SOMAM (watts × qtd de cada). So conta as linhas que voce marcar. Margem de seguranca: edite o criterio depois e multiplique por um fator (ex: ... * 1.25).',
+    lineRef: { unit: 'prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha")', combine: 'sum' },
     rule: {
       filterCategoria: null,
       filterDescription: 'fonte',
@@ -3741,6 +3835,7 @@ export function AutoSelectModal({
   heatingReport,
   siblingVars,
   itemDescription,
+  itemKind,
   currentProductName,
   sectionItems,
   onClose,
@@ -3763,8 +3858,9 @@ export function AutoSelectModal({
   siblingVars?: Record<string, number>;
   // Items da mesma etapa (sem o atual) — usado pra diagnosticar siblings
   // ausentes E alimentar dropdown "Equipamento principal (linha)".
-  sectionItems?: { id: string; cellRef: string | null; description: string; qty?: number; linked: boolean; specs: Record<string, any> | null }[];
+  sectionItems?: { id: string; cellRef: string | null; description: string; qty?: number; linked: boolean; specs: Record<string, any> | null; poolSection?: string | null; kind?: string | null; slotName?: string | null }[];
   itemDescription?: string;
+  itemKind?: string;
   currentProductName?: string | null;
   onClose: () => void;
   onSave: (rule: AutoSelectRule) => void;
@@ -4334,73 +4430,30 @@ export function AutoSelectModal({
               {/* v1.13.57 (Chunk C): SELETOR DE LINHA (LREF) — porte do needsLineRef do FormulaModal.
                   Aparece quando o operador aplica uma template com lineRef (Tubo mesmo diametro / Grade
                   NBR). Lista TODAS as linhas com cellRef (cross-etapa); ao confirmar, troca o LREF. */}
-              {pendingLineRefTemplate && pendingLineRefTemplate.lineRef && (() => {
-                const lr = pendingLineRefTemplate.lineRef!;
-                const specKey = lr.unit.match(/"([a-zA-Z_][a-zA-Z0-9_]*)"/)?.[1] || null;
-                const lines = (sectionItems || []).filter((it) => it.cellRef);
-                return (
-                  <div ref={lineRefPickerRef} className="rounded-lg border-2 border-violet-300 bg-violet-50 p-3">
-                    <div className="text-xs font-bold text-violet-900 mb-1">
-                      🔗 {pendingLineRefTemplate.icon} Escolha a(s) linha(s) {pendingLineRefs.size > 0 && <span className="text-violet-700">— {pendingLineRefs.size} selecionada(s)</span>}
-                    </div>
-                    <div className="text-[11px] text-violet-800 mb-2 leading-tight">
-                      Marque a(s) linha(s) que esta regra referencia (LREF). {lr.combine === 'sum'
-                        ? 'Varias linhas SOMAM (ex: vazao × qtd de cada bomba).'
-                        : 'Varias linhas usam o MAIOR valor entre elas.'}
-                    </div>
-                    <div className="space-y-1 max-h-44 overflow-y-auto">
-                      {lines.length === 0 ? (
-                        <div className="text-[11px] text-amber-700 italic">Nenhuma linha com endereço (cellRef) disponivel.</div>
-                      ) : lines.map((o) => {
-                        const cref = o.cellRef as string;
-                        const specs = (o.specs as Record<string, any> | null) || {};
-                        const specVal = specKey ? Number(specs[specKey]) : null;
-                        const hasSpec = specVal !== null && Number.isFinite(specVal);
-                        const checked = pendingLineRefs.has(cref);
-                        return (
-                          <label key={o.id}
-                            className={`flex items-center gap-2 rounded border px-2 py-1.5 cursor-pointer transition ${
-                              checked ? 'bg-violet-100 border-violet-500' : 'bg-white border-violet-200 hover:border-violet-400 hover:bg-violet-50'
-                            }`}>
-                            <input type="checkbox" checked={checked}
-                              onChange={(e) => {
-                                setPendingLineRefs((prev) => {
-                                  const next = new Set(prev);
-                                  if (e.target.checked) next.add(cref); else next.delete(cref);
-                                  return next;
-                                });
-                              }}
-                              className="h-3.5 w-3.5 accent-violet-600" />
-                            <span className="font-mono text-[10px] text-violet-700">{cref}</span>
-                            <span className="text-xs text-slate-800 flex-1 truncate" title={o.description}>{o.description}</span>
-                            {hasSpec && (
-                              <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">{specKey}={specVal}</span>
-                            )}
-                            {specKey && !hasSpec && (
-                              <span className="text-[10px] text-amber-700">sem {specKey}</span>
-                            )}
-                            {lr.unit.includes('qtdLinha') && Number(o.qty) > 0 && (
-                              <span className="text-[10px] text-slate-500">×{Number(o.qty)}</span>
-                            )}
-                          </label>
-                        );
-                      })}
-                    </div>
-                    <div className="flex items-center gap-2 mt-2">
-                      <button type="button" disabled={pendingLineRefs.size === 0}
-                        onClick={applyLineRefSelection}
-                        className="rounded bg-violet-600 hover:bg-violet-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-3 py-1 text-xs font-semibold">
-                        Aplicar {pendingLineRefs.size > 0 && `(${pendingLineRefs.size})`}
-                      </button>
-                      <button type="button" onClick={() => { setPendingLineRefTemplate(null); setPendingLineRefs(new Set()); }}
-                        className="text-[10px] text-violet-700 hover:text-violet-900 underline">
-                        Cancelar
-                      </button>
-                      <span className="text-[10px] text-violet-700">O critério fica com <code className="bg-white px-1 rounded">LREF</code> até você escolher.</span>
-                    </div>
-                  </div>
-                );
-              })()}
+              {pendingLineRefTemplate && pendingLineRefTemplate.lineRef && (
+                <LineRefPicker
+                  innerRef={lineRefPickerRef}
+                  icon={pendingLineRefTemplate.icon}
+                  specKey={pendingLineRefTemplate.lineRef.unit.match(/"([a-zA-Z_][a-zA-Z0-9_]*)"/)?.[1] || null}
+                  combine={pendingLineRefTemplate.lineRef.combine}
+                  refKind={itemKind === 'SERVICE' ? 'SERVICE' : 'PRODUCT'}
+                  environmentParams={environmentParams}
+                  lines={(sectionItems || []).map((it) => ({
+                    cellRef: it.cellRef || '',
+                    slotName: it.slotName,
+                    description: it.description,
+                    poolSection: it.poolSection,
+                    kind: it.kind,
+                    linked: it.linked,
+                    specs: it.specs,
+                    qty: it.qty,
+                  }))}
+                  selected={pendingLineRefs}
+                  onToggle={(cref) => setPendingLineRefs((prev) => { const n = new Set(prev); if (n.has(cref)) n.delete(cref); else n.add(cref); return n; })}
+                  onApply={applyLineRefSelection}
+                  onCancel={() => { setPendingLineRefTemplate(null); setPendingLineRefs(new Set()); }}
+                />
+              )}
 
               {/* CANDIDATOS */}
               <details open className="group rounded-lg border border-slate-200 bg-white">
