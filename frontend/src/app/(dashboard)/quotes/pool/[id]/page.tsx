@@ -3806,8 +3806,9 @@ const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; comb
   },
   {
     // Folga de espacos do QUADRO: "Espacos no quadro" do quadro (capacidade) - soma dos espacos
-    // dos equipamentos (bifTrifConta x qtd). Editar a mao: trocar LREF pelas linhas, somar com +.
-    label: 'Folga de espacos (Quadro) — edite as linhas',
+    // dos equipamentos (bifTrifConta x qtd). v1.14.06: usa o seletor de linhas (LREF).
+    label: 'Folga de espacos (Quadro) — escolha as linhas',
+    lineRef: { unit: 'prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha")', combine: 'sum' },
     preset: {
       label: 'Folga de espacos',
       expr: 'bifTrifConta - (prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha"))',
@@ -3822,8 +3823,9 @@ const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; comb
   {
     // Folga de potencia da FONTE: potenciaWatts da fonte - soma dos watts dos refletores
     // (potenciaWatts × qtd das linhas). Watts x watts (a amperagem cadastrada costuma ser a de
-    // ENTRADA 220V). Editar a mao: trocar LREF pelas linhas, somar com + DENTRO do parenteses.
-    label: 'Folga de potencia (Fonte) — edite as linhas',
+    // ENTRADA 220V). v1.14.06: usa o seletor de linhas (LREF).
+    label: 'Folga de potencia (Fonte) — escolha as linhas',
+    lineRef: { unit: 'prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha")', combine: 'sum' },
     preset: {
       label: 'Folga de potencia',
       expr: 'potenciaWatts - (prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha"))',
@@ -3832,6 +3834,23 @@ const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; comb
         { max: -0.01, label: 'Nao atende', color: 'red' },
         { max: 0, label: 'No limite', color: 'orange' },
         { max: 9999, label: 'Folga OK', color: 'green' },
+      ],
+    },
+  },
+  {
+    // Folga de vazao do RALO / GRADE de fundo (NBR 10339): vazaoM3h da grade - vazao TOTAL das
+    // bombas (vazaoM3h × qtd das linhas apontadas). Cada ralo aguenta tudo sozinho (anti-
+    // aprisionamento). v1.14.06: faltava o preset (so existia dentro do template de auto-selecao).
+    label: 'Folga de vazao (Ralo de fundo) — escolha as linhas',
+    lineRef: { unit: 'prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")', combine: 'sum' },
+    preset: {
+      label: 'Folga de vazao (ralo)',
+      expr: '(vazaoM3h - prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")) / (prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")) * 100',
+      unit: '%',
+      levels: [
+        { max: -0.01, label: 'Insuficiente — use grade maior', color: 'red' },
+        { max: 20, label: 'Justo', color: 'yellow' },
+        { max: 99999, label: 'Aguenta a vazao total', color: 'emerald' },
       ],
     },
   },

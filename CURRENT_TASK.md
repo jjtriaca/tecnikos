@@ -1,5 +1,9 @@
 # TAREFA ATUAL
 
+## ✅ DEPLOYED v1.14.06 (24/06) — Preset de indicador "Folga de vazão (Ralo de fundo)" + indicador do Quadro/Fonte reconectados ao seletor
+## - **Pedido Juliano:** faltava preset de INDICADOR pro Ralo/Grade de fundo (só existia dentro do template de auto-seleção da Grade). Adicionado em `INDICATOR_TEMPLATES`: "Folga de vazão (Ralo de fundo) — escolha as linhas" com `lineRef` (`prod(LREF,"vazaoM3h")*prod(LREF,"qtdLinha")`, sum) → abre o picker agrupado; expr/níveis iguais ao do template de auto-seleção da Grade.
+## - **De quebra:** os presets de indicador **Quadro** (Folga de espaços) e **Fonte** (Folga de potência) ainda estavam "edite as linhas"/manuais (sobra do v1.13.80) — reconectados ao seletor (`lineRef` adicionado, label "escolha as linhas"). `applyTemplate` já abria o picker quando o preset tem `lineRef` (L4280). Frontend tsc `--incremental false` EXIT 0. Sem migration.
+
 ## ✅ DEPLOYED v1.14.05 (24/06) — Fixes do seletor de linhas (v1.14.04): mostra linhas "Sem Produto" + respeita a ordem do MODELO
 ## - **(1) Linhas sem vínculo voltam ao seletor (Juliano: L26 "Cascata" Sem Produto sumia da etapa CASCATA):** o filtro do `LineRefPicker` era `linked && kind===refKind && desc∉{Sem Produto,Sem Serviço}` → escondia linhas sem produto. Agora é SÓ por tipo: `(kind||'PRODUCT')===refKind`. O operador reconhece pela coluna ITEM (slotName) e aponta a regra pra linha ANTES de vincular o produto (vincula depois; `prod(Lx,"spec")`=0 até lá; badge "sem [spec]" sinaliza as sem dado).
 ## - **(2) Etapas na ordem do MODELO (Juliano: "AQUECEDOR SOLAR" custom ia pro fim):** o sort usava `SECTION_ORDER` fixa → custom (indexOf -1) caíam no fim. Agora o picker recebe `sectionOrder` (efetivo: `budget.sectionOrder` se preenchido, senão SECTION_ORDER) e ordena por ele. Plumbing: page → ItemRow → AutoSelectModal/FormulaModal → LineRefPicker.
