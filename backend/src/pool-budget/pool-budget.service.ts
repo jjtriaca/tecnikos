@@ -1147,15 +1147,24 @@ export class PoolBudgetService {
 
           // REGRA #5 (formula prevalece): se item tem formulaExpr, NAO toca qty.
           //   Recalc PASSO 1 reavalia formula com novo produto vinculado.
-          // Senao: SEMPRE qty = targetDefaultQty do novo produto (BUSCA do cadastro,
+          // Senao: qty = targetDefaultQty do novo produto (BUSCA do cadastro,
           //   sem snapshot, sem fallback hardcoded). Sistema busca a informacao —
           //   nao cria. Se cadastro tem defaultQty=1, qty=1. Se=2, qty=2.
+          // v1.14.02: SO reseta pro defaultQty quando o produto REALMENTE muda.
+          //   Se a auto-selecao reescolhe o MESMO produto ja vinculado (comum em
+          //   Fase B / forceReapply — Fonte/Quadro reavaliam o where todo recalc),
+          //   PRESERVA a qty que o operador digitou. Antes voltava pra defaultQty a
+          //   cada recalc, impedindo o operador de mudar a quantidade dessas linhas
+          //   (e travando somas tipo sum("tempoMontagemH","@ETAPA"), que liam qty=1).
+          //   Produto trocou = qty antiga pode nao fazer sentido -> volta pro default;
+          //   mesmo produto = respeita o operador. Tubos (com formula) nao entram aqui.
           const hasFormula = !!(it.formulaExpr && it.formulaExpr.trim());
           const targetDefaultQty = target.type === 'product'
             ? (bestProduct as any)?.defaultQty as number | null | undefined
             : null;
+          const productUnchanged = target.type === 'product' && target.id === it.productId;
           let newQty: number | undefined;
-          if (!hasFormula && typeof targetDefaultQty === 'number') {
+          if (!hasFormula && typeof targetDefaultQty === 'number' && !productUnchanged) {
             newQty = targetDefaultQty;
           }
 

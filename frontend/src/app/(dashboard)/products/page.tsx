@@ -819,6 +819,10 @@ export default function ProductsPage() {
   const [modalTab, setModalTab] = useState<ModalTab>("geral");
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [form, setForm] = useState<ProductForm>({ ...EMPTY_FORM });
+  // Snapshot do form no momento que o modal abre — usado pra detectar "sujo" (dirty)
+  // e desabilitar o botao Salvar enquanto nada mudou. Padrao do sistema (ver CLAUDE.md
+  // "Botoes de Salvar/Submit em cadastros"). Evita salvar a toa / bater no backend sem mudanca.
+  const [pristineForm, setPristineForm] = useState<string>(JSON.stringify({ ...EMPTY_FORM }));
   // Capacidade (kcal/h · kW · BTU/h) = mesmo valor em 3 unidades. Ligado: preenche um -> os
   // outros se auto-completam pela conversao. Operador desmarca pra editar individual.
   const [autoSyncCapacity, setAutoSyncCapacity] = useState(true);
@@ -948,7 +952,9 @@ export default function ProductsPage() {
 
   function openNewProduct() {
     setEditingProduct(null);
-    setForm({ ...EMPTY_FORM });
+    const f = { ...EMPTY_FORM };
+    setForm(f);
+    setPristineForm(JSON.stringify(f));
     setEquivalents([]);
     setModalTab("geral");
     setShowEquivForm(false);
@@ -959,7 +965,9 @@ export default function ProductsPage() {
 
   function openEditProduct(product: Product) {
     setEditingProduct(product);
-    setForm(productToForm(product));
+    const f = productToForm(product);
+    setForm(f);
+    setPristineForm(JSON.stringify(f));
     setEquivalents(product.equivalents || []);
     setModalTab("geral");
     setShowEquivForm(false);
@@ -1113,6 +1121,12 @@ export default function ProductsPage() {
   const costVal = parseBRLToCents(form.costCents);
   const saleVal = parseBRLToCents(form.salePriceCents);
   const margin = computeMargin(costVal, saleVal);
+
+  // Form "sujo": algum campo do produto mudou vs o snapshot de quando o modal abriu.
+  // Desabilita o botao Salvar enquanto nada mudou (padrao do sistema — ver CLAUDE.md).
+  // Cobre os campos do produto (aba Geral/Impostos/Margem/Estoque/Piscina); Equivalentes
+  // e Ajuste de estoque tem botao proprio e nao entram nessa conta.
+  const isFormDirty = JSON.stringify(form) !== pristineForm;
 
   /* ── Form field helpers ─────────────────────────────── */
 
@@ -2563,8 +2577,9 @@ export default function ProductsPage() {
               </button>
               <button
                 onClick={handleSave}
-                disabled={saving}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+                disabled={saving || !isFormDirty}
+                title={!isFormDirty ? "Nenhuma alteracao pra salvar" : undefined}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {saving ? "Salvando..." : editingProduct ? "Salvar Alteracoes" : "Criar Produto"}
               </button>

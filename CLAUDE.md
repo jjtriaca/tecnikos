@@ -143,6 +143,12 @@ Ao trabalhar com Meta (WhatsApp) ou Focus NFe:
 - Visual: text-[10px], bg-slate-100, hover:bg-green-100
 - TODOS os placeholders devem ter texto exemplo realista (NUNCA vazio)
 
+### Botoes de Salvar/Submit em Cadastros e Forms (System-Wide — OBRIGATORIO)
+- O botao "Salvar"/"Salvar Alteracoes"/"Criar" de QUALQUER cadastro/form DEVE ficar **desabilitado enquanto nao houver alteracao** (dirty state). So habilita quando algum campo mudou vs o estado de abertura.
+- Padrao de implementacao: snapshot do form ao abrir o modal/pagina (`JSON.stringify(form)` guardado em state `pristineForm`) → `const isDirty = JSON.stringify(form) !== pristineForm` → botao `disabled={saving || !isDirty}` + `title` "Nenhuma alteracao pra salvar" + `disabled:cursor-not-allowed`. Apos salvar com sucesso (modal fecha) o snapshot se renova na proxima abertura.
+- Vale criar E editar. Sub-acoes com botao proprio (ajuste de estoque, adicionar equivalente, etc.) NAO entram nessa conta — cada uma tem sua propria condicao.
+- **Ao MEXER em QUALQUER cadastro/form:** conferir se o botao tem a trava; se NAO, adicionar. Tela NOVA ja nasce com ela. Referencia: cadastro de Produtos ([frontend/src/app/(dashboard)/products/page.tsx], v1.14.02).
+
 ### Responsividade / Mobile (System-Wide — OBRIGATORIO)
 - TODA UI nova DEVE funcionar em telas pequenas (mobile) e em QUALQUER redimensionamento — NUNCA "quebrar" o layout (campos pulando de linha de forma baguncada, conteudo estourando a viewport).
 - Linhas densas / muitos campos (estilo tabela/Excel): usar `flex-nowrap` + `overflow-x-auto` (rola na horizontal) OU grid responsivo. A linha SE AJUSTA (scroll), NAO quebra.
