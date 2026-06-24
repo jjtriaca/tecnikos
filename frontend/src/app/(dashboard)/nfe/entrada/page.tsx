@@ -398,7 +398,7 @@ export default function NfseEntradaPage() {
       .then(setActivePMs).catch(() => setActivePMs([]));
     api.get<any[]>("/finance/payment-instruments/active?direction=PAYABLE")
       .then(setActivePIs).catch(() => setActivePIs([]));
-    api.get<typeof postableAccounts>("/finance/accounts/postable")
+    api.get<typeof postableAccounts>("/finance/accounts/postable?direction=PAYABLE")
       .then(setPostableAccounts).catch(() => setPostableAccounts([]));
     // Load linkable entries for this NFS-e
     api.get<typeof linkableEntries>(`/nfse-entrada/${entry.id}/linkable-entries`)

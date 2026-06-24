@@ -141,7 +141,7 @@ export class CashAccountService {
         checkNumber: true, checkBank: true, checkHolder: true, checkAgency: true, checkAccount: true,
         checkOutAt: true, checkOutKind: true, checkClearedAt: true, checkReturnedAt: true,
         partner: { select: { name: true } },
-        cashAccountRef: { select: { name: true } },
+        cashAccountRef: { select: { name: true, type: true } },
       },
       orderBy: { paidAt: 'desc' },
     });
@@ -150,7 +150,7 @@ export class CashAccountService {
       key: string; entryIds: string[]; count: number; netCents: number;
       checkNumber: string | null; checkBank: string | null; checkHolder: string | null;
       checkAgency: string | null; checkAccount: string | null;
-      partnerName: string | null; cashAccountName: string | null;
+      partnerName: string | null; cashAccountName: string | null; accountType: string | null;
       receivedAt: Date | null; checkOutAt: Date | null; checkOutKind: string | null;
       checkClearedAt: Date | null; checkReturnedAt: Date | null;
     };
@@ -164,6 +164,7 @@ export class CashAccountService {
           checkNumber: e.checkNumber, checkBank: e.checkBank, checkHolder: e.checkHolder,
           checkAgency: e.checkAgency, checkAccount: e.checkAccount,
           partnerName: e.partner?.name ?? null, cashAccountName: e.cashAccountRef?.name ?? null,
+          accountType: e.cashAccountRef?.type ?? null,
           receivedAt: e.paidAt, checkOutAt: e.checkOutAt, checkOutKind: e.checkOutKind,
           checkClearedAt: e.checkClearedAt, checkReturnedAt: e.checkReturnedAt,
         };
@@ -182,7 +183,9 @@ export class CashAccountService {
       if (g.checkReturnedAt) return 'DEVOLVIDO';
       if (g.checkOutKind === 'ENDORSE') return 'REPASSADO';
       if (g.checkOutKind === 'DEPOSIT') return g.checkClearedAt ? 'COMPENSADO' : 'DEPOSITADO';
-      return 'EM_CARTEIRA';
+      // Sem saida registrada: "em carteira" so quando esta num CAIXA (cheque fisico na mao).
+      // Se foi lancado direto num BANCO/conta (fluxo antigo), ja esta liquidado -> CONCILIADO.
+      return g.accountType === 'CAIXA' ? 'EM_CARTEIRA' : 'CONCILIADO';
     };
 
     let list = [...groups.values()].map((g) => ({ ...g, status: statusOf(g) }));

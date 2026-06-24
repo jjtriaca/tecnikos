@@ -721,6 +721,19 @@ export class NfseEntradaService {
       const finMode = decisions.finance.mode || (decisions.finance.createEntry ? 'CREATE' : 'NONE');
 
       if (finMode === 'CREATE') {
+        // TRAVA CENTRAL (v1.13.98): NF de entrada vira PAGAMENTO (PAYABLE) -> categoria so pode ser
+        // CUSTO/DESPESA. Impede o operador escolher categoria de RECEITA no wizard de importacao.
+        if (decisions.finance.financialAccountId) {
+          const acc = await this.prisma.financialAccount.findFirst({
+            where: { id: decisions.finance.financialAccountId, companyId, deletedAt: null },
+            select: { type: true, code: true, name: true },
+          });
+          if (acc && acc.type === 'REVENUE') {
+            throw new BadRequestException(
+              `Pagamento exige categoria de CUSTO ou DESPESA. "${acc.code} - ${acc.name}" é Receita — escolha uma categoria de custo/despesa.`,
+            );
+          }
+        }
         const totalCents = entry.valorServicosCents || 0;
         const dueDate = decisions.finance.dueDate
           ? new Date(decisions.finance.dueDate)

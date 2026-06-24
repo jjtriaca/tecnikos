@@ -125,15 +125,54 @@ export class FinancialAccountService {
     }));
   }
 
-  async findPostable(companyId: string, type?: string) {
+  async findPostable(companyId: string, type?: string, direction?: string) {
     const where: any = { companyId, deletedAt: null, allowPosting: true, isActive: true };
-    if (type) where.type = type;
+    if (type) {
+      where.type = type;
+    } else if (direction === 'RECEIVABLE') {
+      // Recebimento: so categorias de RECEITA. v1.13.98
+      where.type = 'REVENUE';
+    } else if (direction === 'PAYABLE') {
+      // Pagamento: so CUSTO ou DESPESA. v1.13.98
+      where.type = { in: ['COST', 'EXPENSE'] };
+    }
 
     return this.prisma.financialAccount.findMany({
       where,
       include: { parent: { select: { id: true, code: true, name: true } } },
       orderBy: { sortOrder: 'asc' },
     });
+  }
+
+  /**
+   * TRAVA CENTRAL (v1.13.98): recebimento (RECEIVABLE) so aceita categoria de RECEITA; pagamento
+   * (PAYABLE) so aceita CUSTO ou DESPESA. Evita o erro do operador (ex: recebimento marcado como
+   * custo "Mao de Obra Tecnica", que distorcia a DRE — incidente 24/06). Chamada em TODO ponto que
+   * grava financialAccountId num lancamento (create/update/conciliacao/import NF). Liberado: entry
+   * sem categoria (nao e o escopo) e estorno/devolucao (isRefundEntry).
+   */
+  async assertAccountDirection(
+    companyId: string,
+    financialAccountId: string | null | undefined,
+    entryType: 'RECEIVABLE' | 'PAYABLE',
+    opts?: { isRefundEntry?: boolean },
+  ): Promise<void> {
+    if (!financialAccountId) return;
+    if (opts?.isRefundEntry) return;
+    const acc = await this.prisma.financialAccount.findFirst({
+      where: { id: financialAccountId, companyId, deletedAt: null },
+      select: { type: true, code: true, name: true },
+    });
+    if (!acc) return; // conta inexistente/cross-tenant tratada em outro fluxo
+    const allowed = entryType === 'RECEIVABLE' ? ['REVENUE'] : ['COST', 'EXPENSE'];
+    if (!allowed.includes(acc.type)) {
+      const tipoCat = acc.type === 'REVENUE' ? 'Receita' : acc.type === 'COST' ? 'Custo' : 'Despesa';
+      throw new BadRequestException(
+        entryType === 'RECEIVABLE'
+          ? `Recebimento exige categoria de RECEITA. "${acc.code} - ${acc.name}" é ${tipoCat} — escolha uma categoria de receita.`
+          : `Pagamento exige categoria de CUSTO ou DESPESA. "${acc.code} - ${acc.name}" é ${tipoCat} — escolha uma categoria de custo/despesa.`,
+      );
+    }
   }
 
   async findByCode(companyId: string, code: string) {

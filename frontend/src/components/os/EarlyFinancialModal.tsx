@@ -101,7 +101,7 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
 
     Promise.all([
       api.get<PreviewData>(`/service-orders/${orderId}/early-financial-preview`),
-      api.get<PostableAccount[]>("/finance/accounts/postable").catch(() => []),
+      api.get<PostableAccount[]>("/finance/accounts/postable?direction=RECEIVABLE").catch(() => []),
       api.get<PaymentMethodPM[]>("/finance/payment-methods/active").catch(() => []),
       api.get<CardFeeRateItem[]>("/finance/card-fee-rates").catch(() => []),
     ]).then(([data, accounts, pms, rates]) => {

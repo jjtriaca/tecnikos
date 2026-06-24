@@ -10,6 +10,7 @@ import { NfseEmissionService } from '../nfse-emission/nfse-emission.service';
 import { CardSettlementService } from './card-settlement.service';
 import { FinancialReportService } from './financial-report.service';
 import { CashAccountService } from './cash-account.service';
+import { FinancialAccountService } from './financial-account.service';
 import { InstallmentService } from './installment.service';
 import { PaymentInstrumentService } from './payment-instrument.service';
 import { AuditService } from '../common/audit/audit.service';
@@ -32,6 +33,7 @@ export class FinanceService {
     private readonly cardSettlementService: CardSettlementService,
     private readonly reportService: FinancialReportService,
     private readonly cashAccountService: CashAccountService,
+    private readonly financialAccountService: FinancialAccountService,
     private readonly installmentService: InstallmentService,
     private readonly paymentInstrumentService: PaymentInstrumentService,
     private readonly audit: AuditService,
@@ -242,6 +244,14 @@ export class FinanceService {
       });
       if (!partner) throw new NotFoundException('Parceiro não encontrado');
     }
+
+    // TRAVA CENTRAL (v1.13.98): categoria tem que casar com a direcao do lancamento.
+    await this.financialAccountService.assertAccountDirection(
+      companyId,
+      data.financialAccountId,
+      data.type as 'RECEIVABLE' | 'PAYABLE',
+      { isRefundEntry: (data as any).isRefundEntry },
+    );
 
     // Calculate commission for PAYABLE
     let commissionBps = data.commissionBps ?? null;
@@ -870,7 +880,17 @@ export class FinanceService {
     const data: any = {};
     if (dto.description !== undefined) data.description = dto.description || null;
     if (dto.notes !== undefined) data.notes = dto.notes || null;
-    if (dto.financialAccountId !== undefined) data.financialAccountId = dto.financialAccountId || null;
+    if (dto.financialAccountId !== undefined) {
+      data.financialAccountId = dto.financialAccountId || null;
+      // TRAVA CENTRAL (v1.13.98): categoria nova tem que casar com a direcao (recebimento=receita,
+      // pagamento=custo/despesa). Caminho exato do incidente (operador trocou a categoria errada).
+      await this.financialAccountService.assertAccountDirection(
+        companyId,
+        data.financialAccountId,
+        entry.type as 'RECEIVABLE' | 'PAYABLE',
+        { isRefundEntry: (entry as any).isRefundEntry },
+      );
+    }
     if (dto.partnerId !== undefined) data.partnerId = dto.partnerId;
     if (dto.grossCents !== undefined) {
       data.grossCents = dto.grossCents;

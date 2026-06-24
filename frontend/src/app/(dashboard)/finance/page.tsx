@@ -35,6 +35,7 @@ import { ENTRY_STATUS_CONFIG, NFSE_STATUS_CONFIG, BOLETO_STATUS_CONFIG, Boleto }
 import GenerateInstallmentsModal from "./components/GenerateInstallmentsModal";
 import InstallmentDetailModal from "./components/InstallmentDetailModal";
 import SplitCardModal from "./components/SplitCardModal";
+import CategorySelect from "@/components/finance/CategorySelect";
 import RenegotiationModal from "./components/RenegotiationModal";
 import NfseEmissionModal from "./components/NfseEmissionModal";
 import BoletoGenerationModal from "./components/BoletoGenerationModal";
@@ -607,9 +608,31 @@ function loadSectionOrder(): string[] {
   return DEFAULT_SECTION_ORDER;
 }
 
+// Periodo dos KPIs (Resultado) — v1.13.98. mes/trimestre/semestre/ano/tudo.
+type KpiPeriod = "month" | "quarter" | "semester" | "year" | "all";
+const KPI_PERIODS: { id: KpiPeriod; label: string }[] = [
+  { id: "month", label: "Mês" },
+  { id: "quarter", label: "Trimestre" },
+  { id: "semester", label: "Semestre" },
+  { id: "year", label: "Ano" },
+  { id: "all", label: "Tudo" },
+];
+function kpiPeriodRange(period: KpiPeriod): { from: string; to: string } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  if (period === "all") return { from: "2000-01-01", to: "2100-12-31" };
+  if (period === "year") return { from: `${y}-01-01`, to: `${y}-12-31` };
+  if (period === "semester") { const s = m < 6 ? 0 : 6; return { from: iso(new Date(y, s, 1)), to: iso(new Date(y, s + 6, 0)) }; }
+  if (period === "quarter") { const s = Math.floor(m / 3) * 3; return { from: iso(new Date(y, s, 1)), to: iso(new Date(y, s + 3, 0)) }; }
+  return { from: iso(new Date(y, m, 1)), to: iso(new Date(y, m + 1, 0)) };
+}
+
 function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void }) {
   const [data, setData] = useState<FinanceSummaryV2 | null>(null);
   const [dashData, setDashData] = useState<any>(null);
+  const [kpiPeriod, setKpiPeriod] = useState<KpiPeriod>("month");
   // Cheques de terceiro em carteira por conta (pro card do Caixa mostrar Dinheiro × Cheques) — v1.13.92
   const [checksByAccount, setChecksByAccount] = useState<Record<string, { cents: number; count: number }>>({});
   // Extrato interno por conta (clicar no card abre o modal). v1.13.96
@@ -647,17 +670,12 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
   }, []);
 
   useEffect(() => {
-    const now = new Date();
-    const first = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
-    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().slice(0, 10);
     Promise.all([
       api.get<FinanceSummaryV2>("/finance/summary-v2").catch(() => null),
-      api.get(`/finance/dashboard?dateFrom=${first}&dateTo=${last}`).catch(() => null),
       api.get<any[]>(`/finance/statement?limit=200&dateFrom=${stmtDateFrom}&dateTo=${stmtDateTo}`).catch(() => []),
       api.get<any[]>("/finance/checks-in-wallet").catch(() => []),
-    ]).then(([summary, dash, statement, checks]) => {
+    ]).then(([summary, statement, checks]) => {
       setData(summary);
-      setDashData(dash);
       setStatementData(statement ?? []);
       const byAcc: Record<string, { cents: number; count: number }> = {};
       for (const g of (checks ?? [])) {
@@ -671,6 +689,12 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
     // Load instruments for type filter
     api.get<any[]>("/finance/payment-instruments/active").then(setStmtInstruments).catch(() => {});
   }, []);
+
+  // KPIs (Resultado) por periodo selecionado — recarrega ao trocar mes/trimestre/semestre/ano/tudo. v1.13.98
+  useEffect(() => {
+    const { from, to } = kpiPeriodRange(kpiPeriod);
+    api.get(`/finance/dashboard?dateFrom=${from}&dateTo=${to}`).then(setDashData).catch(() => setDashData(null));
+  }, [kpiPeriod]);
 
   const reloadStatement = useCallback(() => {
     setStmtLoading(true);
@@ -771,9 +795,24 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
 
   const sectionMap: Record<string, { label: string; content: React.ReactNode }> = {
     kpi: {
-      label: "Resultados do Mês",
+      label: "Resultados",
       content: (
-        <div className="grid grid-cols-3 gap-3">
+        <div>
+          {/* Filtro de periodo dos KPIs — v1.13.98 */}
+          <div className="mb-2.5 flex flex-wrap items-center gap-1.5">
+            {KPI_PERIODS.map((per) => (
+              <button
+                key={per.id}
+                onClick={() => setKpiPeriod(per.id)}
+                className={`rounded-full px-3 py-1 text-[11px] font-medium transition-colors ${
+                  kpiPeriod === per.id ? "bg-blue-600 text-white shadow-sm" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+              >
+                {per.label}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-3 gap-3">
           {kpiCards.map((card) => (
             <div key={card.label} className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${card.gradient} p-4 text-white shadow-lg`}>
               <div className="absolute -top-4 -right-4 h-16 w-16 rounded-full bg-white/5" />
@@ -787,6 +826,7 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
               </div>
             </div>
           ))}
+          </div>
         </div>
       ),
     },
@@ -1180,6 +1220,7 @@ const CHECK_STATUS_CFG: Record<string, { label: string; cls: string }> = {
   EM_CARTEIRA: { label: "Em carteira", cls: "bg-amber-100 text-amber-700 border-amber-200" },
   DEPOSITADO: { label: "Depositado · a compensar", cls: "bg-blue-100 text-blue-700 border-blue-200" },
   COMPENSADO: { label: "Compensado", cls: "bg-green-100 text-green-700 border-green-200" },
+  CONCILIADO: { label: "Conciliado", cls: "bg-teal-100 text-teal-700 border-teal-200" },
   REPASSADO: { label: "Repassado", cls: "bg-purple-100 text-purple-700 border-purple-200" },
   DEVOLVIDO: { label: "Devolvido", cls: "bg-red-100 text-red-700 border-red-200" },
 };
@@ -1222,6 +1263,7 @@ function ChecksRegistryTab() {
           <option value="EM_CARTEIRA">Em carteira</option>
           <option value="DEPOSITADO">Depositado (a compensar)</option>
           <option value="COMPENSADO">Compensado</option>
+          <option value="CONCILIADO">Conciliado</option>
           <option value="REPASSADO">Repassado</option>
           <option value="DEVOLVIDO">Devolvido</option>
         </select>
@@ -1546,7 +1588,8 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
     api.get<CardFeeRate[]>("/finance/card-fee-rates")
       .then(setCardFeeRates)
       .catch(() => {});
-    api.get<{ id: string; code: string; name: string; type: string; parent?: { id: string; code: string; name: string } }[]>("/finance/accounts/postable")
+    // v1.13.98: categoria filtrada por direcao — A Receber mostra so Receitas, A Pagar so Custos/Despesas.
+    api.get<{ id: string; code: string; name: string; type: string; parent?: { id: string; code: string; name: string } }[]>(`/finance/accounts/postable?direction=${type}`)
       .then(setPostableAccounts)
       .catch(() => {});
     // Filtra por direcao: A Pagar mostra so meios configurados para pagamento,
@@ -2768,35 +2811,18 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                 </div>
               )}
 
-              {/* Plano de Contas */}
-              {postableAccounts.length > 0 && (
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Plano de Contas</label>
-                  <select
-                    value={payAccountId}
-                    onChange={(e) => setPayAccountId(e.target.value)}
-                    disabled={sysConfig?.financial?.lockPlanOnReceive === true && payAction?.entry.type === "RECEIVABLE"}
-                    className={`w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none ${sysConfig?.financial?.lockPlanOnReceive === true && payAction?.entry.type === "RECEIVABLE" ? "bg-slate-50 text-slate-500 cursor-not-allowed" : "bg-white"}`}
-                  >
-                    <option value="">Selecione...</option>
-                    {(() => {
-                      const grouped = new Map<string, typeof postableAccounts>();
-                      for (const acc of postableAccounts) {
-                        const parentName = acc.parent?.name || "Outros";
-                        if (!grouped.has(parentName)) grouped.set(parentName, []);
-                        grouped.get(parentName)!.push(acc);
-                      }
-                      return Array.from(grouped.entries()).map(([group, items]) => (
-                        <optgroup key={group} label={group}>
-                          {items.map((a) => (
-                            <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
-                          ))}
-                        </optgroup>
-                      ));
-                    })()}
-                  </select>
-                </div>
-              )}
+              {/* Plano de Contas — seletor CENTRAL (filtra por direcao + aparencia unica). v1.13.98 */}
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Plano de Contas</label>
+                <CategorySelect
+                  direction={type}
+                  value={payAccountId}
+                  onChange={setPayAccountId}
+                  emptyLabel="Selecione..."
+                  disabled={sysConfig?.financial?.lockPlanOnReceive === true && payAction?.entry.type === "RECEIVABLE"}
+                  className={`w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none ${sysConfig?.financial?.lockPlanOnReceive === true && payAction?.entry.type === "RECEIVABLE" ? "bg-slate-50 text-slate-500 cursor-not-allowed" : "bg-white"}`}
+                />
+              </div>
 
               {/* Payment Instrument (optional) */}
               {paymentMethod && availableInstruments.length > 0 && (
@@ -3022,28 +3048,12 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
               })()}
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Plano de Contas</label>
-                <select
+                <CategorySelect
+                  direction={type}
                   value={formData.financialAccountId}
-                  onChange={(e) => setFormData({ ...formData, financialAccountId: e.target.value })}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
-                >
-                  <option value="">Selecione...</option>
-                  {(() => {
-                    const grouped = new Map<string, typeof postableAccounts>();
-                    for (const acc of postableAccounts) {
-                      const parentName = acc.parent?.name || "Outros";
-                      if (!grouped.has(parentName)) grouped.set(parentName, []);
-                      grouped.get(parentName)!.push(acc);
-                    }
-                    return Array.from(grouped.entries()).map(([group, items]) => (
-                      <optgroup key={group} label={group}>
-                        {items.map((a) => (
-                          <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
-                        ))}
-                      </optgroup>
-                    ));
-                  })()}
-                </select>
+                  onChange={(v) => setFormData({ ...formData, financialAccountId: v })}
+                  emptyLabel="Selecione..."
+                />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Observações</label>
@@ -3247,28 +3257,12 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Plano de Contas</label>
-                <select
+                <CategorySelect
+                  direction={type}
                   value={editAccountId}
-                  onChange={(e) => setEditAccountId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
-                >
-                  <option value="">Selecione...</option>
-                  {(() => {
-                    const grouped = new Map<string, typeof postableAccounts>();
-                    for (const acc of postableAccounts) {
-                      const parentName = acc.parent ? `${acc.parent.code} - ${acc.parent.name}` : "Sem grupo";
-                      if (!grouped.has(parentName)) grouped.set(parentName, []);
-                      grouped.get(parentName)!.push(acc);
-                    }
-                    return Array.from(grouped.entries()).map(([group, accs]) => (
-                      <optgroup key={group} label={group}>
-                        {accs.map((a) => (
-                          <option key={a.id} value={a.id}>{a.code} - {a.name}</option>
-                        ))}
-                      </optgroup>
-                    ));
-                  })()}
-                </select>
+                  onChange={setEditAccountId}
+                  emptyLabel="Selecione..."
+                />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Vencimento</label>

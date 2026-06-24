@@ -333,7 +333,7 @@ export default function CardSettlementTab() {
   useEffect(() => {
     loadSummary();
     loadCashAccounts();
-    api.get<typeof postableAccounts>("/finance/accounts/postable")
+    api.get<typeof postableAccounts>("/finance/accounts/postable?direction=RECEIVABLE")
       .then(setPostableAccounts)
       .catch(() => {});
   }, [loadSummary, loadCashAccounts]);

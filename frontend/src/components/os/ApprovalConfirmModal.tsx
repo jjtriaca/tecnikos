@@ -91,7 +91,7 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
     setError("");
     Promise.all([
       api.get(`/service-orders/${orderId}/finalize-preview`),
-      api.get<PostableAccount[]>("/finance/accounts/postable").catch(() => []),
+      api.get<PostableAccount[]>("/finance/accounts/postable?direction=RECEIVABLE").catch(() => []),
       api.get<any>("/companies/system-config").catch(() => null),
     ]).then(([data, accounts, cfg]: [any, PostableAccount[], any]) => {
       setPreview(data);

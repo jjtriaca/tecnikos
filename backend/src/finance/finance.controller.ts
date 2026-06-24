@@ -61,8 +61,12 @@ export class FinanceController {
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO, UserRole.DESPACHO)
   @Get('accounts/postable')
-  findPostableAccounts(@CurrentUser() user: AuthenticatedUser, @Query('type') type?: string) {
-    return this.financialAccountService.findPostable(user.companyId, type);
+  findPostableAccounts(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('type') type?: string,
+    @Query('direction') direction?: string,
+  ) {
+    return this.financialAccountService.findPostable(user.companyId, type, direction);
   }
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)

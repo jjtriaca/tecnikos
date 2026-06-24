@@ -948,7 +948,7 @@ export default function NfePage() {
       // Load payment methods and postable accounts
       api.get<{ id: string; code: string; name: string }[]>("/finance/payment-methods/active").then(setNfeActivePMs).catch(() => setNfeActivePMs([]));
       api.get<any[]>("/finance/payment-instruments/active?direction=PAYABLE").then(setNfePaymentInstruments).catch(() => setNfePaymentInstruments([]));
-      api.get<typeof nfePostableAccounts>("/finance/accounts/postable").then(setNfePostableAccounts).catch(() => setNfePostableAccounts([]));
+      api.get<typeof nfePostableAccounts>("/finance/accounts/postable?direction=PAYABLE").then(setNfePostableAccounts).catch(() => setNfePostableAccounts([]));
       setStep(2);
       setWizardStartStep(2);
       setWizardOpen(true);
@@ -1199,7 +1199,7 @@ export default function NfePage() {
       setFinanceAccountId("");
       api.get<{ id: string; code: string; name: string }[]>("/finance/payment-methods/active").then(setNfeActivePMs).catch(() => setNfeActivePMs([]));
       api.get<any[]>("/finance/payment-instruments/active?direction=PAYABLE").then(setNfePaymentInstruments).catch(() => setNfePaymentInstruments([]));
-      api.get<typeof nfePostableAccounts>("/finance/accounts/postable").then(setNfePostableAccounts).catch(() => setNfePostableAccounts([]));
+      api.get<typeof nfePostableAccounts>("/finance/accounts/postable?direction=PAYABLE").then(setNfePostableAccounts).catch(() => setNfePostableAccounts([]));
       toast("XML processado com sucesso!", "success");
     } catch (err: any) {
       toast(err?.message || "Erro ao processar XML.", "error");
