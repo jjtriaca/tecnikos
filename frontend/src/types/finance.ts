@@ -376,6 +376,7 @@ export interface CardSettlement {
   notes?: string;
   createdAt: string;
   cardFeeRateId?: string;
+  batchPaymentId?: string | null; // passada/lote (= FinancialEntry.batchPaymentId)
   financialEntry?: {
     id: string;
     description?: string;

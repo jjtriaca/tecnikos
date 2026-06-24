@@ -47,6 +47,7 @@ function LineActionsDropdown({
   onConciliarRefund,
   onConciliarCardInvoice,
   onConciliarMultiple,
+  onConciliarBatch,
   onConciliarTransfer,
   onConciliarCheckReturn,
   onIgnore,
@@ -59,6 +60,7 @@ function LineActionsDropdown({
   onConciliarRefund: () => void;
   onConciliarCardInvoice: () => void;
   onConciliarMultiple: () => void;
+  onConciliarBatch: () => void;
   onConciliarTransfer: () => void;
   onConciliarCheckReturn: () => void;
   onIgnore: () => void;
@@ -78,7 +80,7 @@ function LineActionsDropdown({
     if (open && btnRef.current) {
       const rect = btnRef.current.getBoundingClientRect();
       // UNMATCHED: Conciliar + Devolucao + Transferencia + [Fatura cartao se debito] + sep + Ignorar
-      const itemCount = line.status === "UNMATCHED" ? (isDebit ? 6 : 4) : 1;
+      const itemCount = line.status === "UNMATCHED" ? (isDebit ? 7 : 6) : 1;
       const hasSeparator = line.status === "UNMATCHED";
       const estHeight = 8 + itemCount * 36 + (hasSeparator ? 9 : 0);
       const spaceBelow = window.innerHeight - rect.bottom;
@@ -152,6 +154,15 @@ function LineActionsDropdown({
               >
                 &#128200; Conciliar multiplos lancamentos
               </button>
+              {!isDebit && (
+                <button
+                  onClick={() => { setOpen(false); onConciliarBatch(); }}
+                  className="block w-full text-left px-3 py-2 text-sm font-medium text-teal-700 hover:bg-teal-50"
+                  title="1 deposito (cartao/PIX) que cobre uma passada/lote inteiro de varias contas — soma o lote e desconta a taxa automaticamente"
+                >
+                  &#128230; Conciliar deposito em lote
+                </button>
+              )}
               <button
                 onClick={() => { setOpen(false); onConciliarTransfer(); }}
                 className="block w-full text-left px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
@@ -4154,6 +4165,154 @@ function CheckReturnModal({
   );
 }
 
+/* ── Batch Match Modal (deposito em lote: 1 passada cartao/PIX cobre N contas) ── v1.13.94 ── */
+
+interface BatchCandidate {
+  batchPaymentId: string;
+  count: number;
+  sumGrossCents: number;
+  paymentMethod: string | null;
+  cardBrand: string | null;
+  partnerName: string | null;
+  paidAt: string | null;
+  impliedFeeCents: number;
+  feePercent: number;
+  matchesLine: boolean;
+}
+
+function BatchMatchModal({
+  open,
+  line,
+  onClose,
+  onMatched,
+}: {
+  open: boolean;
+  line: BankStatementLine | null;
+  onClose: () => void;
+  onMatched: () => void;
+}) {
+  const { toast } = useToast();
+  const [candidates, setCandidates] = useState<BatchCandidate[]>([]);
+  const [selectedId, setSelectedId] = useState("");
+  const [feeText, setFeeText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [matching, setMatching] = useState(false);
+
+  const lineAbs = line ? Math.abs(line.amountCents) : 0;
+
+  useEffect(() => {
+    if (!open || !line) return;
+    setSelectedId(""); setFeeText(""); setCandidates([]); setLoading(true);
+    api.get<{ lineAbs: number; expectedType: string; candidates: BatchCandidate[] }>(
+      `/finance/reconciliation/lines/${line.id}/batch-candidates`,
+    ).then((r) => {
+      const list = r?.candidates || [];
+      setCandidates(list);
+      // auto-seleciona o melhor candidato (1o que casa com a linha)
+      const best = list.find((c) => c.matchesLine) || list[0];
+      if (best) {
+        setSelectedId(best.batchPaymentId);
+        setFeeText(best.impliedFeeCents > 0 ? (best.impliedFeeCents / 100).toFixed(2).replace(".", ",") : "");
+      }
+    }).catch(() => setCandidates([])).finally(() => setLoading(false));
+  }, [open, line]);
+
+  if (!open || !line) return null;
+
+  const selected = candidates.find((c) => c.batchPaymentId === selectedId);
+  const feeCents = Math.round((parseFloat(feeText.replace(",", ".")) || 0) * 100);
+  const netCents = selected ? selected.sumGrossCents - feeCents : 0;
+  const matchesNet = selected ? Math.abs(netCents - lineAbs) <= 1 : false;
+
+  function pickCandidate(id: string) {
+    setSelectedId(id);
+    const c = candidates.find((x) => x.batchPaymentId === id);
+    if (c) setFeeText(c.impliedFeeCents > 0 ? (c.impliedFeeCents / 100).toFixed(2).replace(".", ",") : "");
+  }
+
+  async function handleConfirm() {
+    if (!line || !selected) { toast("Selecione o lote (passada) que gerou o depósito.", "error"); return; }
+    if (!matchesNet) {
+      toast(`O líquido (bruto − taxa) não bate com o depósito (${formatCurrency(lineAbs)}). Ajuste a taxa.`, "error");
+      return;
+    }
+    setMatching(true);
+    try {
+      await api.post(`/finance/reconciliation/lines/${line.id}/match-as-batch`, {
+        batchPaymentId: selected.batchPaymentId,
+        feeCents: feeCents > 0 ? feeCents : undefined,
+      });
+      toast(`Lote conciliado — ${selected.count} lançamento(s) em 1 depósito.`, "success");
+      onMatched();
+    } catch (err: any) {
+      toast(err?.response?.data?.message || err?.message || "Erro ao conciliar o lote.", "error");
+    } finally {
+      setMatching(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+        <div className="px-5 py-4 border-b border-slate-200">
+          <h3 className="text-base font-semibold text-slate-800">&#128230; Conciliar depósito em lote</h3>
+          <p className="text-[11px] text-slate-500 mt-0.5">Uma passada de cartão (ou PIX) que cobriu várias contas. Escolha o lote — o sistema soma o bruto, desconta a taxa e concilia o depósito de uma vez.</p>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-[11px] text-slate-600">
+            <div className="flex items-center justify-between">
+              <span className="truncate">{line.description}</span>
+              <span className="font-semibold ml-2 text-green-700">{formatCurrency(line.amountCents)}</span>
+            </div>
+            <div className="text-slate-600 mt-0.5">{formatDate(line.transactionDate)}</div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Qual passada/lote? <span className="text-red-500">*</span></label>
+            {loading ? (
+              <p className="text-[11px] text-slate-500">Carregando lotes...</p>
+            ) : candidates.length === 0 ? (
+              <p className="text-[11px] text-slate-500">Nenhum lote em aberto encontrado. (Lotes nascem ao receber várias contas juntas em &quot;Receber todos&quot;.)</p>
+            ) : (
+              <select value={selectedId} onChange={(e) => pickCandidate(e.target.value)}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none">
+                <option value="">Selecione...</option>
+                {candidates.map((c) => (
+                  <option key={c.batchPaymentId} value={c.batchPaymentId}>
+                    {c.count} conta(s){c.cardBrand ? ` · ${c.cardBrand}` : c.paymentMethod ? ` · ${c.paymentMethod}` : ""}{c.partnerName ? ` · ${c.partnerName}` : ""} — bruto {formatCurrency(c.sumGrossCents)}{c.impliedFeeCents > 0 ? ` (taxa ~${formatCurrency(c.impliedFeeCents)})` : ""}{c.matchesLine ? " ✓" : ""}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Taxa total da operadora (opcional)</label>
+            <input type="text" inputMode="decimal" value={feeText} onChange={(e) => setFeeText(e.target.value)} placeholder="Ex: 4,00"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" />
+            <p className="text-[10px] text-slate-500 mt-0.5">Lança como despesa &quot;Taxas de Cartão&quot;. Deixe vazio para PIX/débito sem taxa.</p>
+          </div>
+          {selected && (
+            <div className={`rounded-lg border px-3 py-2 text-xs ${matchesNet ? "border-green-200 bg-green-50" : "border-amber-200 bg-amber-50"}`}>
+              <div className="flex justify-between"><span className="text-slate-600">Bruto do lote ({selected.count})</span><span className="font-medium text-slate-800">{formatCurrency(selected.sumGrossCents)}</span></div>
+              <div className="flex justify-between"><span className="text-slate-600">Taxa</span><span className="font-medium text-red-600">− {formatCurrency(feeCents)}</span></div>
+              <div className="flex justify-between border-t border-slate-200 mt-1 pt-1"><span className="text-slate-600 font-medium">Líquido</span><span className="font-bold text-green-700">{formatCurrency(netCents)}</span></div>
+              <div className={`mt-1 text-[11px] font-medium ${matchesNet ? "text-green-700" : "text-amber-700"}`}>
+                {matchesNet ? "✓ Bate com o depósito do extrato" : `Diferença de ${formatCurrency(netCents - lineAbs)} vs. o depósito (${formatCurrency(lineAbs)})`}
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="px-5 py-3 border-t border-slate-200 flex justify-end gap-2">
+          <button onClick={onClose} disabled={matching} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancelar</button>
+          <button onClick={handleConfirm} disabled={matching || !selected || !matchesNet}
+            className="px-4 py-2 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 rounded-lg disabled:opacity-50">
+            {matching ? "Conciliando..." : "Conciliar lote"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ══════════════════════════════════════════════════════════
    LINES DETAIL VIEW
    ══════════════════════════════════════════════════════════ */
@@ -4180,6 +4339,7 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
   const [multipleLine, setMultipleLine] = useState<BankStatementLine | null>(null);
   const [transferLine, setTransferLine] = useState<BankStatementLine | null>(null);
   const [checkReturnLine, setCheckReturnLine] = useState<BankStatementLine | null>(null);
+  const [batchLine, setBatchLine] = useState<BankStatementLine | null>(null);
   const [balanceCompare, setBalanceCompare] = useState<BalanceCompare | null>(null);
   const [balanceModalOpen, setBalanceModalOpen] = useState(false);
   const [balanceInputValue, setBalanceInputValue] = useState("");
@@ -4602,6 +4762,7 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
                             onConciliarRefund={() => setRefundLine(line)}
                             onConciliarCardInvoice={() => setCardInvoiceLine(line)}
                             onConciliarMultiple={() => setMultipleLine(line)}
+                            onConciliarBatch={() => setBatchLine(line)}
                             onConciliarTransfer={() => setTransferLine(line)}
                             onConciliarCheckReturn={() => setCheckReturnLine(line)}
                             onIgnore={() => handleIgnore(line.id)}
@@ -4726,6 +4887,12 @@ function LinesDetail({ statement, onChanged }: { statement: BankStatement; onCha
         line={checkReturnLine}
         onClose={() => setCheckReturnLine(null)}
         onMatched={() => { setCheckReturnLine(null); refreshAll(); }}
+      />
+      <BatchMatchModal
+        open={!!batchLine}
+        line={batchLine}
+        onClose={() => setBatchLine(null)}
+        onMatched={() => { setBatchLine(null); refreshAll(); }}
       />
     </div>
   );

@@ -967,6 +967,7 @@ export class FinanceService {
     let totalPaidCents = 0;
     let paidCount = 0;
     const errors: string[] = [];
+    const paidEntryIds: string[] = [];
 
     for (const entryId of body.entryIds) {
       try {
@@ -992,8 +993,24 @@ export class FinanceService {
         });
         totalPaidCents += entry.netCents;
         paidCount++;
+        paidEntryIds.push(entryId);
       } catch (err: any) {
         errors.push(`${entryId}: ${err.message || 'Erro desconhecido'}`);
+      }
+    }
+
+    // v1.13.94 — carimba a passada (batchId) nas baixas de cartao criadas no loop (cartao RECEIVABLE
+    // gera CardSettlement dentro do changeEntryStatus, ANTES do batchPaymentId existir no entry).
+    // Permite AGRUPAR a tela "Baixa de Cartao" por passada e baixar o lote inteiro de uma vez.
+    // updateMany idempotente; so toca PENDING sem lote (nao mexe em baixas ja agrupadas/baixadas).
+    if (paidEntryIds.length > 0) {
+      try {
+        await this.prisma.cardSettlement.updateMany({
+          where: { companyId, financialEntryId: { in: paidEntryIds }, batchPaymentId: null, status: 'PENDING' },
+          data: { batchPaymentId: batchId },
+        });
+      } catch (err: any) {
+        this.logger.warn(`batchPay: falha ao carimbar batchPaymentId nas baixas de cartao (nao-fatal): ${err.message}`);
       }
     }
 

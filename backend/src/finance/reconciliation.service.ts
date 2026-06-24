@@ -9,7 +9,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { OfxParserService } from './ofx-parser.service';
 import { CsvParserService } from './csv-parser.service';
-import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto, EntryAccountAssignmentDto, MatchAsTransferDto, MatchCheckReturnDto } from './dto/reconciliation.dto';
+import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto, EntryAccountAssignmentDto, MatchAsTransferDto, MatchCheckReturnDto, MatchAsBatchDto } from './dto/reconciliation.dto';
 import { CodeGeneratorService } from '../common/code-generator.service';
 import { breakInTenantTz, endOfTenantDay } from '../common/util/tenant-date.util';
 import { withCreate, withUpdate } from '../common/tracking/tracking.helpers';
@@ -1804,6 +1804,12 @@ export class ReconciliationService {
       // Acumula liquido por conta de origem (entries PAID em outra conta).
       // Sinal: expected_type aumenta liquido (entrou); opposite_type diminui (despesa retira do liquido).
       const liquidByOrigin = new Map<string, number>();
+      // v1.13.94 — entries JA PAID na MESMA conta do banco da linha (ex: PIX/lote pago direto no
+      // banco antes de conciliar). O saldo do banco JA subiu/desceu por esses no recebimento; se o
+      // passo 1 creditar lineAbs cheio, conta DOBRADO. Acumula o que ja esta no banco p/ abater do
+      // bankDelta. NO-OP nos fluxos atuais (cartao = cashAccountId NULL; VT = conta diferente):
+      // alreadyInBankCents fica 0 e o bankDelta nao muda.
+      let alreadyInBankCents = 0;
 
       for (const e of entries) {
         const amount = e.netCents || e.grossCents || 0;
@@ -1819,6 +1825,10 @@ export class ReconciliationService {
           entryUpdate.autoMarkedPaid = true;
           entryUpdate.cashAccountId = line.cashAccountId;
           entryUpdate.notes = `[${tsLog}] PAGO via conciliação múltipla (linha ${line.id.substring(0, 8)})`;
+        } else if (e.status === 'PAID' && e.cashAccountId === line.cashAccountId) {
+          // Ja PAID na MESMA conta do banco — saldo ja contabilizado no recebimento.
+          // So vincula (invoiceMatchLineId), NAO recredita: acumula p/ abater do bankDelta abaixo.
+          alreadyInBankCents += (e.type === 'RECEIVABLE' ? 1 : -1) * amount;
         } else if (e.status === 'PAID' && e.cashAccountId && e.cashAccountId !== line.cashAccountId) {
           // Entry ja estava PAID em outra conta (ex: VT). Acumula liquido por origem.
           // NAO mexe no cashAccountId (preserva historico do entry).
@@ -1846,7 +1856,8 @@ export class ReconciliationService {
       //    todas somam liquido = lineAbs por construcao (validado acima).
       //    v1.10.07: antes (v1.09.x) o codigo so creditava `pendingTotal` ignorando entries PAID em outra conta.
       //    Isso causou o bug Royalle (saldo SICREDI nao recebia credito quando todas eram PAID em VT) — corrigido aqui.
-      const bankDelta = expectedType === 'RECEIVABLE' ? lineAbs : -lineAbs;
+      //    v1.13.94: abate `alreadyInBankCents` (entries ja PAID nesta mesma conta) p/ nao dobrar.
+      const bankDelta = (expectedType === 'RECEIVABLE' ? lineAbs : -lineAbs) - alreadyInBankCents;
       await tx.cashAccount.update({
         where: { id: line.cashAccountId },
         data: withUpdate({ currentBalanceCents: { increment: bankDelta } }),
@@ -1917,6 +1928,189 @@ export class ReconciliationService {
       await this.recalcCounts(tx, line.importId, line.statementId);
       return { ...updated, entriesCount: dto.entryIds.length, entriesTotalCents: netSigned };
     });
+  }
+
+  /**
+   * getBatchCandidates — Lista os LOTES (passadas) em aberto candidatos a conciliar com esta linha de
+   * deposito. Agrupa lancamentos do tipo esperado por batchPaymentId; mostra bruto somado, contagem,
+   * forma, parceiro e a taxa IMPLICITA (bruto somado - liquido da linha). v1.13.94.
+   */
+  async getBatchCandidates(lineId: string, companyId: string) {
+    const line = await this.prisma.bankStatementLine.findUnique({
+      where: { id: lineId },
+      include: { import: { select: { companyId: true } } },
+    });
+    if (!line || line.import.companyId !== companyId) throw new NotFoundException('Linha não encontrada.');
+
+    const expectedType: 'RECEIVABLE' | 'PAYABLE' = line.amountCents >= 0 ? 'RECEIVABLE' : 'PAYABLE';
+    const lineAbs = Math.abs(line.amountCents);
+
+    // Lancamentos com lote, do tipo esperado, ainda nao conciliados em OUTRA linha.
+    const entries = await this.prisma.financialEntry.findMany({
+      where: {
+        companyId,
+        deletedAt: null,
+        type: expectedType,
+        batchPaymentId: { not: null },
+        OR: [{ invoiceMatchLineId: null }, { invoiceMatchLineId: lineId }],
+      },
+      select: {
+        id: true, grossCents: true, netCents: true, batchPaymentId: true,
+        paymentMethod: true, cardBrand: true, paidAt: true,
+        partner: { select: { name: true } },
+      },
+      orderBy: { paidAt: 'desc' },
+    });
+
+    const groups = new Map<string, {
+      batchPaymentId: string; count: number; sumGrossCents: number;
+      paymentMethod: string | null; cardBrand: string | null; partnerName: string | null; paidAt: Date | null;
+    }>();
+    for (const e of entries) {
+      const key = e.batchPaymentId!;
+      let g = groups.get(key);
+      if (!g) {
+        g = {
+          batchPaymentId: key, count: 0, sumGrossCents: 0,
+          paymentMethod: e.paymentMethod || null, cardBrand: e.cardBrand || null,
+          partnerName: e.partner?.name || null, paidAt: e.paidAt,
+        };
+        groups.set(key, g);
+      }
+      g.count += 1;
+      g.sumGrossCents += (e.grossCents || e.netCents || 0);
+      if (!g.partnerName && e.partner?.name) g.partnerName = e.partner.name;
+    }
+
+    const tol = 1;
+    const candidates = [...groups.values()].map((g) => {
+      const impliedFeeCents = g.sumGrossCents - lineAbs;
+      const feePercent = g.sumGrossCents > 0 ? (impliedFeeCents / g.sumGrossCents) * 100 : 0;
+      const exact = Math.abs(impliedFeeCents) <= tol;                 // bruto == linha (sem taxa: PIX/debito)
+      const plausible = impliedFeeCents >= -tol && feePercent <= 20;  // taxa razoavel (cartao)
+      return {
+        batchPaymentId: g.batchPaymentId,
+        count: g.count,
+        sumGrossCents: g.sumGrossCents,
+        paymentMethod: g.paymentMethod,
+        cardBrand: g.cardBrand,
+        partnerName: g.partnerName,
+        paidAt: g.paidAt,
+        impliedFeeCents: Math.max(0, impliedFeeCents),
+        feePercent: Math.max(0, feePercent),
+        matchesLine: exact || plausible,
+      };
+    }).sort((a, b) => {
+      if (a.matchesLine !== b.matchesLine) return a.matchesLine ? -1 : 1;
+      return Math.abs(a.impliedFeeCents) - Math.abs(b.impliedFeeCents);
+    });
+
+    return { lineAbs, expectedType, candidates };
+  }
+
+  /**
+   * matchAsBatch — Concilia uma linha de DEPOSITO contra um LOTE inteiro (1 passada de cartao/PIX/etc).
+   * Expande o batchPaymentId nos N lancamentos + (cartao) cria 1 despesa de taxa, e DELEGA ao motor
+   * testado do match-multiple (saldo seguro). Cancela as baixas de cartao PENDING do lote. v1.13.94.
+   *
+   * Saldo: o match-multiple credita o banco no LIQUIDO (= linha) UMA vez. Lancamentos de cartao estao
+   * PAID sem conta (transito) -> so vinculam; a taxa e PAYABLE PAID SEM caixa (operadora ja reteve) ->
+   * so reduz a soma esperada (sumExpected - taxa = liquido = linha). Resultado: banco + liquido, exato.
+   * Generaliza: PIX/lote sem taxa -> feeCents=0, so N lancamentos somando a linha.
+   */
+  async matchAsBatch(lineId: string, companyId: string, dto: MatchAsBatchDto, matchedByName: string) {
+    if (!dto.batchPaymentId) throw new BadRequestException('Informe o lote (batchPaymentId).');
+
+    const line = await this.prisma.bankStatementLine.findUnique({
+      where: { id: lineId },
+      include: { import: { select: { companyId: true } } },
+    });
+    if (!line || line.import.companyId !== companyId) throw new NotFoundException('Linha não encontrada.');
+    if (line.status === 'MATCHED') throw new BadRequestException('Linha já está conciliada.');
+
+    const expectedType: 'RECEIVABLE' | 'PAYABLE' = line.amountCents >= 0 ? 'RECEIVABLE' : 'PAYABLE';
+
+    const batchEntries = await this.prisma.financialEntry.findMany({
+      where: {
+        companyId,
+        batchPaymentId: dto.batchPaymentId,
+        deletedAt: null,
+        type: expectedType,
+        OR: [{ invoiceMatchLineId: null }, { invoiceMatchLineId: lineId }],
+      },
+      select: { id: true, partnerId: true },
+    });
+    if (batchEntries.length === 0) {
+      throw new BadRequestException('Nenhum lançamento do lote disponível para conciliar.');
+    }
+
+    const feeCents = Math.max(0, Math.round(dto.feeCents || 0));
+
+    // Taxa do lote: 1 despesa PAYABLE PAID SEM caixa (operadora ja reteve — so DRE). Criada FORA da
+    // transacao do match-multiple; em caso de falha do match, e revertida (delete) abaixo.
+    let feeEntryId: string | null = null;
+    if (feeCents > 0) {
+      let feeAccountId = dto.feeAccountId;
+      if (!feeAccountId) {
+        const feeAcc = await this.prisma.financialAccount.findFirst({
+          where: { companyId, code: '5200', deletedAt: null },
+          select: { id: true },
+        });
+        feeAccountId = feeAcc?.id || undefined;
+      }
+      const ts = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+      const feeEntry = await this.prisma.financialEntry.create({
+        data: withCreate({
+          companyId,
+          type: 'PAYABLE',
+          status: 'PAID',
+          description: 'Taxa de cartão (depósito em lote)',
+          grossCents: feeCents,
+          netCents: feeCents,
+          paidAt: line.transactionDate,
+          paymentMethod: 'TAXA_CARTAO',
+          partnerId: batchEntries[0].partnerId || undefined,
+          financialAccountId: feeAccountId,
+          notes: `[${ts}] [AUTO_RECONCILIATION_LOTE] Taxa do depósito em lote (linha ${line.id.substring(0, 8)})`,
+        }),
+      });
+      feeEntryId = feeEntry.id;
+    }
+
+    const entryIds = [...batchEntries.map((e) => e.id), ...(feeEntryId ? [feeEntryId] : [])];
+
+    let result: any;
+    try {
+      result = await this.matchAsMultiple(
+        lineId,
+        companyId,
+        { entryIds, notes: dto.notes, entryAccountAssignments: dto.entryAccountAssignments } as MatchCardInvoiceDto,
+        matchedByName,
+      );
+    } catch (err) {
+      // Match falhou (validacao de soma, NF, mes fechado, etc.) — reverte a taxa criada (sem efeito
+      // de caixa, delete e seguro) e propaga o erro real pro front.
+      if (feeEntryId) {
+        await this.prisma.financialEntry.delete({ where: { id: feeEntryId } }).catch(() => {});
+      }
+      throw err;
+    }
+
+    // Match COMMITADO. Cancelar baixas PENDING do lote (match-multiple so cancela quando ha taxa;
+    // cartao de DEBITO sem taxa deixaria orfao). Falha aqui NAO desfaz o match (so loga).
+    try {
+      await this.prisma.cardSettlement.updateMany({
+        where: { companyId, financialEntryId: { in: batchEntries.map((e) => e.id) }, status: 'PENDING' },
+        data: withUpdate({
+          status: 'CANCELLED',
+          notes: `Cancelado — conciliado em lote (linha ${line.id.substring(0, 8)})`,
+        }),
+      });
+    } catch (e: any) {
+      this.logger.warn(`matchAsBatch: falha ao cancelar baixas PENDING do lote (nao-fatal): ${e.message}`);
+    }
+
+    return { ...result, batchPaymentId: dto.batchPaymentId, feeCents, entriesCount: batchEntries.length };
   }
 
   /**

@@ -104,6 +104,36 @@ export class MatchCheckReturnDto {
   notes?: string;
 }
 
+/**
+ * Concilia uma linha de DEPOSITO (credito) contra um LOTE (1 passada de cartao/PIX/etc) — todos os
+ * lancamentos que compartilham o mesmo batchPaymentId viram 1 unidade conciliavel. feeCents = taxa
+ * total retida pela operadora (so cartao; gross do lote - liquido depositado). Reusa o motor do
+ * match-multiple por baixo (seguro p/ saldo). v1.13.94.
+ */
+export class MatchAsBatchDto {
+  @IsString()
+  batchPaymentId!: string; // a passada/lote (FinancialEntry.batchPaymentId)
+
+  @IsOptional()
+  @IsInt()
+  feeCents?: number; // taxa total da operadora (gross do lote - deposito liquido). 0 = sem taxa (PIX/debito)
+
+  @IsOptional()
+  @IsString()
+  feeAccountId?: string; // plano de contas da taxa (default: conta "5200" Taxas de Cartao)
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+
+  // Atribuicao de plano de contas p/ lancamentos sem categoria (entryId -> financialAccountId).
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EntryAccountAssignmentDto)
+  entryAccountAssignments?: EntryAccountAssignmentDto[];
+}
+
 export class MatchAsTransferDto {
   // Conta externa — a OUTRA ponta da transferencia (a conta do extrato e inferida pela linha).
   // Se linha e credito (amount > 0): source = conta de origem (ex: Caixa) -> destino = conta do extrato

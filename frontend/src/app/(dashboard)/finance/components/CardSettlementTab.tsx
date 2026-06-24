@@ -475,6 +475,15 @@ export default function CardSettlementTab() {
     }
   }
 
+  /* ── Lotes (passadas): conta quantas baixas carregadas compartilham o batchPaymentId ─ v1.13.94 ─ */
+  const batchCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const cs of settlements.data) {
+      if (cs.batchPaymentId) m.set(cs.batchPaymentId, (m.get(cs.batchPaymentId) || 0) + 1);
+    }
+    return m;
+  }, [settlements.data]);
+
   /* ── Column definitions ───────────────────────────────── */
 
   const columnDefs: ColumnDefinition<CardSettlement>[] = useMemo(
@@ -504,6 +513,7 @@ export default function CardSettlementTab() {
             || cs.cardBrand
             || cs.paymentMethodCode
             || "—";
+          const loteN = cs.batchPaymentId ? (batchCounts.get(cs.batchPaymentId) || 0) : 0;
           return (
             <div className="min-w-0">
               <p className="text-sm font-medium text-slate-900 truncate">
@@ -513,6 +523,14 @@ export default function CardSettlementTab() {
                 <p className="text-xs text-slate-500 truncate">
                   {cs.financialEntry.partner.name}
                 </p>
+              )}
+              {loteN > 1 && (
+                <span
+                  className="inline-block mt-0.5 text-[9px] px-1 py-0.5 rounded bg-teal-100 text-teal-700 font-semibold"
+                  title="Faz parte de uma passada/lote — baixa as do lote juntas (tudo-ou-nada)"
+                >
+                  &#128230; lote {loteN}&times;
+                </span>
               )}
             </div>
           );
@@ -615,7 +633,7 @@ export default function CardSettlementTab() {
         },
       },
     ],
-    [feeRates],
+    [feeRates, batchCounts],
   );
 
   /* ── Table layout (drag/resize) ───────────────────────── */
@@ -635,10 +653,20 @@ export default function CardSettlementTab() {
     pendingRows.length > 0 && pendingRows.every((cs) => selectedIds.has(cs.id));
 
   function toggleSelect(id: string) {
+    // Tudo-ou-nada por lote: marcar/desmarcar uma baixa de uma passada arrasta todas as PENDING
+    // do mesmo lote carregadas (a passada e 1 transacao real — baixa inteira). v1.13.94
+    const cs = settlements.data.find((s) => s.id === id);
+    const batchId = cs?.batchPaymentId;
+    const groupIds = batchId
+      ? settlements.data.filter((s) => s.batchPaymentId === batchId && s.status === "PENDING").map((s) => s.id)
+      : [id];
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      const isSelected = next.has(id);
+      for (const gid of groupIds) {
+        if (isSelected) next.delete(gid);
+        else next.add(gid);
+      }
       return next;
     });
   }

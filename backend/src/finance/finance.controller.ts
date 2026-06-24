@@ -31,7 +31,7 @@ import { CreatePaymentMethodDto, UpdatePaymentMethodDto } from './dto/payment-me
 import { CreatePaymentInstrumentDto, UpdatePaymentInstrumentDto } from './dto/payment-instrument.dto';
 import { CreateCashAccountDto, UpdateCashAccountDto, RebalanceCashAccountDto } from './dto/cash-account.dto';
 import { CreateTransferDto, DepositChecksDto, EndorseChecksDto } from './dto/transfer.dto';
-import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto, MatchAsTransferDto, MatchCheckReturnDto } from './dto/reconciliation.dto';
+import { MatchLineDto, MatchAsRefundDto, MatchCardInvoiceDto, MatchAsTransferDto, MatchCheckReturnDto, MatchAsBatchDto } from './dto/reconciliation.dto';
 
 @ApiTags('Finance')
 @Controller('finance')
@@ -547,6 +547,28 @@ export class FinanceController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.reconciliationService.matchAsCheckReturn(lineId, user.companyId, dto, user.email);
+  }
+
+  // v1.13.94 — lista os LOTES (passadas) em aberto candidatos a conciliar com esta linha de deposito.
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('reconciliation/lines/:lineId/batch-candidates')
+  getBatchCandidates(
+    @Param('lineId') lineId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reconciliationService.getBatchCandidates(lineId, user.companyId);
+  }
+
+  // v1.13.94 — concilia 1 linha de deposito contra um LOTE inteiro (1 passada de cartao/PIX/etc).
+  // Expande o batchPaymentId nos N lancamentos + (cartao) cria 1 taxa, delega ao match-multiple.
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('reconciliation/lines/:lineId/match-as-batch')
+  matchAsBatch(
+    @Param('lineId') lineId: string,
+    @Body() dto: MatchAsBatchDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.reconciliationService.matchAsBatch(lineId, user.companyId, dto, user.email);
   }
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)

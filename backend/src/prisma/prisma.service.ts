@@ -539,6 +539,10 @@ export class PrismaService
       await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CardSettlement_companyId_status_idx" ON "CardSettlement"("companyId", "status")`);
       await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CardSettlement_companyId_expectedDate_idx" ON "CardSettlement"("companyId", "expectedDate")`);
       await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CardSettlement_financialEntryId_idx" ON "CardSettlement"("financialEntryId")`);
+      // v1.13.94 — batchPaymentId (passada/lote) p/ agrupar baixas do mesmo swipe. Coluna adicionada
+      // depois da criacao original — ALTER idempotente cura tabelas existentes dos tenants no boot.
+      await this.$executeRawUnsafe(`ALTER TABLE "CardSettlement" ADD COLUMN IF NOT EXISTS "batchPaymentId" TEXT`);
+      await this.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CardSettlement_companyId_batchPaymentId_idx" ON "CardSettlement"("companyId", "batchPaymentId")`);
     } catch (err) {
       this.logger.warn('CardSettlement auto-migration check failed (non-fatal):', err);
     }

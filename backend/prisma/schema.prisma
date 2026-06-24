@@ -2118,6 +2118,7 @@ model CardSettlement {
   notes               String?
   cardFeeRateId       String?
   paymentInstrumentId String? // FK -> PaymentInstrument (facilita filtro por cartao)
+  batchPaymentId      String? // passada/lote (= FinancialEntry.batchPaymentId); agrupa baixas do mesmo swipe
 
   // Tracking universal (v1.10.87+) — quem criou/alterou/excluiu
   createdByUserId String?
@@ -2142,6 +2143,7 @@ model CardSettlement {
   @@index([companyId, expectedDate])
   @@index([financialEntryId])
   @@index([companyId, paymentInstrumentId])
+  @@index([companyId, batchPaymentId])
 }
 
 // ========== Taxas de Cartão ==========
