@@ -1600,6 +1600,19 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
   useEffect(() => { setDesc(item.description); }, [item.description]);
   useEffect(() => { setSlot(item.slotName || ""); }, [item.slotName]);
 
+  // Linha "orfa": mostra um NOME (descricao de catalogo) mas NAO esta vinculada a um
+  // produto/servico real. Acontece quando o modelo/template trouxe a linha com descricao+preco
+  // mas sem o vinculo (o sistema parou de auto-vincular por descricao na v1.12.20). O preco
+  // funciona, mas formulas que leem dados do produto (tempoMontagemH, vazaoM3h, ...) NAO contam
+  // essa linha — e o operador nao tinha como saber (parecia vinculada). v1.14.03.
+  // "Sem Produto" universal TEM productId (nao cai aqui); "Sem Servico" e excluido pela descricao.
+  const isUnlinked =
+    !item.productId &&
+    !item.serviceId &&
+    !!item.description &&
+    item.description !== 'Sem Produto' &&
+    item.description !== 'Sem Serviço';
+
   // Sibling vars (v1.10.99+) — pra preview do modal de auto-selecao em items
   // com regra cross-line (ex: tubo le tuboEntradaMm do filtro da mesma etapa).
   // Modo preferido: linkedCellRef da regra (vinculo explicito a uma linha).
@@ -1724,15 +1737,27 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
             >{item.kind === 'SERVICE' ? '🛠' : '✨'}</button>
             <span
               onClick={() => setShowCatalogPick(true)}
-              title="Clique pra escolher/trocar item do catalogo"
+              title={isUnlinked
+                ? "Esta linha mostra um nome mas NAO esta vinculada a um produto/servico do cadastro. O preco funciona, mas formulas que leem dados do produto (tempo de montagem, vazao, etc.) NAO contam esta linha. Clique pra vincular."
+                : "Clique pra escolher/trocar item do catalogo"}
               className={
-                "flex-1 px-1 py-0.5 text-sm truncate cursor-pointer hover:bg-cyan-50 rounded " +
-                (item.description ? "text-slate-700 hover:underline" : "text-slate-400 italic hover:text-slate-600")
+                "flex-1 px-1 py-0.5 text-sm truncate cursor-pointer rounded " +
+                (isUnlinked
+                  ? "text-amber-700 hover:bg-amber-50 hover:underline decoration-dotted decoration-amber-400 underline-offset-2"
+                  : (item.description ? "text-slate-700 hover:bg-cyan-50 hover:underline" : "text-slate-400 italic hover:bg-cyan-50 hover:text-slate-600"))
               }>
               {(item.kind === 'SERVICE' && item.description === 'Sem Produto')
                 ? 'Sem Serviço'
                 : (item.description || (item.kind === 'SERVICE' ? 'Sem serviço — clique pra escolher' : 'Sem produto — clique pra escolher'))}
             </span>
+            {isUnlinked && (
+              <span
+                onClick={() => setShowCatalogPick(true)}
+                title="Linha sem produto/servico vinculado — clique pra vincular. Nao entra em formulas que leem dados do produto (tempo de montagem, vazao, etc.)."
+                className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded border border-red-300 bg-red-50 text-red-700 cursor-pointer hover:bg-red-100">
+                ⚠ sem vínculo
+              </span>
+            )}
           </div>
         )}
         {item.isAutoCalculated && <span className="ml-2 text-[10px] text-cyan-600">auto</span>}
