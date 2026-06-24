@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
+import CategorySelect from "@/components/finance/CategorySelect";
 
 type PostableAccount = { id: string; code: string; name: string; type: string; parent?: { id: string; code: string; name: string } };
 
@@ -91,7 +92,7 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
     setError("");
     Promise.all([
       api.get(`/service-orders/${orderId}/finalize-preview`),
-      api.get<PostableAccount[]>("/finance/accounts/postable?direction=RECEIVABLE").catch(() => []),
+      api.get<PostableAccount[]>("/finance/accounts/postable").catch(() => []),
       api.get<any>("/companies/system-config").catch(() => null),
     ]).then(([data, accounts, cfg]: [any, PostableAccount[], any]) => {
       setPreview(data);
@@ -248,23 +249,15 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
     }
   }
 
-  function renderAccountSelect(value: string, onChange: (v: string) => void) {
-    const grouped = new Map<string, PostableAccount[]>();
-    for (const acc of postableAccounts) {
-      const parentName = acc.parent?.name || "Outros";
-      if (!grouped.has(parentName)) grouped.set(parentName, []);
-      grouped.get(parentName)!.push(acc);
-    }
+  // Seletor CENTRAL de categoria — direcao POR ENTRADA (receber=Receita, pagar=Custo/Despesa). v1.13.98
+  function renderAccountSelect(value: string, onChange: (v: string) => void, direction: "RECEIVABLE" | "PAYABLE") {
     return (
-      <select value={value} onChange={e => onChange(e.target.value)}
-        className="text-xs border border-slate-200 rounded px-2 py-0.5 bg-white focus:outline-none focus:border-blue-300 flex-1">
-        <option value="">Sem categoria</option>
-        {Array.from(grouped.entries()).map(([group, items]) => (
-          <optgroup key={group} label={group}>
-            {items.map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
-          </optgroup>
-        ))}
-      </select>
+      <CategorySelect
+        direction={direction}
+        value={value}
+        onChange={onChange}
+        className="text-xs border border-slate-200 rounded px-2 py-0.5 bg-white focus:outline-none focus:border-blue-300 flex-1"
+      />
     );
   }
 
@@ -313,7 +306,7 @@ export default function ApprovalConfirmModal({ open, orderId, score, comment, on
             </div>
             <div className="flex items-center gap-2">
               <label className="text-[10px] text-slate-500 w-10">Categ:</label>
-              {renderAccountSelect(accountValue, onAccountChange)}
+              {renderAccountSelect(accountValue, onAccountChange, isRec ? "RECEIVABLE" : "PAYABLE")}
             </div>
           </div>
         )}

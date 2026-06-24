@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
+import CategorySelect from "@/components/finance/CategorySelect";
 import FilterBar from "@/components/ui/FilterBar";
 import SortableHeader from "@/components/ui/SortableHeader";
 import DraggableHeader from "@/components/ui/DraggableHeader";
@@ -1584,30 +1585,7 @@ export default function CardSettlementTab() {
                 <label className="block text-xs font-medium text-slate-600 mb-1">
                   Categoria
                 </label>
-                <select
-                  value={editAccountId}
-                  onChange={(e) => setEditAccountId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white"
-                >
-                  <option value="">Sem categoria</option>
-                  {(() => {
-                    const grouped = new Map<string, typeof postableAccounts>();
-                    for (const acc of postableAccounts) {
-                      const parentName = acc.parent ? `${acc.parent.code} - ${acc.parent.name}` : "Sem grupo";
-                      if (!grouped.has(parentName)) grouped.set(parentName, []);
-                      grouped.get(parentName)!.push(acc);
-                    }
-                    return Array.from(grouped.entries()).map(([group, accs]) => (
-                      <optgroup key={group} label={group}>
-                        {accs.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.code} - {a.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ));
-                  })()}
-                </select>
+                <CategorySelect direction="RECEIVABLE" value={editAccountId} onChange={setEditAccountId} />
               </div>
 
               {/* Observacoes */}

@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { api, getAccessToken } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
+import CategorySelect from "@/components/finance/CategorySelect";
 import PasswordInput from "@/components/ui/PasswordInput";
 import FilterBar from "@/components/ui/FilterBar";
 import SortableHeader from "@/components/ui/SortableHeader";
@@ -2713,22 +2714,7 @@ export default function NfePage() {
                         {/* Categoria */}
                         <div className="rounded-xl border border-slate-200 bg-white p-5">
                           <label className="block text-sm font-medium text-slate-700 mb-2">Categoria *</label>
-                          <select value={financeAccountId} onChange={(e) => setFinanceAccountId(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
-                            <option value="">Selecione...</option>
-                            {(() => {
-                              const grouped = new Map<string, typeof nfePostableAccounts>();
-                              for (const acc of nfePostableAccounts) {
-                                const parentName = acc.parent?.name || "Outros";
-                                if (!grouped.has(parentName)) grouped.set(parentName, []);
-                                grouped.get(parentName)!.push(acc);
-                              }
-                              return Array.from(grouped.entries()).map(([group, items]) => (
-                                <optgroup key={group} label={group}>
-                                  {items.map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
-                                </optgroup>
-                              ));
-                            })()}
-                          </select>
+                          <CategorySelect direction="PAYABLE" value={financeAccountId} onChange={setFinanceAccountId} emptyLabel="Selecione..." />
                           <p className="text-xs text-slate-500 mt-1.5">Classifique no plano de contas para o DRE.</p>
                         </div>
                       </>

@@ -608,14 +608,15 @@ function loadSectionOrder(): string[] {
   return DEFAULT_SECTION_ORDER;
 }
 
-// Periodo dos KPIs (Resultado) — v1.13.98. mes/trimestre/semestre/ano/tudo.
-type KpiPeriod = "month" | "quarter" | "semester" | "year" | "all";
+// Periodo dos KPIs (Resultado) — v1.13.98. mes/trimestre/semestre/ano/tudo + data livre (custom).
+type KpiPeriod = "month" | "quarter" | "semester" | "year" | "all" | "custom";
 const KPI_PERIODS: { id: KpiPeriod; label: string }[] = [
   { id: "month", label: "Mês" },
   { id: "quarter", label: "Trimestre" },
   { id: "semester", label: "Semestre" },
   { id: "year", label: "Ano" },
   { id: "all", label: "Tudo" },
+  { id: "custom", label: "Data livre" },
 ];
 function kpiPeriodRange(period: KpiPeriod): { from: string; to: string } {
   const now = new Date();
@@ -633,6 +634,8 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
   const [data, setData] = useState<FinanceSummaryV2 | null>(null);
   const [dashData, setDashData] = useState<any>(null);
   const [kpiPeriod, setKpiPeriod] = useState<KpiPeriod>("month");
+  const [kpiFrom, setKpiFrom] = useState(() => kpiPeriodRange("month").from);
+  const [kpiTo, setKpiTo] = useState(() => kpiPeriodRange("month").to);
   // Cheques de terceiro em carteira por conta (pro card do Caixa mostrar Dinheiro × Cheques) — v1.13.92
   const [checksByAccount, setChecksByAccount] = useState<Record<string, { cents: number; count: number }>>({});
   // Extrato interno por conta (clicar no card abre o modal). v1.13.96
@@ -690,11 +693,19 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
     api.get<any[]>("/finance/payment-instruments/active").then(setStmtInstruments).catch(() => {});
   }, []);
 
-  // KPIs (Resultado) por periodo selecionado — recarrega ao trocar mes/trimestre/semestre/ano/tudo. v1.13.98
+  // KPIs (Resultado) por periodo selecionado — recarrega ao trocar periodo OU as datas livres. v1.13.98
   useEffect(() => {
-    const { from, to } = kpiPeriodRange(kpiPeriod);
+    let from: string;
+    let to: string;
+    if (kpiPeriod === "custom") {
+      if (!kpiFrom || !kpiTo) return; // espera as 2 datas
+      from = kpiFrom;
+      to = kpiTo;
+    } else {
+      ({ from, to } = kpiPeriodRange(kpiPeriod));
+    }
     api.get(`/finance/dashboard?dateFrom=${from}&dateTo=${to}`).then(setDashData).catch(() => setDashData(null));
-  }, [kpiPeriod]);
+  }, [kpiPeriod, kpiFrom, kpiTo]);
 
   const reloadStatement = useCallback(() => {
     setStmtLoading(true);
@@ -811,6 +822,15 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
                 {per.label}
               </button>
             ))}
+            {kpiPeriod === "custom" && (
+              <>
+                <input type="date" value={kpiFrom} max={kpiTo || undefined} onChange={(e) => setKpiFrom(e.target.value)}
+                  className="rounded-lg border border-slate-300 px-2 py-1 text-[11px] outline-none focus:border-blue-500" />
+                <span className="text-[11px] text-slate-400">até</span>
+                <input type="date" value={kpiTo} min={kpiFrom || undefined} onChange={(e) => setKpiTo(e.target.value)}
+                  className="rounded-lg border border-slate-300 px-2 py-1 text-[11px] outline-none focus:border-blue-500" />
+              </>
+            )}
           </div>
           <div className="grid grid-cols-3 gap-3">
           {kpiCards.map((card) => (

@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import CardLast4Input from "@/components/ui/CardLast4Input";
+import CategorySelect from "@/components/finance/CategorySelect";
 
 type PostableAccount = { id: string; code: string; name: string; type: string; parent?: { id: string; code: string; name: string } };
 type PaymentMethodPM = { id: string; code: string; name: string; isActive: boolean; requiresBrand: boolean; feePercent?: number | null; receivingDays?: number | null; sortOrder: number };
@@ -101,7 +102,7 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
 
     Promise.all([
       api.get<PreviewData>(`/service-orders/${orderId}/early-financial-preview`),
-      api.get<PostableAccount[]>("/finance/accounts/postable?direction=RECEIVABLE").catch(() => []),
+      api.get<PostableAccount[]>("/finance/accounts/postable").catch(() => []),
       api.get<PaymentMethodPM[]>("/finance/payment-methods/active").catch(() => []),
       api.get<CardFeeRateItem[]>("/finance/card-fee-rates").catch(() => []),
     ]).then(([data, accounts, pms, rates]) => {
@@ -163,23 +164,15 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
     }
   }
 
-  function renderAccountSelect(value: string, onChange: (v: string) => void) {
-    const grouped = new Map<string, PostableAccount[]>();
-    for (const acc of postableAccounts) {
-      const parentName = acc.parent?.name || "Outros";
-      if (!grouped.has(parentName)) grouped.set(parentName, []);
-      grouped.get(parentName)!.push(acc);
-    }
+  // Seletor CENTRAL de categoria — direcao POR ENTRADA (receber=Receita, pagar=Custo/Despesa). v1.13.98
+  function renderAccountSelect(value: string, onChange: (v: string) => void, direction: "RECEIVABLE" | "PAYABLE") {
     return (
-      <select value={value} onChange={e => onChange(e.target.value)}
-        className="text-xs border border-slate-200 rounded px-2 py-1 bg-white focus:outline-none focus:border-blue-300 flex-1">
-        <option value="">Sem categoria</option>
-        {Array.from(grouped.entries()).map(([group, items]) => (
-          <optgroup key={group} label={group}>
-            {items.map(a => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
-          </optgroup>
-        ))}
-      </select>
+      <CategorySelect
+        direction={direction}
+        value={value}
+        onChange={onChange}
+        className="text-xs border border-slate-200 rounded px-2 py-1 bg-white focus:outline-none focus:border-blue-300 flex-1"
+      />
     );
   }
 
@@ -252,7 +245,7 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
                       </div>
                       <div className="flex items-center gap-2">
                         <label className="text-[10px] text-slate-500 w-10">Categ:</label>
-                        {renderAccountSelect(receivableAccountId, setReceivableAccountId)}
+                        {renderAccountSelect(receivableAccountId, setReceivableAccountId, "RECEIVABLE")}
                       </div>
                     </div>
                   )}
@@ -299,7 +292,7 @@ export default function EarlyFinancialModal({ open, orderId, onClose, onLaunched
                       </div>
                       <div className="flex items-center gap-2">
                         <label className="text-[10px] text-slate-500 w-10">Categ:</label>
-                        {renderAccountSelect(payableAccountId, setPayableAccountId)}
+                        {renderAccountSelect(payableAccountId, setPayableAccountId, "PAYABLE")}
                       </div>
                     </div>
                   )}
