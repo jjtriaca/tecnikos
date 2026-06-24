@@ -22,7 +22,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { RequireVerification } from '../auth/decorators/require-verification.decorator';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { UserRole } from '@prisma/client';
-import { CreateFinancialEntryDto, UpdateFinancialEntryDto, ChangeEntryStatusDto } from './dto/financial-entry.dto';
+import { CreateFinancialEntryDto, UpdateFinancialEntryDto, ChangeEntryStatusDto, PartialPayDto } from './dto/financial-entry.dto';
 import { GenerateInstallmentsDto } from './dto/generate-installments.dto';
 import { SplitCardEntryDto } from './dto/split-card-entry.dto';
 import { RenegotiateDto } from './dto/renegotiate.dto';
@@ -692,9 +692,10 @@ export class FinanceController {
     @Query('limit') limit: string | undefined,
     @Query('dateFrom') dateFrom: string | undefined,
     @Query('dateTo') dateTo: string | undefined,
+    @Query('cashAccountId') cashAccountId: string | undefined,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.service.getStatement(user.companyId, limit ? parseInt(limit, 10) : 50, dateFrom, dateTo);
+    return this.service.getStatement(user.companyId, limit ? parseInt(limit, 10) : 50, dateFrom, dateTo, cashAccountId);
   }
 
   /* ── Dashboard Financeiro ────────────────────────────────── */
@@ -877,6 +878,17 @@ export class FinanceController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.changeEntryStatus(id, user.companyId, dto);
+  }
+
+  // Receber/Pagar PARCIAL: recebe/paga parte do lancamento e cria o saldo restante. v1.13.96
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Post('entries/:id/partial-pay')
+  partialPay(
+    @Param('id') id: string,
+    @Body() dto: PartialPayDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.partialPay(id, user.companyId, dto);
   }
 
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)

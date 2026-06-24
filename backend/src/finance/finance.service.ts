@@ -3,7 +3,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CodeGeneratorService } from '../common/code-generator.service';
 import { PaginationDto, PaginatedResult } from '../common/dto/pagination.dto';
 import { buildOrderBy } from '../common/util/build-order-by';
-import { CreateFinancialEntryDto, UpdateFinancialEntryDto, ChangeEntryStatusDto } from './dto/financial-entry.dto';
+import { CreateFinancialEntryDto, UpdateFinancialEntryDto, ChangeEntryStatusDto, PartialPayDto } from './dto/financial-entry.dto';
+import { parseTenantDate } from '../common/util/tenant-date.util';
 import { RenegotiateDto } from './dto/renegotiate.dto';
 import { NfseEmissionService } from '../nfse-emission/nfse-emission.service';
 import { CardSettlementService } from './card-settlement.service';
@@ -1023,6 +1024,79 @@ export class FinanceService {
     };
   }
 
+  /* ═══════════════════════════════════════════════════════════════════
+     partialPay — Receber/Pagar PARCIAL (v1.13.96)
+     Recebe/paga `amountCents` (< total) e cria o lancamento do SALDO restante.
+     MODELO (baixo risco p/ saldo): em vez de status PARTIAL + campo paidCents (que obrigaria
+     mexer em TODO calculo de saldo/DRE/conciliacao), faz um SPLIT: reduz o ORIGINAL ao valor
+     parcial e o paga (reusa changeEntryStatus -> saldo, CardSettlement, cheque, guards) + cria
+     um lancamento novo PENDING com o resto. Sao lancamentos PAID/PENDING normais (balance-compare
+     ja sabe lidar). Vale p/ RECEIVABLE e PAYABLE.
+     ═══════════════════════════════════════════════════════════════════ */
+  async partialPay(id: string, companyId: string, dto: PartialPayDto) {
+    const entry = await this.findOneEntry(id, companyId);
+    if (!['PENDING', 'CONFIRMED'].includes(entry.status)) {
+      throw new BadRequestException('Só é possível receber/pagar parcial um lançamento em aberto.');
+    }
+    const total = entry.netCents;
+    const amount = Math.round(dto.amountCents);
+    if (amount <= 0) throw new BadRequestException('Valor parcial inválido.');
+    if (amount >= total) {
+      throw new BadRequestException('O valor parcial deve ser MENOR que o total. Para o valor cheio, use Receber/Pagar normal.');
+    }
+    const remainder = total - amount;
+    const dueDate = parseTenantDate(dto.remainderDueDate);
+    if (!dueDate) throw new BadRequestException('Informe o vencimento do saldo restante.');
+
+    // Pre-valida mes fechado (mesmo alvo que o changeEntryStatus vai usar) — evita criar o split
+    // e so entao a trava barrar o pagamento, deixando 2 lancamentos PENDING em vez de 1.
+    const targetPaidAt = dto.paidAt ? new Date(dto.paidAt) : new Date();
+    const targetAccount = dto.cashAccountId || entry.cashAccountId;
+    await this.closedMonthGuard.assertNotClosed(companyId, targetAccount, targetPaidAt, 'Receber/pagar parcial');
+
+    const brl = (c: number) => `R$ ${(c / 100).toFixed(2).replace('.', ',')}`;
+    const ts = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const code = await this.codeGenerator.generateCode(companyId, 'FINANCIAL_ENTRY');
+
+    // 1) SPLIT: cria o lancamento do RESTO (PENDING) + reduz o original ao valor parcial.
+    const remainderEntry = await this.prisma.$transaction(async (tx) => {
+      const rem = await tx.financialEntry.create({
+        data: withCreate({
+          companyId,
+          code,
+          type: entry.type,
+          status: 'PENDING',
+          description: entry.description ? `${entry.description} (saldo)` : 'Saldo restante',
+          grossCents: remainder,
+          netCents: remainder,
+          dueDate,
+          partnerId: entry.partnerId || undefined,
+          serviceOrderId: entry.serviceOrderId || undefined,
+          financialAccountId: entry.financialAccountId || undefined,
+          obraId: entry.obraId || undefined,
+          parentEntryId: entry.id,
+          notes: `[${ts}] Saldo do ${entry.type === 'RECEIVABLE' ? 'recebimento' : 'pagamento'} parcial de ${entry.code} (total ${brl(total)}, ${entry.type === 'RECEIVABLE' ? 'recebido' : 'pago'} ${brl(amount)}).`,
+        }),
+      });
+      await tx.financialEntry.update({
+        where: { id: entry.id },
+        data: withUpdate({
+          grossCents: amount,
+          netCents: amount,
+          notes: entry.notes
+            ? `${entry.notes}\n[${ts}] Parcial ${brl(amount)} de ${brl(total)}; saldo ${brl(remainder)} em ${rem.code} (venc ${dueDate.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}).`
+            : `[${ts}] Parcial ${brl(amount)} de ${brl(total)}; saldo ${brl(remainder)} em ${rem.code}.`,
+        }),
+      });
+      return rem;
+    });
+
+    // 2) Paga o ORIGINAL (agora reduzido ao valor parcial) reusando TODA a logica de PAID.
+    const paid = await this.changeEntryStatus(entry.id, companyId, { ...dto, status: 'PAID' } as ChangeEntryStatusDto);
+
+    return { paid, remainder: remainderEntry, remainderCode: remainderEntry.code };
+  }
+
   async changeEntryStatus(id: string, companyId: string, dto: ChangeEntryStatusDto) {
     const entry = await this.findOneEntry(id, companyId);
 
@@ -1623,7 +1697,7 @@ export class FinanceService {
      STATEMENT — Extrato Consolidado
      ═══════════════════════════════════════════════════════════════ */
 
-  async getStatement(companyId: string, limit = 50, dateFrom?: string, dateTo?: string) {
+  async getStatement(companyId: string, limit = 50, dateFrom?: string, dateTo?: string, cashAccountId?: string) {
     const dateFilter: any = {};
     if (dateFrom) dateFilter.gte = new Date(dateFrom);
     if (dateTo) {
@@ -1639,7 +1713,7 @@ export class FinanceService {
         companyId,
         status: 'PAID',
         deletedAt: null,
-        cashAccountId: { not: null },
+        cashAccountId: cashAccountId ? cashAccountId : { not: null },
         ...(hasDates ? { paidAt: dateFilter } : {}),
       },
       orderBy: { paidAt: 'desc' },
@@ -1657,6 +1731,7 @@ export class FinanceService {
       where: {
         companyId,
         ...(hasDates ? { transferDate: dateFilter } : {}),
+        ...(cashAccountId ? { OR: [{ fromAccountId: cashAccountId }, { toAccountId: cashAccountId }] } : {}),
       },
       orderBy: { transferDate: 'desc' },
       take: hasDates ? 500 : limit,
@@ -1666,6 +1741,8 @@ export class FinanceService {
         description: true,
         transferDate: true,
         createdAt: true,
+        fromAccountId: true,
+        toAccountId: true,
         fromAccount: { select: { name: true } },
         toAccount: { select: { name: true } },
       },
@@ -1793,39 +1870,46 @@ export class FinanceService {
       }
     }
 
-    // 4) Map transfers to TWO rows each (debit from source, credit to destination)
-    const transferRows = transfers.flatMap((t) => [
-      {
-        id: `${t.id}-from`,
-        date: t.transferDate ?? t.createdAt,
-        description: t.description || `Transferência para ${t.toAccount.name}`,
-        type: 'DEBIT' as const,
-        amountCents: -t.amountCents,
-        category: null,
-        source: 'TRANSFER',
-        partnerName: null,
-        paymentMethod: 'TRANSFERENCIA',
-        cashAccountName: t.fromAccount.name,
-        code: null,
-      },
-      {
-        id: `${t.id}-to`,
-        date: t.transferDate ?? t.createdAt,
-        description: t.description || `Transferência de ${t.fromAccount.name}`,
-        type: 'CREDIT' as const,
-        amountCents: t.amountCents,
-        category: null,
-        source: 'TRANSFER',
-        partnerName: null,
-        paymentMethod: 'TRANSFERENCIA',
-        cashAccountName: t.toAccount.name,
-        code: null,
-      },
-    ]);
+    // 4) Map transfers to TWO rows each (debit from source, credit to destination).
+    //    Filtrando por conta (extrato de 1 conta): so a perna DESTA conta entra.
+    const transferRows = transfers.flatMap((t) => {
+      const rows: any[] = [];
+      if (!cashAccountId || t.fromAccountId === cashAccountId) {
+        rows.push({
+          id: `${t.id}-from`,
+          date: t.transferDate ?? t.createdAt,
+          description: t.description || `Transferência para ${t.toAccount.name}`,
+          type: 'DEBIT' as const,
+          amountCents: -t.amountCents,
+          category: null,
+          source: 'TRANSFER',
+          partnerName: null,
+          paymentMethod: 'TRANSFERENCIA',
+          cashAccountName: t.fromAccount.name,
+          code: null,
+        });
+      }
+      if (!cashAccountId || t.toAccountId === cashAccountId) {
+        rows.push({
+          id: `${t.id}-to`,
+          date: t.transferDate ?? t.createdAt,
+          description: t.description || `Transferência de ${t.fromAccount.name}`,
+          type: 'CREDIT' as const,
+          amountCents: t.amountCents,
+          category: null,
+          source: 'TRANSFER',
+          partnerName: null,
+          paymentMethod: 'TRANSFERENCIA',
+          cashAccountName: t.toAccount.name,
+          code: null,
+        });
+      }
+      return rows;
+    });
 
     // 5) Add initial balance rows for accounts with initialBalanceCents > 0
     const cashAccounts = await this.prisma.cashAccount.findMany({
-      where: { companyId, deletedAt: null, isActive: true, initialBalanceCents: { gt: 0 } },
+      where: { companyId, deletedAt: null, isActive: true, initialBalanceCents: { gt: 0 }, ...(cashAccountId ? { id: cashAccountId } : {}) },
       select: { id: true, name: true, type: true, initialBalanceCents: true, createdAt: true },
     });
     // Use dateFrom as the initial balance date, or first day of month

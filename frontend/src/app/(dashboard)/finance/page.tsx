@@ -610,6 +610,8 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
   const [dashData, setDashData] = useState<any>(null);
   // Cheques de terceiro em carteira por conta (pro card do Caixa mostrar Dinheiro × Cheques) — v1.13.92
   const [checksByAccount, setChecksByAccount] = useState<Record<string, { cents: number; count: number }>>({});
+  // Extrato interno por conta (clicar no card abre o modal). v1.13.96
+  const [extratoAccount, setExtratoAccount] = useState<{ id: string; name: string; type: string; currentBalanceCents: number } | null>(null);
   const [statementData, setStatementData] = useState<any[]>([]);
   const [stmtDateFrom, setStmtDateFrom] = useState(() => {
     const d = new Date(); d.setDate(1);
@@ -853,7 +855,7 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
         for (const a of active.filter((a: any) => a.type === "CAIXA")) {
           const chk = checksByAccount[a.id];
           allCards.push({ id: a.id, render: () => (
-            <div className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => setExtratoAccount(a)}>
               <span className="text-[11px] font-medium text-amber-700">💰 {a.name}</span>
               <p className={`mt-0.5 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-amber-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
               {chk && chk.cents > 0 ? (
@@ -866,7 +868,7 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
         }
         for (const a of active.filter((a: any) => a.type === "BANCO")) {
           allCards.push({ id: a.id, render: () => (
-            <div className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+            <div className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => setExtratoAccount(a)}>
               <span className="text-[11px] font-medium text-blue-700">🏦 {a.name}</span>
               <p className={`mt-0.5 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-blue-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
               <p className="text-[10px] text-slate-600">Banco</p>
@@ -875,7 +877,7 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
         }
         for (const a of active.filter((a: any) => a.type === "TRANSITO")) {
           allCards.push({ id: a.id, render: () => (
-            <div className="rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+            <div className="rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => setExtratoAccount(a)}>
               <span className="text-[11px] font-medium text-purple-700">{a.name}</span>
               <p className={`mt-0.5 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-purple-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
               <p className="text-[10px] text-slate-600">Conta de passagem</p>
@@ -886,7 +888,7 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
           const debt = Math.abs(a.currentBalanceCents);
           const hasDebt = a.currentBalanceCents < 0;
           allCards.push({ id: a.id, render: () => (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => setExtratoAccount(a)}>
               <span className="text-[11px] font-medium text-rose-700">&#128179; {a.name}</span>
               <p className={`mt-0.5 text-lg font-bold ${hasDebt ? "text-rose-900" : "text-slate-500"}`}>{formatCurrency(debt)}</p>
               <p className="text-[10px] text-slate-600">{hasDebt ? "Em aberto" : "Fatura quitada"}</p>
@@ -1060,6 +1062,7 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
   };
 
   return (
+    <>
     <div className="space-y-5">
       {sectionOrder.map((sectionId) => {
         const section = sectionMap[sectionId];
@@ -1086,6 +1089,100 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
           </div>
         );
       })}
+    </div>
+    {extratoAccount && (
+      <AccountExtratoModal account={extratoAccount} onClose={() => setExtratoAccount(null)} />
+    )}
+    </>
+  );
+}
+
+/* ── Modal: Extrato interno de uma conta (movimentações + cheques em carteira) ── v1.13.96 ── */
+function AccountExtratoModal({ account, onClose }: {
+  account: { id: string; name: string; type: string; currentBalanceCents: number };
+  onClose: () => void;
+}) {
+  const [movements, setMovements] = useState<any[]>([]);
+  const [wallet, setWallet] = useState<{ cashCents: number; checksCents: number; checks: any[] } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    const tasks: Promise<any>[] = [
+      api.get<any[]>(`/finance/statement?cashAccountId=${account.id}&limit=100`).catch(() => []),
+    ];
+    if (account.type === "CAIXA") {
+      tasks.push(api.get<any>(`/finance/cash-accounts/${account.id}/checks-in-wallet`).catch(() => null));
+    }
+    Promise.all(tasks).then(([mov, w]) => {
+      setMovements((mov as any[]) || []);
+      setWallet((w as any) || null);
+    }).finally(() => setLoading(false));
+  }, [account.id, account.type]);
+
+  const typeLabel = account.type === "CAIXA" ? "Caixa" : account.type === "BANCO" ? "Banco"
+    : account.type === "TRANSITO" ? "Trânsito" : account.type === "CARTAO_CREDITO" ? "Cartão" : account.type;
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="relative flex w-full max-w-lg max-h-[85vh] flex-col overflow-hidden rounded-2xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-slate-200">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="text-base font-bold text-slate-900">{account.name}</h3>
+              <p className="text-[11px] text-slate-500">Extrato · {typeLabel}</p>
+            </div>
+            <button onClick={onClose} className="text-2xl leading-none text-slate-400 hover:text-slate-600">&times;</button>
+          </div>
+          <div className="mt-2 flex flex-wrap items-baseline gap-2">
+            <span className={`text-2xl font-bold ${account.currentBalanceCents >= 0 ? "text-slate-900" : "text-red-600"}`}>{formatCurrency(account.currentBalanceCents)}</span>
+            {wallet && wallet.checksCents > 0 && (
+              <span className="text-[11px] text-slate-500">Dinheiro {formatCurrency(wallet.cashCents)} · <span className="font-medium text-amber-700">Cheques {formatCurrency(wallet.checksCents)}</span></span>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4 overflow-y-auto px-5 py-4">
+          {wallet && wallet.checks.length > 0 && (
+            <div>
+              <h4 className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">Cheques em carteira ({wallet.checks.length})</h4>
+              <div className="space-y-1">
+                {wallet.checks.map((c: any) => (
+                  <div key={c.key} className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs">
+                    <span className="truncate text-slate-700">
+                      {c.checkNumber ? `Cheque ${c.checkNumber}` : "Cheque"}{c.checkBank ? ` · ${c.checkBank}` : ""}{c.partnerName ? ` · ${c.partnerName}` : ""}{c.count > 1 ? ` · ${c.count} lanç.` : ""}
+                    </span>
+                    <span className="ml-2 whitespace-nowrap font-semibold text-slate-800">{formatCurrency(c.netCents)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <h4 className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Movimentações recentes</h4>
+            {loading ? (
+              <p className="text-xs text-slate-400">Carregando...</p>
+            ) : movements.length === 0 ? (
+              <p className="text-xs text-slate-400">Sem movimentações.</p>
+            ) : (
+              <div className="space-y-1">
+                {movements.map((m: any) => (
+                  <div key={m.id} className="flex items-center justify-between gap-2 border-b border-slate-100 py-1.5 text-xs">
+                    <div className="min-w-0">
+                      <p className="truncate text-slate-700">{m.description || "—"}</p>
+                      <p className="text-[10px] text-slate-400">{formatDate(m.date)}{m.code ? ` · ${m.code}` : ""}{m.partnerName ? ` · ${m.partnerName}` : ""}</p>
+                    </div>
+                    <span className={`whitespace-nowrap font-semibold ${m.amountCents >= 0 ? "text-green-700" : "text-red-600"}`}>
+                      {m.amountCents >= 0 ? "+" : ""}{formatCurrency(m.amountCents)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1311,6 +1408,9 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
   // State for category in pay modal
   const [payAccountId, setPayAccountId] = useState("");
   const [payDate, setPayDate] = useState("");
+  // Receber/Pagar PARCIAL (v1.13.96): valor recebido/pago + vencimento do saldo restante
+  const [payAmount, setPayAmount] = useState("");
+  const [partialDueDate, setPartialDueDate] = useState("");
 
   /**
    * Auto-seleciona a Conta/Caixa baseado no Meio de Pagamento.
@@ -1360,9 +1460,11 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
     } else {
       setPayAccountId("");
     }
-    // Default pay date to today
+    // Default pay date to today + valor cheio (parcial começa no total) + limpa venc. do resto
     if (payAction) {
       setPayDate(new Date().toISOString().slice(0, 10));
+      setPayAmount((payAction.entry.netCents / 100).toFixed(2).replace(".", ","));
+      setPartialDueDate("");
     }
   }, [payAction, activeAccounts, postableAccounts]);
 
@@ -1478,9 +1580,20 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
       // RECEIVABLE com cartao: backend cria CardSettlement e gerencia a conta via settle
       // PAYABLE com cartao ou nao-cartao: passa cashAccountId pra debitar saldo direto
       const isReceivableCard = isCard && type === "RECEIVABLE";
-      // Pagamento pessoa fisica: skipCashAccount=true pula CardSettlement, fallback e update de saldo
-      await api.patch(`/finance/entries/${entry.id}/status`, {
-        status: action,
+      // Parcial (v1.13.96): bloqueios antes de enviar
+      if (payExceeds) {
+        toast(`O valor não pode ser maior que o total (${formatCurrency(entry.netCents)}).`, "error");
+        setActionLoading(null);
+        return;
+      }
+      if (payIsPartial && !partialDueDate) {
+        toast("Informe o vencimento do saldo restante.", "error");
+        setActionLoading(null);
+        return;
+      }
+      // Corpo de pagamento comum (forma, conta, cheque, cartao). Pagamento pessoa fisica:
+      // skipCashAccount=true pula CardSettlement, fallback e update de saldo.
+      const paymentBody = {
         paymentMethod,
         paidAt: payDate || undefined,
         cardBrand: isCard && selectedCardRate ? selectedCardRate.brand : undefined,
@@ -1497,9 +1610,20 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
           checkClearanceDate: checkClearanceDate || undefined,
           checkHolder: checkHolder || undefined,
         }),
-      });
-      const labels: Record<string, string> = { PAID: type === "RECEIVABLE" ? "recebida" : "paga" };
-      toast(`Entrada ${labels[action]} com sucesso!`, "success");
+      };
+      if (payIsPartial) {
+        const r = await api.post<{ remainderCode?: string }>(`/finance/entries/${entry.id}/partial-pay`, {
+          status: "PAID",
+          amountCents: payAmountCents,
+          remainderDueDate: partialDueDate,
+          ...paymentBody,
+        });
+        toast(`${type === "RECEIVABLE" ? "Recebido" : "Pago"} ${formatCurrency(payAmountCents)} — saldo de ${formatCurrency(payRemainderCents)} ficou em aberto${r?.remainderCode ? ` (${r.remainderCode})` : ""}.`, "success");
+      } else {
+        await api.patch(`/finance/entries/${entry.id}/status`, { status: action, ...paymentBody });
+        const labels: Record<string, string> = { PAID: type === "RECEIVABLE" ? "recebida" : "paga" };
+        toast(`Entrada ${labels[action]} com sucesso!`, "success");
+      }
       setPayAction(null);
       setPaymentMethod("");
       setSelectedCardRateId("");
@@ -1507,13 +1631,15 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
       setSelectedInstrumentId("");
       setPayAccountId("");
       setPayDate("");
+      setPayAmount("");
+      setPartialDueDate("");
       setAvailableInstruments([]);
       setShowManualPayable(false);
       setPayUpdateFinancials(true);
       setCheckNumber(""); setCheckBank(""); setCheckAgency(""); setCheckAccount(""); setCheckClearanceDate(""); setCheckHolder("");
       await loadEntries();
-    } catch {
-      toast("Erro ao atualizar status.", "error");
+    } catch (err: any) {
+      toast(err?.response?.data?.message || err?.message || "Erro ao atualizar status.", "error");
     } finally {
       setActionLoading(null);
     }
@@ -1614,6 +1740,11 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
   const endorseSelGroups = walletChecksAll.filter((g) => g.entryIds.every((id) => selectedEndorseIds.has(id)));
   const endorseTotal = endorseSelGroups.reduce((s, g) => s + g.netCents, 0);
   const endorseDiff = payAction?.entry.netCents != null ? endorseTotal - payAction.entry.netCents : 0;
+  // Parcial: valor digitado em centavos + se é menor que o total (resto fica em aberto)
+  const payAmountCents = payAction ? Math.round((parseFloat(payAmount.replace(/\./g, "").replace(",", ".")) || 0) * 100) : 0;
+  const payIsPartial = !!payAction && !payWithCheck && payAmountCents > 0 && payAmountCents < payAction.entry.netCents;
+  const payRemainderCents = payAction ? Math.max(0, payAction.entry.netCents - payAmountCents) : 0;
+  const payExceeds = !!payAction && payAmountCents > payAction.entry.netCents;
   const selectedEntries = entries.filter(e => selectedIds.has(e.id));
   const selectedTotal = selectedEntries.reduce((sum, e) => sum + e.netCents, 0);
   const selectableEntries = entries.filter(e => e.status === "PENDING" || e.status === "CONFIRMED");
@@ -2117,6 +2248,45 @@ function EntriesTab({ type, sysConfig }: { type: FinancialEntryType; sysConfig?:
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                 />
               </div>
+
+              {/* Valor a receber/pagar — permite PARCIAL (resto fica em aberto). Some no repasse de cheque. v1.13.96 */}
+              {!payWithCheck && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">
+                    Valor a {type === "RECEIVABLE" ? "receber" : "pagar"}
+                    <span className="text-slate-400"> · total {formatCurrency(payAction.entry.netCents)}</span>
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-500">R$</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={payAmount}
+                      onChange={(e) => setPayAmount(e.target.value.replace(/[^\d.,]/g, ""))}
+                      className={`w-full rounded-lg border px-3 py-2 pl-8 text-sm text-right outline-none focus:ring-1 ${payExceeds ? "border-red-400 focus:border-red-500 focus:ring-red-500" : "border-slate-300 focus:border-blue-500 focus:ring-blue-500"}`}
+                    />
+                  </div>
+                  {payExceeds && (
+                    <p className="mt-1 text-xs text-red-600">O valor não pode ser maior que o total ({formatCurrency(payAction.entry.netCents)}).</p>
+                  )}
+                  {payIsPartial && (
+                    <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+                      <p className="text-xs text-amber-800">
+                        Parcial: o resto de <strong>{formatCurrency(payRemainderCents)}</strong> vai ficar <strong>{type === "RECEIVABLE" ? "a receber" : "a pagar"}</strong> num novo lançamento.
+                      </p>
+                      <div>
+                        <label className="block text-[10px] font-medium text-amber-800 mb-0.5">Vencimento do saldo restante *</label>
+                        <input
+                          type="date"
+                          value={partialDueDate}
+                          onChange={(e) => setPartialDueDate(e.target.value)}
+                          className="w-full rounded-lg border border-amber-300 px-3 py-2 text-sm focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none bg-white"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Repasse: pagar a conta com cheque de terceiro em carteira (só PAYABLE) — v1.13.91 */}
               {type === "PAYABLE" && (

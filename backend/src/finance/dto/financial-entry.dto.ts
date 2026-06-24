@@ -216,3 +216,19 @@ export class ChangeEntryStatusDto {
   @IsBoolean()
   skipCashAccount?: boolean;
 }
+
+/**
+ * Receber/Pagar PARCIAL: recebe/paga `amountCents` (menor que o total) e cria um lancamento do
+ * SALDO restante ("a receber"/"a pagar") com vencimento `remainderDueDate`. Reusa os campos de
+ * pagamento do ChangeEntryStatusDto (forma, conta, cheque, cartao...). v1.13.96
+ */
+export class PartialPayDto extends ChangeEntryStatusDto {
+  // Valor PARCIAL recebido/pago — deve ser MENOR que o total (netCents) do lancamento.
+  @IsInt()
+  @Min(1)
+  amountCents: number;
+
+  // Vencimento do lancamento do SALDO restante (YYYY-MM-DD), informado pelo operador.
+  @IsString()
+  remainderDueDate: string;
+}
