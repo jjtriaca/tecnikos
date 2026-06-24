@@ -88,7 +88,7 @@ function toDateInputValue(dateStr?: string | null) {
 
 /* ── Tab definitions ───────────────────────────────────── */
 
-type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "cartoes" | "contas" | "conciliacao" | "formas" | "instrumentos" | "cobranca" | "plano" | "taxas";
+type TabId = "resumo" | "receber" | "pagar" | "parcelas" | "cartoes" | "contas" | "conciliacao" | "formas" | "instrumentos" | "cobranca" | "plano" | "taxas" | "cheques";
 
 const MAIN_TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "resumo", label: "Resumo", icon: "📊" },
@@ -107,6 +107,7 @@ const CADASTRO_TABS: { id: TabId; label: string; icon: string }[] = [
   // Meio de Pagamento (secao "Taxas de parcelamento" no form).
   // Admin pode acessar via URL direta /finance?tab=formas ou /finance?tab=taxas se precisar customizar.
   { id: "instrumentos", label: "Meios de Pagamento e Recebimento", icon: "💳" },
+  { id: "cheques", label: "Cheques", icon: "🧾" },
   { id: "cobranca", label: "Regras de Cobrança", icon: "⚡" },
   { id: "plano", label: "Plano de Contas", icon: "📋" },
 ];
@@ -578,6 +579,7 @@ export default function FinancePage() {
       {activeTab === "taxas" && <CardFeeRatesTab />}
       {activeTab === "cobranca" && <CollectionRulesTab />}
       {activeTab === "plano" && <AccountsTab />}
+      {activeTab === "cheques" && <ChecksRegistryTab />}
     </div>
   );
 }
@@ -858,17 +860,13 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => setExtratoAccount(a)}>
               <span className="text-[11px] font-medium text-amber-700">💰 {a.name}</span>
               <p className={`mt-0.5 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-amber-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
-              {chk && chk.cents > 0 ? (
-                <p className="text-[10px] text-slate-600">Dinheiro {formatCurrency(a.currentBalanceCents - chk.cents)} · <span className="font-medium text-amber-700">Cheques {formatCurrency(chk.cents)} ({chk.count})</span></p>
-              ) : (
-                <p className="text-[10px] text-slate-600">Caixa</p>
-              )}
+              <p className="text-[10px] text-slate-600">Dinheiro {formatCurrency(a.currentBalanceCents - (chk?.cents || 0))} · <span className="font-medium text-amber-700">Cheques {formatCurrency(chk?.cents || 0)}{chk && chk.count > 0 ? ` (${chk.count})` : ""}</span></p>
             </div>
           )});
         }
         for (const a of active.filter((a: any) => a.type === "BANCO")) {
           allCards.push({ id: a.id, render: () => (
-            <div className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => setExtratoAccount(a)}>
+            <div className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
               <span className="text-[11px] font-medium text-blue-700">🏦 {a.name}</span>
               <p className={`mt-0.5 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-blue-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
               <p className="text-[10px] text-slate-600">Banco</p>
@@ -877,7 +875,7 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
         }
         for (const a of active.filter((a: any) => a.type === "TRANSITO")) {
           allCards.push({ id: a.id, render: () => (
-            <div className="rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => setExtratoAccount(a)}>
+            <div className="rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
               <span className="text-[11px] font-medium text-purple-700">{a.name}</span>
               <p className={`mt-0.5 text-lg font-bold ${a.currentBalanceCents >= 0 ? "text-purple-900" : "text-red-700"}`}>{formatCurrency(a.currentBalanceCents)}</p>
               <p className="text-[10px] text-slate-600">Conta de passagem</p>
@@ -888,7 +886,7 @@ function SummaryTab({ onNavigateTab }: { onNavigateTab?: (tab: TabId) => void })
           const debt = Math.abs(a.currentBalanceCents);
           const hasDebt = a.currentBalanceCents < 0;
           allCards.push({ id: a.id, render: () => (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => setExtratoAccount(a)}>
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => onNavigateTab?.("contas")}>
               <span className="text-[11px] font-medium text-rose-700">&#128179; {a.name}</span>
               <p className={`mt-0.5 text-lg font-bold ${hasDebt ? "text-rose-900" : "text-slate-500"}`}>{formatCurrency(debt)}</p>
               <p className="text-[10px] text-slate-600">{hasDebt ? "Em aberto" : "Fatura quitada"}</p>
@@ -1102,85 +1100,239 @@ function AccountExtratoModal({ account, onClose }: {
   account: { id: string; name: string; type: string; currentBalanceCents: number };
   onClose: () => void;
 }) {
-  const [movements, setMovements] = useState<any[]>([]);
   const [wallet, setWallet] = useState<{ cashCents: number; checksCents: number; checks: any[] } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
-    const tasks: Promise<any>[] = [
-      api.get<any[]>(`/finance/statement?cashAccountId=${account.id}&limit=100`).catch(() => []),
-    ];
-    if (account.type === "CAIXA") {
-      tasks.push(api.get<any>(`/finance/cash-accounts/${account.id}/checks-in-wallet`).catch(() => null));
-    }
-    Promise.all(tasks).then(([mov, w]) => {
-      setMovements((mov as any[]) || []);
-      setWallet((w as any) || null);
-    }).finally(() => setLoading(false));
-  }, [account.id, account.type]);
+    api.get<any>(`/finance/cash-accounts/${account.id}/checks-in-wallet`)
+      .then((w) => setWallet(w || null))
+      .catch(() => setWallet(null))
+      .finally(() => setLoading(false));
+  }, [account.id]);
 
-  const typeLabel = account.type === "CAIXA" ? "Caixa" : account.type === "BANCO" ? "Banco"
-    : account.type === "TRANSITO" ? "Trânsito" : account.type === "CARTAO_CREDITO" ? "Cartão" : account.type;
+  const cashCents = wallet ? wallet.cashCents : account.currentBalanceCents;
+  const checksCents = wallet ? wallet.checksCents : 0;
+  const checks: any[] = wallet?.checks || [];
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="relative flex w-full max-w-lg max-h-[85vh] flex-col overflow-hidden rounded-2xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="relative flex w-full max-w-md max-h-[85vh] flex-col overflow-hidden rounded-2xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="px-5 py-4 border-b border-slate-200">
           <div className="flex items-start justify-between">
             <div>
               <h3 className="text-base font-bold text-slate-900">{account.name}</h3>
-              <p className="text-[11px] text-slate-500">Extrato · {typeLabel}</p>
+              <p className="text-[11px] text-slate-500">Composição do caixa</p>
             </div>
             <button onClick={onClose} className="text-2xl leading-none text-slate-400 hover:text-slate-600">&times;</button>
           </div>
-          <div className="mt-2 flex flex-wrap items-baseline gap-2">
-            <span className={`text-2xl font-bold ${account.currentBalanceCents >= 0 ? "text-slate-900" : "text-red-600"}`}>{formatCurrency(account.currentBalanceCents)}</span>
-            {wallet && wallet.checksCents > 0 && (
-              <span className="text-[11px] text-slate-500">Dinheiro {formatCurrency(wallet.cashCents)} · <span className="font-medium text-amber-700">Cheques {formatCurrency(wallet.checksCents)}</span></span>
-            )}
-          </div>
+          <p className={`mt-2 text-2xl font-bold ${account.currentBalanceCents >= 0 ? "text-slate-900" : "text-red-600"}`}>{formatCurrency(account.currentBalanceCents)}</p>
         </div>
 
-        <div className="space-y-4 overflow-y-auto px-5 py-4">
-          {wallet && wallet.checks.length > 0 && (
-            <div>
-              <h4 className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">Cheques em carteira ({wallet.checks.length})</h4>
-              <div className="space-y-1">
-                {wallet.checks.map((c: any) => (
-                  <div key={c.key} className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs">
-                    <span className="truncate text-slate-700">
-                      {c.checkNumber ? `Cheque ${c.checkNumber}` : "Cheque"}{c.checkBank ? ` · ${c.checkBank}` : ""}{c.partnerName ? ` · ${c.partnerName}` : ""}{c.count > 1 ? ` · ${c.count} lanç.` : ""}
-                    </span>
-                    <span className="ml-2 whitespace-nowrap font-semibold text-slate-800">{formatCurrency(c.netCents)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+        <div className="space-y-3 overflow-y-auto px-5 py-4">
+          {/* Dinheiro */}
+          <div className="flex items-center justify-between rounded-lg border border-green-200 bg-green-50 px-3 py-2.5">
+            <span className="text-sm font-medium text-green-800">&#128181; Dinheiro</span>
+            <span className="text-sm font-bold text-green-800">{formatCurrency(cashCents)}</span>
+          </div>
 
-          <div>
-            <h4 className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Movimentações recentes</h4>
+          {/* Cheques em carteira */}
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-amber-800">&#129534; Cheques em carteira{checks.length > 0 ? ` (${checks.length})` : ""}</span>
+              <span className="text-sm font-bold text-amber-800">{formatCurrency(checksCents)}</span>
+            </div>
             {loading ? (
-              <p className="text-xs text-slate-400">Carregando...</p>
-            ) : movements.length === 0 ? (
-              <p className="text-xs text-slate-400">Sem movimentações.</p>
+              <p className="mt-2 text-xs text-slate-400">Carregando...</p>
+            ) : checks.length === 0 ? (
+              <p className="mt-1 text-[11px] text-amber-700/80">Nenhum cheque no caixa.</p>
             ) : (
-              <div className="space-y-1">
-                {movements.map((m: any) => (
-                  <div key={m.id} className="flex items-center justify-between gap-2 border-b border-slate-100 py-1.5 text-xs">
+              <div className="mt-2 space-y-1">
+                {checks.map((c: any) => (
+                  <div key={c.key} className="flex items-center justify-between gap-2 rounded-md bg-white/70 px-2 py-1.5 text-xs">
                     <div className="min-w-0">
-                      <p className="truncate text-slate-700">{m.description || "—"}</p>
-                      <p className="text-[10px] text-slate-400">{formatDate(m.date)}{m.code ? ` · ${m.code}` : ""}{m.partnerName ? ` · ${m.partnerName}` : ""}</p>
+                      <p className="truncate font-medium text-slate-700">
+                        {c.checkNumber ? `Cheque ${c.checkNumber}` : "Cheque"}{c.checkBank ? ` · ${c.checkBank}` : ""}{c.count > 1 ? ` · ${c.count} lanç.` : ""}
+                      </p>
+                      <p className="text-[10px] text-slate-400">
+                        {c.partnerName || "—"}{c.receivedAt ? ` · recebido ${formatDate(c.receivedAt)}` : ""}
+                      </p>
                     </div>
-                    <span className={`whitespace-nowrap font-semibold ${m.amountCents >= 0 ? "text-green-700" : "text-red-600"}`}>
-                      {m.amountCents >= 0 ? "+" : ""}{formatCurrency(m.amountCents)}
-                    </span>
+                    <span className="whitespace-nowrap font-semibold text-slate-800">{formatCurrency(c.netCents)}</span>
                   </div>
                 ))}
               </div>
             )}
           </div>
+
+          <p className="text-[10px] text-slate-400">Histórico completo dos cheques em Cadastros → Cheques.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
+   TAB: CADASTRO DE CHEQUES (v1.13.97)
+   ══════════════════════════════════════════════════════════ */
+
+const CHECK_STATUS_CFG: Record<string, { label: string; cls: string }> = {
+  EM_CARTEIRA: { label: "Em carteira", cls: "bg-amber-100 text-amber-700 border-amber-200" },
+  DEPOSITADO: { label: "Depositado · a compensar", cls: "bg-blue-100 text-blue-700 border-blue-200" },
+  COMPENSADO: { label: "Compensado", cls: "bg-green-100 text-green-700 border-green-200" },
+  REPASSADO: { label: "Repassado", cls: "bg-purple-100 text-purple-700 border-purple-200" },
+  DEVOLVIDO: { label: "Devolvido", cls: "bg-red-100 text-red-700 border-red-200" },
+};
+
+function ChecksRegistryTab() {
+  const { toast } = useToast();
+  const [checks, setChecks] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState("ALL");
+  const [search, setSearch] = useState("");
+  const [editing, setEditing] = useState<any | null>(null);
+
+  const load = useCallback(() => {
+    setLoading(true);
+    const p = new URLSearchParams();
+    if (status !== "ALL") p.set("status", status);
+    if (search.trim()) p.set("search", search.trim());
+    api.get<any[]>(`/finance/checks?${p.toString()}`)
+      .then((r) => setChecks(r || []))
+      .catch(() => setChecks([]))
+      .finally(() => setLoading(false));
+  }, [status, search]);
+
+  useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t); }, [load]);
+
+  const fmt = (d: string | null) => (d ? formatDate(d) : "—");
+
+  return (
+    <div>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar nº, banco, titular ou parceiro..."
+          className="flex-1 min-w-[200px] rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+        />
+        <select value={status} onChange={(e) => setStatus(e.target.value)}
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white outline-none focus:border-blue-500">
+          <option value="ALL">Todos os status</option>
+          <option value="EM_CARTEIRA">Em carteira</option>
+          <option value="DEPOSITADO">Depositado (a compensar)</option>
+          <option value="COMPENSADO">Compensado</option>
+          <option value="REPASSADO">Repassado</option>
+          <option value="DEVOLVIDO">Devolvido</option>
+        </select>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+              <th className="px-4 py-3">Cheque</th>
+              <th className="px-4 py-3">Parceiro</th>
+              <th className="px-4 py-3 text-right">Valor</th>
+              <th className="px-4 py-3 text-center">Status</th>
+              <th className="px-4 py-3 whitespace-nowrap">Recebido</th>
+              <th className="px-4 py-3 whitespace-nowrap">Saída</th>
+              <th className="px-4 py-3 whitespace-nowrap">Compensação</th>
+              <th className="px-4 py-3 whitespace-nowrap">Devolução</th>
+              <th className="px-4 py-3 text-center">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-slate-400">Carregando...</td></tr>
+            ) : checks.length === 0 ? (
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-slate-400">Nenhum cheque encontrado.</td></tr>
+            ) : (
+              checks.map((c) => {
+                const cfg = CHECK_STATUS_CFG[c.status] || { label: c.status, cls: "bg-slate-100 text-slate-600 border-slate-200" };
+                return (
+                  <tr key={c.key} className="border-b border-slate-100 hover:bg-slate-50">
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-slate-800">{c.checkNumber ? `Cheque ${c.checkNumber}` : "Cheque s/ número"}{c.count > 1 ? ` · ${c.count} lanç.` : ""}</p>
+                      <p className="text-xs text-slate-500">{c.checkBank || "—"}{c.checkHolder ? ` · ${c.checkHolder}` : ""}</p>
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">{c.partnerName || "—"}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-slate-800 whitespace-nowrap">{formatCurrency(c.netCents)}</td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${cfg.cls}`}>{cfg.label}</span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{fmt(c.receivedAt)}</td>
+                    <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{c.checkOutAt ? `${fmt(c.checkOutAt)}${c.checkOutKind === "ENDORSE" ? " (repasse)" : ""}` : "—"}</td>
+                    <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap">{fmt(c.checkClearedAt)}</td>
+                    <td className="px-4 py-3 text-xs whitespace-nowrap"><span className={c.checkReturnedAt ? "text-red-600 font-medium" : "text-slate-600"}>{fmt(c.checkReturnedAt)}</span></td>
+                    <td className="px-4 py-3 text-center">
+                      <button onClick={() => setEditing(c)} className="rounded border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-100">Editar</button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {editing && (
+        <CheckEditModal check={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} toast={toast} />
+      )}
+    </div>
+  );
+}
+
+function CheckEditModal({ check, onClose, onSaved, toast }: {
+  check: any; onClose: () => void; onSaved: () => void; toast: (m: string, t?: "success" | "error" | "info") => void;
+}) {
+  const [num, setNum] = useState(check.checkNumber || "");
+  const [bank, setBank] = useState(check.checkBank || "");
+  const [holder, setHolder] = useState(check.checkHolder || "");
+  const [agency, setAgency] = useState(check.checkAgency || "");
+  const [acc, setAcc] = useState(check.checkAccount || "");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.patch("/finance/checks/info", {
+        entryIds: check.entryIds,
+        checkNumber: num, checkBank: bank, checkHolder: holder, checkAgency: agency, checkAccount: acc,
+      });
+      toast("Cheque atualizado.", "success");
+      onSaved();
+    } catch (err: any) {
+      toast(err?.response?.data?.message || "Erro ao salvar cheque.", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-2xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-slate-200">
+          <h3 className="text-base font-bold text-slate-900">Editar cheque</h3>
+          <p className="text-[11px] text-slate-500">Corrige os dados em {check.count > 1 ? `${check.count} lançamentos` : "1 lançamento"} deste cheque.</p>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="block text-xs font-medium text-slate-600 mb-1">Número</label>
+              <input value={num} onChange={(e) => setNum(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" /></div>
+            <div><label className="block text-xs font-medium text-slate-600 mb-1">Banco</label>
+              <input value={bank} onChange={(e) => setBank(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" /></div>
+            <div><label className="block text-xs font-medium text-slate-600 mb-1">Agência</label>
+              <input value={agency} onChange={(e) => setAgency(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" /></div>
+            <div><label className="block text-xs font-medium text-slate-600 mb-1">Conta</label>
+              <input value={acc} onChange={(e) => setAcc(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" /></div>
+          </div>
+          <div><label className="block text-xs font-medium text-slate-600 mb-1">Titular / Emitente</label>
+            <input value={holder} onChange={(e) => setHolder(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500" /></div>
+        </div>
+        <div className="px-5 py-3 border-t border-slate-200 flex justify-end gap-2">
+          <button onClick={onClose} disabled={saving} className="rounded-lg px-4 py-2 text-sm text-slate-600 hover:bg-slate-100">Cancelar</button>
+          <button onClick={save} disabled={saving} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">{saving ? "Salvando..." : "Salvar"}</button>
         </div>
       </div>
     </div>

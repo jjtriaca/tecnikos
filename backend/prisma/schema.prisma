@@ -941,6 +941,9 @@ model FinancialEntry {
   // Devolucao (sem fundo) — v1.13.93. Cheque depositado que VOLTOU: a trilha Caixa->Compensar->Banco
   // e desfeita ao contrario, o lancamento volta pra "a receber" e o cheque fica marcado devolvido aqui.
   checkReturnedAt DateTime? // quando o cheque foi devolvido (null = nao devolvido)
+  // Compensacao (v1.13.97): data em que o deposito do cheque caiu no banco — pega automaticamente
+  // do extrato quando o deposito "Cheques a Compensar"->Banco e conciliado (matchAsTransfer).
+  checkClearedAt  DateTime? // quando o cheque depositado compensou no banco (null = ainda nao compensou)
 
   // Parcelas e Juros (v2.0)
   installmentCount    Int? // Nro de parcelas (null = à vista)

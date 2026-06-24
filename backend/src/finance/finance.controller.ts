@@ -279,6 +279,28 @@ export class FinanceController {
     return this.cashAccountService.getDepositedChecks(user.companyId);
   }
 
+  // Cadastro de cheques: TODOS os cheques recebidos (qualquer status) + linha do tempo. v1.13.97
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Get('checks')
+  getChecksRegistry(
+    @Query('status') status: string | undefined,
+    @Query('search') search: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.cashAccountService.getChecksRegistry(user.companyId, { status, search });
+  }
+
+  // Editar dados do cheque (numero/banco/titular/agencia/conta) em todos os lancamentos do cheque. v1.13.97
+  @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
+  @Patch('checks/info')
+  updateCheckInfo(
+    @Body() body: { entryIds: string[]; checkNumber?: string; checkBank?: string; checkHolder?: string; checkAgency?: string; checkAccount?: string },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const { entryIds, ...data } = body || ({} as any);
+    return this.cashAccountService.updateCheckInfo(user.companyId, entryIds, data);
+  }
+
   @Roles(UserRole.ADMIN, UserRole.FINANCEIRO)
   @Post('cash-accounts')
   createCashAccount(

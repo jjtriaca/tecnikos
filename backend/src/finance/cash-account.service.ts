@@ -92,6 +92,7 @@ export class CashAccountService {
       netCents: number;
       entryIds: string[];
       count: number;
+      receivedAt: Date | null;
     };
     const groups = new Map<string, Group>();
     for (const e of entries) {
@@ -112,6 +113,7 @@ export class CashAccountService {
           netCents: e.netCents,
           entryIds: [e.id],
           count: 1,
+          receivedAt: e.paidAt ?? null,
         });
       }
     }
@@ -124,6 +126,101 @@ export class CashAccountService {
       cashCents: account.currentBalanceCents - checksCents,
       checks: Array.from(groups.values()),
     };
+  }
+
+  /**
+   * Cadastro de CHEQUES (v1.13.97) — TODOS os cheques de terceiro recebidos (qualquer status),
+   * agrupados por cheque fisico (numero+banco), com status derivado + linha do tempo de datas.
+   * Status: EM_CARTEIRA | DEPOSITADO (a compensar) | COMPENSADO | REPASSADO | DEVOLVIDO.
+   */
+  async getChecksRegistry(companyId: string, opts?: { status?: string; search?: string }) {
+    const entries = await this.prisma.financialEntry.findMany({
+      where: { companyId, deletedAt: null, paymentMethod: 'CHEQUE', type: 'RECEIVABLE' },
+      select: {
+        id: true, code: true, netCents: true, paidAt: true,
+        checkNumber: true, checkBank: true, checkHolder: true, checkAgency: true, checkAccount: true,
+        checkOutAt: true, checkOutKind: true, checkClearedAt: true, checkReturnedAt: true,
+        partner: { select: { name: true } },
+        cashAccountRef: { select: { name: true } },
+      },
+      orderBy: { paidAt: 'desc' },
+    });
+
+    type G = {
+      key: string; entryIds: string[]; count: number; netCents: number;
+      checkNumber: string | null; checkBank: string | null; checkHolder: string | null;
+      checkAgency: string | null; checkAccount: string | null;
+      partnerName: string | null; cashAccountName: string | null;
+      receivedAt: Date | null; checkOutAt: Date | null; checkOutKind: string | null;
+      checkClearedAt: Date | null; checkReturnedAt: Date | null;
+    };
+    const groups = new Map<string, G>();
+    for (const e of entries) {
+      const key = e.checkNumber ? `${e.checkNumber}|${e.checkBank ?? ''}` : `__${e.id}`;
+      let g = groups.get(key);
+      if (!g) {
+        g = {
+          key, entryIds: [], count: 0, netCents: 0,
+          checkNumber: e.checkNumber, checkBank: e.checkBank, checkHolder: e.checkHolder,
+          checkAgency: e.checkAgency, checkAccount: e.checkAccount,
+          partnerName: e.partner?.name ?? null, cashAccountName: e.cashAccountRef?.name ?? null,
+          receivedAt: e.paidAt, checkOutAt: e.checkOutAt, checkOutKind: e.checkOutKind,
+          checkClearedAt: e.checkClearedAt, checkReturnedAt: e.checkReturnedAt,
+        };
+        groups.set(key, g);
+      }
+      g.entryIds.push(e.id);
+      g.count += 1;
+      g.netCents += e.netCents;
+      // datas de ciclo: o cheque fisico move junto; preenche de qualquer entry nao-nula
+      if (!g.checkOutAt && e.checkOutAt) { g.checkOutAt = e.checkOutAt; g.checkOutKind = e.checkOutKind; }
+      if (!g.checkClearedAt && e.checkClearedAt) g.checkClearedAt = e.checkClearedAt;
+      if (!g.checkReturnedAt && e.checkReturnedAt) g.checkReturnedAt = e.checkReturnedAt;
+    }
+
+    const statusOf = (g: G): string => {
+      if (g.checkReturnedAt) return 'DEVOLVIDO';
+      if (g.checkOutKind === 'ENDORSE') return 'REPASSADO';
+      if (g.checkOutKind === 'DEPOSIT') return g.checkClearedAt ? 'COMPENSADO' : 'DEPOSITADO';
+      return 'EM_CARTEIRA';
+    };
+
+    let list = [...groups.values()].map((g) => ({ ...g, status: statusOf(g) }));
+    if (opts?.status && opts.status !== 'ALL') {
+      list = list.filter((g) => g.status === opts.status);
+    }
+    if (opts?.search) {
+      const q = opts.search.toLowerCase().trim();
+      list = list.filter((g) =>
+        (g.checkNumber ?? '').toLowerCase().includes(q) ||
+        (g.checkBank ?? '').toLowerCase().includes(q) ||
+        (g.checkHolder ?? '').toLowerCase().includes(q) ||
+        (g.partnerName ?? '').toLowerCase().includes(q),
+      );
+    }
+    return list;
+  }
+
+  /**
+   * Edita os dados do cheque (numero/banco/titular/agencia/conta) em TODOS os lancamentos do
+   * cheque fisico (entryIds). Correcao de cadastro. v1.13.97
+   */
+  async updateCheckInfo(
+    companyId: string,
+    entryIds: string[],
+    data: { checkNumber?: string; checkBank?: string; checkHolder?: string; checkAgency?: string; checkAccount?: string },
+  ) {
+    if (!entryIds?.length) throw new BadRequestException('Nenhum cheque informado.');
+    const patch: Record<string, string | null> = {};
+    for (const k of ['checkNumber', 'checkBank', 'checkHolder', 'checkAgency', 'checkAccount'] as const) {
+      if (data[k] !== undefined) patch[k] = data[k]?.trim() || null;
+    }
+    if (Object.keys(patch).length === 0) return { updated: 0 };
+    const res = await this.prisma.financialEntry.updateMany({
+      where: { id: { in: entryIds }, companyId, deletedAt: null, paymentMethod: 'CHEQUE' },
+      data: withUpdate(patch),
+    });
+    return { updated: res.count };
   }
 
   /**

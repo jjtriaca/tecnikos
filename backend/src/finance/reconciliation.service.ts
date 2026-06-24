@@ -2220,6 +2220,33 @@ export class ReconciliationService {
         }),
       });
 
+      // v1.13.97: se a origem e "Cheques a Compensar" (credito = deposito caindo no banco),
+      // carimba a COMPENSACAO dos cheques daquele deposito com a data do EXTRATO (line.transactionDate).
+      // Acha o deposito (Caixa->Compensar) com o mesmo valor da linha e marca os cheques dele
+      // (via checkOutRef = id do transfer do deposito) que ainda nao compensaram nem foram devolvidos.
+      if (isCredit && /cheques a compensar/i.test(otherAccount.name)) {
+        const candidateDeposits = await tx.accountTransfer.findMany({
+          where: { companyId, toAccountId: dto.sourceAccountId, amountCents: absAmount },
+          orderBy: { transferDate: 'asc' },
+          select: { id: true },
+        });
+        for (const dep of candidateDeposits) {
+          const res = await tx.financialEntry.updateMany({
+            where: {
+              companyId,
+              deletedAt: null,
+              paymentMethod: 'CHEQUE',
+              checkOutKind: 'DEPOSIT',
+              checkOutRef: dep.id,
+              checkClearedAt: null,
+              checkReturnedAt: null,
+            },
+            data: withUpdate({ checkClearedAt: line.transactionDate }),
+          });
+          if (res.count > 0) break; // compensou este deposito (cheques carimbados)
+        }
+      }
+
       await this.recalcCounts(tx, line.importId, line.statementId);
 
       return { ...updatedLine, transfer };
