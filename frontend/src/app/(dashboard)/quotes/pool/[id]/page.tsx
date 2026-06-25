@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/Toast";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import PartnerCombobox from "@/components/PartnerCombobox";
 import { HeatingSimulatorModal } from "@/components/pool/HeatingSimulatorModal";
+import BudgetReportModal from "@/components/pool/report/BudgetReportModal";
 
 export type AutoSelectRule = {
   filterPoolType?: string | null;
@@ -376,6 +377,7 @@ export default function PoolBudgetDetailPage() {
   const [showEditHeader, setShowEditHeader] = useState(false);
   const [showPaymentTerms, setShowPaymentTerms] = useState(false);
   const [showHeatingSimulator, setShowHeatingSimulator] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const [headerCollapsed, setHeaderCollapsed] = useState(false);
   const { widths: colWidths, setWidth: setColWidth, reset: resetColWidths } = useColumnWidths();
 
@@ -795,6 +797,12 @@ export default function PoolBudgetDetailPage() {
                 Ver obra
               </Link>
             )}
+            {/* Imprimir/visualizar o PDF do orcamento — sempre disponivel (impressao e leitura). */}
+            <button onClick={() => setShowReport(true)}
+              className="rounded-md border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+              title="Gerar/visualizar o PDF do orcamento">
+              🖨️ Imprimir PDF
+            </button>
             {/* Cadastrar (congelar): finaliza o orcamento — bloqueia edicao+recalculo, libera PDF */}
             {!isEditLocked && (budget.status === "RASCUNHO" || budget.status === "ENVIADO") && (
               <button onClick={registerBudget}
@@ -803,20 +811,13 @@ export default function PoolBudgetDetailPage() {
                 🔒 Cadastrar
               </button>
             )}
-            {/* Cadastrado: Editar (descongela) + Imprimir PDF (em breve) */}
+            {/* Cadastrado: Editar (descongela). O Imprimir PDF agora e sempre visivel (acima). */}
             {isFrozen && !isLocked && (
-              <>
-                <button onClick={() => setShowEditWarn(true)}
-                  className="rounded-md bg-amber-500 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-600"
-                  title="Libera o orcamento para edicao de novo (descongela)">
-                  ✏️ Editar
-                </button>
-                <button disabled
-                  className="rounded-md border border-slate-300 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-400 cursor-not-allowed"
-                  title="Geracao de PDF do orcamento — em breve">
-                  🖨️ Imprimir PDF
-                </button>
-              </>
+              <button onClick={() => setShowEditWarn(true)}
+                className="rounded-md bg-amber-500 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-600"
+                title="Libera o orcamento para edicao de novo (descongela)">
+                ✏️ Editar
+              </button>
             )}
             {!isLocked && (budget.status === "RASCUNHO" || budget.status === "ENVIADO") && (
               <button onClick={() => setConfirmAction("approve")}
@@ -1437,6 +1438,13 @@ export default function PoolBudgetDetailPage() {
         onClose={() => setShowHeatingSimulator(false)}
         onSaved={async () => { await load(); }}
         catalog={catalog}
+      />
+
+      <BudgetReportModal
+        budget={budget}
+        sectionLabels={{ ...SECTION_LABEL, ...customLabelsMap }}
+        open={showReport}
+        onClose={() => setShowReport(false)}
       />
 
 
