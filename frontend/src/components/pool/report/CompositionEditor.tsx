@@ -8,6 +8,7 @@
  */
 import { useState } from "react";
 import type { ReportNode } from "./BudgetReport";
+import RichTextEditor from "./RichTextEditor";
 
 const genId = () => "n" + Math.random().toString(36).slice(2, 9);
 
@@ -133,10 +134,10 @@ function NodeInspector({ node, onChange }: { node: ReportNode; onChange: (patch:
           </select>
         </label>
         {node.blockType === "TEXT" ? (
-          <label className="block text-xs text-slate-600">Conteudo (HTML, aceita variaveis)
-            <textarea value={cfg.html || ""} onChange={(e) => setCfg({ html: e.target.value })} rows={4}
-              className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-xs font-mono" placeholder="<b>Titulo</b> {clientName}" />
-          </label>
+          <div>
+            <div className="mb-1 text-xs text-slate-600">Texto — selecione um trecho pra formatar (fonte, tamanho, cor, negrito…)</div>
+            <RichTextEditor key={node.id} value={cfg.html || ""} onChange={(html) => setCfg({ html })} />
+          </div>
         ) : node.blockType === "IMAGE" ? (
           <label className="block text-xs text-slate-600">URL da imagem
             <input value={cfg.url || ""} onChange={(e) => setCfg({ url: e.target.value })}

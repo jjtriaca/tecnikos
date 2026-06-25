@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
-import BudgetReport, { BudgetReportData, ReportNode } from "@/components/pool/report/BudgetReport";
+import BudgetReport, { BudgetReportData, ReportNode, CompositionPreview } from "@/components/pool/report/BudgetReport";
 import { printViaClone } from "@/lib/printViaClone";
 import CompositionEditor from "@/components/pool/report/CompositionEditor";
 
@@ -260,7 +260,7 @@ export default function PoolPrintLayoutEditorPage() {
 
       {/* Estilo / branding do relatorio — aplica a TODAS as paginas, preview ao vivo */}
       <details className="rounded-xl border border-slate-200 bg-white p-3">
-        <summary className="cursor-pointer text-sm font-semibold text-slate-700">🎨 Estilo do relatorio — fonte, cores, fundo, cabecalho e rodape</summary>
+        <summary className="cursor-pointer text-sm font-semibold text-slate-700">🎨 Padrao do relatorio — fonte, cores, fundo, cabecalho/rodape <span className="font-normal text-slate-400">(cada card/texto pode sobrescrever)</span></summary>
         <div className="mt-3 space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <label className="block text-xs text-slate-600">Tipo de fonte
@@ -293,6 +293,21 @@ export default function PoolPrintLayoutEditorPage() {
                   className="h-6 w-8 cursor-pointer rounded border-0 bg-transparent p-0" />
               </label>
             ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block text-xs text-slate-600">Tipo de fundo
+              <select value={brand.bgType || "solid"} onChange={(e) => setBranding({ bgType: e.target.value })}
+                className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm">
+                <option value="solid">Cor solida</option>
+                <option value="gradient">Gradiente</option>
+              </select>
+            </label>
+            {brand.bgType === "gradient" ? (
+              <label className="flex items-center justify-between gap-2 text-xs text-slate-600 rounded border border-slate-200 px-2 py-1">2a cor (gradiente)
+                <input type="color" value={brand.bgColor2 || "#e2e8f0"} onChange={(e) => setBranding({ bgColor2: e.target.value })}
+                  className="h-6 w-8 cursor-pointer rounded border-0 bg-transparent p-0" />
+              </label>
+            ) : null}
           </div>
           <label className="block text-xs text-slate-600">Logo (URL)
             <input value={brand.logoUrl || ""} onChange={(e) => setBranding({ logoUrl: e.target.value || null })}
@@ -435,6 +450,9 @@ function PageEditor({ editing, onClose, onSubmit }: {
   function insertPlaceholder(ph: string) {
     setHtmlContent(htmlContent + ph);
   }
+  // Config amigavel: le/escreve uma chave do pageConfig (que e um JSON string no state).
+  function pcGet(key: string, def: any) { try { return JSON.parse(pageConfig || "{}")[key] ?? def; } catch { return def; } }
+  function pcSet(key: string, val: any) { let o: any = {}; try { o = JSON.parse(pageConfig || "{}"); } catch { o = {}; } o[key] = val; setPageConfig(JSON.stringify(o, null, 2)); }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -477,7 +495,7 @@ function PageEditor({ editing, onClose, onSubmit }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl p-6 max-h-[90vh] overflow-y-auto">
+      <div className={`bg-white rounded-xl shadow-xl w-full ${compMode ? "max-w-5xl" : "max-w-3xl"} p-6 max-h-[90vh] overflow-y-auto`}>
         <h3 className="text-lg font-semibold text-slate-900 mb-4">
           {editing ? "Editar pagina" : "Nova pagina"}
         </h3>
@@ -507,8 +525,14 @@ function PageEditor({ editing, onClose, onSubmit }: {
 
           {compMode ? (
             <div>
-              <p className="mb-2 text-xs text-slate-500">Monte a pagina com <b>cards</b>, <b>linhas (colunas)</b> e <b>blocos</b> aninhados. Use ➕ pra adicionar dentro de um card. O resultado aparece na pre-visualizacao ao salvar.</p>
-              <CompositionEditor nodes={nodes} onChange={setNodes} />
+              <p className="mb-2 text-xs text-slate-500">Monte a pagina com <b>cards</b>, <b>linhas (colunas)</b> e <b>blocos</b> aninhados. Use ➕ pra adicionar dentro de um card.</p>
+              <div className="grid gap-3 lg:grid-cols-2">
+                <CompositionEditor nodes={nodes} onChange={setNodes} />
+                <div>
+                  <div className="mb-1 text-xs font-semibold text-slate-600">Pre-visualizacao (ao vivo)</div>
+                  <CompositionPreview nodes={nodes} data={SAMPLE_BUDGET} />
+                </div>
+              </div>
             </div>
           ) : type === "DYNAMIC" ? (
             <>
@@ -519,15 +543,26 @@ function PageEditor({ editing, onClose, onSubmit }: {
                   {Object.entries(DYNAMIC_LABEL).map(([k, v]) => (<option key={k} value={k}>{v}</option>))}
                 </select>
               </div>
-              <div>
-                <label className="block text-xs text-slate-600 mb-1">Configuração (JSON)</label>
+              {dynamicType === "PRODUCTS_BY_SECTION" ? (
+                <label className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                  <input type="checkbox" checked={pcGet("showImages", true) !== false} onChange={(e) => pcSet("showImages", e.target.checked)} />
+                  Mostrar imagens dos produtos
+                </label>
+              ) : dynamicType === "PHOTOS_GALLERY" ? (
+                <label className="block text-sm text-slate-700">Colunas da galeria
+                  <input type="number" min={1} max={6} value={pcGet("columns", 3)} onChange={(e) => pcSet("columns", Math.max(1, Math.min(6, Number(e.target.value) || 3)))}
+                    className="ml-2 w-20 rounded border border-slate-300 px-2 py-1 text-sm" />
+                </label>
+              ) : null}
+              <details className="rounded border border-slate-200 px-3 py-2">
+                <summary className="cursor-pointer text-xs text-slate-500">Configuração avançada (JSON)</summary>
                 <textarea value={pageConfig} onChange={(e) => setPageConfig(e.target.value)} rows={6}
                   className="w-full rounded border border-slate-300 px-3 py-2 text-sm font-mono"
                   placeholder='{"sections": ["CONSTRUCAO"], "showImages": true}' />
                 <p className="mt-1 text-xs text-slate-500">
                   Ex: <code>{`{"sections": ["FILTRO"], "showImages": true}`}</code>
                 </p>
-              </div>
+              </details>
             </>
           ) : (
             <>

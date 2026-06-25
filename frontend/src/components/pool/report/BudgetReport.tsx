@@ -40,6 +40,8 @@ export type ReportBranding = {
   fontSizePt?: number | null;   // tamanho base da fonte (pt)
   textColor?: string | null;    // cor do texto
   bgColor?: string | null;      // cor de fundo da pagina
+  bgType?: string | null;       // "solid" | "gradient"
+  bgColor2?: string | null;     // 2a cor do gradiente
   headerHtml?: string | null;   // cabecalho (HTML com {placeholders}), em toda pagina
 };
 
@@ -419,8 +421,23 @@ function ReportNodeView({ node, data, branding }: { node: ReportNode; data: Budg
   return <div className="rp-node-card" style={cardStyle}>{(node.children || []).map((c) => <ReportNodeView key={c.id} node={c} data={data} branding={branding} />)}</div>;
 }
 
-function CompositionNodes({ nodes, data, branding }: { nodes: ReportNode[]; data: BudgetReportData; branding?: ReportBranding | null }) {
+export function CompositionNodes({ nodes, data, branding }: { nodes: ReportNode[]; data: BudgetReportData; branding?: ReportBranding | null }) {
   return <>{(nodes || []).map((n) => <ReportNodeView key={n.id} node={n} data={data} branding={branding} />)}</>;
+}
+
+// Preview de uma composicao (lista de nodes) — usado no modal do editor pra ver ao vivo
+// enquanto monta os cards. NAO usa #budget-pdf-area (evita id duplicado com o preview
+// principal); as classes .rp-* sao globais (injetadas pelo BudgetReport da pagina). Inclui
+// o CSS de novo por seguranca (idempotente). Box A4-ish (210mm) so visual.
+export function CompositionPreview({ nodes, data }: { nodes: ReportNode[]; data: BudgetReportData }) {
+  return (
+    <div style={{ background: "#f1f5f9", padding: "10px", borderRadius: 8, overflow: "auto" }}>
+      <style dangerouslySetInnerHTML={{ __html: REPORT_CSS }} />
+      <div style={{ width: "190mm", maxWidth: "100%", margin: "0 auto", background: "#fff", padding: "10mm", boxShadow: "0 1px 8px rgba(0,0,0,.12)", color: "#0f172a", fontSize: "11px", lineHeight: 1.35 }}>
+        {nodes && nodes.length ? <CompositionNodes nodes={nodes} data={data} /> : <div className="rp-empty">Adicione cards/blocos pra ver aqui.</div>}
+      </div>
+    </div>
+  );
 }
 
 function renderPageContent(page: ReportPage, data: BudgetReportData, branding?: ReportBranding | null) {
@@ -523,7 +540,9 @@ export default function BudgetReport({ data, layout }: { data: BudgetReportData;
     fontFamily: branding?.fontFamily || undefined,
     fontSize: branding?.fontSizePt ? `${branding.fontSizePt}pt` : undefined,
     color: branding?.textColor || undefined,
-    background: branding?.bgColor || undefined,
+    background: branding?.bgType === "gradient"
+      ? `linear-gradient(135deg, ${branding?.bgColor || "#ffffff"}, ${branding?.bgColor2 || "#e2e8f0"})`
+      : (branding?.bgColor || undefined),
   };
   const header = branding?.headerHtml?.trim();
   const footer = branding?.footerHtml?.trim();
