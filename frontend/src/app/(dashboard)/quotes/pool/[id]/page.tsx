@@ -3821,6 +3821,7 @@ const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; comb
       label: 'Vazao recirc',
       expr: 'min(0, (trocadorBombaVazaoOperM3h - vazaoTrocadorMinM3h) / max(vazaoTrocadorMinM3h, 0.001) * 100) + max(0, (trocadorBombaVazaoOperM3h - vazaoTrocadorMaxM3h) / max(vazaoTrocadorMaxM3h, 0.001) * 100)',
       unit: '%',
+      expr2: 'trocadorBombaVazaoOperM3h', label2: 'Vazao', unit2: 'm³/h',
       levels: [
         { max: -0.001, label: 'Abaixo', color: 'red' },
         { max: 0, label: 'Na faixa', color: 'emerald' },
@@ -3852,6 +3853,7 @@ const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; comb
       label: 'Folga de espacos',
       expr: 'bifTrifConta - (prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha"))',
       unit: 'espacos',
+      expr2: 'prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha")', label2: 'Usado', unit2: 'espacos',
       levels: [
         { max: -0.01, label: 'Nao cabe', color: 'red' },
         { max: 0, label: 'Exato (sem folga)', color: 'orange' },
@@ -3869,6 +3871,7 @@ const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; comb
       label: 'Folga de potencia',
       expr: 'potenciaWatts - (prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha"))',
       unit: 'W',
+      expr2: 'prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha")', label2: 'Consumo', unit2: 'W',
       levels: [
         { max: -0.01, label: 'Nao atende', color: 'red' },
         { max: 0, label: 'No limite', color: 'orange' },
@@ -3888,6 +3891,7 @@ const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; comb
       label: 'Folga de vazao (ralo)',
       expr: '(vazaoM3h * (qty - 1) / qty - prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")) / (prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")) * 100',
       unit: '%',
+      expr2: 'prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")', label2: 'Demanda', unit2: 'm³/h',
       levels: [
         { max: -0.01, label: 'Insuficiente — minimo 2 ralos ou grade maior', color: 'red' },
         { max: 20, label: 'Justo', color: 'yellow' },
