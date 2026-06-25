@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
-import BudgetReport, { BudgetReportData } from "@/components/pool/report/BudgetReport";
+import BudgetReport, { BudgetReportData, ReportNode } from "@/components/pool/report/BudgetReport";
 import { printViaClone } from "@/lib/printViaClone";
+import CompositionEditor from "@/components/pool/report/CompositionEditor";
 
 type Page = {
   id: string;
@@ -336,7 +337,9 @@ export default function PoolPrintLayoutEditorPage() {
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    {p.type === "FIXED" ? (
+                    {(p.pageConfig as any)?.nodes?.length ? (
+                      <span className="rounded-full bg-amber-100 text-amber-700 text-[10px] px-2 py-0.5 font-semibold">COMPOSICAO</span>
+                    ) : p.type === "FIXED" ? (
                       <span className="rounded-full bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 font-semibold">HTML FIXO</span>
                     ) : (
                       <span className="rounded-full bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 font-semibold">DINAMICA</span>
@@ -349,7 +352,9 @@ export default function PoolPrintLayoutEditorPage() {
                     )}
                   </div>
                   <div className="font-medium text-slate-900">
-                    {p.type === "DYNAMIC"
+                    {(p.pageConfig as any)?.nodes?.length
+                      ? <span className="text-slate-700">Composicao de cards · {(p.pageConfig as any).nodes.length} no topo</span>
+                      : p.type === "DYNAMIC"
                       ? (DYNAMIC_LABEL[p.dynamicType || ""] || p.dynamicType || "Pagina dinamica")
                       : p.htmlContent
                         ? <span className="text-slate-700">{p.htmlContent.slice(0, 80).replace(/<[^>]+>/g, "").trim() || "(sem conteudo)"}{p.htmlContent.length > 80 ? "..." : ""}</span>
@@ -423,6 +428,9 @@ function PageEditor({ editing, onClose, onSubmit }: {
   );
   const [pageBreak, setPageBreak] = useState(editing?.pageBreak ?? true);
   const [isActive, setIsActive] = useState(editing?.isActive ?? true);
+  // Composicao por cards (v1.14.16): se a pagina tem pageConfig.nodes, abre no modo cards.
+  const [compMode, setCompMode] = useState<boolean>(!!(editing?.pageConfig as any)?.nodes);
+  const [nodes, setNodes] = useState<ReportNode[]>(((editing?.pageConfig as any)?.nodes as ReportNode[]) || []);
 
   function insertPlaceholder(ph: string) {
     setHtmlContent(htmlContent + ph);
@@ -431,15 +439,23 @@ function PageEditor({ editing, onClose, onSubmit }: {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const payload: any = {
-      type,
       pageBreak,
       isActive,
       isConditional,
     };
-    if (type === "FIXED") {
+    if (compMode) {
+      // Composicao por cards: salva como FIXED + pageConfig.nodes (sem novo enum -> sem migration).
+      payload.type = "FIXED";
+      payload.htmlContent = null;
+      payload.dynamicType = null;
+      payload.pageConfig = { nodes };
+    } else if (type === "FIXED") {
+      payload.type = "FIXED";
       payload.htmlContent = htmlContent;
       payload.dynamicType = null;
+      payload.pageConfig = {};
     } else {
+      payload.type = "DYNAMIC";
       payload.dynamicType = dynamicType;
       payload.htmlContent = null;
       try {
@@ -466,18 +482,27 @@ function PageEditor({ editing, onClose, onSubmit }: {
           {editing ? "Editar pagina" : "Nova pagina"}
         </h3>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="flex gap-2">
-            <button type="button" onClick={() => setType("DYNAMIC")}
-              className={`px-4 py-2 rounded text-sm ${type === "DYNAMIC" ? "bg-cyan-600 text-white" : "bg-slate-100 text-slate-700"}`}>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => { setType("DYNAMIC"); setCompMode(false); }}
+              className={`px-4 py-2 rounded text-sm ${!compMode && type === "DYNAMIC" ? "bg-cyan-600 text-white" : "bg-slate-100 text-slate-700"}`}>
               Pagina dinamica
             </button>
-            <button type="button" onClick={() => setType("FIXED")}
-              className={`px-4 py-2 rounded text-sm ${type === "FIXED" ? "bg-cyan-600 text-white" : "bg-slate-100 text-slate-700"}`}>
+            <button type="button" onClick={() => { setType("FIXED"); setCompMode(false); }}
+              className={`px-4 py-2 rounded text-sm ${!compMode && type === "FIXED" ? "bg-cyan-600 text-white" : "bg-slate-100 text-slate-700"}`}>
               HTML fixo (placeholders)
+            </button>
+            <button type="button" onClick={() => setCompMode(true)}
+              className={`px-4 py-2 rounded text-sm ${compMode ? "bg-cyan-600 text-white" : "bg-slate-100 text-slate-700"}`}>
+              🃏 Composicao (cards)
             </button>
           </div>
 
-          {type === "DYNAMIC" ? (
+          {compMode ? (
+            <div>
+              <p className="mb-2 text-xs text-slate-500">Monte a pagina com <b>cards</b>, <b>linhas (colunas)</b> e <b>blocos</b> aninhados. Use ➕ pra adicionar dentro de um card. O resultado aparece na pre-visualizacao ao salvar.</p>
+              <CompositionEditor nodes={nodes} onChange={setNodes} />
+            </div>
+          ) : type === "DYNAMIC" ? (
             <>
               <div>
                 <label className="block text-xs text-slate-600 mb-1">Tipo de pagina dinamica *</label>

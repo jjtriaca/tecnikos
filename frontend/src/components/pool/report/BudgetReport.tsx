@@ -50,6 +50,21 @@ export type ReportLayout = {
   pages: ReportPage[];
 };
 
+// Composicao por cards (v1.14.16): uma pagina pode ter pageConfig.nodes = ReportNode[]
+// (arvore aninhavel). card/row = container; block = conteudo (texto/imagem/bloco dinamico).
+export type ReportNode = {
+  id: string;
+  kind: "card" | "row" | "block";
+  style?: {
+    bg?: string | null; borderColor?: string | null; borderWidth?: number | null;
+    radius?: number | null; padding?: number | null; gap?: number | null;
+    align?: string | null; flex?: number | null; shadow?: boolean | null; textColor?: string | null;
+  } | null;
+  children?: ReportNode[];        // card / row
+  blockType?: string | null;      // block: TEXT | IMAGE | COVER | PRODUCTS_BY_SECTION | BUDGET_SUMMARY | ...
+  config?: any;                   // config do bloco (html, url, opcoes)
+};
+
 export type ReportItem = {
   poolSection: string;
   kind?: string | null;
@@ -360,18 +375,60 @@ function CustomTableBlock({ config }: { config?: any }) {
   );
 }
 
-function renderPageContent(page: ReportPage, data: BudgetReportData, branding?: ReportBranding | null) {
-  if (page.type === "FIXED") return <FixedBlock html={page.htmlContent || ""} data={data} />;
-  switch (page.dynamicType) {
+// Renderiza UM bloco por tipo. Reusado pela pagina (DYNAMIC) E pelos nos "block" da composicao.
+function renderBlockByType(blockType: string | null | undefined, data: BudgetReportData, config: any, branding?: ReportBranding | null) {
+  switch (blockType) {
     case "COVER": return <CoverBlock data={data} branding={branding} />;
-    case "PRODUCTS_BY_SECTION": return <ProductsBySectionBlock data={data} config={page.pageConfig} />;
+    case "PRODUCTS_BY_SECTION": return <ProductsBySectionBlock data={data} config={config} />;
     case "BUDGET_SUMMARY": return <BudgetSummaryBlock data={data} />;
-    case "TERMS_CONDITIONS": return <TermsBlock data={data} config={page.pageConfig} />;
-    case "PHOTOS_GALLERY": return <PhotosGalleryBlock data={data} config={page.pageConfig} />;
+    case "TERMS_CONDITIONS": return <TermsBlock data={data} config={config} />;
+    case "PHOTOS_GALLERY": return <PhotosGalleryBlock data={data} config={config} />;
     case "INSTALLMENTS": return <InstallmentsBlock data={data} />;
-    case "CUSTOM_TABLE": return <CustomTableBlock config={page.pageConfig} />;
-    default: return <TodoBlock kind={page.dynamicType || "?"} />;
+    case "CUSTOM_TABLE": return <CustomTableBlock config={config} />;
+    case "TEXT": return <FixedBlock html={config?.html || ""} data={data} />;
+    case "IMAGE":
+      // eslint-disable-next-line @next/next/no-img-element
+      return config?.url ? <img src={config.url} alt={config?.alt || ""} style={{ maxWidth: "100%", borderRadius: 6, display: "block" }} /> : <div className="rp-empty">Imagem sem URL.</div>;
+    default: return <TodoBlock kind={blockType || "?"} />;
   }
+}
+
+// Renderizador RECURSIVO de um no (card/row/block). Cards/rows seguram filhos (aninhamento).
+function ReportNodeView({ node, data, branding }: { node: ReportNode; data: BudgetReportData; branding?: ReportBranding | null }) {
+  const st = node.style || {};
+  if (node.kind === "block") {
+    return <div className="rp-node-block" style={{ flex: st.flex || undefined }}>{renderBlockByType(node.blockType, data, node.config, branding)}</div>;
+  }
+  if (node.kind === "row") {
+    return (
+      <div className="rp-node-row" style={{ gap: `${st.gap ?? 8}px`, alignItems: (st.align as any) || "stretch", flex: st.flex || undefined }}>
+        {(node.children || []).map((c) => <ReportNodeView key={c.id} node={c} data={data} branding={branding} />)}
+      </div>
+    );
+  }
+  // card
+  const cardStyle: any = {
+    background: st.bg || undefined,
+    border: st.borderWidth ? `${st.borderWidth}px solid ${st.borderColor || "#e2e8f0"}` : undefined,
+    borderRadius: st.radius != null ? `${st.radius}px` : undefined,
+    padding: st.padding != null ? `${st.padding}px` : undefined,
+    color: st.textColor || undefined,
+    boxShadow: st.shadow ? "0 1px 6px rgba(0,0,0,.12)" : undefined,
+    flex: st.flex || undefined,
+  };
+  return <div className="rp-node-card" style={cardStyle}>{(node.children || []).map((c) => <ReportNodeView key={c.id} node={c} data={data} branding={branding} />)}</div>;
+}
+
+function CompositionNodes({ nodes, data, branding }: { nodes: ReportNode[]; data: BudgetReportData; branding?: ReportBranding | null }) {
+  return <>{(nodes || []).map((n) => <ReportNodeView key={n.id} node={n} data={data} branding={branding} />)}</>;
+}
+
+function renderPageContent(page: ReportPage, data: BudgetReportData, branding?: ReportBranding | null) {
+  // Composicao por cards: se a pagina tem pageConfig.nodes, renderiza a arvore (independe do tipo).
+  const nodes = page.pageConfig && (page.pageConfig as any).nodes;
+  if (Array.isArray(nodes) && nodes.length) return <CompositionNodes nodes={nodes} data={data} branding={branding} />;
+  if (page.type === "FIXED") return <FixedBlock html={page.htmlContent || ""} data={data} />;
+  return renderBlockByType(page.dynamicType, data, page.pageConfig, branding);
 }
 
 // ── CSS (bíblia de impressao + estilo do relatorio) ──────────────────────────
@@ -430,6 +487,12 @@ const REPORT_CSS = `
 .rp-gfig { margin:0; text-align:center; }
 .rp-gimg { width:100%; height:42mm; object-fit:cover; border:1px solid #e2e8f0; border-radius:8px; }
 .rp-gfig figcaption { font-size:9px; color:#64748b; margin-top:3px; }
+/* Composicao por cards (arvore aninhavel) */
+.rp-node-card { margin-bottom:8px; }
+.rp-node-row { display:flex; margin-bottom:8px; }
+.rp-node-row > * { min-width:0; flex:1 1 0; }
+.rp-node-block { min-width:0; }
+.rp-node-card:last-child, .rp-node-row:last-child, .rp-node-block:last-child { margin-bottom:0; }
 
 /* ── IMPRESSAO (bíblia: display:none, A4, color-adjust) ── */
 @media print {
