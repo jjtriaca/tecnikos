@@ -19,6 +19,14 @@ import {
   UpdatePoolPrintPageDto,
   ReorderPagesDto,
 } from './dto/page.dto';
+import * as fs from 'fs';
+import * as path from 'path';
+import { randomUUID } from 'crypto';
+
+const UPLOAD_DIR = path.join(process.cwd(), 'uploads');
+// SVG NAO permitido de proposito (risco de XSS via script embarcado servido de /uploads).
+const ASSET_ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
+const ASSET_MAX_SIZE = 5 * 1024 * 1024; // 5MB
 
 @Injectable()
 export class PoolPrintLayoutService {
@@ -395,5 +403,34 @@ export class PoolPrintLayoutService {
     });
 
     return this.findOne(layoutId, companyId);
+  }
+
+  // ============== ASSETS ==============
+
+  async uploadAsset(
+    layoutId: string,
+    companyId: string,
+    file: { buffer: Buffer; originalname: string; mimetype: string; size: number },
+  ): Promise<{ url: string }> {
+    if (!ASSET_ALLOWED_MIME.includes(file.mimetype)) {
+      throw new BadRequestException('Tipo de arquivo nao permitido. Use JPEG, PNG ou WebP.');
+    }
+    if (file.size > ASSET_MAX_SIZE) {
+      throw new BadRequestException('Arquivo muito grande. Maximo: 5MB.');
+    }
+    // Garante que o layout pertence ao tenant (isolamento).
+    const layout = await this.prisma.poolPrintLayout.findFirst({
+      where: { id: layoutId, companyId },
+      select: { id: true },
+    });
+    if (!layout) throw new NotFoundException('Layout nao encontrado');
+
+    const ext = (path.extname(file.originalname) || '.png').toLowerCase();
+    const fileName = `report-${randomUUID()}${ext}`;
+    const dirPath = path.join(UPLOAD_DIR, companyId, 'report-assets');
+    fs.mkdirSync(dirPath, { recursive: true });
+    fs.writeFileSync(path.join(dirPath, fileName), file.buffer);
+
+    return { url: `/uploads/${companyId}/report-assets/${fileName}` };
   }
 }

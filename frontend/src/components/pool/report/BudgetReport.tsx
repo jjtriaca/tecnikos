@@ -42,6 +42,8 @@ export type ReportBranding = {
   bgColor?: string | null;      // cor de fundo da pagina
   bgType?: string | null;       // "solid" | "gradient"
   bgColor2?: string | null;     // 2a cor do gradiente
+  orientation?: string | null;  // "portrait" | "landscape"
+  pageMarginMm?: number | null; // margem interna da pagina (mm), default 12
   headerHtml?: string | null;   // cabecalho (HTML com {placeholders}), em toda pagina
 };
 
@@ -546,9 +548,19 @@ export default function BudgetReport({ data, layout }: { data: BudgetReportData;
   };
   const header = branding?.headerHtml?.trim();
   const footer = branding?.footerHtml?.trim();
+  // Orientacao (paisagem) + margem da pagina: override por cima do REPORT_CSS (portrait/12mm).
+  const marginMm = branding?.pageMarginMm;
+  const extraCss =
+    (branding?.orientation === "landscape"
+      ? `@page { size: A4 landscape; } #budget-pdf-area .report-page { width: 297mm; min-height: 200mm; }`
+      : "") +
+    (marginMm != null && marginMm >= 0
+      ? ` #budget-pdf-area .report-page, html.printing-mode #budget-pdf-clone .report-page { padding: ${marginMm}mm; }`
+      : "");
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: REPORT_CSS }} />
+      {extraCss ? <style dangerouslySetInnerHTML={{ __html: extraCss }} /> : null}
       <div id="budget-pdf-area">
         {pages.length === 0 ? (
           <div className="report-page"><div className="rp-empty">Layout sem paginas ativas.</div></div>

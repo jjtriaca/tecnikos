@@ -7,7 +7,11 @@ import {
   Post,
   Put,
   Query,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { PoolPrintLayoutService } from './pool-print-layout.service';
@@ -128,5 +132,24 @@ export class PoolPrintLayoutController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.service.reorderPages(layoutId, body, user.companyId, user);
+  }
+
+  // ============== ASSETS (imagens do relatorio: logo, fotos) ==============
+
+  @ApiOperation({
+    summary: 'Upload de imagem do relatorio (logo, foto de capa, etc.)',
+    description: 'JPEG/PNG/WebP/SVG, max 5MB. Salva em /uploads e retorna { url }.',
+  })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/asset')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadAsset(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    if (!file) throw new BadRequestException('Nenhum arquivo enviado');
+    return this.service.uploadAsset(id, user.companyId, file);
   }
 }

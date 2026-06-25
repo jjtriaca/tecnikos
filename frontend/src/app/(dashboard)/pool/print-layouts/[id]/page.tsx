@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, getAccessToken } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import BudgetReport, { BudgetReportData, ReportNode, CompositionPreview } from "@/components/pool/report/BudgetReport";
 import { printViaClone } from "@/lib/printViaClone";
@@ -148,6 +148,19 @@ export default function PoolPrintLayoutEditorPage() {
     } catch (err: any) {
       toast(err?.payload?.message || "Erro ao salvar estilo", "error");
     }
+  }
+  // Upload de imagem do relatorio (logo, foto). Retorna a URL salva em /uploads.
+  async function uploadAsset(file: File): Promise<string> {
+    const fd = new FormData();
+    fd.append("file", file);
+    const token = getAccessToken();
+    const res = await fetch(`/api/pool-print-layouts/${id}/asset`, {
+      method: "POST", body: fd, credentials: "include",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message || "Erro ao enviar imagem"); }
+    const data = await res.json();
+    return data.url as string;
   }
 
   async function addPage(payload: any) {
@@ -309,10 +322,31 @@ export default function PoolPrintLayoutEditorPage() {
               </label>
             ) : null}
           </div>
-          <label className="block text-xs text-slate-600">Logo (URL)
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block text-xs text-slate-600">Orientacao
+              <select value={brand.orientation || "portrait"} onChange={(e) => setBranding({ orientation: e.target.value })}
+                className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm">
+                <option value="portrait">Retrato (vertical)</option>
+                <option value="landscape">Paisagem (horizontal)</option>
+              </select>
+            </label>
+            <label className="block text-xs text-slate-600">Margem da pagina (mm)
+              <input type="number" min={0} max={30} value={brand.pageMarginMm ?? 12}
+                onChange={(e) => setBranding({ pageMarginMm: e.target.value === "" ? null : Number(e.target.value) })}
+                className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" />
+            </label>
+          </div>
+          <div className="block text-xs text-slate-600">Logo (aparece na Capa)
             <input value={brand.logoUrl || ""} onChange={(e) => setBranding({ logoUrl: e.target.value || null })}
-              placeholder="https://... (aparece na Capa)" className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" />
-          </label>
+              placeholder="https://... ou envie um arquivo" className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" />
+            <div className="mt-1 flex items-center gap-2">
+              <label className="cursor-pointer rounded bg-slate-100 px-2 py-1 hover:bg-slate-200">📁 Enviar imagem
+                <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden"
+                  onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await uploadAsset(f); setBranding({ logoUrl: url }); toast("Logo enviado", "success"); } catch (err: any) { toast(err.message || "Erro ao enviar", "error"); } if (e.target) e.target.value = ""; }} />
+              </label>
+              {brand.logoUrl ? <img src={brand.logoUrl} alt="logo" className="h-8 rounded border border-slate-200 bg-white" /> : null}
+            </div>
+          </div>
           <label className="block text-xs text-slate-600">Cabecalho (HTML, aceita variaveis) — em toda pagina
             <textarea value={brand.headerHtml || ""} onChange={(e) => setBranding({ headerHtml: e.target.value || null })} rows={2}
               placeholder="Ex: {budgetCode} — {clientName}" className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-xs font-mono" />
@@ -422,16 +456,18 @@ export default function PoolPrintLayoutEditorPage() {
           editing={editingPage}
           onClose={() => { setShowAddPage(false); setEditingPage(null); }}
           onSubmit={(payload) => editingPage ? updatePage(editingPage.id, payload) : addPage(payload)}
+          onUploadImage={uploadAsset}
         />
       )}
     </div>
   );
 }
 
-function PageEditor({ editing, onClose, onSubmit }: {
+function PageEditor({ editing, onClose, onSubmit, onUploadImage }: {
   editing: Page | null;
   onClose: () => void;
   onSubmit: (payload: any) => void;
+  onUploadImage?: (file: File) => Promise<string>;
 }) {
   const [type, setType] = useState<"FIXED" | "DYNAMIC">(editing?.type || "DYNAMIC");
   const [dynamicType, setDynamicType] = useState(editing?.dynamicType || "COVER");
@@ -527,7 +563,7 @@ function PageEditor({ editing, onClose, onSubmit }: {
             <div>
               <p className="mb-2 text-xs text-slate-500">Monte a pagina com <b>cards</b>, <b>linhas (colunas)</b> e <b>blocos</b> aninhados. Use ➕ pra adicionar dentro de um card.</p>
               <div className="grid gap-3 lg:grid-cols-2">
-                <CompositionEditor nodes={nodes} onChange={setNodes} />
+                <CompositionEditor nodes={nodes} onChange={setNodes} onUploadImage={onUploadImage} />
                 <div>
                   <div className="mb-1 text-xs font-semibold text-slate-600">Pre-visualizacao (ao vivo)</div>
                   <CompositionPreview nodes={nodes} data={SAMPLE_BUDGET} />

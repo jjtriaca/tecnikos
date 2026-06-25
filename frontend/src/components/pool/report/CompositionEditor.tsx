@@ -118,7 +118,7 @@ function NodeRow({ node, depth, selectedId, onSelect, onAddInto, onMove, onRemov
 }
 
 // ── Editor de UM no selecionado ──────────────────────────────────────────────
-function NodeInspector({ node, onChange }: { node: ReportNode; onChange: (patch: Partial<ReportNode>) => void }) {
+function NodeInspector({ node, onChange, onUploadImage }: { node: ReportNode; onChange: (patch: Partial<ReportNode>) => void; onUploadImage?: (file: File) => Promise<string> }) {
   const st: any = node.style || {};
   const setStyle = (p: Record<string, any>) => onChange({ style: { ...st, ...p } });
   const cfg: any = node.config || {};
@@ -139,10 +139,19 @@ function NodeInspector({ node, onChange }: { node: ReportNode; onChange: (patch:
             <RichTextEditor key={node.id} value={cfg.html || ""} onChange={(html) => setCfg({ html })} />
           </div>
         ) : node.blockType === "IMAGE" ? (
-          <label className="block text-xs text-slate-600">URL da imagem
+          <div className="block text-xs text-slate-600">Imagem
             <input value={cfg.url || ""} onChange={(e) => setCfg({ url: e.target.value })}
-              className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" placeholder="https://..." />
-          </label>
+              className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" placeholder="https://... ou envie um arquivo" />
+            {onUploadImage ? (
+              <div className="mt-1 flex items-center gap-2">
+                <label className="cursor-pointer rounded bg-slate-100 px-2 py-1 hover:bg-slate-200">📁 Enviar
+                  <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden"
+                    onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await onUploadImage(f); setCfg({ url }); } catch { /* erro silencioso */ } if (e.target) e.target.value = ""; }} />
+                </label>
+                {cfg.url ? <img src={cfg.url} alt="" className="h-8 rounded border border-slate-200 bg-white" /> : null}
+              </div>
+            ) : null}
+          </div>
         ) : (
           <label className="block text-xs text-slate-600">Configuracao (JSON, opcional)
             <textarea defaultValue={cfg && Object.keys(cfg).length ? JSON.stringify(cfg, null, 2) : ""}
@@ -197,7 +206,7 @@ function NodeInspector({ node, onChange }: { node: ReportNode; onChange: (patch:
 }
 
 // ── Componente principal ─────────────────────────────────────────────────────
-export default function CompositionEditor({ nodes, onChange }: { nodes: ReportNode[]; onChange: (nodes: ReportNode[]) => void }) {
+export default function CompositionEditor({ nodes, onChange, onUploadImage }: { nodes: ReportNode[]; onChange: (nodes: ReportNode[]) => void; onUploadImage?: (file: File) => Promise<string> }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addInto, setAddInto] = useState<string | "root" | null>(null);
 
@@ -262,7 +271,7 @@ export default function CompositionEditor({ nodes, onChange }: { nodes: ReportNo
           <div className="mb-2 text-xs font-semibold text-slate-700">
             Editar {selected.kind === "card" ? "Card" : selected.kind === "row" ? "Linha (colunas)" : "Bloco"}
           </div>
-          <NodeInspector node={selected} onChange={(patch) => onChange(updateNode(nodes, selected.id, patch))} />
+          <NodeInspector node={selected} onChange={(patch) => onChange(updateNode(nodes, selected.id, patch))} onUploadImage={onUploadImage} />
         </div>
       ) : (
         <div className="rounded-lg border border-dashed border-slate-200 p-3 text-center text-xs text-slate-500">
