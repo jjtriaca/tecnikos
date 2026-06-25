@@ -497,6 +497,14 @@ function PageEditor({ editing, onClose, onSubmit }: {
             </button>
           </div>
 
+          <p className="rounded-md bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-600">
+            {compMode
+              ? "🃏 Composicao: monte a pagina DO ZERO com cards, colunas, texto e blocos — liberdade total."
+              : type === "FIXED"
+              ? "📝 HTML fixo: conteudo livre em HTML com variaveis (placeholders) — do zero, mais tecnico."
+              : "⚙️ Pagina dinamica: bloco PRONTO que se preenche sozinho com os dados do orcamento (Capa, Resumo, Produtos por etapa...)."}
+          </p>
+
           {compMode ? (
             <div>
               <p className="mb-2 text-xs text-slate-500">Monte a pagina com <b>cards</b>, <b>linhas (colunas)</b> e <b>blocos</b> aninhados. Use ➕ pra adicionar dentro de um card. O resultado aparece na pre-visualizacao ao salvar.</p>

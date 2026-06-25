@@ -102,11 +102,11 @@ function NodeRow({ node, depth, selectedId, onSelect, onAddInto, onMove, onRemov
       <div style={{ paddingLeft: 6 + depth * 16 }}
         className={`flex items-center gap-1 py-1 pr-1 rounded ${selectedId === node.id ? "bg-cyan-50 ring-1 ring-cyan-300" : "hover:bg-slate-50"}`}>
         <span className="text-xs">{icon}</span>
-        <button onClick={() => onSelect(node.id)} className="flex-1 truncate text-left text-xs text-slate-700">{label}</button>
-        {isContainer && <button onClick={() => onAddInto(node.id)} title="Adicionar dentro" className="px-1 text-xs text-cyan-600 hover:text-cyan-800">➕</button>}
-        <button onClick={() => onMove(node.id, "up")} title="Subir" className="px-0.5 text-xs text-slate-400 hover:text-slate-700">⬆</button>
-        <button onClick={() => onMove(node.id, "down")} title="Descer" className="px-0.5 text-xs text-slate-400 hover:text-slate-700">⬇</button>
-        <button onClick={() => onRemove(node.id)} title="Remover" className="px-0.5 text-xs text-red-400 hover:text-red-600">🗑</button>
+        <button type="button" onClick={() => onSelect(node.id)} className="flex-1 truncate text-left text-xs text-slate-700">{label}</button>
+        {isContainer && <button type="button" onClick={() => onAddInto(node.id)} title="Adicionar dentro" className="px-1 text-xs text-cyan-600 hover:text-cyan-800">➕</button>}
+        <button type="button" onClick={() => onMove(node.id, "up")} title="Subir" className="px-0.5 text-xs text-slate-400 hover:text-slate-700">⬆</button>
+        <button type="button" onClick={() => onMove(node.id, "down")} title="Descer" className="px-0.5 text-xs text-slate-400 hover:text-slate-700">⬇</button>
+        <button type="button" onClick={() => onRemove(node.id)} title="Remover" className="px-0.5 text-xs text-red-400 hover:text-red-600">🗑</button>
       </div>
       {(node.children || []).map((c) => (
         <NodeRow key={c.id} node={c} depth={depth + 1} selectedId={selectedId}
@@ -222,7 +222,7 @@ export default function CompositionEditor({ nodes, onChange }: { nodes: ReportNo
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
         <div className="mb-1 flex items-center justify-between">
           <span className="text-xs font-semibold text-slate-600">Estrutura {addInto && addInto !== "root" ? "(adicionando dentro do card/linha selecionado)" : ""}</span>
-          <button onClick={() => setAddInto("root")} className="rounded bg-cyan-600 px-2 py-0.5 text-xs font-semibold text-white hover:bg-cyan-700">+ no topo</button>
+          <button type="button" onClick={() => setAddInto("root")} className="rounded bg-cyan-600 px-2 py-0.5 text-xs font-semibold text-white hover:bg-cyan-700">+ no topo</button>
         </div>
         {nodes.length === 0 ? (
           <div className="px-2 py-3 text-xs text-slate-500">Vazio. Use &quot;+ no topo&quot; pra adicionar o primeiro card/bloco.</div>
@@ -242,15 +242,15 @@ export default function CompositionEditor({ nodes, onChange }: { nodes: ReportNo
         <div className="rounded-lg border border-cyan-200 bg-cyan-50/40 p-2 space-y-2">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-xs font-semibold text-slate-600">Adicionar:</span>
-            <button onClick={() => doAdd("card")} className="rounded border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50">🃏 Card</button>
-            <button onClick={() => doAdd("row")} className="rounded border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50">▭ Linha (colunas)</button>
-            <button onClick={() => doAdd("block")} className="rounded border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50">🧩 Bloco</button>
-            <button onClick={() => setAddInto(null)} className="ml-auto text-xs text-slate-500 hover:text-slate-700">cancelar</button>
+            <button type="button" onClick={() => doAdd("card")} className="rounded border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50">🃏 Card</button>
+            <button type="button" onClick={() => doAdd("row")} className="rounded border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50">▭ Linha (colunas)</button>
+            <button type="button" onClick={() => doAdd("block")} className="rounded border border-slate-300 bg-white px-2 py-1 text-xs hover:bg-slate-50">🧩 Bloco</button>
+            <button type="button" onClick={() => setAddInto(null)} className="ml-auto text-xs text-slate-500 hover:text-slate-700">cancelar</button>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-xs font-semibold text-slate-600">Modelos:</span>
             {TEMPLATES.map((t) => (
-              <button key={t.label} onClick={() => insertTemplate(t.make)} className="rounded border border-violet-300 bg-violet-50 px-2 py-1 text-xs text-violet-700 hover:bg-violet-100">{t.label}</button>
+              <button key={t.label} type="button" onClick={() => insertTemplate(t.make)} className="rounded border border-violet-300 bg-violet-50 px-2 py-1 text-xs text-violet-700 hover:bg-violet-100">{t.label}</button>
             ))}
           </div>
         </div>
