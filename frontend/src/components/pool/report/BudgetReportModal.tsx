@@ -24,6 +24,31 @@ const DEFAULT_PAGES: ReportPage[] = [
   { id: "d-prod", order: 2, type: "DYNAMIC", htmlContent: null, dynamicType: "PRODUCTS_BY_SECTION", pageConfig: { showImages: true }, isConditional: false, conditionRule: null, pageBreak: true, isActive: true },
 ];
 
+// Calcula as parcelas a partir do plano de pagamento do orcamento (PoolPaymentTerm.structure)
+// e do total. Datas relativas a hoje (firstOffsetDays + i*intervalDays). Valores aproximados
+// (rateio por parte) — e display de proposta, nao o lancamento financeiro.
+function computeInstallments(pt: any, totalCents: number): { label: string; dueLabel?: string | null; valueCents: number }[] {
+  const structure = pt?.structure;
+  if (!Array.isArray(structure) || !structure.length) return [];
+  const out: { label: string; dueLabel?: string | null; valueCents: number }[] = [];
+  for (const part of structure) {
+    const partTotal = Math.round(totalCents * ((Number(part?.percent) || 0) / 100));
+    const count = Math.max(1, Number(part?.count) || 1);
+    const each = Math.round(partTotal / count);
+    for (let i = 0; i < count; i++) {
+      const days = (Number(part?.firstOffsetDays) || 0) + i * (Number(part?.intervalDays) || 0);
+      const due = new Date();
+      due.setDate(due.getDate() + days);
+      out.push({
+        label: count > 1 ? `${part?.label || "Parcela"} (${i + 1}/${count})` : (part?.label || "Parcela"),
+        dueLabel: due.toLocaleDateString("pt-BR"),
+        valueCents: each,
+      });
+    }
+  }
+  return out;
+}
+
 function buildReportData(budget: any, sectionLabels: Record<string, string>): BudgetReportData {
   const d = (budget?.poolDimensions ?? {}) as any;
   const items = (budget?.items ?? []).map((it: any) => ({
@@ -51,7 +76,14 @@ function buildReportData(budget: any, sectionLabels: Record<string, string>): Bu
     },
     subtotalCents: Number(budget?.subtotalCents) || 0,
     discountCents: Number(budget?.discountCents) || 0,
+    taxesCents: Number(budget?.taxesCents) || 0,
+    discountPercent: budget?.discountPercent ?? null,
     totalCents: Number(budget?.totalCents) || 0,
+    termsConditions: budget?.termsConditions ?? null,
+    equipmentWarranty: budget?.equipmentWarranty ?? null,
+    workWarranty: budget?.workWarranty ?? null,
+    paymentTerms: budget?.paymentTerms ?? null,
+    installments: computeInstallments(budget?.paymentTerm, Number(budget?.totalCents) || 0),
     validityDays: budget?.validityDays ?? null,
     items,
     sectionOrder: budget?.sectionOrder ?? [],

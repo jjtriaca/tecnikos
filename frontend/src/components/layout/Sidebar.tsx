@@ -153,6 +153,7 @@ const NAV_ITEMS: NavItem[] = [
     { label: "Boleto Bancário", href: "/settings/boleto" },
     { label: "Tarifas de Energia", href: "/settings/energy-tariff" },
     { label: "Dados Climaticos", href: "/settings/climate-data" },
+    { label: "Layouts de Impressão", href: "/pool/print-layouts" },
   ] },
   { label: "SaaS Admin", href: "/ctrl-zr8k2x", icon: icons.saas, roles: ["ADMIN"], hidden: true, children: [
     { label: "Dashboard SaaS", href: "/ctrl-zr8k2x" },
@@ -261,12 +262,12 @@ export default function Sidebar({ collapsed, onToggle, tenantPending }: SidebarP
   return (
     <aside
       data-sidebar
-      className={`fixed left-0 top-0 z-40 h-screen bg-gradient-to-b from-slate-900 via-slate-900 to-slate-800 text-white transition-all duration-300 ${
+      className={`fixed left-0 top-0 z-40 flex h-screen flex-col bg-gradient-to-b from-slate-900 via-slate-900 to-slate-800 text-white transition-all duration-300 ${
         collapsed ? "w-[68px]" : "w-64"
       }`}
     >
       {/* Logo / Brand */}
-      <div className="flex h-16 items-center justify-between border-b border-white/10 px-4">
+      <div className="flex h-16 shrink-0 items-center justify-between border-b border-white/10 px-4">
         {!collapsed && (
           <div className="flex items-center gap-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -293,7 +294,7 @@ export default function Sidebar({ collapsed, onToggle, tenantPending }: SidebarP
       </div>
 
       {/* Navigation */}
-      <nav className="mt-3 flex flex-col gap-0.5 px-3">
+      <nav className="mt-3 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-3 pb-2">
         {visibleItems.map((item) => {
           const hasChildren = item.children && item.children.length > 0;
           const isExpanded = expandedMenus.has(item.href);
@@ -431,7 +432,7 @@ export default function Sidebar({ collapsed, onToggle, tenantPending }: SidebarP
 
       {/* Usage bar + User info + version at bottom */}
       {user && (
-        <div className="absolute bottom-0 left-0 right-0 border-t border-white/10 p-3">
+        <div className="shrink-0 border-t border-white/10 p-3">
           {/* UsageBar moved to header */}
           {!collapsed ? (
             <div>

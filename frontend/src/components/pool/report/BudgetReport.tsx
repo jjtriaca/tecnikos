@@ -67,7 +67,14 @@ export type BudgetReportData = {
   } | null;
   subtotalCents?: number;
   discountCents?: number;
+  taxesCents?: number;
+  discountPercent?: number | null;
   totalCents: number;
+  termsConditions?: string | null;
+  equipmentWarranty?: string | null;
+  workWarranty?: string | null;
+  paymentTerms?: string | null;
+  installments?: { label: string; dueLabel?: string | null; valueCents: number }[];
   validityDays?: number | null;
   items: ReportItem[];
   /** ordem das etapas (PoolBudget.sectionOrder) */
@@ -246,15 +253,119 @@ function TodoBlock({ kind }: { kind: string }) {
   return <div className="rp-todo">Bloco &quot;{kind}&quot; — em construcao</div>;
 }
 
+// Subtotal por etapa (soma dos itens ativos de cada etapa).
+function sectionTotals(data: BudgetReportData): { key: string; label: string; totalCents: number }[] {
+  return groupBySection(data).map((g) => ({
+    key: g.key, label: g.label,
+    totalCents: g.items.reduce((s, it) => s + (it.totalCents || 0), 0),
+  }));
+}
+
+function BudgetSummaryBlock({ data }: { data: BudgetReportData }) {
+  const secs = sectionTotals(data);
+  const sub = data.subtotalCents ?? secs.reduce((s, x) => s + x.totalCents, 0);
+  const disc = data.discountCents || 0;
+  const tax = data.taxesCents || 0;
+  return (
+    <div className="rp-summary">
+      <div className="rp-section-banner" style={{ background: "#1e3a8a" }}>RESUMO DO ORCAMENTO</div>
+      <table className="rp-table">
+        <thead><tr><th className="rp-th-desc">Etapa</th><th className="rp-th-val">Valor</th></tr></thead>
+        <tbody>
+          {secs.map((s) => (<tr key={s.key}><td className="rp-td-desc">{s.label}</td><td className="rp-td-val">{brl(s.totalCents)}</td></tr>))}
+        </tbody>
+      </table>
+      <div className="rp-totals">
+        <div className="rp-total-row"><span>Subtotal</span><span>{brl(sub)}</span></div>
+        {disc > 0 ? <div className="rp-total-row"><span>Desconto</span><span>- {brl(disc)}</span></div> : null}
+        {tax > 0 ? <div className="rp-total-row"><span>Impostos</span><span>{brl(tax)}</span></div> : null}
+        <div className="rp-total-row rp-total-grand"><span>TOTAL</span><span>{brl(data.totalCents)}</span></div>
+      </div>
+    </div>
+  );
+}
+
+function TermsBlock({ data, config }: { data: BudgetReportData; config?: any }) {
+  const title: string = config?.title || "Termos e condicoes";
+  const items: [string, string | null | undefined][] = [
+    ["Garantia dos equipamentos", data.equipmentWarranty],
+    ["Garantia do servico", data.workWarranty],
+    ["Condicoes de pagamento", data.paymentTerms],
+  ];
+  const shown = items.filter(([, v]) => v && String(v).trim());
+  return (
+    <div className="rp-terms">
+      <div className="rp-section-banner" style={{ background: "#1e3a8a" }}>{title.toUpperCase()}</div>
+      {data.termsConditions ? <div className="rp-terms-text">{data.termsConditions.split("\n").map((p, i) => <p key={i}>{p}</p>)}</div> : null}
+      {shown.map(([k, v]) => (<div className="rp-term-item" key={k}><div className="rp-term-k">{k}</div><div className="rp-term-v">{v}</div></div>))}
+      {data.validityDays ? <p className="rp-muted" style={{ marginTop: 8 }}>Proposta valida por {data.validityDays} dias.</p> : null}
+      {!data.termsConditions && !shown.length ? <div className="rp-empty">Sem termos cadastrados.</div> : null}
+    </div>
+  );
+}
+
+function PhotosGalleryBlock({ data, config }: { data: BudgetReportData; config?: any }) {
+  const imgs = activeItems(data.items).filter((it) => it.imageUrl);
+  const cols = Number(config?.columns) || 3;
+  return (
+    <div className="rp-gallery">
+      <div className="rp-section-banner" style={{ background: "#1e3a8a" }}>{String(config?.title || "Galeria de fotos").toUpperCase()}</div>
+      {imgs.length ? (
+        <div className="rp-gallery-grid" style={{ gridTemplateColumns: `repeat(${cols},1fr)` }}>
+          {imgs.map((it, i) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <figure className="rp-gfig" key={i}><img src={it.imageUrl!} alt={it.description} className="rp-gimg" /><figcaption>{it.description}</figcaption></figure>
+          ))}
+        </div>
+      ) : <div className="rp-empty">Nenhuma imagem nos itens (cadastre a foto no produto).</div>}
+    </div>
+  );
+}
+
+function InstallmentsBlock({ data }: { data: BudgetReportData }) {
+  const parc = data.installments || [];
+  return (
+    <div className="rp-inst">
+      <div className="rp-section-banner" style={{ background: "#1e3a8a" }}>PLANO DE PAGAMENTO</div>
+      {parc.length ? (
+        <table className="rp-table">
+          <thead><tr><th className="rp-th-desc">Parcela</th><th>Vencimento</th><th className="rp-th-val">Valor</th></tr></thead>
+          <tbody>
+            {parc.map((p, i) => (<tr key={i}><td className="rp-td-desc">{p.label}</td><td>{p.dueLabel || "—"}</td><td className="rp-td-val">{brl(p.valueCents)}</td></tr>))}
+          </tbody>
+        </table>
+      ) : data.paymentTerms ? <div className="rp-terms-text"><p>{data.paymentTerms}</p></div> : <div className="rp-empty">Sem plano de pagamento.</div>}
+    </div>
+  );
+}
+
+function CustomTableBlock({ config }: { config?: any }) {
+  const title: string = config?.title || "";
+  const columns: string[] = Array.isArray(config?.columns) ? config.columns : [];
+  const rows: any[][] = Array.isArray(config?.rows) ? config.rows : [];
+  if (!rows.length) return <div className="rp-empty">Tabela personalizada vazia — configure titulo, colunas e linhas no JSON da pagina.</div>;
+  return (
+    <div className="rp-custom">
+      {title ? <div className="rp-section-banner" style={{ background: "#1e3a8a" }}>{title.toUpperCase()}</div> : null}
+      <table className="rp-table">
+        {columns.length ? <thead><tr>{columns.map((c, i) => <th key={i} className={i === 0 ? "rp-th-desc" : "rp-th-val"}>{c}</th>)}</tr></thead> : null}
+        <tbody>{rows.map((r, i) => <tr key={i}>{(Array.isArray(r) ? r : [r]).map((c, j) => <td key={j} className={j === 0 ? "rp-td-desc" : "rp-td-val"}>{String(c)}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
+  );
+}
+
 function renderPageContent(page: ReportPage, data: BudgetReportData, branding?: ReportBranding | null) {
   if (page.type === "FIXED") return <FixedBlock html={page.htmlContent || ""} data={data} />;
   switch (page.dynamicType) {
-    case "COVER":
-      return <CoverBlock data={data} branding={branding} />;
-    case "PRODUCTS_BY_SECTION":
-      return <ProductsBySectionBlock data={data} config={page.pageConfig} />;
-    default:
-      return <TodoBlock kind={page.dynamicType || "?"} />;
+    case "COVER": return <CoverBlock data={data} branding={branding} />;
+    case "PRODUCTS_BY_SECTION": return <ProductsBySectionBlock data={data} config={page.pageConfig} />;
+    case "BUDGET_SUMMARY": return <BudgetSummaryBlock data={data} />;
+    case "TERMS_CONDITIONS": return <TermsBlock data={data} config={page.pageConfig} />;
+    case "PHOTOS_GALLERY": return <PhotosGalleryBlock data={data} config={page.pageConfig} />;
+    case "INSTALLMENTS": return <InstallmentsBlock data={data} />;
+    case "CUSTOM_TABLE": return <CustomTableBlock config={page.pageConfig} />;
+    default: return <TodoBlock kind={page.dynamicType || "?"} />;
   }
 }
 
@@ -296,6 +407,20 @@ const REPORT_CSS = `
 .rp-prod-img { width:34mm; height:26mm; object-fit:cover; border:1px solid #e2e8f0; border-radius:6px; }
 .rp-fig figcaption { font-size:9px; color:#64748b; margin-top:2px; }
 .rp-empty,.rp-todo { color:#94a3b8; font-style:italic; padding:8px 0; }
+/* Resumo */
+.rp-totals { margin-top:10px; max-width:62mm; margin-left:auto; }
+.rp-total-row { display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid #eef2f7; }
+.rp-total-grand { border-top:2px solid #1e3a8a; border-bottom:0; font-size:15px; font-weight:800; color:#1e3a8a; padding-top:6px; }
+/* Termos */
+.rp-terms-text p { margin:0 0 6px; }
+.rp-term-item { margin-top:8px; }
+.rp-term-k { font-size:11px; font-weight:700; color:#1e3a8a; }
+.rp-term-v { white-space:pre-wrap; }
+/* Galeria */
+.rp-gallery-grid { display:grid; gap:8px; margin-top:8px; }
+.rp-gfig { margin:0; text-align:center; }
+.rp-gimg { width:100%; height:42mm; object-fit:cover; border:1px solid #e2e8f0; border-radius:8px; }
+.rp-gfig figcaption { font-size:9px; color:#64748b; margin-top:3px; }
 
 /* ── IMPRESSAO (bíblia: display:none, A4, color-adjust) ── */
 @media print {
