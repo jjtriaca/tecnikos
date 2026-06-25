@@ -59,6 +59,11 @@ export interface AutoSelectIndicator {
   expr: string;
   unit?: string | null;
   levels: AutoSelectIndicatorLevel[];
+  // v1.14.08: 2o valor opcional exibido junto (ex: "Carga" ao lado de "Folga").
+  // expr2 NAO tem levels — e so informativo; a COR vem sempre do `expr` (principal).
+  expr2?: string | null;
+  label2?: string | null;
+  unit2?: string | null;
 }
 
 export interface AutoSelectIndicatorLevel {
@@ -79,6 +84,10 @@ export interface IndicatorResult {
   groupLabel: string;
   color: string;
   unit: string;
+  // v1.14.08: 2o valor (informativo, SEM cor). null quando a regra nao define expr2.
+  value2?: number | null;
+  label2?: string;
+  unit2?: string;
 }
 
 /**
@@ -224,12 +233,22 @@ export function evaluateIndicator(
   const levels = Array.isArray(ind.levels) ? ind.levels : [];
   const sorted = [...levels].sort((a, b) => (a.max ?? Infinity) - (b.max ?? Infinity));
   const matched = sorted.find((l) => value <= (l.max ?? Infinity));
+  // v1.14.08: 2o valor informativo (ex: "Carga" ao lado de "Folga"). Sem levels — a cor
+  // continua vindo do `value` principal. null se expr2 ausente ou resultar em NaN.
+  let value2: number | null = null;
+  if (ind.expr2 && ind.expr2.trim()) {
+    const v2 = evaluateNumeric(ind.expr2, vars, cellRefSpecs);
+    if (Number.isFinite(v2)) value2 = v2;
+  }
   return {
     value,
     label: matched?.label || '',
     groupLabel: ind.label || '',
     color: matched?.color || 'slate',
     unit: ind.unit || '',
+    value2,
+    label2: ind.label2 || undefined,
+    unit2: ind.unit2 || undefined,
   };
 }
 

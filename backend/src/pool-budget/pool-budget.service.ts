@@ -1683,6 +1683,10 @@ export class PoolBudgetService {
         (item as any).indicatorColor = calculated.color;
         (item as any).indicatorValue = calculated.value;
         (item as any).indicatorUnit = calculated.unit;
+        // v1.14.08: 2o valor informativo (carga/usado/demanda). null quando a regra nao tem expr2.
+        (item as any).indicatorValue2 = calculated.value2 ?? null;
+        (item as any).indicatorLabel2 = calculated.label2 ?? null;
+        (item as any).indicatorUnit2 = calculated.unit2 ?? null;
       }
     }
 

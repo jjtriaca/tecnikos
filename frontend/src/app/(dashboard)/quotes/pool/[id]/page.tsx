@@ -33,6 +33,10 @@ export type AutoSelectRule = {
     expr: string;
     unit?: string | null;
     levels: { max: number; label: string; color: string }[];
+    // v1.14.08: 2o valor opcional (informativo, sem cor) — ex: "Carga" ao lado de "Folga".
+    expr2?: string | null;
+    label2?: string | null;
+    unit2?: string | null;
   } | null;
 };
 
@@ -71,6 +75,10 @@ type BudgetItem = {
   indicatorColor?: string | null;
   indicatorValue?: number | null;
   indicatorUnit?: string | null;
+  // v1.14.08: 2o valor (informativo, sem cor) — ex: "Carga" ao lado de "Folga".
+  indicatorValue2?: number | null;
+  indicatorLabel2?: string | null;
+  indicatorUnit2?: string | null;
   product?: { id: string; code: string | null; description: string; technicalSpecs?: Record<string, unknown> | null; defaultQty?: number | null } | null;
   service?: { id: string; code: string | null; name: string; technicalSpecs?: Record<string, unknown> | null } | null;
 };
@@ -1784,6 +1792,12 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
           }>
             <span className="font-bold uppercase tracking-wide">{item.indicatorLabel}</span>
             <span className="opacity-60">·</span>
+            {item.indicatorValue2 != null && item.indicatorLabel2 ? (
+              <>
+                <span>{item.indicatorLabel2}: <span className="font-semibold tabular-nums">{formatIndicatorValue(item.indicatorValue2, item.indicatorUnit2)}</span></span>
+                <span className="opacity-60">·</span>
+              </>
+            ) : null}
             <span>
               {item.autoSelectRule.indicator.label}: <span className="font-semibold tabular-nums">{formatIndicatorValue(item.indicatorValue, item.indicatorUnit)}</span>
             </span>
@@ -3400,6 +3414,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
         label: 'Tempo de filtragem',
         expr: 'volume / vazaoM3h',
         unit: 'h',
+        expr2: 'vazaoM3h', label2: 'Vazao', unit2: 'm³/h',
         levels: [
           { max: 3, label: 'Excelente', color: 'emerald' },
           { max: 4, label: 'Otimo', color: 'green' },
@@ -3430,6 +3445,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
         label: 'Folga vazao (Solar)',
         expr: '(vazaoM3h - vazaoSolarM3h) / max(vazaoSolarM3h, 0.001) * 100',
         unit: '%',
+        expr2: 'vazaoSolarM3h', label2: 'Alvo', unit2: 'm³/h',
         levels: [
           { max: -0.001, label: 'Insuficiente', color: 'red' },
           { max: 10, label: 'Justo', color: 'orange' },
@@ -3454,6 +3470,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
         label: 'Vazao recirc',
         expr: 'min(0, (trocadorBombaVazaoOperM3h - vazaoTrocadorMinM3h) / max(vazaoTrocadorMinM3h, 0.001) * 100) + max(0, (trocadorBombaVazaoOperM3h - vazaoTrocadorMaxM3h) / max(vazaoTrocadorMaxM3h, 0.001) * 100)',
         unit: '%',
+        expr2: 'trocadorBombaVazaoOperM3h', label2: 'Vazao', unit2: 'm³/h',
         levels: [
           { max: -0.001, label: 'Abaixo', color: 'red' },
           { max: 0, label: 'Na faixa', color: 'emerald' },
@@ -3476,6 +3493,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
         label: 'Folga vazao',
         expr: '(vazaoM3h - vazaoSolarM3h) / vazaoSolarM3h * 100',
         unit: '%',
+        expr2: 'vazaoSolarM3h', label2: 'Alvo', unit2: 'm³/h',
         levels: [
           { max: 0, label: 'Insuficiente', color: 'red' },
           { max: 10, label: 'Justo', color: 'orange' },
@@ -3500,6 +3518,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
         label: 'Folga vazao',
         expr: '(vazaoM3h - vazaoSolarM3h) / vazaoSolarM3h * 100',
         unit: '%',
+        expr2: 'vazaoSolarM3h', label2: 'Alvo', unit2: 'm³/h',
         levels: [
           { max: 0, label: 'Insuficiente', color: 'red' },
           { max: 10, label: 'Justo', color: 'orange' },
@@ -3524,6 +3543,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
         label: 'Folga aquec.',
         expr: '(kcalHNominal - calorNecessarioKcalH) / calorNecessarioKcalH * 100',
         unit: '%',
+        expr2: 'calorNecessarioKcalH', label2: 'Nec.', unit2: 'kcal/h',
         // Niveis v1.11.74: MAX_LOAD_RATIO subiu de 0.7 pra 0.9 → folga minima alvo
         // caiu de 30% pra 11%. "Adequado" = faixa de seguranca, "Folgado" = sobra
         // sem ser excessivo, "Super-dim" so quando passa de 150% (equipamento 2.5×).
@@ -3587,6 +3607,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
         label: 'Folga do tubo (vs DN solar)',
         expr: 'tuboEntradaMm - solarPipeDnMm',
         unit: 'mm',
+        expr2: 'solarPipeDnMm', label2: 'DN nec.', unit2: 'mm',
         levels: [
           { max: -0.01, label: 'Menor que o DN calculado', color: 'red' },
           { max: 0, label: 'Exato (DN do Simulador)', color: 'emerald' },
@@ -3608,6 +3629,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
         label: 'Folga do tubo (vs DN bomba de calor)',
         expr: 'tuboEntradaMm - trocadorPipeDnMm',
         unit: 'mm',
+        expr2: 'trocadorPipeDnMm', label2: 'DN nec.', unit2: 'mm',
         levels: [
           { max: -0.01, label: 'Menor que o DN calculado', color: 'red' },
           { max: 0, label: 'Exato (DN do Simulador)', color: 'emerald' },
@@ -3639,6 +3661,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
         label: 'Folga de vazao (ralo)',
         expr: '(vazaoM3h * (qty - 1) / qty - prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")) / (prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")) * 100',
         unit: '%',
+        expr2: 'prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")', label2: 'Demanda', unit2: 'm³/h',
         levels: [
           { max: -0.01, label: 'Insuficiente — minimo 2 ralos ou grade maior', color: 'red' },
           { max: 20, label: 'Justo', color: 'yellow' },
@@ -3685,11 +3708,16 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
       where: 'amperagem >= (prod(LREF, "amperagem") * prod(LREF, "qtdLinha")) * 1.25',
       orderBy: 'amperagem asc',
       indicator: {
-        label: 'Carga total',
-        expr: '(prod(LREF, "amperagem") * prod(LREF, "qtdLinha")) * 1.25',
+        // v1.14.08: era "Carga total" (so a carga, verde fixo). Agora FOLGA (cor) + Carga (info).
+        // amperagem = capacidade do disjuntor; carga = soma das linhas x 1.25 (fator carga continua).
+        label: 'Folga',
+        expr: 'amperagem - (prod(LREF, "amperagem") * prod(LREF, "qtdLinha")) * 1.25',
         unit: 'A',
+        expr2: '(prod(LREF, "amperagem") * prod(LREF, "qtdLinha")) * 1.25', label2: 'Carga', unit2: 'A',
         levels: [
-          { max: 1000, label: 'OK', color: 'green' },
+          { max: -0.01, label: 'Estourou — use disjuntor maior', color: 'red' },
+          { max: 0, label: 'No limite', color: 'orange' },
+          { max: 99999, label: 'Folga OK', color: 'green' },
         ],
       },
     },
@@ -3708,6 +3736,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
         label: 'Folga de espacos',
         expr: 'bifTrifConta - (prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha"))',
         unit: 'espacos',
+        expr2: 'prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha")', label2: 'Usado', unit2: 'espacos',
         levels: [
           { max: -0.01, label: 'Nao cabe', color: 'red' },
           { max: 0, label: 'Exato (sem folga)', color: 'orange' },
@@ -3730,6 +3759,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
         label: 'Folga de potencia',
         expr: 'potenciaWatts - (prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha"))',
         unit: 'W',
+        expr2: 'prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha")', label2: 'Consumo', unit2: 'W',
         levels: [
           { max: -0.01, label: 'Nao atende', color: 'red' },
           { max: 0, label: 'No limite', color: 'orange' },
@@ -3742,13 +3772,14 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
 
 // lineRef (opcional): preset cujo expr usa o placeholder LREF. Ao clicar, abre o seletor de
 // linha(s) (igual aos templates de auto-selecao) e troca LREF pelas linhas escolhidas no indExpr.
-const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; combine: 'sum' | 'max' }; preset: { label: string; expr: string; unit: string; levels: { max: number; label: string; color: string }[] } }> = [
+const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; combine: 'sum' | 'max' }; preset: { label: string; expr: string; unit: string; levels: { max: number; label: string; color: string }[]; expr2?: string; label2?: string; unit2?: string } }> = [
   {
     label: 'Tempo de filtragem (volume / vazaoM3h)',
     preset: {
       label: 'Tempo de filtragem',
       expr: 'volume / vazaoM3h',
       unit: 'h',
+      expr2: 'vazaoM3h', label2: 'Vazao', unit2: 'm³/h',
       levels: [
         { max: 4, label: 'Excelente', color: 'green' },
         { max: 8, label: 'Bom', color: 'yellow' },
@@ -3766,6 +3797,7 @@ const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; comb
       label: 'Folga aquec.',
       expr: '(kcalHNominal - calorNecessarioKcalH) / calorNecessarioKcalH * 100',
       unit: '%',
+      expr2: 'calorNecessarioKcalH', label2: 'Nec.', unit2: 'kcal/h',
       // Niveis v1.11.74: alinhados com MAX_LOAD_RATIO 0.9 (folga minima 11%).
       levels: [
         { max: 0, label: 'Insuficiente', color: 'red' },
@@ -3863,6 +3895,23 @@ const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; comb
       ],
     },
   },
+  {
+    // Folga de corrente do DISJUNTOR (v1.14.08): amperagem do disjuntor - carga x 1.25 (fator de
+    // carga continua NBR). 2o valor = Carga (soma das linhas escolhidas x 1.25). Cor pela folga.
+    label: 'Folga de corrente (Disjuntor) — escolha as linhas',
+    lineRef: { unit: 'prod(LREF, "amperagem") * prod(LREF, "qtdLinha")', combine: 'sum' },
+    preset: {
+      label: 'Folga',
+      expr: 'amperagem - (prod(LREF, "amperagem") * prod(LREF, "qtdLinha")) * 1.25',
+      unit: 'A',
+      expr2: '(prod(LREF, "amperagem") * prod(LREF, "qtdLinha")) * 1.25', label2: 'Carga', unit2: 'A',
+      levels: [
+        { max: -0.01, label: 'Estourou — use disjuntor maior', color: 'red' },
+        { max: 0, label: 'No limite', color: 'orange' },
+        { max: 99999, label: 'Folga OK', color: 'green' },
+      ],
+    },
+  },
 ];
 
 // Specs CUMULATIVOS (espelha CUMULATIVE_SPECS do backend pool-budget.service): capacidade total =
@@ -3939,6 +3988,11 @@ export function AutoSelectModal({
   const [indLabel, setIndLabel] = useState(initialRule?.indicator?.label || '');
   const [indExpr, setIndExpr] = useState(initialRule?.indicator?.expr || '');
   const [indUnit, setIndUnit] = useState(initialRule?.indicator?.unit || '');
+  // v1.14.08: 2o valor do indicador (informativo, ex: "Carga"). Definido pelos templates;
+  // sem UI de edicao manual (template-driven), mas preservado no buildRule e expandido no LREF.
+  const [indExpr2, setIndExpr2] = useState(initialRule?.indicator?.expr2 || '');
+  const [indLabel2, setIndLabel2] = useState(initialRule?.indicator?.label2 || '');
+  const [indUnit2, setIndUnit2] = useState(initialRule?.indicator?.unit2 || '');
   const [indLevels, setIndLevels] = useState<{ max: number; label: string; color: string }[]>(
     initialRule?.indicator?.levels || [
       { max: 4, label: 'Excelente', color: 'green' },
@@ -4003,10 +4057,15 @@ export function AutoSelectModal({
       setIndLabel(t.rule.indicator.label);
       setIndExpr(t.rule.indicator.expr);
       setIndUnit(t.rule.indicator.unit || '');
+      // v1.14.08: 2o valor (informativo) do template.
+      setIndExpr2(t.rule.indicator.expr2 || '');
+      setIndLabel2(t.rule.indicator.label2 || '');
+      setIndUnit2(t.rule.indicator.unit2 || '');
       // Clone profundo dos levels — array compartilhado com o template, sem clone qualquer edicao mutaria o template.
       setIndLevels(t.rule.indicator.levels.map((l) => ({ ...l })));
     } else {
       setHasIndicator(false);
+      setIndExpr2(''); setIndLabel2(''); setIndUnit2('');
     }
     // v1.13.57 (Chunk C): template com LREF -> abre o seletor de linha(s). O where/indicator
     // ficam com o placeholder LREF ate o operador escolher; a trava de salvar bloqueia LREF cru.
@@ -4029,6 +4088,7 @@ export function AutoSelectModal({
     const expand = (s: string) => s.split(unit).join(replacement);
     setWhere((w) => expand(w));
     setIndExpr((e) => expand(e));
+    setIndExpr2((e) => expand(e)); // v1.14.08: 2o valor (demanda) usa as MESMAS linhas
     setPendingLineRefTemplate(null);
     setPendingLineRefs(new Set());
   };
@@ -4296,14 +4356,20 @@ export function AutoSelectModal({
     if (!Number.isFinite(v)) return null;
     const sorted = [...indLevels].sort((a, b) => a.max - b.max);
     const matched = sorted.find((l) => v <= l.max);
-    return { value: v, label: matched?.label || '', color: matched?.color || 'slate' };
-  }, [hasIndicator, indExpr, indLevels, preview.selected, itemQty]);
+    // v1.14.08: 2o valor (informativo). Mesmo contexto (indVars) pra bater com o read-time.
+    let value2: number | null = null;
+    if (indExpr2.trim()) { const v2 = evalNumber(indExpr2, indVars); if (Number.isFinite(v2)) value2 = v2; }
+    return { value: v, label: matched?.label || '', color: matched?.color || 'slate', value2 };
+  }, [hasIndicator, indExpr, indExpr2, indLevels, preview.selected, itemQty]);
 
   function applyTemplate(t: typeof INDICATOR_TEMPLATES[number]) {
     setHasIndicator(true);
     setIndLabel(t.preset.label);
     setIndExpr(t.preset.expr);
     setIndUnit(t.preset.unit);
+    setIndExpr2(t.preset.expr2 || ''); // v1.14.08: 2o valor (informativo)
+    setIndLabel2(t.preset.label2 || '');
+    setIndUnit2(t.preset.unit2 || '');
     setIndLevels(t.preset.levels.map((l) => ({ ...l }))); // clone — nao mutar o template
     // Preset com LREF (Folga de espacos/corrente): abre o seletor de linha(s). O indExpr fica com
     // LREF ate escolher; applyLineRefSelection troca no indExpr (e no where, se ele tiver o `unit`).
@@ -4323,7 +4389,13 @@ export function AutoSelectModal({
       useSolarBomba: useSolarBomba || null,
       useTrocadorBomba: useTrocadorBomba || null,
       indicator: hasIndicator && indLabel.trim() && indExpr.trim()
-        ? { label: indLabel.trim(), expr: indExpr.trim(), unit: indUnit.trim() || null, levels: indLevels }
+        ? {
+            label: indLabel.trim(), expr: indExpr.trim(), unit: indUnit.trim() || null, levels: indLevels,
+            // v1.14.08: 2o valor (informativo). So grava quando ha expr2.
+            expr2: indExpr2.trim() || null,
+            label2: indExpr2.trim() ? (indLabel2.trim() || null) : null,
+            unit2: indExpr2.trim() ? (indUnit2.trim() || null) : null,
+          }
         : null,
     };
   }
@@ -4332,7 +4404,7 @@ export function AutoSelectModal({
     // v1.13.57 (Chunk C): trava — nao salvar com LREF cru (template de linha aplicada sem
     // escolher a linha). LREF nao casa no regex prod(L\d+) do motor -> rejeitaria todos os
     // candidatos silenciosamente ("Nenhum candidato passa"). Forca o operador a escolher.
-    const raw = `${rule.where || ''} ${rule.indicator?.expr || ''}`;
+    const raw = `${rule.where || ''} ${rule.indicator?.expr || ''} ${rule.indicator?.expr2 || ''}`;
     if (/\bLREF\b/.test(raw)) {
       alert('Esta regra ainda tem "LREF" sem linha escolhida. Clique na template de novo e escolha a(s) linha(s) no seletor, ou edite o criterio trocando LREF pela linha (ex: L3).');
       return;
@@ -4376,7 +4448,7 @@ export function AutoSelectModal({
                          indicatorPreview.color === 'orange' ? "bg-orange-50 border-orange-300 text-orange-800" :
                          indicatorPreview.color === 'red' ? "bg-red-50 border-red-300 text-red-800" :
                          "bg-slate-50 border-slate-300 text-slate-700")}>
-                        {indLabel}: {indicatorPreview.value.toFixed(2)}{indUnit} → {indicatorPreview.label}
+                        {indicatorPreview.value2 != null && indLabel2 ? `${indLabel2}: ${indicatorPreview.value2.toFixed(2)}${indUnit2} · ` : ''}{indLabel}: {indicatorPreview.value.toFixed(2)}{indUnit} → {indicatorPreview.label}
                       </span>
                     )}
                   </div>
