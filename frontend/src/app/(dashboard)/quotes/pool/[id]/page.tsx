@@ -3407,20 +3407,20 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
     description: 'Conjunto Filtrante cuja vazao atende vazaoIdeal = volume / 3.7. Escolhe o filtro de menor vazao que cumpra (logica fiel ao macro VBA da planilha original). Indicador 5 niveis baseado em tempo de ciclo.',
     rule: {
       filterCategoria: null,
-      filterDescription: 'Conjunto Filtrante',
+      filterDescription: null,
       where: 'vazaoM3h >= volume / 3.7',
       orderBy: 'vazaoM3h asc',
       indicator: {
         label: 'Tempo de filtragem',
         expr: 'volume / vazaoM3h',
         unit: 'h',
-        expr2: 'vazaoM3h', label2: 'Vazao', unit2: 'm³/h',
+        expr2: 'vazaoM3h', label2: 'Vazão', unit2: 'm³/h',
         levels: [
           { max: 3, label: 'Excelente', color: 'emerald' },
-          { max: 4, label: 'Otimo', color: 'green' },
+          { max: 4, label: 'Ótimo', color: 'green' },
           { max: 6, label: 'Bom', color: 'yellow' },
           { max: 8, label: 'Regular', color: 'orange' },
-          { max: 999, label: 'Pessimo', color: 'red' },
+          { max: 999, label: 'Péssimo', color: 'red' },
         ],
       },
     },
@@ -3442,7 +3442,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
       // v1.13.58: indicador de folga de vazao vs o alvo do Simulador Solar (vazaoSolarM3h).
       // vazaoM3h e multiplicado pela qtd da linha (N em paralelo).
       indicator: {
-        label: 'Folga vazao (Solar)',
+        label: 'Folga vazão (Solar)',
         expr: '(vazaoM3h - vazaoSolarM3h) / max(vazaoSolarM3h, 0.001) * 100',
         unit: '%',
         expr2: 'vazaoSolarM3h', label2: 'Alvo', unit2: 'm³/h',
@@ -3467,10 +3467,10 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
       // com curva opera bem abaixo do nominal). value = % FORA da faixa [min,max]: <0 abaixo do
       // min, 0 dentro, >0 acima do max. Bate com "Vazao fora da faixa" do card do Simulador.
       indicator: {
-        label: 'Vazao recirc',
+        label: 'Vazão recirc',
         expr: 'min(0, (trocadorBombaVazaoOperM3h - vazaoTrocadorMinM3h) / max(vazaoTrocadorMinM3h, 0.001) * 100) + max(0, (trocadorBombaVazaoOperM3h - vazaoTrocadorMaxM3h) / max(vazaoTrocadorMaxM3h, 0.001) * 100)',
         unit: '%',
-        expr2: 'trocadorBombaVazaoOperM3h', label2: 'Vazao', unit2: 'm³/h',
+        expr2: 'trocadorBombaVazaoOperM3h', label2: 'Vazão', unit2: 'm³/h',
         levels: [
           { max: -0.001, label: 'Abaixo', color: 'red' },
           { max: 0, label: 'Na faixa', color: 'emerald' },
@@ -3486,11 +3486,11 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
     rule: {
       filterPoolType: 'Bomba',
       filterCategoria: null,
-      filterDescription: 'Bomba',
+      filterDescription: null,
       where: 'vazaoM3h >= vazaoSolarM3h && pressaoTrabalhoMca >= alturaTelhadoMca',
       orderBy: 'vazaoM3h asc',
       indicator: {
-        label: 'Folga vazao',
+        label: 'Folga vazão',
         expr: '(vazaoM3h - vazaoSolarM3h) / vazaoSolarM3h * 100',
         unit: '%',
         expr2: 'vazaoSolarM3h', label2: 'Alvo', unit2: 'm³/h',
@@ -3511,11 +3511,11 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
     rule: {
       filterPoolType: 'Bomba',
       filterCategoria: null,
-      filterDescription: 'Bomba',
+      filterDescription: null,
       where: 'vazaoM3h >= vazaoSolarM3h * 0.9 && pressaoTrabalhoMca >= alturaTelhadoMca && vazaoM3h <= vazaoMaxM3h * 1.5',
       orderBy: 'vazaoM3h asc',
       indicator: {
-        label: 'Folga vazao',
+        label: 'Folga vazão',
         expr: '(vazaoM3h - vazaoSolarM3h) / vazaoSolarM3h * 100',
         unit: '%',
         expr2: 'vazaoSolarM3h', label2: 'Alvo', unit2: 'm³/h',
@@ -3536,7 +3536,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
     rule: {
       filterPoolType: 'Aquecedor',
       filterCategoria: null,
-      filterDescription: 'Bomba',
+      filterDescription: null,
       where: 'kcalHNominal >= calorNecessarioKcalH && kcalHNominal <= calorNecessarioKcalH * 3.33',
       orderBy: 'kcalHNominal asc',
       indicator: {
@@ -3574,7 +3574,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
     lineRef: { unit: 'prod(LREF, "tuboEntradaMm")', combine: 'max' },
     rule: {
       filterCategoria: null,
-      filterDescription: 'tubo',
+      filterDescription: null,
       where: 'tuboEntradaMm >= prod(LREF, "tuboEntradaMm")',
       orderBy: 'tuboEntradaMm asc',
       indicator: {
@@ -3582,9 +3582,9 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
         expr: 'tuboEntradaMm - prod(LREF, "tuboEntradaMm")',
         unit: 'mm',
         levels: [
-          { max: -0.01, label: 'Incompativel (tubo menor)', color: 'red' },
-          { max: 0, label: 'Compativel', color: 'emerald' },
-          { max: 999, label: 'Maior que necessario', color: 'yellow' },
+          { max: -0.01, label: 'Incompatível (tubo menor)', color: 'red' },
+          { max: 0, label: 'Compatível', color: 'emerald' },
+          { max: 999, label: 'Maior que necessário', color: 'yellow' },
         ],
       },
     },
@@ -3600,7 +3600,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
     description: 'Escolhe o tubo do catalogo cujo diametro (tuboEntradaMm) cobre o DN dimensionado no card "Tubulacao — perda de carga" da aba SOLAR do Simulador (var solarPipeDnMm). Rode o dimensionamento da tubulacao no Simulador primeiro (senao o DN fica 0 e qualquer tubo passa). O tubo acompanha quando voce muda comprimento/desnivel/vazao la.',
     rule: {
       filterCategoria: null,
-      filterDescription: 'tubo',
+      filterDescription: null,
       where: 'tuboEntradaMm >= solarPipeDnMm',
       orderBy: 'tuboEntradaMm asc',
       indicator: {
@@ -3611,7 +3611,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
         levels: [
           { max: -0.01, label: 'Menor que o DN calculado', color: 'red' },
           { max: 0, label: 'Exato (DN do Simulador)', color: 'emerald' },
-          { max: 999, label: 'Maior que o necessario', color: 'yellow' },
+          { max: 999, label: 'Maior que o necessário', color: 'yellow' },
         ],
       },
     },
@@ -3622,7 +3622,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
     description: 'Escolhe o tubo do catalogo cujo diametro (tuboEntradaMm) cobre o DN dimensionado no card "Tubulacao — perda de carga" da aba BOMBA DE CALOR do Simulador (var trocadorPipeDnMm). Rode o dimensionamento da tubulacao no Simulador primeiro (senao o DN fica 0 e qualquer tubo passa). O tubo acompanha quando voce muda comprimento/desnivel/vazao la.',
     rule: {
       filterCategoria: null,
-      filterDescription: 'tubo',
+      filterDescription: null,
       where: 'tuboEntradaMm >= trocadorPipeDnMm',
       orderBy: 'tuboEntradaMm asc',
       indicator: {
@@ -3633,7 +3633,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
         levels: [
           { max: -0.01, label: 'Menor que o DN calculado', color: 'red' },
           { max: 0, label: 'Exato (DN do Simulador)', color: 'emerald' },
-          { max: 999, label: 'Maior que o necessario', color: 'yellow' },
+          { max: 999, label: 'Maior que o necessário', color: 'yellow' },
         ],
       },
     },
@@ -3654,18 +3654,18 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
     lineRef: { unit: 'prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")', combine: 'sum' },
     rule: {
       filterCategoria: null,
-      filterDescription: 'grade',
+      filterDescription: null,
       where: 'vazaoM3h >= prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")',
       orderBy: 'vazaoM3h asc',
       indicator: {
-        label: 'Folga de vazao (ralo)',
+        label: 'Folga de vazão (ralo)',
         expr: '(vazaoM3h * (qty - 1) / qty - prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")) / (prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")) * 100',
         unit: '%',
         expr2: 'prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")', label2: 'Demanda', unit2: 'm³/h',
         levels: [
-          { max: -0.01, label: 'Insuficiente — minimo 2 ralos ou grade maior', color: 'red' },
+          { max: -0.01, label: 'Insuficiente — mínimo 2 ralos ou grade maior', color: 'red' },
           { max: 20, label: 'Justo', color: 'yellow' },
-          { max: 99999, label: 'Aguenta a vazao total', color: 'emerald' },
+          { max: 99999, label: 'Aguenta a vazão total', color: 'emerald' },
         ],
       },
     },
@@ -3679,7 +3679,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
     description: 'Kit Cascata Inox De Embutir. Escolhe o mais barato do catalogo. Para selecao baseada em largura especifica da borda, edite o criterio.',
     rule: {
       filterCategoria: null,
-      filterDescription: 'Kit Cascata',
+      filterDescription: null,
       where: '',
       orderBy: 'priceCents asc',
       indicator: null,
@@ -3691,7 +3691,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
     description: 'Kit Spa com hidromassagem. Escolhe o mais barato do catalogo. Para selecao baseada em numero de jatos ou capacidade, edite o criterio.',
     rule: {
       filterCategoria: null,
-      filterDescription: 'Kit Spa',
+      filterDescription: null,
       where: '',
       orderBy: 'priceCents asc',
       indicator: null,
@@ -3704,7 +3704,7 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
     lineRef: { unit: 'prod(LREF, "amperagem") * prod(LREF, "qtdLinha")', combine: 'sum' },
     rule: {
       filterCategoria: null,
-      filterDescription: 'disjuntor',
+      filterDescription: null,
       where: 'amperagem >= (prod(LREF, "amperagem") * prod(LREF, "qtdLinha")) * 1.25',
       orderBy: 'amperagem asc',
       indicator: {
@@ -3729,16 +3729,16 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
     lineRef: { unit: 'prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha")', combine: 'sum' },
     rule: {
       filterCategoria: null,
-      filterDescription: 'quadro distr',
+      filterDescription: null,
       where: 'bifTrifConta >= (prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha"))',
       orderBy: 'bifTrifConta asc',
       indicator: {
-        label: 'Folga de espacos',
+        label: 'Folga de espaços',
         expr: 'bifTrifConta - (prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha"))',
         unit: 'espacos',
         expr2: 'prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha")', label2: 'Usado', unit2: 'espacos',
         levels: [
-          { max: -0.01, label: 'Nao cabe', color: 'red' },
+          { max: -0.01, label: 'Não cabe', color: 'red' },
           { max: 0, label: 'Exato (sem folga)', color: 'orange' },
           { max: 9999, label: 'Folga OK', color: 'green' },
         ],
@@ -3752,16 +3752,16 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
     lineRef: { unit: 'prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha")', combine: 'sum' },
     rule: {
       filterCategoria: null,
-      filterDescription: 'fonte',
+      filterDescription: null,
       where: 'potenciaWatts >= (prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha"))',
       orderBy: 'potenciaWatts asc',
       indicator: {
-        label: 'Folga de potencia',
+        label: 'Folga de potência',
         expr: 'potenciaWatts - (prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha"))',
         unit: 'W',
         expr2: 'prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha")', label2: 'Consumo', unit2: 'W',
         levels: [
-          { max: -0.01, label: 'Nao atende', color: 'red' },
+          { max: -0.01, label: 'Não atende', color: 'red' },
           { max: 0, label: 'No limite', color: 'orange' },
           { max: 9999, label: 'Folga OK', color: 'green' },
         ],
@@ -3779,7 +3779,7 @@ const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; comb
       label: 'Tempo de filtragem',
       expr: 'volume / vazaoM3h',
       unit: 'h',
-      expr2: 'vazaoM3h', label2: 'Vazao', unit2: 'm³/h',
+      expr2: 'vazaoM3h', label2: 'Vazão', unit2: 'm³/h',
       levels: [
         { max: 4, label: 'Excelente', color: 'green' },
         { max: 8, label: 'Bom', color: 'yellow' },
@@ -3818,10 +3818,10 @@ const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; comb
     // Simulador. Antes usava vazaoM3h nominal -> indicador errado (bomba com curva opera != nominal).
     label: 'Vazao dentro x fora da faixa (Bomba de Calor)',
     preset: {
-      label: 'Vazao recirc',
+      label: 'Vazão recirc',
       expr: 'min(0, (trocadorBombaVazaoOperM3h - vazaoTrocadorMinM3h) / max(vazaoTrocadorMinM3h, 0.001) * 100) + max(0, (trocadorBombaVazaoOperM3h - vazaoTrocadorMaxM3h) / max(vazaoTrocadorMaxM3h, 0.001) * 100)',
       unit: '%',
-      expr2: 'trocadorBombaVazaoOperM3h', label2: 'Vazao', unit2: 'm³/h',
+      expr2: 'trocadorBombaVazaoOperM3h', label2: 'Vazão', unit2: 'm³/h',
       levels: [
         { max: -0.001, label: 'Abaixo', color: 'red' },
         { max: 0, label: 'Na faixa', color: 'emerald' },
@@ -3850,12 +3850,12 @@ const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; comb
     label: 'Folga de espacos (Quadro) — escolha as linhas',
     lineRef: { unit: 'prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha")', combine: 'sum' },
     preset: {
-      label: 'Folga de espacos',
+      label: 'Folga de espaços',
       expr: 'bifTrifConta - (prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha"))',
       unit: 'espacos',
       expr2: 'prod(LREF, "bifTrifConta") * prod(LREF, "qtdLinha")', label2: 'Usado', unit2: 'espacos',
       levels: [
-        { max: -0.01, label: 'Nao cabe', color: 'red' },
+        { max: -0.01, label: 'Não cabe', color: 'red' },
         { max: 0, label: 'Exato (sem folga)', color: 'orange' },
         { max: 9999, label: 'Folga OK', color: 'green' },
       ],
@@ -3868,12 +3868,12 @@ const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; comb
     label: 'Folga de potencia (Fonte) — escolha as linhas',
     lineRef: { unit: 'prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha")', combine: 'sum' },
     preset: {
-      label: 'Folga de potencia',
+      label: 'Folga de potência',
       expr: 'potenciaWatts - (prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha"))',
       unit: 'W',
       expr2: 'prod(LREF, "potenciaWatts") * prod(LREF, "qtdLinha")', label2: 'Consumo', unit2: 'W',
       levels: [
-        { max: -0.01, label: 'Nao atende', color: 'red' },
+        { max: -0.01, label: 'Não atende', color: 'red' },
         { max: 0, label: 'No limite', color: 'orange' },
         { max: 9999, label: 'Folga OK', color: 'green' },
       ],
@@ -3888,14 +3888,14 @@ const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; comb
     label: 'Folga de vazao (Ralo de fundo) — escolha as linhas',
     lineRef: { unit: 'prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")', combine: 'sum' },
     preset: {
-      label: 'Folga de vazao (ralo)',
+      label: 'Folga de vazão (ralo)',
       expr: '(vazaoM3h * (qty - 1) / qty - prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")) / (prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")) * 100',
       unit: '%',
       expr2: 'prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")', label2: 'Demanda', unit2: 'm³/h',
       levels: [
-        { max: -0.01, label: 'Insuficiente — minimo 2 ralos ou grade maior', color: 'red' },
+        { max: -0.01, label: 'Insuficiente — mínimo 2 ralos ou grade maior', color: 'red' },
         { max: 20, label: 'Justo', color: 'yellow' },
-        { max: 99999, label: 'Aguenta a vazao total', color: 'emerald' },
+        { max: 99999, label: 'Aguenta a vazão total', color: 'emerald' },
       ],
     },
   },

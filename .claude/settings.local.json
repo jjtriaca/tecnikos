@@ -19,7 +19,11 @@
       "Bash(curl -fsS http://localhost:4000/health)",
       "Bash(curl -fsS http://localhost:3000/)",
       "mcp__visualize__read_me",
-      "mcp__visualize__show_widget"
+      "mcp__visualize__show_widget",
+      "Bash(python -m pip install oletools --quiet)",
+      "Bash(python -m olevba \"C:/Users/Juliano/Desktop/Juliano Piscinas/AA ORÇAMENTOS/2026 ORÇAMENTOS CONTRATOS E RECIBOS/Orcamento Piscinas SLS 68.xlsm\" -c)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(python -m oletools.olevba \"C:/Users/Juliano/Desktop/Juliano Piscinas/AA ORÇAMENTOS/2026 ORÇAMENTOS CONTRATOS E RECIBOS/Orcamento Piscinas SLS 68.xlsm\" -c > \"C:/Users/Juliano/sistema-terceirizacao/.claude/vba_dump.txt\" 2>\"C:/Users/Juliano/sistema-terceirizacao/.claude/vba_err.txt\"; echo \"exit: $?\"; echo \"=== stderr ===\"; head -8 \"C:/Users/Juliano/sistema-terceirizacao/.claude/vba_dump.txt\" \"C:/Users/Juliano/sistema-terceirizacao/.claude/vba_err.txt\"; echo \"=== linhas ===\"; wc -l \"C:/Users/Juliano/sistema-terceirizacao/.claude/vba_dump.txt\")"
     ],
     "deny": []
   },
