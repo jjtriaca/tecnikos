@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
+import BudgetReport, { BudgetReportData } from "@/components/pool/report/BudgetReport";
+import { printViaClone } from "@/lib/printViaClone";
 
 type Page = {
   id: string;
@@ -54,6 +56,36 @@ const PLACEHOLDERS = [
   { key: "{validityDays}", label: "Validade (dias)" },
   { key: "{date}", label: "Data atual" },
 ];
+
+// Imagem de exemplo auto-contida (data-URI) pro preview do editor.
+const sampleImg = (label: string, color: string) =>
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    `<svg xmlns='http://www.w3.org/2000/svg' width='240' height='180'><rect width='240' height='180' fill='${color}'/><text x='120' y='98' font-size='18' fill='white' text-anchor='middle' font-family='sans-serif'>${label}</text></svg>`,
+  );
+
+// Orcamento de EXEMPLO — alimenta a pre-visualizacao ao vivo do editor (o layout
+// e generico, nao amarrado a 1 orcamento; aqui mostramos como ele fica com dados).
+const SAMPLE_BUDGET: BudgetReportData = {
+  code: "ORCP-00001",
+  title: "Piscina Pre moldada",
+  clientName: "Anderson da Silva Prado",
+  clientDocument: "123.456.789-00",
+  dimensions: { length: 7, width: 3, depth: 1.4, area: 28.5, volume: 33.3, perimeter: 20 },
+  subtotalCents: 18561520,
+  discountCents: 0,
+  totalCents: 18705932,
+  validityDays: 30,
+  sectionOrder: ["CONSTRUCAO", "FILTRO", "CASCATA", "ACIONAMENTOS"],
+  sectionLabels: { CONSTRUCAO: "Construcao", FILTRO: "Filtragem", CASCATA: "Cascata", ACIONAMENTOS: "Acionamentos eletricos" },
+  items: [
+    { poolSection: "CONSTRUCAO", description: "Kit piscina pre-moldada 7x3", qty: 1, unitPriceCents: 9800000, totalCents: 9800000 },
+    { poolSection: "CONSTRUCAO", description: "Mao de obra de instalacao", slotName: "Servico", qty: 1, unitPriceCents: 3200000, totalCents: 3200000 },
+    { poolSection: "FILTRO", description: "Conjunto Filtrante 1/2 cv", qty: 1, unitPriceCents: 1850000, totalCents: 1850000, imageUrl: sampleImg("Filtro", "#0e7490") },
+    { poolSection: "CASCATA", description: "Kit Cascata Inox Embutir 120cm", slotName: "Cascata", qty: 1, unitPriceCents: 1280000, totalCents: 1280000, imageUrl: sampleImg("Cascata 120cm", "#0369a1") },
+    { poolSection: "ACIONAMENTOS", description: "Quadro eletrico 24 polos", qty: 1, unitPriceCents: 505760, totalCents: 505760, imageUrl: sampleImg("Quadro", "#334155") },
+  ],
+};
 
 export default function PoolPrintLayoutEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -159,7 +191,10 @@ export default function PoolPrintLayoutEditorPage() {
   if (!layout) return <div className="p-6 text-slate-600">Layout nao encontrado.</div>;
 
   return (
-    <div className="space-y-4 p-6">
+    <div className="p-6">
+      <div className="flex flex-col xl:flex-row gap-6 items-start">
+      {/* ESQUERDA: controles do montador */}
+      <div className="w-full xl:w-[460px] xl:flex-shrink-0 space-y-4">
       {/* Header */}
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
@@ -260,6 +295,25 @@ export default function PoolPrintLayoutEditorPage() {
           ))}
         </div>
       )}
+      </div>
+
+      {/* DIREITA: pre-visualizacao ao vivo (atualiza conforme voce edita as paginas) */}
+      <div className="flex-1 min-w-0 w-full">
+        <div className="xl:sticky xl:top-4">
+          <div className="flex items-center justify-between mb-2 gap-2">
+            <h2 className="text-sm font-semibold text-slate-700">Pre-visualizacao <span className="text-slate-400 font-normal">(dados de exemplo)</span></h2>
+            <button onClick={() => printViaClone({ areaId: "budget-pdf-area", cloneId: "budget-pdf-clone" })}
+              className="rounded-md bg-blue-700 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-800 shrink-0">
+              🖨️ Imprimir exemplo
+            </button>
+          </div>
+          <div className="rounded-xl border border-slate-300 bg-slate-200 p-3 overflow-auto" style={{ maxHeight: "82vh" }}>
+            <BudgetReport data={SAMPLE_BUDGET} layout={{ branding: layout.branding, pages: layout.pages }} />
+          </div>
+        </div>
+      </div>
+
+      </div>
 
       {/* Modais */}
       {(showAddPage || editingPage) && (
