@@ -282,3 +282,133 @@ export function BombaDatasheetBlock({ data }: { data: BudgetReportData }) {
     </div>
   );
 }
+
+function SolarKpi({ label, value, unit, accent }: { label: string; value: any; unit?: string; accent?: boolean }) {
+  return (
+    <div className={`flex items-center justify-between rounded border px-2 py-1 ${accent ? "border-amber-300 bg-amber-50" : "border-slate-200 bg-white"}`}>
+      <span className="text-[8.5px] uppercase tracking-wide text-slate-500 font-semibold">{label}</span>
+      <span className={`text-[12px] font-bold tabular-nums ${accent ? "text-amber-700" : "text-slate-900"}`}>{value}{unit ? <span className="text-[8px] text-slate-500 font-semibold"> {unit}</span> : null}</span>
+    </div>
+  );
+}
+
+/** Datasheet do COLETOR SOLAR — display-only a partir do environmentParams.solarReport. */
+export function SolarDatasheetBlock({ data }: { data: BudgetReportData }) {
+  const sr: any = (data as any).solarReport;
+  const ep: any = (data as any).environmentParams || {};
+  const dims: any = data.dimensions || {};
+  if (!sr || !sr.qtdColetores) {
+    return <div className="rp-empty">Simulacao de aquecimento solar nao calculada neste orcamento. Abra o Simulador e calcule.</div>;
+  }
+  const monthly: any[] = Array.isArray(sr.monthly) ? sr.monthly : [];
+  const localName = sr.resolved ? `${sr.resolved.name || ""}${sr.resolved.uf ? " - " + sr.resolved.uf : ""}` : (ep.cidade || "—");
+  const col = sr.selectedCollector || {};
+  const numParalelo = (sr.numRamosParalelos ?? 1) > 1 ? sr.numRamosParalelos : 0;
+  return (
+    <div className="bg-white text-slate-900" style={{ fontSize: 11, lineHeight: 1.3 }}>
+      {/* HEADER */}
+      <div className="bg-gradient-to-r from-slate-900 to-blue-900 text-white px-5 py-3 flex items-center justify-between gap-3">
+        <div>
+          <div className="text-[9px] uppercase tracking-[0.18em] text-amber-300 font-medium">Aquecimento solar para piscinas</div>
+          <div className="text-base font-bold leading-tight mt-0.5">Dimensionamento para Coletor Solar</div>
+        </div>
+        <div className="text-right">
+          <div className="text-[9px] uppercase tracking-[0.18em] text-slate-300">Orcamento</div>
+          <div className="text-xl font-bold tabular-nums leading-tight">{data.code ?? "—"}</div>
+        </div>
+      </div>
+
+      {/* CLIENTE + DIM/CONFIG */}
+      <div className="px-5 py-3 border-b border-slate-200">
+        <div className="font-bold text-[12px]">{data.clientName ?? "—"}</div>
+        <div className="text-slate-700 text-[11px] mt-0.5">Local: {localName} · Projeto: {data.title || "—"}</div>
+        <div className="grid grid-cols-4 gap-2 mt-2 text-[10px]">
+          <div className="rounded border border-slate-200 px-2 py-1"><div className="text-[8px] uppercase tracking-wide text-slate-500 font-semibold">Comp.</div><div className="font-bold tabular-nums">{dec(dims.length)} m</div></div>
+          <div className="rounded border border-slate-200 px-2 py-1"><div className="text-[8px] uppercase tracking-wide text-slate-500 font-semibold">Larg.</div><div className="font-bold tabular-nums">{dec(dims.width)} m</div></div>
+          <div className="rounded border border-amber-300 bg-amber-50 px-2 py-1"><div className="text-[8px] uppercase tracking-wide text-amber-700 font-semibold">Area</div><div className="font-bold tabular-nums text-amber-800">{dec(dims.area)} m2</div></div>
+          <div className="rounded border border-amber-300 bg-amber-50 px-2 py-1"><div className="text-[8px] uppercase tracking-wide text-amber-700 font-semibold">Volume</div><div className="font-bold tabular-nums text-amber-800">{dec(dims.volume)} m3</div></div>
+        </div>
+      </div>
+
+      {/* DIMENSIONAMENTO */}
+      <div className="bg-blue-900 text-white px-5 py-1 text-[9px] uppercase tracking-[0.18em] font-bold">Dimensionamento</div>
+      <div className="grid grid-cols-12 gap-3 px-5 py-3 border-b border-slate-200">
+        <div className="col-span-5 grid grid-cols-1 gap-1">
+          <SolarKpi label="Area da piscina" value={dec(sr.areaPiscinaM2)} unit="m2" />
+          <SolarKpi label="m2 necessario de coletor" value={Math.round(Number(sr.m2ColetorNecessario) || 0)} unit="m2" />
+          <SolarKpi label="Qtd. de coletores" value={dec(sr.qtdColetores, 1)} unit="un" accent />
+          <SolarKpi label="Coletores por bateria" value={String(sr.coletoresPorBateria ?? "—")} unit="un" />
+          <SolarKpi label="Baterias (total)" value={String(sr.numBaterias ?? "—")} unit="un" />
+          <SolarKpi label="Baterias em serie" value={String(sr.batPorRamo ?? sr.numBaterias ?? "—")} unit="un" />
+          {numParalelo > 0 ? <SolarKpi label="Baterias em paralelo" value={String(numParalelo)} unit="un" /> : null}
+          <SolarKpi label="Vazao necessaria" value={dec(sr.vazaoTotalM3h)} unit="m3/h" />
+          <SolarKpi label="Cobertura piscina x coletores" value={dec(sr.percentualCobertura, 1)} unit="%" />
+        </div>
+        <div className="col-span-7 flex flex-col gap-2">
+          <div className="rounded-lg border border-slate-200 p-2">
+            <div className="text-[8.5px] uppercase tracking-wider font-bold text-slate-600">Coletor selecionado</div>
+            <div className="text-[13px] font-bold mt-1">{col.modelName || "—"}</div>
+            <div className="grid grid-cols-3 gap-2 mt-2 text-[10px]">
+              {col.areaM2 ? <div className="bg-slate-50 rounded px-2 py-1"><div className="text-[8px] uppercase text-slate-500 font-semibold">Area unit.</div><div className="font-bold tabular-nums">{dec(col.areaM2)} m2</div></div> : null}
+              {col.eficiencia ? <div className="bg-slate-50 rounded px-2 py-1"><div className="text-[8px] uppercase text-slate-500 font-semibold">Eficiencia</div><div className="font-bold tabular-nums">{dec(Number(col.eficiencia) * 100, 0)}%</div></div> : null}
+              {sr.areaTotalColetoresM2 ? <div className="bg-slate-50 rounded px-2 py-1"><div className="text-[8px] uppercase text-slate-500 font-semibold">Area total</div><div className="font-bold tabular-nums">{dec(sr.areaTotalColetoresM2)} m2</div></div> : null}
+            </div>
+          </div>
+          {sr.bombaRecomendada ? (
+            <div className="rounded-lg border border-cyan-200 bg-cyan-50 p-2">
+              <div className="text-[8.5px] uppercase tracking-wider font-bold text-cyan-700">Bomba recomendada</div>
+              <div className="text-[12px] font-bold text-cyan-900 mt-0.5">{sr.bombaRecomendada}</div>
+              <div className="text-[9px] text-cyan-700 mt-0.5">Vazao alvo {dec(sr.vazaoTotalM3h)} m3/h</div>
+            </div>
+          ) : null}
+          {(sr.monthlyMinTempFinal != null && sr.monthlyMaxTempFinal != null) ? (
+            <div className="rounded-lg border border-slate-200 p-2 grid grid-cols-3 gap-2 text-[10px]">
+              <div><div className="text-[8px] uppercase text-slate-500 font-semibold">Temp. final min</div><div className="font-bold tabular-nums text-blue-700">{dec(sr.monthlyMinTempFinal, 1)} C</div></div>
+              <div><div className="text-[8px] uppercase text-slate-500 font-semibold">Temp. final max</div><div className="font-bold tabular-nums text-orange-700">{dec(sr.monthlyMaxTempFinal, 1)} C</div></div>
+              {sr.monthlyAvgGanho != null ? <div><div className="text-[8px] uppercase text-slate-500 font-semibold">Ganho medio</div><div className="font-bold tabular-nums text-emerald-700">+{dec(sr.monthlyAvgGanho, 1)} C</div></div> : null}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {/* SIMULACAO MENSAL */}
+      <div className="bg-blue-900 text-white px-5 py-1 text-[9px] uppercase tracking-[0.18em] font-bold">Simulacao mensal de temperatura</div>
+      {monthly.length > 0 ? (
+        <div className="px-5 py-2">
+          <table className="w-full border-collapse text-[9.5px]">
+            <thead>
+              <tr className="bg-slate-100 text-slate-600">
+                <th className="text-left px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">Mes</th>
+                <th className="text-right px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">Amb.</th>
+                <th className="text-right px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">1o dia</th>
+                <th className="text-right px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">2o dia</th>
+                <th className="text-right px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">3o dia</th>
+                <th className="text-right px-1.5 py-1 font-semibold uppercase tracking-wide text-[8.5px]">4o dia</th>
+              </tr>
+            </thead>
+            <tbody>
+              {monthly.map((r, idx) => (
+                <tr key={r.monthIndex} className={idx % 2 === 0 ? "bg-white" : "bg-slate-50"}>
+                  <td className="px-1.5 py-0.5 font-semibold text-slate-900 capitalize">{String(r.monthName || "").toLowerCase()}</td>
+                  <td className="px-1.5 py-0.5 text-right text-slate-600 tabular-nums">{dec(r.tempAmbiente, 1)}</td>
+                  <td className="px-1.5 py-0.5 text-right font-semibold tabular-nums">{dec(r.tempFinal1d, 1)}</td>
+                  <td className="px-1.5 py-0.5 text-right font-semibold tabular-nums">{dec(r.tempFinal2d, 1)}</td>
+                  <td className="px-1.5 py-0.5 text-right font-semibold tabular-nums">{dec(r.tempFinal3d, 1)}</td>
+                  <td className="px-1.5 py-0.5 text-right font-semibold tabular-nums">{dec(r.tempFinal4d, 1)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="px-5 py-2 text-[11px] text-slate-500">Simulacao mensal nao disponivel.</div>
+      )}
+
+      {/* FOOTER */}
+      <div className="px-5 py-2 bg-slate-50 text-[8.5px] text-slate-700 leading-tight">
+        <div className="text-[8.5px] uppercase tracking-wide text-slate-500 font-semibold mb-1">Observacoes</div>
+        <div>Valores estimativos, variam conforme a temperatura ambiente real. Perda termica acima do tolerado (sem capa, vento forte) reduz a temperatura final. Dias frios e nublados podem reiniciar o ciclo de aquecimento. Dimensionamento conforme NBR 10.339.</div>
+      </div>
+    </div>
+  );
+}

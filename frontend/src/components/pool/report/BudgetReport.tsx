@@ -15,7 +15,7 @@
  * O parent (sandbox /dev/print-test-orcamento ou o modal do orcamento) imprime com
  *   printViaClone({ areaId: "budget-pdf-area", cloneId: "budget-pdf-clone" })
  */
-import { BombaDatasheetBlock } from "./HeatingDatasheets";
+import { BombaDatasheetBlock, SolarDatasheetBlock } from "./HeatingDatasheets";
 
 // ── Tipos (espelham Page/Layout do editor) ──────────────────────────────────
 export type ReportPage = {
@@ -397,6 +397,7 @@ function renderBlockByType(blockType: string | null | undefined, data: BudgetRep
     case "INSTALLMENTS": return <InstallmentsBlock data={data} />;
     case "CUSTOM_TABLE": return <CustomTableBlock config={config} />;
     case "HEATING_BOMBA": return <BombaDatasheetBlock data={data} />;
+    case "HEATING_SOLAR": return <SolarDatasheetBlock data={data} />;
     case "TEXT": return <FixedBlock html={config?.html || ""} data={data} />;
     case "IMAGE":
       // eslint-disable-next-line @next/next/no-img-element
