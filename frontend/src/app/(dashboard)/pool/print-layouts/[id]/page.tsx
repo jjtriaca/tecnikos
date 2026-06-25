@@ -40,6 +40,7 @@ const DYNAMIC_LABEL: Record<string, string> = {
   TERMS_CONDITIONS: "Termos e condicoes",
   INSTALLMENTS: "Plano de pagamento",
   CUSTOM_TABLE: "Tabela personalizada",
+  HEATING_BOMBA: "Datasheet Bomba de Calor",
 };
 
 const PLACEHOLDERS = [

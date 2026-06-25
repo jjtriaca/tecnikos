@@ -15,6 +15,7 @@
  * O parent (sandbox /dev/print-test-orcamento ou o modal do orcamento) imprime com
  *   printViaClone({ areaId: "budget-pdf-area", cloneId: "budget-pdf-clone" })
  */
+import { BombaDatasheetBlock } from "./HeatingDatasheets";
 
 // ── Tipos (espelham Page/Layout do editor) ──────────────────────────────────
 export type ReportPage = {
@@ -105,6 +106,12 @@ export type BudgetReportData = {
   sectionOrder?: string[];
   /** mapa chave-da-etapa -> rotulo exibido (SECTION_LABEL + customSections) */
   sectionLabels?: Record<string, string>;
+  /** report cacheado da Bomba de Calor (PoolBudget.heatingReport) — datasheet */
+  heatingReport?: any;
+  /** report cacheado do Solar (environmentParams.solarReport) — datasheet */
+  solarReport?: any;
+  /** params do ambiente (config do aquecimento) — datasheet */
+  environmentParams?: any;
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -389,6 +396,7 @@ function renderBlockByType(blockType: string | null | undefined, data: BudgetRep
     case "PHOTOS_GALLERY": return <PhotosGalleryBlock data={data} config={config} />;
     case "INSTALLMENTS": return <InstallmentsBlock data={data} />;
     case "CUSTOM_TABLE": return <CustomTableBlock config={config} />;
+    case "HEATING_BOMBA": return <BombaDatasheetBlock data={data} />;
     case "TEXT": return <FixedBlock html={config?.html || ""} data={data} />;
     case "IMAGE":
       // eslint-disable-next-line @next/next/no-img-element

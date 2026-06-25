@@ -88,6 +88,9 @@ function buildReportData(budget: any, sectionLabels: Record<string, string>): Bu
     items,
     sectionOrder: budget?.sectionOrder ?? [],
     sectionLabels,
+    heatingReport: budget?.heatingReport ?? null,
+    solarReport: (budget?.environmentParams as any)?.solarReport ?? null,
+    environmentParams: budget?.environmentParams ?? null,
   };
 }
 
