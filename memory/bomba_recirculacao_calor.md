@@ -44,6 +44,14 @@ consumo_medio_mes_kWh = (Σ_12meses  P_eletrica × horas_mes × dias_mes) / 12  
 
 ## 2. Tubulacao — circuito FECHADO + inercia (v1.13.14/17)
 
+> ⚠️ **"Circuito FECHADO" aqui = ALTURA MANOMETRICA (sifao), NAO isolamento de agua.** O tubo volta pro
+> mesmo nivel (a piscina), entao o desnivel nao soma na altura (a coluna que sobe equilibra a que desce).
+> NAO eh malha selada: a bomba de calor passa a **PROPRIA AGUA DA PISCINA** pelo trocador (titanio) e
+> devolve — ela **PUXA agua da piscina pela succao, inclusive pelos RALOS DE FUNDO**. Logo a recirc da
+> bomba de calor **CONTA na demanda dos ralos** (NBR 10339 — apontar a linha dela no seletor do template
+> de ralo). [Corrigido na sessao 226: eu havia lido "fechado" como "nao puxa do fundo" — ERRADO. So o
+> ciclo do GAS refrigerante eh selado; o lado da AGUA eh aberto pra piscina.]
+
 - `pipe-head-loss.service.ts` ganhou flag `closedLoop`. `trocador-budget.service` passa `closedLoop: true`.
 - Operacao: o desnivel NAO soma na altura manometrica (sifao — a coluna que sobe eh equilibrada pela que desce).
   Mas a SELECAO usa `alturaSelecao = max(atrito, desnivel)` (frontend) pra a bomba **ROMPER A INERCIA** (encher a

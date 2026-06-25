@@ -2012,6 +2012,7 @@ function ItemRow({ item, seq, locked, isFirst, isLast, dimensions, environmentPa
           }))}
         itemDescription={item.description}
         itemKind={item.kind}
+        itemQty={item.qty}
         sectionOrder={sectionOrder}
         currentProductName={item.product?.description ?? item.service?.name ?? null}
         onClose={() => setShowAutoSelect(false)}
@@ -3615,13 +3616,19 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
       },
     },
   },
-  // Grade de fundo / ralo (NBR 10339): cada ralo tem que aguentar a vazao TOTAL das bombas
-  // sozinho (anti-aprisionamento). Usa prod(LREF,"vazaoM3h")*prod(LREF,"qtdLinha") = vazao x
-  // quantidade de cada linha de bomba apontada. qtdLinha = pseudo-spec injetada pelo motor.
+  // Grade de fundo / ralo (NBR 10339): ANTI-APRISIONAMENTO. Cada ralo tem que aguentar a vazao
+  // TOTAL das bombas que sugam por ele SOZINHO — se um entope, o(s) outro(s) seguram tudo. Logo a
+  // capacidade efetiva (modelo "1 ralo bloqueado") = vazao da grade x (qtd de ralos - 1): com 1
+  // ralo da 0 (SEMPRE insuficiente, minimo 2 da norma); com 2 ralos cada um aguenta 100%; com 3,
+  // 2x; etc. No read-time o motor torna vazaoM3h CUMULATIVO (x qtd da linha, ver CUMULATIVE_SPECS no
+  // backend) -> "vazaoM3h * (qty-1) / qty" = vazao_unitaria x (qtd-1). qty = qtd da linha do ralo.
+  // Demanda = prod(LREF,...)*qtdLinha = soma das bombas apontadas (filtracao + recirc da bomba de
+  // calor + qq uma no MESMO coletor de succao; recirc da bomba de calor PUXA agua da piscina pelo
+  // fundo -> conta). O `where` segue conservador (cada grade sozinha >= vazao total).
   {
     icon: '▦',
     label: 'Grade de fundo / ralo (NBR 10339 — vazao das bombas)',
-    description: 'Seleciona a grade cuja "Vazao maxima (m³/h)" aguenta a vazao TOTAL das bombas — cada ralo aguenta tudo sozinho (anti-aprisionamento NBR 10339). Ao aplicar, escolha no seletor a(s) linha(s) da(s) bomba(s) de recirculacao — varias bombas SOMAM (vazao x qtd de cada). qtdLinha = quantidade daquela linha (bombas em paralelo). IMPORTANTE: fixe a QUANTIDADE da linha do ralo em 2 (minimo NBR). Indicador vermelho = nenhuma grade aguenta sozinha -> use grade maior.',
+    description: 'Anti-aprisionamento NBR 10339: cada ralo tem que aguentar a vazao TOTAL das bombas SOZINHO (se um entope, o outro segura tudo). Capacidade efetiva = "Vazao maxima (m³/h)" da grade x (quantidade de ralos - 1) -> 1 ralo SEMPRE da insuficiente (minimo 2; o cadastro ja vem com 2). Ao aplicar, escolha no seletor as bombas que sugam por ESTES ralos: filtracao + recirculacao da bomba de calor + qualquer outra no mesmo coletor de succao (varias SOMAM: vazao x qtd de cada). NAO inclua circuito com succao propria/dedicada. Vermelho = grade pequena (use maior) ou menos de 2 ralos.',
     lineRef: { unit: 'prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")', combine: 'sum' },
     rule: {
       filterCategoria: null,
@@ -3630,10 +3637,10 @@ const AUTOSELECT_TEMPLATES: AutoSelectTemplate[] = [
       orderBy: 'vazaoM3h asc',
       indicator: {
         label: 'Folga de vazao (ralo)',
-        expr: '(vazaoM3h - prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")) / (prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")) * 100',
+        expr: '(vazaoM3h * (qty - 1) / qty - prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")) / (prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")) * 100',
         unit: '%',
         levels: [
-          { max: -0.01, label: 'Insuficiente — use grade maior', color: 'red' },
+          { max: -0.01, label: 'Insuficiente — minimo 2 ralos ou grade maior', color: 'red' },
           { max: 20, label: 'Justo', color: 'yellow' },
           { max: 99999, label: 'Aguenta a vazao total', color: 'emerald' },
         ],
@@ -3838,23 +3845,34 @@ const INDICATOR_TEMPLATES: Array<{ label: string; lineRef?: { unit: string; comb
     },
   },
   {
-    // Folga de vazao do RALO / GRADE de fundo (NBR 10339): vazaoM3h da grade - vazao TOTAL das
-    // bombas (vazaoM3h × qtd das linhas apontadas). Cada ralo aguenta tudo sozinho (anti-
-    // aprisionamento). v1.14.06: faltava o preset (so existia dentro do template de auto-selecao).
+    // Folga de vazao do RALO / GRADE de fundo (NBR 10339) — ANTI-APRISIONAMENTO. Cada ralo aguenta a
+    // vazao TOTAL das bombas SOZINHO: capacidade efetiva = vazao da grade x (qtd de ralos - 1), logo 1
+    // ralo -> 0 (SEMPRE insuficiente, minimo 2). vazaoM3h e cumulativo (x qtd) no read-time -> usa
+    // "* (qty-1) / qty" = vazao_unitaria x (qtd-1). Demanda = soma das bombas apontadas. (Espelha o
+    // template de auto-selecao ▦; preset existe pra adicionar SO o indicador numa linha escolhida.)
     label: 'Folga de vazao (Ralo de fundo) — escolha as linhas',
     lineRef: { unit: 'prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")', combine: 'sum' },
     preset: {
       label: 'Folga de vazao (ralo)',
-      expr: '(vazaoM3h - prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")) / (prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")) * 100',
+      expr: '(vazaoM3h * (qty - 1) / qty - prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")) / (prod(LREF, "vazaoM3h") * prod(LREF, "qtdLinha")) * 100',
       unit: '%',
       levels: [
-        { max: -0.01, label: 'Insuficiente — use grade maior', color: 'red' },
+        { max: -0.01, label: 'Insuficiente — minimo 2 ralos ou grade maior', color: 'red' },
         { max: 20, label: 'Justo', color: 'yellow' },
         { max: 99999, label: 'Aguenta a vazao total', color: 'emerald' },
       ],
     },
   },
 ];
+
+// Specs CUMULATIVOS (espelha CUMULATIVE_SPECS do backend pool-budget.service): capacidade total =
+// valor unitario x qtd da linha (N equipamentos iguais somam). Usado SO no preview do indicador
+// pra bater com o read-time do backend. Manter em sincronia com a lista do backend.
+const CUMULATIVE_SPECS_FRONT = [
+  'kcalHNominal', 'kcalHMin', 'kcalHMax', 'btuH', 'kwNominal',
+  'consumoMaxW', 'consumoMedioW', 'ratedInputPowerKW',
+  'vazaoM3h', 'vazaoLmin', 'potenciaWatts', 'amperagem',
+] as const;
 
 export function AutoSelectModal({
   initialRule,
@@ -3866,6 +3884,7 @@ export function AutoSelectModal({
   siblingVars,
   itemDescription,
   itemKind,
+  itemQty,
   sectionOrder,
   currentProductName,
   sectionItems,
@@ -3892,6 +3911,10 @@ export function AutoSelectModal({
   sectionItems?: { id: string; cellRef: string | null; description: string; qty?: number; linked: boolean; specs: Record<string, any> | null; poolSection?: string | null; kind?: string | null; slotName?: string | null }[];
   itemDescription?: string;
   itemKind?: string;
+  // qtd da linha sendo configurada (ralo). O preview do indicador espelha o read-time do backend:
+  // multiplica as specs CUMULATIVE_SPECS por itemQty + injeta `qty` -> "vazaoM3h*(qty-1)/qty" (NBR
+  // 10339, anti-aprisionamento) bate com a linha. Sem isso o preview daria NaN (qty ausente).
+  itemQty?: number;
   sectionOrder?: string[];
   currentProductName?: string | null;
   onClose: () => void;
@@ -4262,12 +4285,19 @@ export function AutoSelectModal({
   // Indicator preview: avalia a expressao no contexto do candidato selecionado
   const indicatorPreview = useMemo(() => {
     if (!hasIndicator || !indExpr.trim() || !preview.selected) return null;
-    const v = evalNumber(indExpr, preview.selected.merged);
+    // Espelha o read-time do backend (findOne): specs CUMULATIVE_SPECS multiplicadas pela qtd da
+    // linha + var `qty`. Necessario pro indicador do RALO (NBR 10339, "vazaoM3h*(qty-1)/qty") bater
+    // com o badge da linha; tambem alinha filtro/solar (qtd>1). So afeta o indicador — NAO o
+    // where/orderBy/selecao (esses seguem em vazao por unidade, sem multiplicar).
+    const q = Number(itemQty) || 1;
+    const indVars: Record<string, number> = { ...preview.selected.merged, qty: q };
+    if (q > 1) for (const k of CUMULATIVE_SPECS_FRONT) { const n = Number(indVars[k]); if (Number.isFinite(n)) indVars[k] = n * q; }
+    const v = evalNumber(indExpr, indVars);
     if (!Number.isFinite(v)) return null;
     const sorted = [...indLevels].sort((a, b) => a.max - b.max);
     const matched = sorted.find((l) => v <= l.max);
     return { value: v, label: matched?.label || '', color: matched?.color || 'slate' };
-  }, [hasIndicator, indExpr, indLevels, preview.selected]);
+  }, [hasIndicator, indExpr, indLevels, preview.selected, itemQty]);
 
   function applyTemplate(t: typeof INDICATOR_TEMPLATES[number]) {
     setHasIndicator(true);
