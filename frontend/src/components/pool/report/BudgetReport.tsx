@@ -36,6 +36,11 @@ export type ReportBranding = {
   accentColor?: string | null;
   fontFamily?: string | null;
   footerHtml?: string | null;
+  // v1.14.15 — estilo global do relatorio (aplicado a todas as paginas):
+  fontSizePt?: number | null;   // tamanho base da fonte (pt)
+  textColor?: string | null;    // cor do texto
+  bgColor?: string | null;      // cor de fundo da pagina
+  headerHtml?: string | null;   // cabecalho (HTML com {placeholders}), em toda pagina
 };
 
 export type ReportLayout = {
@@ -376,9 +381,13 @@ const REPORT_CSS = `
   width: 210mm; min-height: 297mm; box-sizing: border-box; padding: 12mm;
   background: #fff; margin: 0 auto 8mm; box-shadow: 0 1px 10px rgba(0,0,0,.14);
   position: relative; overflow: hidden; color: #0f172a;
+  display: flex; flex-direction: column;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-size: 11px; line-height: 1.35;
 }
+#budget-pdf-area .rp-page-body { flex: 1 1 auto; min-height: 0; }
+#budget-pdf-area .rp-gheader { border-bottom: 1px solid rgba(100,116,139,.35); padding-bottom: 4px; margin-bottom: 8px; font-size: .9em; }
+#budget-pdf-area .rp-gfooter { border-top: 1px solid rgba(100,116,139,.35); padding-top: 4px; margin-top: 8px; font-size: .8em; text-align: center; }
 /* Capa */
 .rp-cover-header { color:#fff; padding:14mm 12mm; margin:-12mm -12mm 8mm; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 .rp-logo { height:36px; margin-bottom:8px; }
@@ -446,6 +455,15 @@ export default function BudgetReport({ data, layout }: { data: BudgetReportData;
   const pages = [...(layout.pages || [])]
     .filter((p) => pageShows(p, data))
     .sort((a, b) => a.order - b.order);
+  // Estilo global (branding) aplicado a TODA pagina: fonte, tamanho, cor, fundo.
+  const pageStyle = {
+    fontFamily: branding?.fontFamily || undefined,
+    fontSize: branding?.fontSizePt ? `${branding.fontSizePt}pt` : undefined,
+    color: branding?.textColor || undefined,
+    background: branding?.bgColor || undefined,
+  };
+  const header = branding?.headerHtml?.trim();
+  const footer = branding?.footerHtml?.trim();
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: REPORT_CSS }} />
@@ -454,8 +472,10 @@ export default function BudgetReport({ data, layout }: { data: BudgetReportData;
           <div className="report-page"><div className="rp-empty">Layout sem paginas ativas.</div></div>
         ) : (
           pages.map((page) => (
-            <div className="report-page" key={page.id}>
-              {renderPageContent(page, data, branding)}
+            <div className="report-page" key={page.id} style={pageStyle}>
+              {header ? <div className="rp-gheader" dangerouslySetInnerHTML={{ __html: resolvePlaceholders(header, data) }} /> : null}
+              <div className="rp-page-body">{renderPageContent(page, data, branding)}</div>
+              {footer ? <div className="rp-gfooter" dangerouslySetInnerHTML={{ __html: resolvePlaceholders(footer, data) }} /> : null}
             </div>
           ))
         )}

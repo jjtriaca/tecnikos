@@ -136,6 +136,19 @@ export default function PoolPrintLayoutEditorPage() {
     }
   }
 
+  // Branding/estilo do relatorio — edita local (preview ao vivo) + salva no layout (Json).
+  function setBranding(patch: Record<string, any>) {
+    setLayout((prev) => (prev ? { ...prev, branding: { ...(prev.branding || {}), ...patch } } : prev));
+  }
+  async function saveBranding() {
+    try {
+      await api.put(`/pool-print-layouts/${id}`, { branding: layout?.branding || {} });
+      toast("Estilo salvo", "success");
+    } catch (err: any) {
+      toast(err?.payload?.message || "Erro ao salvar estilo", "error");
+    }
+  }
+
   async function addPage(payload: any) {
     try {
       await api.post(`/pool-print-layouts/${id}/pages`, payload);
@@ -201,6 +214,8 @@ export default function PoolPrintLayoutEditorPage() {
   if (loading) return <div className="p-6 text-slate-600">Carregando...</div>;
   if (!layout) return <div className="p-6 text-slate-600">Layout nao encontrado.</div>;
 
+  const brand = (layout.branding || {}) as any;
+
   return (
     <div className="p-6">
       <div className="flex flex-col xl:flex-row gap-6 items-start">
@@ -241,6 +256,61 @@ export default function PoolPrintLayoutEditorPage() {
           + Adicionar pagina
         </button>
       </div>
+
+      {/* Estilo / branding do relatorio — aplica a TODAS as paginas, preview ao vivo */}
+      <details className="rounded-xl border border-slate-200 bg-white p-3">
+        <summary className="cursor-pointer text-sm font-semibold text-slate-700">🎨 Estilo do relatorio — fonte, cores, fundo, cabecalho e rodape</summary>
+        <div className="mt-3 space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block text-xs text-slate-600">Tipo de fonte
+              <select value={brand.fontFamily || ""} onChange={(e) => setBranding({ fontFamily: e.target.value || null })}
+                className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm">
+                <option value="">Padrao</option>
+                <option value="Georgia, serif">Georgia</option>
+                <option value="'Times New Roman', serif">Times</option>
+                <option value="Arial, Helvetica, sans-serif">Arial</option>
+                <option value="'Trebuchet MS', sans-serif">Trebuchet</option>
+                <option value="'Courier New', monospace">Courier</option>
+              </select>
+            </label>
+            <label className="block text-xs text-slate-600">Tamanho da fonte (pt)
+              <input type="number" min={7} max={18} value={brand.fontSizePt ?? ""}
+                onChange={(e) => setBranding({ fontSizePt: e.target.value ? Number(e.target.value) : null })}
+                placeholder="auto" className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" />
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {([
+              ["Cor do texto", "textColor", "#0f172a"],
+              ["Cor de fundo", "bgColor", "#ffffff"],
+              ["Cor primaria", "primaryColor", "#0f172a"],
+              ["Cor de destaque", "accentColor", "#1e3a8a"],
+            ] as [string, string, string][]).map(([lbl, key, def]) => (
+              <label key={key} className="flex items-center justify-between gap-2 text-xs text-slate-600 rounded border border-slate-200 px-2 py-1">
+                {lbl}
+                <input type="color" value={brand[key] || def} onChange={(e) => setBranding({ [key]: e.target.value })}
+                  className="h-6 w-8 cursor-pointer rounded border-0 bg-transparent p-0" />
+              </label>
+            ))}
+          </div>
+          <label className="block text-xs text-slate-600">Logo (URL)
+            <input value={brand.logoUrl || ""} onChange={(e) => setBranding({ logoUrl: e.target.value || null })}
+              placeholder="https://... (aparece na Capa)" className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" />
+          </label>
+          <label className="block text-xs text-slate-600">Cabecalho (HTML, aceita variaveis) — em toda pagina
+            <textarea value={brand.headerHtml || ""} onChange={(e) => setBranding({ headerHtml: e.target.value || null })} rows={2}
+              placeholder="Ex: {budgetCode} — {clientName}" className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-xs font-mono" />
+          </label>
+          <label className="block text-xs text-slate-600">Rodape (HTML, aceita variaveis) — em toda pagina
+            <textarea value={brand.footerHtml || ""} onChange={(e) => setBranding({ footerHtml: e.target.value || null })} rows={2}
+              placeholder="Ex: SLS Obras LTDA · contato@tecnikos.com.br · {date}" className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-xs font-mono" />
+          </label>
+          <button onClick={saveBranding}
+            className="rounded-md bg-cyan-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-cyan-700">
+            Salvar estilo
+          </button>
+        </div>
+      </details>
 
       {/* Pages list */}
       {layout.pages.length === 0 ? (
