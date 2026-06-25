@@ -56,6 +56,12 @@ Port do redesign **V1 data-viz** (aprovado no mock `/dev/print-test-bomba`) pro 
   alto → direita > esquerda → branco na esquerda + 2 páginas. Compacto → direita = esquerda → 1 folha.
   ⚠️ NÃO "aumentar a altura dos cards da esquerda" (empurra de volta pra 2 páginas) — o certo é a direita encolher.
 
+## Porte pro RELATÓRIO (EngineReporter) — v1.14.20
+- `frontend/src/components/pool/report/HeatingDatasheets.tsx` → `BombaDatasheetBlock` = versão **display-only** do datasheet (bloco dinâmico `HEATING_BOMBA`), a partir do `heatingReport` CACHEADO. SEM `.ds-edit`/`.ds-print`/pickers (a edição fica no Simulador). CSS escopado `.ds-bomba-rep`.
+- **Débito deliberado:** `SeasonalCurve` + helpers `ds*` foram DUPLICADOS nesse arquivo (cópia pura SVG) pra NÃO mexer no modal calibrado sem preview. Reconciliar depois (extrair pra módulo único, build verify).
+- **Recirc omitido** na v1 do bloco (vem live do `TrocadorPumpPipeCard`, não cacheado limpo) → mostra só consumo da bomba. Consumo médio = `selectedEquipment.consumoMedioW/1000` (cached tem watts, não `ratedInputPowerKW`).
+- Pendente: datasheet SOLAR (mesmo esquema, `environmentParams.solarReport`).
+
 ## 🟡 PENDENTE (decisão #2 do usuário)
 - **Horas dos extras** no `CompactExtraCard`: mantive um campinho editável (vira texto no print). Juliano
   pode querer display puro (sem editar ali). Aguardando decisão.
