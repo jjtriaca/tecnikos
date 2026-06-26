@@ -52,6 +52,20 @@ const TEMPLATES: { label: string; make: () => ReportNode }[] = [
       { id: genId(), kind: "block", blockType: "TEXT", config: { html: "<b>Destaque</b> — chamada importante." } },
     ] }),
   },
+  {
+    // Capa comercial EDITAVEL — mesma cara do bloco Capa, mas em cards/textos que o
+    // operador edita a vontade. Auto-preenche por placeholders ({clientName} etc.).
+    label: "Capa comercial",
+    make: () => ({ id: genId(), kind: "card", style: { padding: 10, bg: "#ffffff", borderWidth: 0, radius: 0 }, children: [
+      { id: genId(), kind: "row", style: { gap: 8 }, children: [
+        { id: genId(), kind: "block", blockType: "TEXT", style: { flex: 5 }, config: { html: "" } },
+        { id: genId(), kind: "block", blockType: "IMAGE", style: { flex: 1 }, config: { url: "" } },
+      ] },
+      { id: genId(), kind: "block", blockType: "TEXT", config: { html: "<div style='font-size:42px;font-weight:800;color:#0f172a;margin-top:24px'>Proposta Comercial</div>" } },
+      { id: genId(), kind: "block", blockType: "TEXT", config: { html: "<div style='font-size:13px;line-height:2;margin-top:80px'><b>Nome:</b> {clientName}<br><b>Cidade:</b> {clientCity}<br><b>Data:</b> {budgetDate}<br><b>Solicitante:</b> {clientName}<br><b>Orcamento no:</b> {budgetCode}</div>" } },
+      { id: genId(), kind: "block", blockType: "TEXT", config: { html: "<div style='font-size:10px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:8px;margin-top:40px'>A validade da proposta e de {validityDays} dias. Apos esse periodo, favor consultar se houve alteracao no valor da proposta.</div>" } },
+    ] }),
+  },
 ];
 
 // ── Operacoes na arvore (puras, imutaveis) ──────────────────────────────────
