@@ -282,26 +282,55 @@ export default function PoolPrintLayoutEditorPage() {
         ))}
       </div>
 
-      {/* FAIXA DE OPCOES */}
-      <div className="flex items-stretch gap-2 px-4 py-1.5 bg-white border-b border-slate-200 overflow-x-auto shrink-0" style={{ minHeight: 58 }}>
+      {/* FAIXA DE OPCOES — cada ferramenta na aba certa (estilo Office) */}
+      <div className="flex items-center gap-2 px-4 py-1.5 bg-white border-b border-slate-200 overflow-x-auto shrink-0" style={{ minHeight: 56 }}>
         {tab === "Arquivo" && (<>
           <RibbonBtn icon="✏️" label="Renomear" onClick={() => setEditingMeta(true)} />
+          <RibbonBtn icon="💾" label="Salvar estilo" onClick={saveBranding} />
           <RibbonBtn icon="🖨️" label="Imprimir" onClick={() => printViaClone({ areaId: "budget-pdf-area", cloneId: "budget-pdf-clone" })} />
           <RibbonBtn icon="📑" label="Duplicar" onClick={() => toast("Duplicar: em breve", "info")} />
         </>)}
-        {tab === "Inicio" && (
-          <div className="flex items-center text-xs text-slate-500 px-2">Selecione um <b className="mx-1">texto</b> dentro de um card (pagina de Composicao) — a barra de fonte/cor/tamanho aparece no editor do texto.</div>
-        )}
+        {tab === "Inicio" && (<>
+          <select value={brand.fontFamily || ""} onChange={(e) => setBranding({ fontFamily: e.target.value || null })} className="rounded border border-slate-300 px-2 py-1 text-sm" title="Fonte">
+            <option value="">Fonte padrao</option>
+            <option value="Georgia, serif">Georgia</option>
+            <option value="'Times New Roman', serif">Times</option>
+            <option value="Arial, Helvetica, sans-serif">Arial</option>
+            <option value="'Trebuchet MS', sans-serif">Trebuchet</option>
+            <option value="'Courier New', monospace">Courier</option>
+          </select>
+          <input type="number" min={7} max={18} value={brand.fontSizePt ?? ""} onChange={(e) => setBranding({ fontSizePt: e.target.value ? Number(e.target.value) : null })} placeholder="pt" className="w-14 rounded border border-slate-300 px-2 py-1 text-sm" title="Tamanho (pt)" />
+          <label className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-sm" title="Cor do texto">A<input type="color" value={brand.textColor || "#0f172a"} onChange={(e) => setBranding({ textColor: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
+          <span className="text-[10px] text-slate-400 ml-1">negrito/alinhar: selecione um texto na folha (em breve)</span>
+        </>)}
         {tab === "Inserir" && (<>
           <RibbonBtn icon="➕" label="Nova pagina" onClick={() => setShowAddPage(true)} />
-          <div className="flex items-center text-xs text-slate-500 px-2">Capa, Produtos, Datasheets, Cards, Texto, Imagem… escolha o tipo ao adicionar.</div>
+          <span className="text-xs text-slate-500 px-2">Capa, Produtos, Datasheets, Cards, Texto, Imagem… escolha o tipo ao adicionar.</span>
         </>)}
-        {tab === "Pagina" && (
-          <div className="flex items-center text-xs text-slate-500 px-2">Orientacao, margens, fundo e cabecalho/rodape estao em <b className="mx-1">🎨 Padrao do relatorio</b> (painel esquerdo).</div>
-        )}
-        {tab === "Estilo" && (
-          <div className="flex items-center text-xs text-slate-500 px-2">Fonte, cores e logo estao em <b className="mx-1">🎨 Padrao do relatorio</b> (painel esquerdo).</div>
-        )}
+        {tab === "Pagina" && (<>
+          <label className="text-xs text-slate-600 flex items-center gap-1">Orientacao
+            <select value={brand.orientation || "portrait"} onChange={(e) => setBranding({ orientation: e.target.value })} className="rounded border border-slate-300 px-2 py-1 text-sm">
+              <option value="portrait">Retrato</option><option value="landscape">Paisagem</option>
+            </select>
+          </label>
+          <label className="text-xs text-slate-600 flex items-center gap-1">Margem
+            <input type="number" min={0} max={30} value={brand.pageMarginMm ?? 12} onChange={(e) => setBranding({ pageMarginMm: e.target.value === "" ? null : Number(e.target.value) })} className="w-14 rounded border border-slate-300 px-2 py-1 text-sm" />mm
+          </label>
+          <label className="text-xs text-slate-600 flex items-center gap-1">Fundo
+            <select value={brand.bgType || "solid"} onChange={(e) => setBranding({ bgType: e.target.value })} className="rounded border border-slate-300 px-2 py-1 text-sm"><option value="solid">Solido</option><option value="gradient">Gradiente</option></select>
+            <input type="color" value={brand.bgColor || "#ffffff"} onChange={(e) => setBranding({ bgColor: e.target.value })} className="h-7 w-7 cursor-pointer rounded border border-slate-300 p-0" title="Cor de fundo" />
+            {brand.bgType === "gradient" ? <input type="color" value={brand.bgColor2 || "#e2e8f0"} onChange={(e) => setBranding({ bgColor2: e.target.value })} className="h-7 w-7 cursor-pointer rounded border border-slate-300 p-0" title="2a cor" /> : null}
+          </label>
+          <input value={brand.headerHtml || ""} onChange={(e) => setBranding({ headerHtml: e.target.value || null })} placeholder="Cabecalho ({budgetCode})" className="w-36 rounded border border-slate-300 px-2 py-1 text-xs" />
+          <input value={brand.footerHtml || ""} onChange={(e) => setBranding({ footerHtml: e.target.value || null })} placeholder="Rodape (SLS · {date})" className="w-36 rounded border border-slate-300 px-2 py-1 text-xs" />
+        </>)}
+        {tab === "Estilo" && (<>
+          <label className="text-xs text-slate-600 flex items-center gap-1">Primaria<input type="color" value={brand.primaryColor || "#0f172a"} onChange={(e) => setBranding({ primaryColor: e.target.value })} className="h-7 w-7 cursor-pointer rounded border border-slate-300 p-0" /></label>
+          <label className="text-xs text-slate-600 flex items-center gap-1">Destaque<input type="color" value={brand.accentColor || "#1e3a8a"} onChange={(e) => setBranding({ accentColor: e.target.value })} className="h-7 w-7 cursor-pointer rounded border border-slate-300 p-0" /></label>
+          <label className="cursor-pointer rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200">📁 Logo<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await uploadAsset(f); setBranding({ logoUrl: url }); toast("Logo enviado", "success"); } catch (err: any) { toast(err.message || "Erro", "error"); } if (e.target) e.target.value = ""; }} /></label>
+          {brand.logoUrl ? <img src={brand.logoUrl} alt="logo" className="h-7 rounded border border-slate-200" /> : null}
+          <RibbonBtn icon="💾" label="Salvar" onClick={saveBranding} />
+        </>)}
       </div>
 
       {/* 3 PAINEIS — topo (titulo+abas+faixa) fica FIXO; aqui embaixo: paginas | folha | editor */}
@@ -309,12 +338,12 @@ export default function PoolPrintLayoutEditorPage() {
       {/* ESQUERDA: Paginas + estilo */}
       <div className="w-[340px] shrink-0 border-r border-slate-200 bg-slate-50 overflow-y-auto p-3 space-y-3">
       <div className="flex items-center justify-between">
-        <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Paginas & estilo</div>
+        <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Paginas</div>
         <button onClick={() => setShowAddPage(true)} className="rounded bg-cyan-600 px-2 py-1 text-xs font-medium text-white hover:bg-cyan-700">+ Pagina</button>
       </div>
 
-      {/* Estilo / branding do relatorio — aplica a TODAS as paginas, preview ao vivo */}
-      <details className="rounded-xl border border-slate-200 bg-white p-3">
+      {/* Branding agora vive nas ABAS da faixa (Inicio/Pagina/Estilo). Painel escondido. */}
+      <details hidden className="rounded-xl border border-slate-200 bg-white p-3">
         <summary className="cursor-pointer text-sm font-semibold text-slate-700">🎨 Padrao do relatorio — fonte, cores, fundo, cabecalho/rodape <span className="font-normal text-slate-400">(cada card/texto pode sobrescrever)</span></summary>
         <div className="mt-3 space-y-3">
           <div className="grid grid-cols-2 gap-2">
@@ -475,24 +504,18 @@ export default function PoolPrintLayoutEditorPage() {
       )}
       </div>{/* fim painel esquerdo (Paginas & estilo) */}
 
-      {/* CENTRO: folha / pre-visualizacao */}
-      <div className="flex-1 min-w-0 overflow-auto bg-slate-300 p-4">
-        <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-2">Pre-visualizacao <span className="text-slate-400">(dados de exemplo)</span></div>
-        <BudgetReport data={SAMPLE_BUDGET} layout={{ branding: layout.branding, pages: layout.pages }} />
-      </div>
-
-      {/* DIREITA: editor da pagina selecionada (sem janela) */}
-      <div className={`${(showAddPage || editingPage) ? "w-[440px]" : "w-64"} shrink-0 border-l border-slate-200 bg-slate-50 overflow-y-auto p-3`}>
+      {/* CENTRO: edita a pagina selecionada (sem janela) OU mostra a folha. Nada a direita. */}
+      <div className="flex-1 min-w-0 overflow-auto bg-slate-200 p-4">
         {(showAddPage || editingPage) ? (
-          <>
-            <div className="flex items-center justify-between mb-2">
+          <div className="mx-auto max-w-5xl rounded-xl border border-slate-200 bg-white p-4">
+            <div className="flex items-center justify-between mb-3">
               <div className="text-sm font-semibold text-slate-800">
                 {editingPage
                   ? <>✎ Pagina {layout.pages.findIndex((p) => p.id === editingPage.id) + 1} <span className="font-normal text-slate-500">— {(editingPage.pageConfig as any)?.nodes?.length ? "Composicao" : editingPage.type === "DYNAMIC" ? (DYNAMIC_LABEL[editingPage.dynamicType || ""] || "Dinamica") : "HTML fixo"}</span></>
                   : <>➕ Nova pagina</>}
               </div>
               <button type="button" onClick={() => { setShowAddPage(false); setEditingPage(null); }}
-                className="text-xs text-slate-500 hover:text-slate-700">✕ Fechar</button>
+                className="text-xs text-slate-500 hover:text-slate-700">✕ Fechar (ver folha)</button>
             </div>
             <PageEditor
               inline
@@ -502,11 +525,11 @@ export default function PoolPrintLayoutEditorPage() {
               onSubmit={(payload) => editingPage ? updatePage(editingPage.id, payload) : addPage(payload)}
               onUploadImage={uploadAsset}
             />
-          </>
+          </div>
         ) : (
           <>
-            <div className="pb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">Propriedades</div>
-            <div className="text-xs text-slate-500 leading-relaxed">Clique numa pagina (a esquerda) pra editar aqui, sem janela.</div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-2">Pre-visualizacao <span className="text-slate-400">(dados de exemplo)</span></div>
+            <BudgetReport data={SAMPLE_BUDGET} layout={{ branding: layout.branding, pages: layout.pages }} />
           </>
         )}
       </div>
@@ -615,7 +638,7 @@ function PageEditor({ editing, onClose, onSubmit, onUploadImage, inline }: {
           {compMode ? (
             <div>
               <p className="mb-2 text-xs text-slate-500">Monte a pagina com <b>cards</b>, <b>linhas (colunas)</b> e <b>blocos</b> aninhados. Use ➕ pra adicionar dentro de um card.</p>
-              <div className={inline ? "space-y-3" : "grid gap-3 lg:grid-cols-2"}>
+              <div className="grid gap-3 lg:grid-cols-2">
                 <CompositionEditor nodes={nodes} onChange={setNodes} onUploadImage={onUploadImage} />
                 <div>
                   <div className="mb-1 text-xs font-semibold text-slate-600">Pre-visualizacao (ao vivo)</div>

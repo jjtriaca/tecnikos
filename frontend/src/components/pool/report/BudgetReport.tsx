@@ -541,7 +541,7 @@ const REPORT_CSS = `
 `;
 
 // ── Componente ───────────────────────────────────────────────────────────────
-export default function BudgetReport({ data, layout }: { data: BudgetReportData; layout: ReportLayout }) {
+export default function BudgetReport({ data, layout, editable, selectedPageId, onSelectPage }: { data: BudgetReportData; layout: ReportLayout; editable?: boolean; selectedPageId?: string | null; onSelectPage?: (id: string) => void }) {
   const branding = layout.branding;
   const pages = [...(layout.pages || [])]
     .filter((p) => pageShows(p, data))
@@ -575,7 +575,9 @@ export default function BudgetReport({ data, layout }: { data: BudgetReportData;
           <div className="report-page"><div className="rp-empty">Layout sem paginas ativas.</div></div>
         ) : (
           pages.map((page) => (
-            <div className="report-page" key={page.id} style={pageStyle}>
+            <div className="report-page" key={page.id}
+              style={{ ...pageStyle, ...(editable ? { cursor: "pointer", outline: selectedPageId === page.id ? "3px solid #06b6d4" : undefined, outlineOffset: "3px" } : {}) }}
+              onClick={editable && onSelectPage ? () => onSelectPage(page.id) : undefined}>
               {header ? <div className="rp-gheader" dangerouslySetInnerHTML={{ __html: resolvePlaceholders(header, data) }} /> : null}
               <div className="rp-page-body">{renderPageContent(page, data, branding)}</div>
               {footer ? <div className="rp-gfooter" dangerouslySetInnerHTML={{ __html: resolvePlaceholders(footer, data) }} /> : null}
