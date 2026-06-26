@@ -993,6 +993,20 @@ export default function NfePage() {
     }
   }
 
+  // Reverter "Ignorar" — volta IGNORED -> FETCHED (documento volta a ser importavel)
+  async function handleUnignoreDoc(docId: string) {
+    setIgnoringDocId(docId);
+    try {
+      await api.post(`/nfe/sefaz/documents/${docId}/unignore`);
+      toast("Ignorar revertido — documento voltou a ser importavel.", "success");
+      loadSefazDocs();
+    } catch (err: any) {
+      toast(err?.message || "Erro ao reverter.", "error");
+    } finally {
+      setIgnoringDocId(null);
+    }
+  }
+
   async function handleManifestDoc(docId: string, tipo: string, justificativa?: string) {
     setManifestingDocId(docId);
     setManifestMenuDocId(null);
@@ -1672,6 +1686,7 @@ export default function NfePage() {
                           const isBusy = importingDocId === doc.id || ignoringDocId === doc.id || manifestingDocId === doc.id || revertingDocId === doc.id;
                           const canImport = doc.schema === "procNFe" && doc.status === "FETCHED";
                           const canIgnore = doc.status === "FETCHED";
+                          const canUnignore = doc.status === "IGNORED";
                           const canInitialManifest = doc.schema !== "resEvento" && doc.nfeKey && !doc.manifestType && doc.status !== "IGNORED";
                           const canFollowUpManifest = doc.manifestType && !["confirmacao", "desconhecimento", "nao_realizada"].includes(doc.manifestType) && doc.status !== "IGNORED";
                           const canRevert = doc.status === "IMPORTED" && doc.nfeImportId;
@@ -1687,6 +1702,7 @@ export default function NfePage() {
                                 items={[
                                   canImport && { label: "Importar", onClick: () => handleImportDoc(doc.id, doc.naturezaOperacao), variant: "success", disabled: isBusy },
                                   canIgnore && { label: "Ignorar", onClick: () => handleIgnoreDoc(doc.id), variant: "default", disabled: isBusy },
+                                  canUnignore && { label: "Reverter (desfazer ignorar)", onClick: () => handleUnignoreDoc(doc.id), variant: "success", disabled: isBusy },
                                   canInitialManifest && { label: "Ciencia da Operação", onClick: () => handleManifestDoc(doc.id, "ciencia"), variant: "info", disabled: isBusy, divider: true },
                                   canInitialManifest && { label: "Confirmação da Operação", onClick: () => handleManifestDoc(doc.id, "confirmacao"), variant: "success", disabled: isBusy },
                                   canInitialManifest && { label: "Desconhecimento da Operação", onClick: () => handleManifestDoc(doc.id, "desconhecimento"), variant: "warning", disabled: isBusy },

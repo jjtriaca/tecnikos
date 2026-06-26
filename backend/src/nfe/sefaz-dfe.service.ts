@@ -911,6 +911,24 @@ export class SefazDfeService implements OnModuleInit {
   }
 
   /* ═══════════════════════════════════════════════════════════════════
+     unignoreDocument — Reverter "Ignorar": IGNORED → FETCHED (volta a ser
+     importavel). Idempotente: so reverte se estava IGNORED.
+     ═══════════════════════════════════════════════════════════════════ */
+
+  async unignoreDocument(companyId: string, sefazDocId: string) {
+    const doc = await this.prisma.sefazDocument.findFirst({
+      where: { id: sefazDocId, companyId },
+    });
+    if (!doc) throw new NotFoundException('Documento SEFAZ não encontrado');
+    if (doc.status !== 'IGNORED') return doc;
+
+    return this.prisma.sefazDocument.update({
+      where: { id: sefazDocId },
+      data: { status: 'FETCHED' },
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════
      findDocuments — Paginated list with filters
      ═══════════════════════════════════════════════════════════════════ */
 

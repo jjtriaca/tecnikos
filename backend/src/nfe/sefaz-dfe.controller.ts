@@ -173,6 +173,17 @@ export class SefazDfeController {
     return this.service.ignoreDocument(user.companyId, id);
   }
 
+  /* ── Reverter Ignorar (un-ignore) ────────────────────────────── */
+
+  @Roles(UserRole.ADMIN, UserRole.FISCAL)
+  @Post('documents/:id/unignore')
+  unignoreDocument(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.unignoreDocument(user.companyId, id);
+  }
+
   /* ── Download XML ──────────────────────────────────────────── */
 
   @Roles(UserRole.ADMIN, UserRole.FISCAL)
