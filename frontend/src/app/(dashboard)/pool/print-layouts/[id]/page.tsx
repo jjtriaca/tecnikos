@@ -74,6 +74,8 @@ const SAMPLE_BUDGET: BudgetReportData = {
   title: "Piscina Pre moldada",
   clientName: "Anderson da Silva Prado",
   clientDocument: "123.456.789-00",
+  clientCity: "Primavera do Leste - MT",
+  budgetDate: "11/06/2026",
   dimensions: { length: 7, width: 3, depth: 1.4, area: 28.5, volume: 33.3, perimeter: 20 },
   subtotalCents: 18561520,
   discountCents: 0,

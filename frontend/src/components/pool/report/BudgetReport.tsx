@@ -86,6 +86,8 @@ export type BudgetReportData = {
   title?: string | null;
   clientName?: string | null;
   clientDocument?: string | null;
+  clientCity?: string | null;
+  budgetDate?: string | null;
   dimensions?: {
     length?: number; width?: number; depth?: number;
     area?: number; volume?: number; perimeter?: number;
@@ -163,7 +165,9 @@ function resolvePlaceholders(html: string, data: BudgetReportData): string {
   const map: Record<string, string> = {
     "{clientName}": data.clientName || "",
     "{clientDocument}": data.clientDocument || "",
+    "{clientCity}": data.clientCity || "",
     "{budgetCode}": data.code || "",
+    "{budgetDate}": data.budgetDate || new Date().toLocaleDateString("pt-BR"),
     "{budgetTitle}": data.title || "",
     "{budgetTotal}": brl(data.totalCents),
     "{poolLength}": num(d.length),
@@ -179,48 +183,44 @@ function resolvePlaceholders(html: string, data: BudgetReportData): string {
 }
 
 // ── Blocos ───────────────────────────────────────────────────────────────────
-function CoverBlock({ data, branding }: { data: BudgetReportData; branding?: ReportBranding | null }) {
+// Capa comercial (estilo "Proposta Comercial"): logo topo-direita, titulo grande,
+// bloco do cliente (Nome/Cidade/Data/Solicitante/Orcamento) e validade no rodape.
+// Auto-preenche por orcamento. Titulo configuravel via config.title.
+function CoverBlock({ data, branding, config }: { data: BudgetReportData; branding?: ReportBranding | null; config?: any }) {
   const primary = branding?.primaryColor || "#0f172a";
   const accent = branding?.accentColor || "#1e3a8a";
-  const d = data.dimensions || {};
+  const title = config?.title || "Proposta Comercial";
+  const dateStr = data.budgetDate || new Date().toLocaleDateString("pt-BR");
+  const days = data.validityDays ?? 7;
+  const rows: [string, string][] = [
+    ["Nome", data.clientName || "—"],
+    ...(data.clientCity ? ([["Cidade", data.clientCity]] as [string, string][]) : []),
+    ["Data", dateStr],
+    ["Solicitante", data.clientName || "—"],
+    ["Orcamento no", data.code || "—"],
+  ];
   return (
-    <div className="rp-cover">
-      <div
-        className="rp-cover-header"
-        style={{ background: `linear-gradient(to right, ${primary}, ${accent})` }}
-      >
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "245mm" }}>
+      {/* logo topo-direita */}
+      <div style={{ display: "flex", justifyContent: "flex-end", minHeight: 56 }}>
         {branding?.logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={branding.logoUrl} alt="logo" className="rp-logo" />
+          <img src={branding.logoUrl} alt="logo" style={{ height: 56, objectFit: "contain" }} />
         ) : null}
-        <div className="rp-cover-title">PROPOSTA DE PISCINA</div>
-        <div className="rp-cover-code">{data.code}</div>
       </div>
-      <div className="rp-cover-body">
-        <div className="rp-cover-client">
-          <div className="rp-label">Cliente</div>
-          <div className="rp-client-name">{data.clientName || "—"}</div>
-          {data.clientDocument ? <div className="rp-muted">{data.clientDocument}</div> : null}
-        </div>
-        <div className="rp-cover-dims">
-          {[
-            ["Comprimento", `${num(d.length)} m`],
-            ["Largura", `${num(d.width)} m`],
-            ["Profundidade", `${num(d.depth)} m`],
-            ["Area", `${num(d.area)} m²`],
-            ["Volume", `${num(d.volume)} m³`],
-            ["Perimetro", `${num(d.perimeter)} m`],
-          ].map(([k, v]) => (
-            <div className="rp-dim" key={k}>
-              <div className="rp-dim-k">{k}</div>
-              <div className="rp-dim-v">{v}</div>
-            </div>
-          ))}
-        </div>
-        <div className="rp-cover-total" style={{ borderColor: accent }}>
-          <span>Valor total</span>
-          <strong style={{ color: accent }}>{brl(data.totalCents)}</strong>
-        </div>
+      {/* titulo grande */}
+      <div style={{ marginTop: "12mm", fontSize: 46, fontWeight: 800, lineHeight: 1.05, color: primary, maxWidth: "75%" }}>{title}</div>
+      {/* espacador empurra o bloco do cliente pra baixo */}
+      <div style={{ flex: 1, minHeight: "20mm" }} />
+      {/* bloco do cliente */}
+      <div style={{ fontSize: 12, lineHeight: 2 }}>
+        {rows.map(([k, v]) => (
+          <div key={k}><span style={{ fontWeight: 700, color: accent }}>{k}:</span> <span style={{ fontWeight: 600, color: "#0f172a" }}>{v}</span></div>
+        ))}
+      </div>
+      {/* rodape validade */}
+      <div style={{ marginTop: "8mm", paddingTop: "3mm", borderTop: "1px solid #e2e8f0", fontSize: 9, color: "#64748b" }}>
+        A validade da proposta e de {days} dias. Apos esse periodo, favor consultar se houve alteracao no valor da proposta.
       </div>
     </div>
   );
@@ -389,7 +389,7 @@ function CustomTableBlock({ config }: { config?: any }) {
 // Renderiza UM bloco por tipo. Reusado pela pagina (DYNAMIC) E pelos nos "block" da composicao.
 function renderBlockByType(blockType: string | null | undefined, data: BudgetReportData, config: any, branding?: ReportBranding | null) {
   switch (blockType) {
-    case "COVER": return <CoverBlock data={data} branding={branding} />;
+    case "COVER": return <CoverBlock data={data} branding={branding} config={config} />;
     case "PRODUCTS_BY_SECTION": return <ProductsBySectionBlock data={data} config={config} />;
     case "BUDGET_SUMMARY": return <BudgetSummaryBlock data={data} />;
     case "TERMS_CONDITIONS": return <TermsBlock data={data} config={config} />;

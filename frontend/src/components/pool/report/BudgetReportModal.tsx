@@ -66,6 +66,12 @@ function buildReportData(budget: any, sectionLabels: Record<string, string>): Bu
     title: budget?.title ?? null,
     clientName: budget?.clientPartner?.name ?? null,
     clientDocument: budget?.clientPartner?.document ?? null,
+    clientCity: (() => {
+      const c = budget?.clientPartner?.city;
+      const s = budget?.clientPartner?.state;
+      return c ? (s ? `${c} - ${s}` : c) : null;
+    })(),
+    budgetDate: budget?.createdAt ? new Date(budget.createdAt).toLocaleDateString("pt-BR") : null,
     dimensions: {
       length: Number(d.length) || 0,
       width: Number(d.width) || 0,
