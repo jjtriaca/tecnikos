@@ -773,11 +773,18 @@ export default function WorkflowProperties({ block, onChange }: Props) {
           <>
             <Label>Titulo</Label>
             <Input value={cfg.label || ""} onChange={(v) => updateConfig("label", v)} />
-            <Label>Texto guia da nota</Label>
-            <Input value={cfg.notePlaceholder || ""} onChange={(v) => updateConfig("notePlaceholder", v)} />
-            <Checkbox checked={cfg.noteRequired || false} onChange={(v) => updateConfig("noteRequired", v)} label="Nota obrigatoria" />
-            <Label>Min. itens</Label>
-            <Input type="number" value={cfg.minItems || 1} onChange={(v) => updateConfig("minItems", parseInt(v) || 1)} />
+            <Checkbox checked={cfg.itemsRequired !== false} onChange={(v) => updateConfig("itemsRequired", v)} label="Materiais obrigatorios" />
+            {cfg.itemsRequired !== false ? (
+              <>
+                <Label>Min. itens</Label>
+                <Input type="number" value={cfg.minItems || 1} onChange={(v) => updateConfig("minItems", parseInt(v) || 1)} />
+              </>
+            ) : (
+              <p className="text-[10px] text-slate-500 mt-0.5">Opcional: o técnico pode enviar sem adicionar material.</p>
+            )}
+            <Label>Min. caracteres por item</Label>
+            <Input type="number" value={cfg.minChars || 0} onChange={(v) => updateConfig("minChars", parseInt(v) || 0)} />
+            <p className="text-[10px] text-slate-500 mt-0.5">0 = sem minimo. Trava o "+" e a quantidade ate atingir.</p>
             <ConfirmButtonEditor config={cfg.confirmButton || { label: "Enviar materiais", color: "green", icon: "📦" }} onChange={(v) => updateConfig("confirmButton", v)} />
           </>
         )}
@@ -787,8 +794,18 @@ export default function WorkflowProperties({ block, onChange }: Props) {
           <>
             <Label>Titulo</Label>
             <Input value={cfg.label || ""} onChange={(v) => updateConfig("label", v)} />
-            <Label>Min. servicos</Label>
-            <Input type="number" value={cfg.minItems || 1} onChange={(v) => updateConfig("minItems", parseInt(v) || 1)} />
+            <Checkbox checked={cfg.itemsRequired !== false} onChange={(v) => updateConfig("itemsRequired", v)} label="Servicos obrigatorios" />
+            {cfg.itemsRequired !== false ? (
+              <>
+                <Label>Min. servicos</Label>
+                <Input type="number" value={cfg.minItems || 1} onChange={(v) => updateConfig("minItems", parseInt(v) || 1)} />
+              </>
+            ) : (
+              <p className="text-[10px] text-slate-500 mt-0.5">Opcional: o técnico pode enviar sem adicionar serviço.</p>
+            )}
+            <Label>Min. caracteres por servico</Label>
+            <Input type="number" value={cfg.minChars || 0} onChange={(v) => updateConfig("minChars", parseInt(v) || 0)} />
+            <p className="text-[10px] text-slate-500 mt-0.5">0 = sem minimo. Evita descricao generica (ex: 15 = obriga detalhar).</p>
             <ConfirmButtonEditor config={cfg.confirmButton || { label: "Enviar serviços", color: "green", icon: "🛠️" }} onChange={(v) => updateConfig("confirmButton", v)} />
           </>
         )}

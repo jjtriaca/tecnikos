@@ -1857,28 +1857,38 @@ export class WorkflowEngineService {
 
       case 'MATERIALS': {
         const items = dto.responseData?.items;
-        if (!items || !Array.isArray(items) || items.length === 0)
+        // Só exige itens quando obrigatório (default true).
+        if (c.itemsRequired !== false) {
+          const minItems = c.minItems || 1;
+          if (!items || !Array.isArray(items) || items.length < minItems)
+            throw new BadRequestException(
+              `"${block.name}" requer no mínimo ${minItems} ${minItems === 1 ? 'material' : 'itens'} (enviados: ${Array.isArray(items) ? items.length : 0})`,
+            );
+        }
+        // Mínimo de caracteres vale pra qualquer item informado (mesmo se opcional).
+        const minChars = c.minChars || 0;
+        if (minChars > 0 && Array.isArray(items) && items.some((it: any) => String(it?.name ?? '').trim().length < minChars))
           throw new BadRequestException(
-            `"${block.name}" requer ao menos um material`,
-          );
-        const minItems = c.minItems || 1;
-        if (items.length < minItems)
-          throw new BadRequestException(
-            `"${block.name}" requer no mínimo ${minItems} itens (enviados: ${items.length})`,
-          );
-        if (c.noteRequired && !dto.responseData?.note?.trim())
-          throw new BadRequestException(
-            `"${block.name}" requer um diagnóstico/observação`,
+            `Cada material de "${block.name}" precisa de no mínimo ${minChars} caracteres na descrição`,
           );
         break;
       }
 
       case 'SERVICES': {
         const items = dto.responseData?.items;
-        const minItems = c.minItems || 1;
-        if (!items || !Array.isArray(items) || items.length < minItems)
+        // Só exige serviços quando obrigatório (default true).
+        if (c.itemsRequired !== false) {
+          const minItems = c.minItems || 1;
+          if (!items || !Array.isArray(items) || items.length < minItems)
+            throw new BadRequestException(
+              `"${block.name}" requer no mínimo ${minItems} ${minItems === 1 ? 'serviço' : 'serviços'} (enviados: ${Array.isArray(items) ? items.length : 0})`,
+            );
+        }
+        // Mínimo de caracteres vale pra qualquer serviço informado (mesmo se opcional).
+        const minChars = c.minChars || 0;
+        if (minChars > 0 && Array.isArray(items) && items.some((it: any) => String(it ?? '').trim().length < minChars))
           throw new BadRequestException(
-            `"${block.name}" requer no mínimo ${minItems} ${minItems === 1 ? 'serviço' : 'serviços'} (enviados: ${Array.isArray(items) ? items.length : 0})`,
+            `Cada serviço de "${block.name}" precisa de no mínimo ${minChars} caracteres`,
           );
         break;
       }

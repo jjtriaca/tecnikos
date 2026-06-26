@@ -995,7 +995,7 @@ export default function OrderDetailPage() {
             {wfn.steps.map((step, idx) => {
               const detail = getStepDetail(step);
               const gps = getStepGps(step);
-              const hasMaterials = step.type === "MATERIALS" && step.completed && step.responseData?.items;
+              const hasMaterials = step.type === "MATERIALS" && step.completed && Array.isArray(step.responseData?.items) && step.responseData.items.length > 0;
               const hasServices = step.type === "SERVICES" && step.completed && Array.isArray(step.responseData?.items) && step.responseData.items.length > 0;
               const statusLabel = step.type === "STATUS" && detail ? (STATUS_LABELS[detail] || detail) : "";
 

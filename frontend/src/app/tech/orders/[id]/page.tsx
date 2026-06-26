@@ -266,7 +266,6 @@ export default function TechOrderDetailPage() {
   // MATERIALS block state
   const [v2MaterialItems, setV2MaterialItems] = useState<{ name: string; qty: number }[]>([]);
   const [v2MaterialDraft, setV2MaterialDraft] = useState({ name: "", qty: "" });
-  const [v2MaterialNote, setV2MaterialNote] = useState("");
   const materialNameRef = useRef<HTMLInputElement>(null);
 
   // SERVICES block state (lista de serviços — só descrição)
@@ -350,7 +349,8 @@ export default function TechOrderDetailPage() {
     setV2FormFields({});
     setV2MaterialItems([]);
     setV2MaterialDraft({ name: "", qty: "" });
-    setV2MaterialNote("");
+    setV2ServiceItems([]);
+    setV2ServiceDraft("");
     setRescheduleReason("");
     setRescheduleDate("");
     // Stop continuous GPS tracking from previous block
@@ -874,7 +874,7 @@ export default function TechOrderDetailPage() {
         body.responseData = { fields: v2FormFields };
         break;
       case "MATERIALS":
-        body.responseData = { items: v2MaterialItems, note: v2MaterialNote.trim() || undefined };
+        body.responseData = { items: v2MaterialItems };
         break;
       case "SERVICES":
         body.responseData = { items: v2ServiceItems };
@@ -923,7 +923,6 @@ export default function TechOrderDetailPage() {
       setV2FormFields({});
       setV2MaterialItems([]);
       setV2MaterialDraft({ name: "", qty: "" });
-      setV2MaterialNote("");
       setV2ServiceItems([]);
       setV2ServiceDraft("");
 
@@ -1167,8 +1166,6 @@ export default function TechOrderDetailPage() {
               setV2MaterialItems={setV2MaterialItems}
               v2MaterialDraft={v2MaterialDraft}
               setV2MaterialDraft={setV2MaterialDraft}
-              v2MaterialNote={v2MaterialNote}
-              setV2MaterialNote={setV2MaterialNote}
               materialNameRef={materialNameRef}
               v2ServiceItems={v2ServiceItems}
               setV2ServiceItems={setV2ServiceItems}
@@ -1433,8 +1430,7 @@ function V2BlockAction({
   v2GpsCoords, v2GpsLoading, v2GpsDenied,
   v2GpsTracking, handleStopGpsTracking,
   v2FormFields, setV2FormFields,
-  v2MaterialItems, setV2MaterialItems, v2MaterialDraft, setV2MaterialDraft,
-  v2MaterialNote, setV2MaterialNote, materialNameRef,
+  v2MaterialItems, setV2MaterialItems, v2MaterialDraft, setV2MaterialDraft, materialNameRef,
   v2ServiceItems, setV2ServiceItems, v2ServiceDraft, setV2ServiceDraft, serviceNameRef,
   rescheduleReason, setRescheduleReason,
   rescheduleDate, setRescheduleDate,
@@ -1463,8 +1459,6 @@ function V2BlockAction({
   setV2MaterialItems: React.Dispatch<React.SetStateAction<{ name: string; qty: number }[]>>;
   v2MaterialDraft: { name: string; qty: string };
   setV2MaterialDraft: React.Dispatch<React.SetStateAction<{ name: string; qty: string }>>;
-  v2MaterialNote: string;
-  setV2MaterialNote: (s: string) => void;
   materialNameRef: React.RefObject<HTMLInputElement | null>;
   v2ServiceItems: string[];
   setV2ServiceItems: React.Dispatch<React.SetStateAction<string[]>>;
@@ -1524,14 +1518,12 @@ function V2BlockAction({
         if (c.fields) return c.fields.some((f: any) => f.required && !v2FormFields[f.name]?.trim());
         return false;
       case "MATERIALS": {
-        const minItems = c.minItems || 1;
-        if (v2MaterialItems.length < minItems) return true;
-        if (c.noteRequired && !v2MaterialNote.trim()) return true;
+        // Só exige itens quando obrigatório (default true). Desmarcado = pode enviar com 0.
+        if (c.itemsRequired !== false && v2MaterialItems.length < (c.minItems || 1)) return true;
         return false;
       }
       case "SERVICES": {
-        const minItems = c.minItems || 1;
-        if (v2ServiceItems.length < minItems) return true;
+        if (c.itemsRequired !== false && v2ServiceItems.length < (c.minItems || 1)) return true;
         return false;
       }
       case "RESCHEDULE": {
@@ -2052,11 +2044,15 @@ function V2BlockAction({
         {/* MATERIALS */}
         {block.type === "MATERIALS" && (() => {
           const minItems = c.minItems || 1;
+          const minChars = c.minChars || 0;
+          const matDraftLen = v2MaterialDraft.name.trim().length;
+          const matBelowMin = minChars > 0 && matDraftLen < minChars;
+          const canAddMat = matDraftLen > 0 && !matBelowMin;
 
           function addItem() {
             const name = v2MaterialDraft.name.trim();
             const qty = parseInt(v2MaterialDraft.qty) || 1;
-            if (!name) return;
+            if (!name || name.length < minChars) return;
             setV2MaterialItems(prev => [...prev, { name, qty }]);
             setV2MaterialDraft({ name: "", qty: "" });
             setTimeout(() => materialNameRef.current?.focus(), 50);
@@ -2068,25 +2064,6 @@ function V2BlockAction({
 
           return (
             <div className="space-y-3">
-              <div>
-                <p className="text-[11px] font-medium text-slate-500 mb-1">
-                  {c.noteRequired ? "Diagnostico (obrigatorio)" : "Diagnostico / Observacoes"}
-                </p>
-                <textarea
-                  placeholder={c.notePlaceholder || "Descreva o diagnostico..."}
-                  value={v2MaterialNote}
-                  onChange={e => setV2MaterialNote(e.target.value)}
-                  rows={3}
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400 resize-none"
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="flex-1 border-t border-slate-200" />
-                <span className="text-[10px] font-semibold text-slate-400 uppercase">Lista de materiais</span>
-                <div className="flex-1 border-t border-slate-200" />
-              </div>
-
               {v2MaterialItems.map((item, idx) => (
                 <div key={idx} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
                   <span className="flex-1 text-sm text-slate-800 truncate">{item.name}</span>
@@ -2113,15 +2090,22 @@ function V2BlockAction({
                   pattern="[0-9]*"
                   placeholder="Qtd"
                   value={v2MaterialDraft.qty}
+                  disabled={matBelowMin}
                   onChange={e => setV2MaterialDraft(prev => ({ ...prev, qty: e.target.value.replace(/\D/g, "") }))}
-                  className="w-14 rounded-lg border border-slate-200 px-2 py-2 text-sm text-center outline-none focus:border-blue-400"
+                  className="w-14 rounded-lg border border-slate-200 px-2 py-2 text-sm text-center outline-none focus:border-blue-400 disabled:bg-slate-100 disabled:cursor-not-allowed"
                 />
                 <button onClick={addItem}
-                  disabled={!v2MaterialDraft.name.trim()}
+                  disabled={!canAddMat}
                   className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500 text-white disabled:opacity-30 active:scale-95 transition-all text-lg">
                   +
                 </button>
               </div>
+
+              {matBelowMin && matDraftLen > 0 && (
+                <p className="text-xs font-medium text-amber-600">
+                  Detalhe melhor: minimo {minChars} caracteres ({matDraftLen}/{minChars})
+                </p>
+              )}
 
               {v2MaterialItems.length > 0 && (
                 <p className={`text-xs font-medium ${v2MaterialItems.length >= minItems ? "text-green-600" : "text-amber-600"}`}>
@@ -2136,10 +2120,13 @@ function V2BlockAction({
         {/* SERVICES — lista de serviços realizados (só descrição, mesmo padrão dos materiais) */}
         {block.type === "SERVICES" && (() => {
           const minItems = c.minItems || 1;
+          const minChars = c.minChars || 0;
+          const draftLen = v2ServiceDraft.trim().length;
+          const canAdd = draftLen > 0 && draftLen >= minChars;
 
           function addService() {
             const name = v2ServiceDraft.trim();
-            if (!name) return;
+            if (!name || name.length < minChars) return;
             setV2ServiceItems(prev => [...prev, name]);
             setV2ServiceDraft("");
             setTimeout(() => serviceNameRef.current?.focus(), 50);
@@ -2172,11 +2159,17 @@ function V2BlockAction({
                   className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
                 />
                 <button onClick={addService}
-                  disabled={!v2ServiceDraft.trim()}
+                  disabled={!canAdd}
                   className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500 text-white disabled:opacity-30 active:scale-95 transition-all text-lg">
                   +
                 </button>
               </div>
+
+              {minChars > 0 && draftLen > 0 && draftLen < minChars && (
+                <p className="text-xs font-medium text-amber-600">
+                  Detalhe melhor: minimo {minChars} caracteres ({draftLen}/{minChars})
+                </p>
+              )}
 
               {v2ServiceItems.length > 0 && (
                 <p className={`text-xs font-medium ${v2ServiceItems.length >= minItems ? "text-green-600" : "text-amber-600"}`}>

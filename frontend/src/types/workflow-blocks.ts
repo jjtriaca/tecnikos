@@ -205,7 +205,7 @@ export const BLOCK_CATALOG: CatalogEntry[] = [
   { type: 'CHECKLIST', name: 'Checklist', icon: '☑️', description: 'Lista de itens para verificar', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
   { type: 'SIGNATURE', name: 'Assinatura', icon: '✍️', description: 'Assinatura digital do cliente', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
   { type: 'FORM', name: 'Formulário', icon: '📋', description: 'Campos customizáveis', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
-  { type: 'MATERIALS', name: 'Materiais', icon: '📦', description: 'Lista de materiais com diagnóstico', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
+  { type: 'MATERIALS', name: 'Materiais', icon: '📦', description: 'Lista de materiais (descrição + quantidade)', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
   { type: 'SERVICES', name: 'Serviços', icon: '🛠️', description: 'Lista de serviços realizados (uma descrição por linha)', category: 'ACTIONS', color: 'bg-blue-50', borderColor: 'border-blue-300', iconBg: 'bg-blue-500', textColor: 'text-blue-900' },
 
   // Visual / Informational
@@ -294,8 +294,8 @@ export function getDefaultConfig(type: BlockType): Record<string, any> {
     case 'CHECKLIST': return { items: ['Verificar condicoes do local', 'Inspecionar equipamento', 'Testar funcionamento'], confirmButton: { label: 'Confirmar checklist', color: 'green', icon: '☑️' } };
     case 'SIGNATURE': return { label: 'Assinatura do cliente confirmando a execucao do serviço', confirmButton: { label: 'Enviar assinatura', color: 'blue', icon: '✍️' } };
     case 'FORM': return { fields: [{ name: 'Condicao do equipamento', type: 'select', required: true, options: ['Bom', 'Regular', 'Ruim'] }, { name: 'Observacoes', type: 'text', required: false }], confirmButton: { label: 'Enviar formulario', color: 'green', icon: '📋' } };
-    case 'MATERIALS': return { label: 'Liste os materiais necessarios para o serviço', notePlaceholder: 'Descreva o diagnostico e observacoes...', noteRequired: false, minItems: 1, confirmButton: { label: 'Enviar materiais', color: 'green', icon: '📦' } };
-    case 'SERVICES': return { label: 'Liste os serviços realizados', minItems: 1, confirmButton: { label: 'Enviar serviços', color: 'green', icon: '🛠️' } };
+    case 'MATERIALS': return { label: 'Liste os materiais utilizados', itemsRequired: true, minItems: 1, minChars: 0, confirmButton: { label: 'Enviar materiais', color: 'green', icon: '📦' } };
+    case 'SERVICES': return { label: 'Liste os serviços realizados', itemsRequired: true, minItems: 1, minChars: 0, confirmButton: { label: 'Enviar serviços', color: 'green', icon: '🛠️' } };
     case 'CONDITION': return { conditionType: 'question', question: 'O serviço foi concluído com sucesso?' };
     case 'ACTION_BUTTONS': return { title: '', buttons: [{ id: 'btn_0', label: 'Confirmar', color: 'green', icon: '✅' }] };
     case 'NOTIFY': return { recipients: [{ type: 'CLIENTE', enabled: true, channel: 'WHATSAPP', message: 'Ola {nome}, informamos que o serviço {titulo} foi concluído com sucesso pelo técnico {tecnico}. A {razao_social} agradece pela preferencia! Qualquer duvida, entre em contato.' }] };
