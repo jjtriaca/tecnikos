@@ -146,8 +146,8 @@ export default function ServiceItemsSection({ items, onChange }: Props) {
                   <td className="px-3 py-2 text-center">
                     <input
                       type="number"
-                      min={0.1}
-                      step={0.1}
+                      min={0.0001}
+                      step={0.0001}
                       value={item.quantity}
                       onChange={(e) => {
                         const val = e.target.value;
@@ -157,10 +157,10 @@ export default function ServiceItemsSection({ items, onChange }: Props) {
                       }}
                       onBlur={(e) => {
                         const num = parseFloat(e.target.value);
-                        if (!num || num < 0.1) handleQtyChange(idx, 1);
+                        if (!num || num <= 0) handleQtyChange(idx, 1);
                       }}
                       onFocus={(e) => e.target.select()}
-                      className="w-16 rounded border border-slate-300 px-1.5 py-0.5 text-center text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
+                      className="w-20 rounded border border-slate-300 px-1.5 py-0.5 text-center text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
                     />
                   </td>
                   <td className="px-3 py-2 text-center text-slate-500">{UNIT_LABELS[item.unit] || item.unit}</td>

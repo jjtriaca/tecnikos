@@ -1400,6 +1400,27 @@ export default function OrderDetailPage() {
         );
       })()}
 
+      {/* ── Relatório do técnico: descrição dos serviços + material (lado a lado) ── */}
+      {/* Por ora só exibicao; o mecanismo que GRAVA esses campos (bloco no fluxo) sera definido depois. */}
+      <div className="grid gap-4 md:grid-cols-2 mb-6">
+        <div className="rounded-xl border border-slate-200 bg-white p-5">
+          <h3 className="text-sm font-semibold text-slate-700 mb-2">📝 Descrição dos serviços prestados</h3>
+          {(order as any).serviceDescription ? (
+            <p className="text-sm text-slate-800 whitespace-pre-wrap">{(order as any).serviceDescription}</p>
+          ) : (
+            <p className="text-sm text-slate-400 italic">Será preenchido pelo técnico no app (relatório após as fotos).</p>
+          )}
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-5">
+          <h3 className="text-sm font-semibold text-slate-700 mb-2">🧰 Relação de material utilizado</h3>
+          {(order as any).materialsUsed ? (
+            <p className="text-sm text-slate-800 whitespace-pre-wrap">{(order as any).materialsUsed}</p>
+          ) : (
+            <p className="text-sm text-slate-400 italic">Será preenchido pelo técnico no app.</p>
+          )}
+        </div>
+      </div>
+
       {/* ── Fotos ── */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 mb-6">
         <h3 className="text-sm font-semibold text-slate-700 mb-3">📷 Fotos</h3>
@@ -1422,29 +1443,39 @@ export default function OrderDetailPage() {
             }
           };
 
-          const PhotoThumb = ({ a, showStep }: { a: any; showStep?: boolean }) => (
-            <div key={a.id} className="relative group">
-              <img src={`${apiBase}${a.url}`} alt={a.fileName}
-                onClick={() => setLightboxUrl(`${apiBase}${a.url}`)}
-                className="h-24 w-24 rounded-xl object-cover border border-slate-200 cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all" />
-              {showStep && a.stepOrder != null && (
-                <span className="absolute bottom-1 right-1 rounded bg-black/50 px-1.5 py-0.5 text-[10px] text-white">
-                  Passo {a.stepOrder}
+          const PhotoThumb = ({ a, showStep }: { a: any; showStep?: boolean }) => {
+            const uploadedAt = a.createdAt || a.uploadedAt;
+            return (
+            <div key={a.id} className="flex flex-col items-center gap-1">
+              <div className="relative group">
+                <img src={`${apiBase}${a.url}`} alt={a.fileName}
+                  onClick={() => setLightboxUrl(`${apiBase}${a.url}`)}
+                  className="h-24 w-24 rounded-xl object-cover border border-slate-200 cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all" />
+                {showStep && a.stepOrder != null && (
+                  <span className="absolute bottom-1 right-1 rounded bg-black/50 px-1.5 py-0.5 text-[10px] text-white">
+                    Passo {a.stepOrder}
+                  </span>
+                )}
+                {canDelete && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDeletePhoto(a.id); }}
+                    className="absolute -top-1.5 -right-1.5 hidden group-hover:flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600 transition-colors"
+                    title="Excluir foto"
+                  >
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              {uploadedAt && (
+                <span className="w-24 text-center text-[9px] leading-tight text-slate-400" title="Data/hora do upload">
+                  {new Date(uploadedAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
                 </span>
               )}
-              {canDelete && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleDeletePhoto(a.id); }}
-                  className="absolute -top-1.5 -right-1.5 hidden group-hover:flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow-sm hover:bg-red-600 transition-colors"
-                  title="Excluir foto"
-                >
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
             </div>
-          );
+            );
+          };
 
           if (!hasAny) {
             return <p className="text-sm text-slate-600">Nenhuma foto registrada.</p>;
