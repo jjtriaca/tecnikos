@@ -943,6 +943,7 @@ export default function OrderDetailPage() {
           if (step.type === "PHOTO") return step.responseData?.count ? `${step.responseData.count} fotos` : "foto";
           if (step.type === "SIGNATURE") return "assinado";
           if (step.type === "MATERIALS" && step.responseData?.items) return `${step.responseData.items.length} itens`;
+          if (step.type === "SERVICES" && step.responseData?.items) return `${step.responseData.items.length} serviços`;
           if (step.note) return step.note.substring(0, 40);
           return "";
         }
@@ -995,6 +996,7 @@ export default function OrderDetailPage() {
               const detail = getStepDetail(step);
               const gps = getStepGps(step);
               const hasMaterials = step.type === "MATERIALS" && step.completed && step.responseData?.items;
+              const hasServices = step.type === "SERVICES" && step.completed && Array.isArray(step.responseData?.items) && step.responseData.items.length > 0;
               const statusLabel = step.type === "STATUS" && detail ? (STATUS_LABELS[detail] || detail) : "";
 
               return (
@@ -1057,6 +1059,18 @@ export default function OrderDetailPage() {
                         <div key={i} className="flex items-center gap-1 text-[10px] py-0.5 border-t border-amber-100 first:border-0">
                           <span className="flex-1 text-slate-700 truncate">{item.name.length > 50 ? item.name.substring(0, 50) + '…' : item.name}</span>
                           <span className="w-8 text-right font-medium text-slate-600">{item.qty}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {/* SERVICES expanded below — lista de serviços (só descrição) */}
+                  {hasServices && (
+                    <div className="ml-7 my-1 rounded border border-blue-200 bg-blue-50 px-2 py-1.5 max-w-xs">
+                      <div className="text-[9px] text-slate-400 uppercase tracking-wide mb-0.5">Serviços realizados</div>
+                      {(step.responseData.items as string[]).map((name: string, i: number) => (
+                        <div key={i} className="flex items-start gap-1 text-[10px] py-0.5 border-t border-blue-100 first:border-0">
+                          <span className="text-blue-400">•</span>
+                          <span className="flex-1 text-slate-700">{name}</span>
                         </div>
                       ))}
                     </div>
@@ -1399,27 +1413,6 @@ export default function OrderDetailPage() {
           </div>
         );
       })()}
-
-      {/* ── Relatório do técnico: descrição dos serviços + material (lado a lado) ── */}
-      {/* Por ora só exibicao; o mecanismo que GRAVA esses campos (bloco no fluxo) sera definido depois. */}
-      <div className="grid gap-4 md:grid-cols-2 mb-6">
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-slate-700 mb-2">📝 Descrição dos serviços prestados</h3>
-          {(order as any).serviceDescription ? (
-            <p className="text-sm text-slate-800 whitespace-pre-wrap">{(order as any).serviceDescription}</p>
-          ) : (
-            <p className="text-sm text-slate-400 italic">Será preenchido pelo técnico no app (relatório após as fotos).</p>
-          )}
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <h3 className="text-sm font-semibold text-slate-700 mb-2">🧰 Relação de material utilizado</h3>
-          {(order as any).materialsUsed ? (
-            <p className="text-sm text-slate-800 whitespace-pre-wrap">{(order as any).materialsUsed}</p>
-          ) : (
-            <p className="text-sm text-slate-400 italic">Será preenchido pelo técnico no app.</p>
-          )}
-        </div>
-      </div>
 
       {/* ── Fotos ── */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 mb-6">

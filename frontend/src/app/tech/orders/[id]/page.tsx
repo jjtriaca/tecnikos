@@ -269,6 +269,11 @@ export default function TechOrderDetailPage() {
   const [v2MaterialNote, setV2MaterialNote] = useState("");
   const materialNameRef = useRef<HTMLInputElement>(null);
 
+  // SERVICES block state (lista de serviços — só descrição)
+  const [v2ServiceItems, setV2ServiceItems] = useState<string[]>([]);
+  const [v2ServiceDraft, setV2ServiceDraft] = useState("");
+  const serviceNameRef = useRef<HTMLInputElement>(null);
+
   // GPS block continuous tracking state
   const [v2GpsTracking, setV2GpsTracking] = useState(false);
   const v2GpsWatchRef = useRef<number | null>(null);
@@ -871,6 +876,9 @@ export default function TechOrderDetailPage() {
       case "MATERIALS":
         body.responseData = { items: v2MaterialItems, note: v2MaterialNote.trim() || undefined };
         break;
+      case "SERVICES":
+        body.responseData = { items: v2ServiceItems };
+        break;
       case "ARRIVAL_QUESTION":
         body.responseData = { selectedMinutes: parseInt(v2AnswerRef.current) || 0 };
         break;
@@ -916,6 +924,8 @@ export default function TechOrderDetailPage() {
       setV2MaterialItems([]);
       setV2MaterialDraft({ name: "", qty: "" });
       setV2MaterialNote("");
+      setV2ServiceItems([]);
+      setV2ServiceDraft("");
 
       if (navigator.onLine) {
         await loadOrder();
@@ -1160,6 +1170,11 @@ export default function TechOrderDetailPage() {
               v2MaterialNote={v2MaterialNote}
               setV2MaterialNote={setV2MaterialNote}
               materialNameRef={materialNameRef}
+              v2ServiceItems={v2ServiceItems}
+              setV2ServiceItems={setV2ServiceItems}
+              v2ServiceDraft={v2ServiceDraft}
+              setV2ServiceDraft={setV2ServiceDraft}
+              serviceNameRef={serviceNameRef}
               rescheduleReason={rescheduleReason}
               setRescheduleReason={setRescheduleReason}
               rescheduleDate={rescheduleDate}
@@ -1420,6 +1435,7 @@ function V2BlockAction({
   v2FormFields, setV2FormFields,
   v2MaterialItems, setV2MaterialItems, v2MaterialDraft, setV2MaterialDraft,
   v2MaterialNote, setV2MaterialNote, materialNameRef,
+  v2ServiceItems, setV2ServiceItems, v2ServiceDraft, setV2ServiceDraft, serviceNameRef,
   rescheduleReason, setRescheduleReason,
   rescheduleDate, setRescheduleDate,
   onAdvance,
@@ -1450,6 +1466,11 @@ function V2BlockAction({
   v2MaterialNote: string;
   setV2MaterialNote: (s: string) => void;
   materialNameRef: React.RefObject<HTMLInputElement | null>;
+  v2ServiceItems: string[];
+  setV2ServiceItems: React.Dispatch<React.SetStateAction<string[]>>;
+  v2ServiceDraft: string;
+  setV2ServiceDraft: React.Dispatch<React.SetStateAction<string>>;
+  serviceNameRef: React.RefObject<HTMLInputElement | null>;
   rescheduleReason: string;
   setRescheduleReason: (s: string) => void;
   rescheduleDate: string;
@@ -1503,9 +1524,14 @@ function V2BlockAction({
         if (c.fields) return c.fields.some((f: any) => f.required && !v2FormFields[f.name]?.trim());
         return false;
       case "MATERIALS": {
-        // Materiais só são obrigatórios quando itemsRequired === true (default: opcional).
-        if (c.itemsRequired === true && v2MaterialItems.length < (c.minItems || 1)) return true;
+        const minItems = c.minItems || 1;
+        if (v2MaterialItems.length < minItems) return true;
         if (c.noteRequired && !v2MaterialNote.trim()) return true;
+        return false;
+      }
+      case "SERVICES": {
+        const minItems = c.minItems || 1;
+        if (v2ServiceItems.length < minItems) return true;
         return false;
       }
       case "RESCHEDULE": {
@@ -2044,10 +2070,10 @@ function V2BlockAction({
             <div className="space-y-3">
               <div>
                 <p className="text-[11px] font-medium text-slate-500 mb-1">
-                  {(c.noteLabel || "Descricao dos servicos prestados") + (c.noteRequired ? " (obrigatorio)" : "")}
+                  {c.noteRequired ? "Diagnostico (obrigatorio)" : "Diagnostico / Observacoes"}
                 </p>
                 <textarea
-                  placeholder={c.notePlaceholder || "Descreva os servicos realizados..."}
+                  placeholder={c.notePlaceholder || "Descreva o diagnostico..."}
                   value={v2MaterialNote}
                   onChange={e => setV2MaterialNote(e.target.value)}
                   rows={3}
@@ -2075,8 +2101,8 @@ function V2BlockAction({
                   ref={materialNameRef}
                   autoFocus
                   type="text"
-                  maxLength={120}
-                  placeholder={(c.itemLabel || "Descricao do material") + "..."}
+                  maxLength={50}
+                  placeholder="Nome do material..."
                   value={v2MaterialDraft.name}
                   onChange={e => setV2MaterialDraft(prev => ({ ...prev, name: e.target.value }))}
                   className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
@@ -2100,6 +2126,61 @@ function V2BlockAction({
               {v2MaterialItems.length > 0 && (
                 <p className={`text-xs font-medium ${v2MaterialItems.length >= minItems ? "text-green-600" : "text-amber-600"}`}>
                   {v2MaterialItems.length} {v2MaterialItems.length === 1 ? "item" : "itens"}
+                  {minItems > 1 ? ` (minimo ${minItems})` : ""}
+                </p>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* SERVICES — lista de serviços realizados (só descrição, mesmo padrão dos materiais) */}
+        {block.type === "SERVICES" && (() => {
+          const minItems = c.minItems || 1;
+
+          function addService() {
+            const name = v2ServiceDraft.trim();
+            if (!name) return;
+            setV2ServiceItems(prev => [...prev, name]);
+            setV2ServiceDraft("");
+            setTimeout(() => serviceNameRef.current?.focus(), 50);
+          }
+
+          function removeService(idx: number) {
+            setV2ServiceItems(prev => prev.filter((_, i) => i !== idx));
+          }
+
+          return (
+            <div className="space-y-3">
+              {v2ServiceItems.map((name, idx) => (
+                <div key={idx} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <span className="flex-1 text-sm text-slate-800">{name}</span>
+                  <button onClick={() => removeService(idx)}
+                    className="text-red-400 hover:text-red-600 text-sm ml-1">🗑</button>
+                </div>
+              ))}
+
+              <div className="flex items-center gap-1.5">
+                <input
+                  ref={serviceNameRef}
+                  autoFocus
+                  type="text"
+                  maxLength={200}
+                  placeholder="Descreva um serviço..."
+                  value={v2ServiceDraft}
+                  onChange={e => setV2ServiceDraft(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addService(); } }}
+                  className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+                />
+                <button onClick={addService}
+                  disabled={!v2ServiceDraft.trim()}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500 text-white disabled:opacity-30 active:scale-95 transition-all text-lg">
+                  +
+                </button>
+              </div>
+
+              {v2ServiceItems.length > 0 && (
+                <p className={`text-xs font-medium ${v2ServiceItems.length >= minItems ? "text-green-600" : "text-amber-600"}`}>
+                  {v2ServiceItems.length} {v2ServiceItems.length === 1 ? "serviço" : "serviços"}
                   {minItems > 1 ? ` (minimo ${minItems})` : ""}
                 </p>
               )}

@@ -70,6 +70,7 @@ const ACTIONABLE_TYPES = new Set([
   'SIGNATURE',
   'FORM',
   'MATERIALS',
+  'SERVICES',
   'CONDITION',
   'ACTION_BUTTONS',
   'ARRIVAL_QUESTION',
@@ -659,49 +660,6 @@ export class WorkflowEngineService {
           clientTimestamp: clientTs,
         },
       });
-
-      // MATERIALS: além do log, grava o relatório técnico na própria OS (descrição dos serviços
-      // + relação de material) para a tela da OS exibir. Onde cada campo grava é CONFIGURÁVEL no
-      // bloco (saveNoteTo / saveItemsTo) — nada hardcode. Whitelist evita escrita em coluna
-      // arbitrária; ausência de config usa os defaults serviceDescription / materialsUsed.
-      if (block.type === 'MATERIALS') {
-        const cfg = block.config || {};
-        const ALLOWED_TARGETS = new Set(['serviceDescription', 'materialsUsed']);
-        const noteTarget = cfg.saveNoteTo === undefined ? 'serviceDescription' : cfg.saveNoteTo;
-        const itemsTarget = cfg.saveItemsTo === undefined ? 'materialsUsed' : cfg.saveItemsTo;
-
-        const reportData: Record<string, string> = {};
-
-        const noteText = (dto.responseData?.note || '').trim();
-        if (noteTarget && ALLOWED_TARGETS.has(noteTarget) && noteText) {
-          reportData[noteTarget] = noteText;
-        }
-
-        const rawItems = Array.isArray(dto.responseData?.items) ? dto.responseData.items : [];
-        if (itemsTarget && ALLOWED_TARGETS.has(itemsTarget) && rawItems.length > 0) {
-          const itemsText = rawItems
-            .map((it: any) => {
-              const name = String(it?.name ?? '').trim();
-              if (!name) return null;
-              const qty = it?.qty;
-              return qty !== undefined && qty !== null && qty !== ''
-                ? `${name} — ${qty}`
-                : name;
-            })
-            .filter((line: string | null): line is string => !!line)
-            .join('\n');
-          if (itemsText) {
-            // Se nota e lista gravam no MESMO campo, concatena (não sobrescreve um ao outro).
-            reportData[itemsTarget] = reportData[itemsTarget]
-              ? `${reportData[itemsTarget]}\n${itemsText}`
-              : itemsText;
-          }
-        }
-
-        if (Object.keys(reportData).length > 0) {
-          await tx.serviceOrder.update({ where: { id: so.id }, data: reportData });
-        }
-      }
 
       if (newStatus) {
         const st = newStatus as string;
@@ -1898,18 +1856,29 @@ export class WorkflowEngineService {
         break;
 
       case 'MATERIALS': {
-        // Materiais só são obrigatórios quando itemsRequired === true (default: opcional).
-        if (c.itemsRequired === true) {
-          const items = dto.responseData?.items;
-          const minItems = c.minItems || 1;
-          if (!items || !Array.isArray(items) || items.length < minItems)
-            throw new BadRequestException(
-              `"${block.name}" requer no mínimo ${minItems} ${minItems === 1 ? 'material' : 'itens'} (enviados: ${Array.isArray(items) ? items.length : 0})`,
-            );
-        }
+        const items = dto.responseData?.items;
+        if (!items || !Array.isArray(items) || items.length === 0)
+          throw new BadRequestException(
+            `"${block.name}" requer ao menos um material`,
+          );
+        const minItems = c.minItems || 1;
+        if (items.length < minItems)
+          throw new BadRequestException(
+            `"${block.name}" requer no mínimo ${minItems} itens (enviados: ${items.length})`,
+          );
         if (c.noteRequired && !dto.responseData?.note?.trim())
           throw new BadRequestException(
             `"${block.name}" requer um diagnóstico/observação`,
+          );
+        break;
+      }
+
+      case 'SERVICES': {
+        const items = dto.responseData?.items;
+        const minItems = c.minItems || 1;
+        if (!items || !Array.isArray(items) || items.length < minItems)
+          throw new BadRequestException(
+            `"${block.name}" requer no mínimo ${minItems} ${minItems === 1 ? 'serviço' : 'serviços'} (enviados: ${Array.isArray(items) ? items.length : 0})`,
           );
         break;
       }
