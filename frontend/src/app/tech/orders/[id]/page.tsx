@@ -1503,8 +1503,8 @@ function V2BlockAction({
         if (c.fields) return c.fields.some((f: any) => f.required && !v2FormFields[f.name]?.trim());
         return false;
       case "MATERIALS": {
-        const minItems = c.minItems || 1;
-        if (v2MaterialItems.length < minItems) return true;
+        // Materiais só são obrigatórios quando itemsRequired === true (default: opcional).
+        if (c.itemsRequired === true && v2MaterialItems.length < (c.minItems || 1)) return true;
         if (c.noteRequired && !v2MaterialNote.trim()) return true;
         return false;
       }

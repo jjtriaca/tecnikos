@@ -795,8 +795,13 @@ export default function WorkflowProperties({ block, onChange }: Props) {
               <p className="text-[11px] font-semibold text-slate-600">Lista de materiais (descricao + quantidade)</p>
               <Label>Rotulo do item</Label>
               <Input value={cfg.itemLabel || ""} onChange={(v) => updateConfig("itemLabel", v)} placeholder="Descricao do material" />
-              <Label>Min. itens</Label>
-              <Input type="number" value={cfg.minItems || 1} onChange={(v) => updateConfig("minItems", parseInt(v) || 1)} />
+              <Checkbox checked={cfg.itemsRequired === true} onChange={(v) => updateConfig("itemsRequired", v)} label="Materiais obrigatorios" />
+              {cfg.itemsRequired === true && (
+                <>
+                  <Label>Min. itens</Label>
+                  <Input type="number" value={cfg.minItems || 1} onChange={(v) => updateConfig("minItems", parseInt(v) || 1)} />
+                </>
+              )}
               <Label>Gravar a lista em</Label>
               <Select value={cfg.saveItemsTo ?? "materialsUsed"} onChange={(v) => updateConfig("saveItemsTo", v)} options={OS_FIELD_TARGETS} />
             </div>

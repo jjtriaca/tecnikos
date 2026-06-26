@@ -1898,16 +1898,15 @@ export class WorkflowEngineService {
         break;
 
       case 'MATERIALS': {
-        const items = dto.responseData?.items;
-        if (!items || !Array.isArray(items) || items.length === 0)
-          throw new BadRequestException(
-            `"${block.name}" requer ao menos um material`,
-          );
-        const minItems = c.minItems || 1;
-        if (items.length < minItems)
-          throw new BadRequestException(
-            `"${block.name}" requer no mínimo ${minItems} itens (enviados: ${items.length})`,
-          );
+        // Materiais só são obrigatórios quando itemsRequired === true (default: opcional).
+        if (c.itemsRequired === true) {
+          const items = dto.responseData?.items;
+          const minItems = c.minItems || 1;
+          if (!items || !Array.isArray(items) || items.length < minItems)
+            throw new BadRequestException(
+              `"${block.name}" requer no mínimo ${minItems} ${minItems === 1 ? 'material' : 'itens'} (enviados: ${Array.isArray(items) ? items.length : 0})`,
+            );
+        }
         if (c.noteRequired && !dto.responseData?.note?.trim())
           throw new BadRequestException(
             `"${block.name}" requer um diagnóstico/observação`,

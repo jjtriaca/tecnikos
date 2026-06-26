@@ -23,6 +23,16 @@ function parseTriggerFromSteps(steps: any): TriggerDefinition {
   return TRIGGER_OPTIONS[0];
 }
 
+/** Snapshot do fluxo pra detectar alteração (dirty state) — padrão system-wide do botao Salvar. */
+function serializeWorkflow(name: string, blocks: Block[], trigger: TriggerDefinition, techPortalConfig: TechPortalConfig): string {
+  return JSON.stringify({
+    name: name.trim(),
+    blocks,
+    trigger: { entity: trigger.entity, event: trigger.event, triggerId: trigger.id },
+    techPortalConfig,
+  });
+}
+
 interface Props {
   workflowId: string | null; // null = new
   initialName?: string;
@@ -47,6 +57,7 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [pristine, setPristine] = useState<string | null>(null); // snapshot inicial (dirty state)
   const [showTemplates, setShowTemplates] = useState(!workflowId && !initialSteps);
   const [insertAfterId, setInsertAfterId] = useState<string | null>(null);
   const [insertVia, setInsertVia] = useState<"next" | "yesBranch" | "noBranch">("next");
@@ -58,6 +69,15 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
 
   const selectedBlock = selectedBlockId ? findBlock(blocks, selectedBlockId) || null : null;
   const blockCount = countUserBlocks(blocks);
+
+  // Captura o snapshot inicial uma vez (após montar, com os IDs reais dos blocos).
+  useEffect(() => {
+    setPristine(serializeWorkflow(name, blocks, trigger, techPortalConfig));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Dirty: habilita Salvar só quando algo mudou vs o snapshot. null = ainda capturando = não-sujo.
+  const isDirty = pristine !== null && serializeWorkflow(name, blocks, trigger, techPortalConfig) !== pristine;
 
   // Group triggers for display
   const osTriggers = TRIGGER_OPTIONS.filter(t => t.entity === "SERVICE_ORDER");
@@ -170,6 +190,7 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
 
       if (workflowId) {
         await api.put(`/workflows/${workflowId}`, payload);
+        setPristine(serializeWorkflow(name, blocks, trigger, techPortalConfig)); // renova snapshot — botao volta a travar
         setSuccess(true);
         setTimeout(() => setSuccess(false), 2000);
       } else {
@@ -258,8 +279,9 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
 
           <button
             onClick={handleSave}
-            disabled={saving}
-            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            disabled={saving || !isDirty}
+            title={!isDirty ? "Nenhuma alteracao pra salvar" : "Salvar fluxo"}
+            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {saving ? (
               <>
@@ -413,6 +435,7 @@ export default function WorkflowVisualEditor({ workflowId, initialName, initialS
               steps: { version: 2, blocks, trigger: { entity: trigger.entity, event: trigger.event, triggerId: trigger.id }, techPortalConfig },
               isActive: initialIsActive ?? true,
             });
+            setPristine(serializeWorkflow(name, blocks, trigger, techPortalConfig)); // Portal salvo: renova snapshot
           }}
         />
       )}
