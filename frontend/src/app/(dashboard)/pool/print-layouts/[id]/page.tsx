@@ -304,30 +304,7 @@ export default function PoolPrintLayoutEditorPage() {
         )}
       </div>
 
-      {/* CONTEXTUAL: editor da pagina selecionada (inline, abaixo das abas) */}
-      {(showAddPage || editingPage) && (
-        <div className="shrink-0 border-b border-slate-200 bg-slate-100 px-4 py-2 overflow-y-auto" style={{ maxHeight: "46vh" }}>
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-sm font-semibold text-slate-800">
-              {editingPage
-                ? <>✎ Editando: Pagina {layout.pages.findIndex((p) => p.id === editingPage.id) + 1} <span className="font-normal text-slate-500">— {(editingPage.pageConfig as any)?.nodes?.length ? "Composicao" : editingPage.type === "DYNAMIC" ? (DYNAMIC_LABEL[editingPage.dynamicType || ""] || "Dinamica") : "HTML fixo"}</span></>
-                : <>➕ Nova pagina</>}
-            </div>
-            <button type="button" onClick={() => { setShowAddPage(false); setEditingPage(null); }}
-              className="text-xs text-slate-500 hover:text-slate-700">✕ Fechar</button>
-          </div>
-          <PageEditor
-            inline
-            key={editingPage?.id || "new"}
-            editing={editingPage}
-            onClose={() => { setShowAddPage(false); setEditingPage(null); }}
-            onSubmit={(payload) => editingPage ? updatePage(editingPage.id, payload) : addPage(payload)}
-            onUploadImage={uploadAsset}
-          />
-        </div>
-      )}
-
-      {/* 3 PAINEIS */}
+      {/* 3 PAINEIS — topo (titulo+abas+faixa) fica FIXO; aqui embaixo: paginas | folha | editor */}
       <div className="flex flex-1 min-h-0">
       {/* ESQUERDA: Paginas + estilo */}
       <div className="w-[340px] shrink-0 border-r border-slate-200 bg-slate-50 overflow-y-auto p-3 space-y-3">
@@ -504,10 +481,34 @@ export default function PoolPrintLayoutEditorPage() {
         <BudgetReport data={SAMPLE_BUDGET} layout={{ branding: layout.branding, pages: layout.pages }} />
       </div>
 
-      {/* DIREITA: propriedades */}
-      <div className="w-64 shrink-0 border-l border-slate-200 bg-slate-50 overflow-y-auto p-3">
-        <div className="pb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">Propriedades</div>
-        <div className="text-xs text-slate-500 leading-relaxed">Clique numa pagina (a esquerda) pra editar. Em breve: editar o elemento selecionado aqui mesmo, sem janela.</div>
+      {/* DIREITA: editor da pagina selecionada (sem janela) */}
+      <div className={`${(showAddPage || editingPage) ? "w-[440px]" : "w-64"} shrink-0 border-l border-slate-200 bg-slate-50 overflow-y-auto p-3`}>
+        {(showAddPage || editingPage) ? (
+          <>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-sm font-semibold text-slate-800">
+                {editingPage
+                  ? <>✎ Pagina {layout.pages.findIndex((p) => p.id === editingPage.id) + 1} <span className="font-normal text-slate-500">— {(editingPage.pageConfig as any)?.nodes?.length ? "Composicao" : editingPage.type === "DYNAMIC" ? (DYNAMIC_LABEL[editingPage.dynamicType || ""] || "Dinamica") : "HTML fixo"}</span></>
+                  : <>➕ Nova pagina</>}
+              </div>
+              <button type="button" onClick={() => { setShowAddPage(false); setEditingPage(null); }}
+                className="text-xs text-slate-500 hover:text-slate-700">✕ Fechar</button>
+            </div>
+            <PageEditor
+              inline
+              key={editingPage?.id || "new"}
+              editing={editingPage}
+              onClose={() => { setShowAddPage(false); setEditingPage(null); }}
+              onSubmit={(payload) => editingPage ? updatePage(editingPage.id, payload) : addPage(payload)}
+              onUploadImage={uploadAsset}
+            />
+          </>
+        ) : (
+          <>
+            <div className="pb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">Propriedades</div>
+            <div className="text-xs text-slate-500 leading-relaxed">Clique numa pagina (a esquerda) pra editar aqui, sem janela.</div>
+          </>
+        )}
       </div>
 
       </div>{/* fim 3 paineis */}
@@ -614,7 +615,7 @@ function PageEditor({ editing, onClose, onSubmit, onUploadImage, inline }: {
           {compMode ? (
             <div>
               <p className="mb-2 text-xs text-slate-500">Monte a pagina com <b>cards</b>, <b>linhas (colunas)</b> e <b>blocos</b> aninhados. Use ➕ pra adicionar dentro de um card.</p>
-              <div className="grid gap-3 lg:grid-cols-2">
+              <div className={inline ? "space-y-3" : "grid gap-3 lg:grid-cols-2"}>
                 <CompositionEditor nodes={nodes} onChange={setNodes} onUploadImage={onUploadImage} />
                 <div>
                   <div className="mb-1 text-xs font-semibold text-slate-600">Pre-visualizacao (ao vivo)</div>
