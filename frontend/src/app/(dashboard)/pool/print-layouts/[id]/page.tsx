@@ -103,6 +103,16 @@ const SAMPLE_BUDGET: BudgetReportData = {
   ],
 };
 
+// Botao da faixa de opcoes (ribbon) — icone em cima, rotulo embaixo (estilo Office).
+function RibbonBtn({ icon, label, onClick, disabled }: { icon: string; label: string; onClick?: () => void; disabled?: boolean }) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled}
+      className="flex flex-col items-center justify-center gap-0.5 rounded px-2 py-1 min-w-[56px] text-slate-700 hover:bg-cyan-50 disabled:opacity-40 disabled:cursor-not-allowed">
+      <span className="text-lg leading-none">{icon}</span>
+      <span className="text-[10px] leading-tight text-center">{label}</span>
+    </button>
+  );
+}
 export default function PoolPrintLayoutEditorPage() {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
@@ -114,6 +124,7 @@ export default function PoolPrintLayoutEditorPage() {
   const [editingMeta, setEditingMeta] = useState(false);
   const [name, setName] = useState("");
   const [isDefault, setIsDefault] = useState(false);
+  const [tab, setTab] = useState("Inserir"); // aba da ribbon (Office-like)
 
   const load = useCallback(async () => {
     try {
@@ -235,44 +246,71 @@ export default function PoolPrintLayoutEditorPage() {
   const brand = (layout.branding || {}) as any;
 
   return (
-    <div className="p-6">
-      <div className="flex flex-col xl:flex-row gap-6 items-start">
-      {/* ESQUERDA: controles do montador */}
-      <div className="w-full xl:w-[460px] xl:flex-shrink-0 space-y-4">
-      {/* Header */}
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div>
-          <Link href="/pool/print-layouts" className="text-xs text-slate-500 hover:text-slate-700">← Layouts</Link>
-          {editingMeta ? (
-            <div className="flex items-center gap-2 mt-1">
-              <input value={name} onChange={(e) => setName(e.target.value)}
-                className="text-2xl font-bold text-slate-900 rounded border border-slate-300 px-2 py-1" />
-              <label className="flex items-center gap-1 text-sm text-slate-700">
-                <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} />
-                padrao
-              </label>
-              <button onClick={saveMeta}
-                className="rounded bg-cyan-600 px-3 py-1 text-sm text-white hover:bg-cyan-700">Salvar</button>
-              <button onClick={() => { setEditingMeta(false); setName(layout.name); setIsDefault(layout.isDefault); }}
-                className="rounded border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-50">Cancelar</button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 mt-1">
-              <h1 className="text-2xl font-bold text-slate-900">{layout.name}</h1>
-              {layout.isDefault && <span className="rounded-full bg-cyan-100 text-cyan-700 text-xs px-2 py-0.5">padrao</span>}
-              <button onClick={() => setEditingMeta(true)} className="text-xs text-cyan-600 hover:text-cyan-800">
-                Editar nome
-              </button>
-            </div>
-          )}
-          <p className="mt-1 text-sm text-slate-500">
-            Arraste as paginas pra reordenar. Clique em uma pagina pra editar.
-          </p>
+    <div className="flex flex-col" style={{ height: "calc(100vh - 4.5rem)" }}>
+      {/* BARRA DE TITULO */}
+      <div className="flex items-center gap-3 px-4 py-2 border-b border-slate-200 bg-white shrink-0">
+        <Link href="/pool/print-layouts" className="text-xs text-slate-500 hover:text-slate-700">← Layouts</Link>
+        {editingMeta ? (
+          <div className="flex items-center gap-2">
+            <input value={name} onChange={(e) => setName(e.target.value)}
+              className="text-lg font-bold text-slate-900 rounded border border-slate-300 px-2 py-0.5" />
+            <label className="flex items-center gap-1 text-sm text-slate-700">
+              <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} /> padrao
+            </label>
+            <button onClick={saveMeta} className="rounded bg-cyan-600 px-3 py-1 text-sm text-white hover:bg-cyan-700">Salvar</button>
+            <button onClick={() => { setEditingMeta(false); setName(layout.name); setIsDefault(layout.isDefault); }}
+              className="rounded border border-slate-300 px-3 py-1 text-sm text-slate-700 hover:bg-slate-50">Cancelar</button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <h1 className="text-lg font-bold text-slate-900">{layout.name}</h1>
+            {layout.isDefault && <span className="rounded-full bg-cyan-100 text-cyan-700 text-xs px-2 py-0.5">padrao</span>}
+            <button onClick={() => setEditingMeta(true)} className="text-xs text-cyan-600 hover:text-cyan-800">Editar nome</button>
+          </div>
+        )}
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => printViaClone({ areaId: "budget-pdf-area", cloneId: "budget-pdf-clone" })}
+            className="rounded-md bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800">🖨️ Imprimir exemplo</button>
         </div>
-        <button onClick={() => setShowAddPage(true)}
-          className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-700">
-          + Adicionar pagina
-        </button>
+      </div>
+
+      {/* ABAS DA RIBBON */}
+      <div className="flex items-end gap-1 px-3 pt-1 bg-slate-100 border-b border-slate-200 shrink-0">
+        {["Arquivo", "Inicio", "Inserir", "Pagina", "Estilo"].map((t) => (
+          <button key={t} type="button" onClick={() => setTab(t)}
+            className={`px-4 py-1.5 text-sm rounded-t-md ${tab === t ? "bg-white font-semibold text-slate-900 border border-b-0 border-slate-200" : "text-slate-600 hover:bg-slate-200"}`}>{t}</button>
+        ))}
+      </div>
+
+      {/* FAIXA DE OPCOES */}
+      <div className="flex items-stretch gap-2 px-4 py-1.5 bg-white border-b border-slate-200 overflow-x-auto shrink-0" style={{ minHeight: 58 }}>
+        {tab === "Arquivo" && (<>
+          <RibbonBtn icon="✏️" label="Renomear" onClick={() => setEditingMeta(true)} />
+          <RibbonBtn icon="🖨️" label="Imprimir" onClick={() => printViaClone({ areaId: "budget-pdf-area", cloneId: "budget-pdf-clone" })} />
+          <RibbonBtn icon="📑" label="Duplicar" onClick={() => toast("Duplicar: em breve", "info")} />
+        </>)}
+        {tab === "Inicio" && (
+          <div className="flex items-center text-xs text-slate-500 px-2">Selecione um <b className="mx-1">texto</b> dentro de um card (pagina de Composicao) — a barra de fonte/cor/tamanho aparece no editor do texto.</div>
+        )}
+        {tab === "Inserir" && (<>
+          <RibbonBtn icon="➕" label="Nova pagina" onClick={() => setShowAddPage(true)} />
+          <div className="flex items-center text-xs text-slate-500 px-2">Capa, Produtos, Datasheets, Cards, Texto, Imagem… escolha o tipo ao adicionar.</div>
+        </>)}
+        {tab === "Pagina" && (
+          <div className="flex items-center text-xs text-slate-500 px-2">Orientacao, margens, fundo e cabecalho/rodape estao em <b className="mx-1">🎨 Padrao do relatorio</b> (painel esquerdo).</div>
+        )}
+        {tab === "Estilo" && (
+          <div className="flex items-center text-xs text-slate-500 px-2">Fonte, cores e logo estao em <b className="mx-1">🎨 Padrao do relatorio</b> (painel esquerdo).</div>
+        )}
+      </div>
+
+      {/* 3 PAINEIS */}
+      <div className="flex flex-1 min-h-0">
+      {/* ESQUERDA: Paginas + estilo */}
+      <div className="w-[340px] shrink-0 border-r border-slate-200 bg-slate-50 overflow-y-auto p-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Paginas & estilo</div>
+        <button onClick={() => setShowAddPage(true)} className="rounded bg-cyan-600 px-2 py-1 text-xs font-medium text-white hover:bg-cyan-700">+ Pagina</button>
       </div>
 
       {/* Estilo / branding do relatorio — aplica a TODAS as paginas, preview ao vivo */}
@@ -434,25 +472,21 @@ export default function PoolPrintLayoutEditorPage() {
           ))}
         </div>
       )}
+      </div>{/* fim painel esquerdo (Paginas & estilo) */}
+
+      {/* CENTRO: folha / pre-visualizacao */}
+      <div className="flex-1 min-w-0 overflow-auto bg-slate-300 p-4">
+        <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-2">Pre-visualizacao <span className="text-slate-400">(dados de exemplo)</span></div>
+        <BudgetReport data={SAMPLE_BUDGET} layout={{ branding: layout.branding, pages: layout.pages }} />
       </div>
 
-      {/* DIREITA: pre-visualizacao ao vivo (atualiza conforme voce edita as paginas) */}
-      <div className="flex-1 min-w-0 w-full">
-        <div className="xl:sticky xl:top-4">
-          <div className="flex items-center justify-between mb-2 gap-2">
-            <h2 className="text-sm font-semibold text-slate-700">Pre-visualizacao <span className="text-slate-400 font-normal">(dados de exemplo)</span></h2>
-            <button onClick={() => printViaClone({ areaId: "budget-pdf-area", cloneId: "budget-pdf-clone" })}
-              className="rounded-md bg-blue-700 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-800 shrink-0">
-              🖨️ Imprimir exemplo
-            </button>
-          </div>
-          <div className="rounded-xl border border-slate-300 bg-slate-200 p-3 overflow-auto" style={{ maxHeight: "82vh" }}>
-            <BudgetReport data={SAMPLE_BUDGET} layout={{ branding: layout.branding, pages: layout.pages }} />
-          </div>
-        </div>
+      {/* DIREITA: propriedades */}
+      <div className="w-64 shrink-0 border-l border-slate-200 bg-slate-50 overflow-y-auto p-3">
+        <div className="pb-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">Propriedades</div>
+        <div className="text-xs text-slate-500 leading-relaxed">Clique numa pagina (a esquerda) pra editar. Em breve: editar o elemento selecionado aqui mesmo, sem janela.</div>
       </div>
 
-      </div>
+      </div>{/* fim 3 paineis */}
 
       {/* Modais */}
       {(showAddPage || editingPage) && (
