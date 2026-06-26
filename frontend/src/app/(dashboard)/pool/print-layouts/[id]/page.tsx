@@ -304,6 +304,29 @@ export default function PoolPrintLayoutEditorPage() {
         )}
       </div>
 
+      {/* CONTEXTUAL: editor da pagina selecionada (inline, abaixo das abas) */}
+      {(showAddPage || editingPage) && (
+        <div className="shrink-0 border-b border-slate-200 bg-slate-100 px-4 py-2 overflow-y-auto" style={{ maxHeight: "46vh" }}>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-semibold text-slate-800">
+              {editingPage
+                ? <>✎ Editando: Pagina {layout.pages.findIndex((p) => p.id === editingPage.id) + 1} <span className="font-normal text-slate-500">— {(editingPage.pageConfig as any)?.nodes?.length ? "Composicao" : editingPage.type === "DYNAMIC" ? (DYNAMIC_LABEL[editingPage.dynamicType || ""] || "Dinamica") : "HTML fixo"}</span></>
+                : <>➕ Nova pagina</>}
+            </div>
+            <button type="button" onClick={() => { setShowAddPage(false); setEditingPage(null); }}
+              className="text-xs text-slate-500 hover:text-slate-700">✕ Fechar</button>
+          </div>
+          <PageEditor
+            inline
+            key={editingPage?.id || "new"}
+            editing={editingPage}
+            onClose={() => { setShowAddPage(false); setEditingPage(null); }}
+            onSubmit={(payload) => editingPage ? updatePage(editingPage.id, payload) : addPage(payload)}
+            onUploadImage={uploadAsset}
+          />
+        </div>
+      )}
+
       {/* 3 PAINEIS */}
       <div className="flex flex-1 min-h-0">
       {/* ESQUERDA: Paginas + estilo */}
@@ -414,11 +437,12 @@ export default function PoolPrintLayoutEditorPage() {
           {layout.pages.map((p, idx) => (
             <div key={p.id}
               draggable
+              onClick={() => setEditingPage(p)}
               onDragStart={() => handleDragStart(p.id)}
               onDragOver={(e) => handleDragOver(e, p.id)}
               onDragEnd={handleDragEnd}
-              className={`rounded-xl border bg-white shadow-sm p-4 cursor-move transition ${
-                draggingId === p.id ? "opacity-50 border-cyan-400" : "border-slate-200 hover:border-cyan-300"
+              className={`rounded-xl border bg-white shadow-sm p-3 cursor-pointer transition ${
+                editingPage?.id === p.id ? "border-cyan-500 ring-2 ring-cyan-200" : draggingId === p.id ? "opacity-50 border-cyan-400" : "border-slate-200 hover:border-cyan-300"
               }`}
             >
               <div className="flex items-start gap-4">
@@ -458,11 +482,11 @@ export default function PoolPrintLayoutEditorPage() {
                   )}
                 </div>
                 <div className="flex flex-col gap-1">
-                  <button onClick={() => setEditingPage(p)}
+                  <button onClick={(e) => { e.stopPropagation(); setEditingPage(p); }}
                     className="text-xs text-cyan-600 hover:text-cyan-800 font-medium">
                     Editar
                   </button>
-                  <button onClick={() => removePage(p.id)}
+                  <button onClick={(e) => { e.stopPropagation(); removePage(p.id); }}
                     className="text-xs text-red-500 hover:text-red-700 font-medium">
                     Remover
                   </button>
@@ -487,25 +511,16 @@ export default function PoolPrintLayoutEditorPage() {
       </div>
 
       </div>{/* fim 3 paineis */}
-
-      {/* Modais */}
-      {(showAddPage || editingPage) && (
-        <PageEditor
-          editing={editingPage}
-          onClose={() => { setShowAddPage(false); setEditingPage(null); }}
-          onSubmit={(payload) => editingPage ? updatePage(editingPage.id, payload) : addPage(payload)}
-          onUploadImage={uploadAsset}
-        />
-      )}
     </div>
   );
 }
 
-function PageEditor({ editing, onClose, onSubmit, onUploadImage }: {
+function PageEditor({ editing, onClose, onSubmit, onUploadImage, inline }: {
   editing: Page | null;
   onClose: () => void;
   onSubmit: (payload: any) => void;
   onUploadImage?: (file: File) => Promise<string>;
+  inline?: boolean;
 }) {
   const [type, setType] = useState<"FIXED" | "DYNAMIC">(editing?.type || "DYNAMIC");
   const [dynamicType, setDynamicType] = useState(editing?.dynamicType || "COVER");
@@ -567,13 +582,12 @@ function PageEditor({ editing, onClose, onSubmit, onUploadImage }: {
     onSubmit(payload);
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className={`bg-white rounded-xl shadow-xl w-full ${compMode ? "max-w-5xl" : "max-w-3xl"} p-6 max-h-[90vh] overflow-y-auto`}>
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">
-          {editing ? "Editar pagina" : "Nova pagina"}
-        </h3>
-        <form onSubmit={handleSubmit} className="space-y-4">
+  const inner = (
+    <>
+      <h3 className="text-lg font-semibold text-slate-900 mb-4">
+        {editing ? "Editar pagina" : "Nova pagina"}
+      </h3>
+      <form onSubmit={handleSubmit} className="space-y-4">
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => { setType("DYNAMIC"); setCompMode(false); }}
               className={`px-4 py-2 rounded text-sm ${!compMode && type === "DYNAMIC" ? "bg-cyan-600 text-white" : "bg-slate-100 text-slate-700"}`}>
@@ -704,6 +718,15 @@ function PageEditor({ editing, onClose, onSubmit, onUploadImage }: {
             </button>
           </div>
         </form>
+    </>
+  );
+  if (inline) {
+    return <div className="rounded-lg border border-slate-200 bg-white p-4">{inner}</div>;
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className={`bg-white rounded-xl shadow-xl w-full ${compMode ? "max-w-5xl" : "max-w-3xl"} p-6 max-h-[90vh] overflow-y-auto`}>
+        {inner}
       </div>
     </div>
   );
