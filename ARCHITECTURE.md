@@ -93,7 +93,14 @@ Tecnikos e uma plataforma SaaS B2B de Gestao de Servicos Tecnicos (Field Service
 | PoolBudgetTemplateModule | Templates pre-prontos de etapas | PoolBudgetTemplateService |
 | PoolBudgetModule | Orcamentos de piscina + items + status | PoolBudgetService, PoolFormulaService |
 | PoolProjectModule | Obras (etapas + livro caixa + fotos) | PoolProjectService |
-| PoolPrintLayoutModule | Page builder de layouts PDF | PoolPrintLayoutService |
+| PoolPrintLayoutModule | Layouts PDF do orçamento + páginas + upload de imagem (`POST :id/asset`) | PoolPrintLayoutService |
+
+**EngineReporter** (editor de relatório de impressão, estilo PowerPoint/Office — sessão 226): renderizador
+`frontend/.../report/BudgetReport.tsx` (A4 via printViaClone, blocos dinâmicos + composição de cards
+`pageConfig.nodes` salva como FIXED → sem migration) + editor ribbon `app/(dashboard)/pool/print-layouts/[id]/page.tsx`
+(abas/faixa de ferramentas no topo, páginas à esquerda, edição inline no centro) + `RichTextEditor` (WYSIWYG) +
+datasheets Bomba/Solar como blocos (`HeatingDatasheets.tsx`, display-only do report cacheado). Detalhe e plano
+da Etapa B (editar clicando na folha) em `memory/engine_reporter.md`.
 
 ### Pool Budget — Engine de calculo (formula + auto-selecao)
 
