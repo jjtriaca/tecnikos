@@ -102,7 +102,7 @@ function BranchRenderer({
   const defaultLabelColor = label === "SIM" ? "text-green-600 bg-green-50 border-green-200" : "text-red-600 bg-red-50 border-red-200";
 
   return (
-    <div className="flex flex-col items-center px-2" style={{ minWidth: "12rem" }}>
+    <div className="flex flex-col items-center px-1" style={{ minWidth: "6rem" }}>
       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border mb-1 ${labelColor || defaultLabelColor}`}>
         {label}
       </span>
@@ -208,10 +208,10 @@ export default function WorkflowCanvas({ blocks, selectedBlockId, onSelectBlock,
 
   return (
     <div
-      className="flex-1 overflow-y-auto bg-gradient-to-b from-white to-slate-50/50 p-6"
+      className="flex-1 min-w-0 overflow-auto bg-gradient-to-b from-white to-slate-50/50 p-6"
       onClick={handleBackgroundClick}
     >
-      <div className="flex flex-col items-center min-h-full">
+      <div className="flex flex-col items-center min-h-full w-max min-w-full mx-auto">
         {chainIds.map((blockId, idx) => {
           const block = findBlock(blocks, blockId);
           if (!block) return null;
@@ -253,7 +253,7 @@ export default function WorkflowCanvas({ blocks, selectedBlockId, onSelectBlock,
                     <div className="relative w-full flex justify-center">
                       <div className="absolute top-0 h-0.5 bg-amber-300" style={{ width: `${Math.max(50, buttons.length * 25)}%`, left: `${Math.max(0, 50 - buttons.length * 12.5)}%` }} />
                     </div>
-                    <div className="flex gap-4 w-full justify-center" style={{ minWidth: `${buttons.length * 14}rem` }}>
+                    <div className="flex gap-2 w-full justify-center" style={{ minWidth: `${buttons.length * 8}rem` }}>
                       {buttons.map(btn => (
                         <div key={btn.id} className="flex flex-col items-center">
                           <div className="w-0.5 h-3 bg-amber-300" />
@@ -294,7 +294,7 @@ export default function WorkflowCanvas({ blocks, selectedBlockId, onSelectBlock,
                     <div className="absolute top-0 h-0.5 bg-amber-300" style={{ width: "50%", left: "25%" }} />
                   </div>
                   {/* Two branches side by side, equal width */}
-                  <div className="grid grid-cols-2 gap-4 w-full" style={{ minWidth: "28rem" }}>
+                  <div className="grid grid-cols-2 gap-2 w-full" style={{ minWidth: "16rem" }}>
                     <div className="flex flex-col items-center">
                       <div className="w-0.5 h-3 bg-amber-300" />
                       <BranchRenderer

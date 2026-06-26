@@ -2044,10 +2044,10 @@ function V2BlockAction({
             <div className="space-y-3">
               <div>
                 <p className="text-[11px] font-medium text-slate-500 mb-1">
-                  {c.noteRequired ? "Diagnostico (obrigatorio)" : "Diagnostico / Observacoes"}
+                  {(c.noteLabel || "Descricao dos servicos prestados") + (c.noteRequired ? " (obrigatorio)" : "")}
                 </p>
                 <textarea
-                  placeholder={c.notePlaceholder || "Descreva o diagnostico..."}
+                  placeholder={c.notePlaceholder || "Descreva os servicos realizados..."}
                   value={v2MaterialNote}
                   onChange={e => setV2MaterialNote(e.target.value)}
                   rows={3}
@@ -2075,8 +2075,8 @@ function V2BlockAction({
                   ref={materialNameRef}
                   autoFocus
                   type="text"
-                  maxLength={50}
-                  placeholder="Nome do material..."
+                  maxLength={120}
+                  placeholder={(c.itemLabel || "Descricao do material") + "..."}
                   value={v2MaterialDraft.name}
                   onChange={e => setV2MaterialDraft(prev => ({ ...prev, name: e.target.value }))}
                   className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-400"

@@ -82,18 +82,18 @@ export default function WorkflowBlockNode({ block, isSelected, isFirst, isLast, 
       )}
       <div
         onClick={onClick}
-        className={`group relative w-64 cursor-pointer rounded-xl border-2 px-3 py-2.5 transition-all
+        className={`group relative w-32 cursor-pointer rounded-xl border-2 px-2 py-1.5 transition-all
           ${isSelected ? "ring-2 ring-blue-400 ring-offset-2 shadow-md" : "hover:shadow-md hover:scale-[1.01]"}
           ${color} ${border}`}
       >
-        <div className="flex items-center gap-2.5">
-          <span className={`flex h-8 w-8 items-center justify-center rounded-lg text-white text-sm shrink-0 shadow-sm ${iconBg}`}>
+        <div className="flex items-center gap-1.5">
+          <span className={`flex h-6 w-6 items-center justify-center rounded-lg text-white text-xs shrink-0 shadow-sm ${iconBg}`}>
             {block.icon}
           </span>
           <div className="flex-1 min-w-0">
-            <p className={`text-sm font-semibold truncate ${textColor}`}>{block.name}</p>
+            <p className={`text-xs font-semibold truncate ${textColor}`}>{block.name}</p>
             {subtitle && (
-              <p className="text-[10px] text-slate-600 truncate">{subtitle}</p>
+              <p className="text-[9px] text-slate-600 truncate">{subtitle}</p>
             )}
           </div>
         </div>

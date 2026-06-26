@@ -769,18 +769,42 @@ export default function WorkflowProperties({ block, onChange }: Props) {
         )}
 
         {/* MATERIALS */}
-        {block.type === "MATERIALS" && (
+        {block.type === "MATERIALS" && (() => {
+          const OS_FIELD_TARGETS = [
+            { value: "", label: "Nao gravar na OS" },
+            { value: "serviceDescription", label: "Descricao dos servicos prestados" },
+            { value: "materialsUsed", label: "Relacao de material utilizado" },
+          ];
+          return (
           <>
-            <Label>Titulo</Label>
+            <Label>Titulo do bloco</Label>
             <Input value={cfg.label || ""} onChange={(v) => updateConfig("label", v)} />
-            <Label>Texto guia da nota</Label>
-            <Input value={cfg.notePlaceholder || ""} onChange={(v) => updateConfig("notePlaceholder", v)} />
-            <Checkbox checked={cfg.noteRequired || false} onChange={(v) => updateConfig("noteRequired", v)} label="Nota obrigatoria" />
-            <Label>Min. itens</Label>
-            <Input type="number" value={cfg.minItems || 1} onChange={(v) => updateConfig("minItems", parseInt(v) || 1)} />
-            <ConfirmButtonEditor config={cfg.confirmButton || { label: "Enviar materiais", color: "green", icon: "📦" }} onChange={(v) => updateConfig("confirmButton", v)} />
+
+            <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-2.5 space-y-2">
+              <p className="text-[11px] font-semibold text-slate-600">Descricao do servico</p>
+              <Label>Rotulo do campo</Label>
+              <Input value={cfg.noteLabel || ""} onChange={(v) => updateConfig("noteLabel", v)} placeholder="Descricao dos servicos prestados" />
+              <Label>Texto guia</Label>
+              <Input value={cfg.notePlaceholder || ""} onChange={(v) => updateConfig("notePlaceholder", v)} />
+              <Checkbox checked={cfg.noteRequired || false} onChange={(v) => updateConfig("noteRequired", v)} label="Obrigatorio" />
+              <Label>Gravar a descricao em</Label>
+              <Select value={cfg.saveNoteTo ?? "serviceDescription"} onChange={(v) => updateConfig("saveNoteTo", v)} options={OS_FIELD_TARGETS} />
+            </div>
+
+            <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-2.5 space-y-2">
+              <p className="text-[11px] font-semibold text-slate-600">Lista de materiais (descricao + quantidade)</p>
+              <Label>Rotulo do item</Label>
+              <Input value={cfg.itemLabel || ""} onChange={(v) => updateConfig("itemLabel", v)} placeholder="Descricao do material" />
+              <Label>Min. itens</Label>
+              <Input type="number" value={cfg.minItems || 1} onChange={(v) => updateConfig("minItems", parseInt(v) || 1)} />
+              <Label>Gravar a lista em</Label>
+              <Select value={cfg.saveItemsTo ?? "materialsUsed"} onChange={(v) => updateConfig("saveItemsTo", v)} options={OS_FIELD_TARGETS} />
+            </div>
+
+            <ConfirmButtonEditor config={cfg.confirmButton || { label: "Enviar relatório", color: "green", icon: "📦" }} onChange={(v) => updateConfig("confirmButton", v)} />
           </>
-        )}
+          );
+        })()}
 
         {/* CONDITION */}
         {block.type === "CONDITION" && (

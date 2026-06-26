@@ -660,6 +660,49 @@ export class WorkflowEngineService {
         },
       });
 
+      // MATERIALS: além do log, grava o relatório técnico na própria OS (descrição dos serviços
+      // + relação de material) para a tela da OS exibir. Onde cada campo grava é CONFIGURÁVEL no
+      // bloco (saveNoteTo / saveItemsTo) — nada hardcode. Whitelist evita escrita em coluna
+      // arbitrária; ausência de config usa os defaults serviceDescription / materialsUsed.
+      if (block.type === 'MATERIALS') {
+        const cfg = block.config || {};
+        const ALLOWED_TARGETS = new Set(['serviceDescription', 'materialsUsed']);
+        const noteTarget = cfg.saveNoteTo === undefined ? 'serviceDescription' : cfg.saveNoteTo;
+        const itemsTarget = cfg.saveItemsTo === undefined ? 'materialsUsed' : cfg.saveItemsTo;
+
+        const reportData: Record<string, string> = {};
+
+        const noteText = (dto.responseData?.note || '').trim();
+        if (noteTarget && ALLOWED_TARGETS.has(noteTarget) && noteText) {
+          reportData[noteTarget] = noteText;
+        }
+
+        const rawItems = Array.isArray(dto.responseData?.items) ? dto.responseData.items : [];
+        if (itemsTarget && ALLOWED_TARGETS.has(itemsTarget) && rawItems.length > 0) {
+          const itemsText = rawItems
+            .map((it: any) => {
+              const name = String(it?.name ?? '').trim();
+              if (!name) return null;
+              const qty = it?.qty;
+              return qty !== undefined && qty !== null && qty !== ''
+                ? `${name} — ${qty}`
+                : name;
+            })
+            .filter((line: string | null): line is string => !!line)
+            .join('\n');
+          if (itemsText) {
+            // Se nota e lista gravam no MESMO campo, concatena (não sobrescreve um ao outro).
+            reportData[itemsTarget] = reportData[itemsTarget]
+              ? `${reportData[itemsTarget]}\n${itemsText}`
+              : itemsText;
+          }
+        }
+
+        if (Object.keys(reportData).length > 0) {
+          await tx.serviceOrder.update({ where: { id: so.id }, data: reportData });
+        }
+      }
+
       if (newStatus) {
         const st = newStatus as string;
         const statusUpdateData: any = { status: newStatus };

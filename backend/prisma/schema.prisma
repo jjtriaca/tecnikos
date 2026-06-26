@@ -526,6 +526,11 @@ model ServiceOrder {
   isEvaluation        Boolean @default(false) // OS de avaliação/orçamento (visita técnica para orçar)
   parentOrderId       String? // Vínculo com OS original (retorno)
 
+  // Relatório técnico (v1.14.30) — preenchidos pelo bloco "Materiais" do fluxo de atendimento.
+  // Onde cada campo grava é configurável no editor do bloco (saveNoteTo / saveItemsTo).
+  serviceDescription String? // Descrição dos serviços prestados (texto livre do técnico)
+  materialsUsed      String? // Relação de material utilizado (lista formatada "descrição — qtd")
+
   // Agendamento CLT (v1.01.72)
   scheduledStartAt         DateTime? // Data/hora agendada para inicio do servico
   estimatedDurationMinutes Int? // Duracao estimada em minutos
