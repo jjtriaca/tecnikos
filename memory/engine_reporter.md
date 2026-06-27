@@ -76,7 +76,15 @@ Juliano escolheu "só a folha embaixo, clica no elemento e edita pelo ribbon". E
   (fonte/tamanho/cor do relatório) MOVIDOS de Início → aba "Estilo" (Início=seleção, Estilo=tema, modelo Office). (d)
   RichTextEditor.editable ganhou classe `.rp-inline-edit` (alvo do rastreio). A barrinha inline do bloco CONTINUA existindo
   (coexiste com o ribbon — ambos agem na seleção). ✅ TESTADO ao vivo: B e tamanho(select) do ribbon aplicam na seleção;
-  folha maior; reflexo da seleção OK. 🔜 D: arrastar/posicionar; talvez unificar barrinha inline ↔ ribbon (hoje coexistem).
+  folha maior; reflexo da seleção OK.
+- **✅ C Incremento 4 (DEPLOYED v1.14.40) — UNIFICAÇÃO barra↔ribbon:** removida a barrinha flutuante do bloco (deletado
+  `RichTextEditor.tsx`); o bloco TEXT na folha agora usa `InlineEditable` (em BudgetReport.tsx) = só a área editável
+  (contentEditable + classe `.rp-inline-edit`, innerHTML on-mount keyed, onInput/onBlur emit, contorno tracejado ciano).
+  A ÚNICA barra de formatação é a aba **Início** (Incremento 3). Dicas atualizadas ("formate pela aba Início"). ✅ TESTADO:
+  clicar no texto mostra só a área editável (sem barrinha); aba Início aplica negrito na seleção. 🔜 D: arrastar/posicionar.
+- Componentes atuais: `BudgetReport.tsx` (render + `InlineEditable` + `CompositionPreview`/`CompositionNodes`/`ReportNodeView`
+  com props `selectedId/onSelectNode/onEditText`), `CompositionEditor.tsx` (árvore + inspector card/linha, SEM editor de texto),
+  `print-layouts/[id]/page.tsx` (ribbon Início = `selExec`/`selFontSize` na seleção; nav por página; `setNodeHtml`). RichTextEditor REMOVIDO.
 - Editar nós → `setNodes` → salvar (`onSubmit`→`updatePage`, `pageConfig.nodes`).
 
 ## Regras
