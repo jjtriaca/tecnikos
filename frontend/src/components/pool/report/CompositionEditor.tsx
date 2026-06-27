@@ -182,11 +182,18 @@ function NodeInspector({ node, onChange, onUploadImage }: { node: ReportNode; on
           <input type="number" value={st.gap ?? 8} onChange={(e) => setStyle({ gap: Number(e.target.value) })}
             className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" />
         </label>
-        <label className="block text-xs text-slate-600">Alinhamento
+        <label className="block text-xs text-slate-600">Alinhamento vertical
           <select value={st.align || "stretch"} onChange={(e) => setStyle({ align: e.target.value })}
             className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm">
             <option value="stretch">Esticar</option><option value="flex-start">Topo</option>
             <option value="center">Centro</option><option value="flex-end">Base</option>
+          </select>
+        </label>
+        <label className="block text-xs text-slate-600 col-span-2">Distribuir colunas (horizontal)
+          <select value={st.justify || "start"} onChange={(e) => setStyle({ justify: e.target.value })}
+            className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm">
+            <option value="start">Esquerda</option><option value="center">Centro</option>
+            <option value="end">Direita</option><option value="between">Espacar igualmente</option>
           </select>
         </label>
       </div>
@@ -212,6 +219,39 @@ function NodeInspector({ node, onChange, onUploadImage }: { node: ReportNode; on
           <input type="number" min={0} value={st.radius ?? 8} onChange={(e) => setStyle({ radius: Number(e.target.value) })} className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" /></label>
         <label className="block text-xs text-slate-600">Espacamento (px)
           <input type="number" min={0} value={st.padding ?? 12} onChange={(e) => setStyle({ padding: Number(e.target.value) })} className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" /></label>
+      </div>
+      {/* Posicao do card na pagina (tudo editavel) */}
+      <div className="rounded border border-slate-200 bg-slate-50 p-2 space-y-2">
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Posicao na pagina</div>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block text-xs text-slate-600">Largura
+            <select value={st.width || "100%"} onChange={(e) => setStyle({ width: e.target.value })}
+              className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm">
+              <option value="100%">100% (cheia)</option><option value="75%">75%</option>
+              <option value="66%">66%</option><option value="50%">50%</option>
+              <option value="33%">33%</option><option value="25%">25%</option>
+            </select>
+          </label>
+          <label className="block text-xs text-slate-600">Alinhar na pagina
+            <select value={st.selfAlign || "left"} onChange={(e) => setStyle({ selfAlign: e.target.value })}
+              className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm">
+              <option value="left">Esquerda</option><option value="center">Centro</option><option value="right">Direita</option>
+            </select>
+          </label>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <label className="block text-xs text-slate-600">Espaco acima (px)
+            <input type="number" min={0} value={st.marginTop ?? 0} onChange={(e) => setStyle({ marginTop: Number(e.target.value) })} className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" /></label>
+          <label className="block text-xs text-slate-600">Espaco abaixo (px)
+            <input type="number" min={0} value={st.marginBottom ?? 8} onChange={(e) => setStyle({ marginBottom: Number(e.target.value) })} className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" /></label>
+          <label className="block text-xs text-slate-600">Alinhar texto
+            <select value={st.textAlign || "left"} onChange={(e) => setStyle({ textAlign: e.target.value })}
+              className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm">
+              <option value="left">Esquerda</option><option value="center">Centro</option>
+              <option value="right">Direita</option><option value="justify">Justificado</option>
+            </select>
+          </label>
+        </div>
       </div>
     </div>
   );

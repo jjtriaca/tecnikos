@@ -76,6 +76,13 @@ export type ReportNode = {
     bg?: string | null; borderColor?: string | null; borderWidth?: number | null;
     radius?: number | null; padding?: number | null; gap?: number | null;
     align?: string | null; flex?: number | null; shadow?: boolean | null; textColor?: string | null;
+    // posicionamento (tudo editavel — nada fixo):
+    width?: string | null;        // largura do card (ex: "60%", "100%", "120mm")
+    selfAlign?: string | null;    // posicao do card na pagina: left | center | right
+    marginTop?: number | null;    // espaco acima (px)
+    marginBottom?: number | null; // espaco abaixo (px)
+    justify?: string | null;      // row: distribuicao das colunas (start|center|end|between)
+    textAlign?: string | null;    // alinhamento do texto dentro do no (left|center|right|justify)
   } | null;
   children?: ReportNode[];        // card / row
   blockType?: string | null;      // block: TEXT | IMAGE | COVER | PRODUCTS_BY_SECTION | BUDGET_SUMMARY | ...
@@ -457,7 +464,7 @@ function ReportNodeView({ node, data, branding, selectedId, onSelectNode, onEdit
   if (node.kind === "block") {
     const editingText = !!onEditText && node.blockType === "TEXT" && selectedId === node.id;
     return (
-      <div className="rp-node-block" style={{ flex: st.flex || undefined, ...selStyle }}
+      <div className="rp-node-block" style={{ flex: st.flex || undefined, textAlign: (st.textAlign as any) || undefined, ...selStyle }}
         onClick={onSelectNode ? (e) => { e.stopPropagation(); onSelectNode(node.id); } : undefined}>
         {editingText
           ? <InlineEditable key={node.id} html={node.config?.html || ""} onChange={(html) => onEditText!(node.id, html)} />
@@ -467,7 +474,7 @@ function ReportNodeView({ node, data, branding, selectedId, onSelectNode, onEdit
   }
   if (node.kind === "row") {
     return (
-      <div className="rp-node-row" style={{ gap: `${st.gap ?? 8}px`, alignItems: (st.align as any) || "stretch", flex: st.flex || undefined, ...selStyle }}
+      <div className="rp-node-row" style={{ gap: `${st.gap ?? 8}px`, alignItems: (st.align as any) || "stretch", justifyContent: st.justify === "center" ? "center" : st.justify === "end" ? "flex-end" : st.justify === "between" ? "space-between" : st.justify === "start" ? "flex-start" : undefined, flex: st.flex || undefined, ...selStyle }}
         onClick={onSelectNode ? (e) => { e.stopPropagation(); onSelectNode(node.id); } : undefined}>
         {(node.children || []).map((c) => <ReportNodeView key={c.id} node={c} {...childProps} />)}
       </div>
@@ -482,6 +489,13 @@ function ReportNodeView({ node, data, branding, selectedId, onSelectNode, onEdit
     color: st.textColor || undefined,
     boxShadow: st.shadow ? "0 1px 6px rgba(0,0,0,.12)" : undefined,
     flex: st.flex || undefined,
+    // posicionamento do card na pagina (editavel):
+    width: st.width || undefined,
+    marginTop: st.marginTop != null ? `${st.marginTop}px` : undefined,
+    marginBottom: st.marginBottom != null ? `${st.marginBottom}px` : undefined,
+    marginLeft: st.selfAlign === "center" || st.selfAlign === "right" ? "auto" : undefined,
+    marginRight: st.selfAlign === "center" || st.selfAlign === "left" ? "auto" : undefined,
+    textAlign: (st.textAlign as any) || undefined,
     ...selStyle,
   };
   return (
