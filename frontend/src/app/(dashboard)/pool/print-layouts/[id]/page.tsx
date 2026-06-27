@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, getAccessToken } from "@/lib/api";
@@ -199,6 +199,83 @@ export default function PoolPrintLayoutEditorPage() {
     return data.url as string;
   }
 
+  // ── Etapa C: aba "Inicio" formata a SELECAO de texto na folha (modelo Word) ──
+  // Guarda o ultimo Range dentro de um bloco editavel (.rp-inline-edit) e aplica execCommand
+  // nele. Botoes usam onMouseDown preventDefault (mantem o foco/selecao); selects/cor
+  // restauram o Range antes do comando. fireInput propaga a mudanca pro React (salva no no).
+  const selRange = useRef<Range | null>(null);
+  const [selFmt, setSelFmt] = useState({ bold: false, italic: false, underline: false, fontName: "", sizePt: "", color: "#000000" });
+  const ribFmtBtn = (active: boolean) =>
+    `h-7 w-7 rounded text-sm font-bold ${active ? "bg-cyan-600 text-white" : "bg-white text-slate-700 border border-slate-300"} hover:bg-cyan-50`;
+
+  const closestEditable = (r: Range | null): HTMLElement | null => {
+    if (!r) return null;
+    const n = r.commonAncestorContainer;
+    const el = n.nodeType === 3 ? (n as Text).parentElement : (n as Element);
+    return (el && (el as Element).closest ? (el.closest(".rp-inline-edit") as HTMLElement) : null) || null;
+  };
+  const reflectSel = () => {
+    let bold = false, italic = false, underline = false;
+    try { bold = document.queryCommandState("bold"); italic = document.queryCommandState("italic"); underline = document.queryCommandState("underline"); } catch { /* noop */ }
+    let fontName = "", sizePt = "", color = "#000000";
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount) {
+      let n: Node | null = sel.anchorNode;
+      if (n && n.nodeType === 3) n = (n as Text).parentElement;
+      if (n && (n as Element).nodeType === 1) {
+        const cs = window.getComputedStyle(n as Element);
+        const fam = (cs.fontFamily || "").toLowerCase();
+        for (const v of ["Georgia, serif", "Arial, Helvetica, sans-serif", "'Times New Roman', serif", "'Trebuchet MS', sans-serif", "'Courier New', monospace"]) {
+          const first = v.split(",")[0].replace(/['"]/g, "").trim().toLowerCase();
+          if (fam.includes(first)) { fontName = v; break; }
+        }
+        sizePt = String(Math.round((parseFloat(cs.fontSize) || 0) * 72 / 96));
+        const m = (cs.color || "").match(/\d+/g);
+        if (m && m.length >= 3) color = "#" + m.slice(0, 3).map((x) => Number(x).toString(16).padStart(2, "0")).join("");
+      }
+    }
+    setSelFmt({ bold, italic, underline, fontName, sizePt, color });
+  };
+  useEffect(() => {
+    const h = () => {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount) {
+        const r = sel.getRangeAt(0);
+        if (closestEditable(r)) { selRange.current = r.cloneRange(); reflectSel(); }
+      }
+    };
+    document.addEventListener("selectionchange", h);
+    return () => document.removeEventListener("selectionchange", h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const restoreSel = () => {
+    const ed = closestEditable(selRange.current);
+    ed?.focus();
+    const sel = window.getSelection();
+    if (selRange.current && sel) { sel.removeAllRanges(); sel.addRange(selRange.current); }
+  };
+  const fireInput = () => { closestEditable(selRange.current)?.dispatchEvent(new Event("input", { bubbles: true })); };
+  const selExec = (cmd: string, val?: string) => {
+    if (!closestEditable(selRange.current)) return;
+    restoreSel();
+    try { document.execCommand("styleWithCSS", false, "true"); } catch { /* noop */ }
+    document.execCommand(cmd, false, val);
+    fireInput(); reflectSel();
+  };
+  const selFontSize = (pt: string) => {
+    const root = closestEditable(selRange.current);
+    if (!pt || !root) return;
+    restoreSel();
+    document.execCommand("fontSize", false, "7");
+    root.querySelectorAll('font[size="7"]').forEach((f) => {
+      const s = document.createElement("span");
+      s.style.fontSize = `${pt}pt`;
+      while (f.firstChild) s.appendChild(f.firstChild);
+      f.replaceWith(s);
+    });
+    fireInput(); reflectSel();
+  };
+
   async function addPage(payload: any) {
     try {
       await api.post(`/pool-print-layouts/${id}/pages`, payload);
@@ -312,17 +389,28 @@ export default function PoolPrintLayoutEditorPage() {
           <RibbonBtn icon="📑" label="Duplicar" onClick={() => toast("Duplicar: em breve", "info")} />
         </>)}
         {tab === "Inicio" && (<>
-          <select value={brand.fontFamily || ""} onChange={(e) => setBranding({ fontFamily: e.target.value || null })} className="rounded border border-slate-300 px-2 py-1 text-sm" title="Fonte">
-            <option value="">Fonte padrao</option>
+          <select value={selFmt.fontName} onChange={(e) => selExec("fontName", e.target.value)} className="rounded border border-slate-300 px-2 py-1 text-sm" title="Fonte do texto selecionado">
+            <option value="">Fonte</option>
             <option value="Georgia, serif">Georgia</option>
             <option value="'Times New Roman', serif">Times</option>
             <option value="Arial, Helvetica, sans-serif">Arial</option>
             <option value="'Trebuchet MS', sans-serif">Trebuchet</option>
             <option value="'Courier New', monospace">Courier</option>
           </select>
-          <input type="number" min={7} max={18} value={brand.fontSizePt ?? ""} onChange={(e) => setBranding({ fontSizePt: e.target.value ? Number(e.target.value) : null })} placeholder="pt" className="w-14 rounded border border-slate-300 px-2 py-1 text-sm" title="Tamanho (pt)" />
-          <label className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-sm" title="Cor do texto">A<input type="color" value={brand.textColor || "#0f172a"} onChange={(e) => setBranding({ textColor: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
-          <span className="text-[10px] text-slate-400 ml-1">negrito/alinhar: selecione um texto na folha (em breve)</span>
+          <select value={["8","9","10","11","12","14","16","18","20","24","28","32"].includes(selFmt.sizePt) ? selFmt.sizePt : ""} onChange={(e) => selFontSize(e.target.value)} className="rounded border border-slate-300 px-1 py-1 text-sm" title="Tamanho">
+            <option value="">Tam.</option>
+            {[8,9,10,11,12,14,16,18,20,24,28,32].map((s) => <option key={s} value={s}>{s}pt</option>)}
+          </select>
+          <label className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-sm" title="Cor do texto"><span>A</span><input type="color" value={selFmt.color} onChange={(e) => selExec("foreColor", e.target.value)} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
+          <span className="mx-0.5 h-5 w-px bg-slate-300" />
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selExec("bold")} className={ribFmtBtn(selFmt.bold)} title="Negrito">B</button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selExec("italic")} className={ribFmtBtn(selFmt.italic) + " italic"} title="Italico">I</button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selExec("underline")} className={ribFmtBtn(selFmt.underline) + " underline"} title="Sublinhado">U</button>
+          <span className="mx-0.5 h-5 w-px bg-slate-300" />
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selExec("justifyLeft")} className={ribFmtBtn(false)} title="Esquerda">⯇</button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selExec("justifyCenter")} className={ribFmtBtn(false)} title="Centro">≡</button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selExec("justifyRight")} className={ribFmtBtn(false)} title="Direita">⯈</button>
+          <span className="text-[10px] text-slate-400 ml-1">selecione um texto na folha pra formatar</span>
         </>)}
         {tab === "Inserir" && (<>
           <RibbonBtn icon="➕" label="Nova pagina" onClick={() => setShowAddPage(true)} />
@@ -346,6 +434,18 @@ export default function PoolPrintLayoutEditorPage() {
           <input value={brand.footerHtml || ""} onChange={(e) => setBranding({ footerHtml: e.target.value || null })} placeholder="Rodape (SLS · {date})" className="w-36 rounded border border-slate-300 px-2 py-1 text-xs" />
         </>)}
         {tab === "Estilo" && (<>
+          <span className="text-[10px] uppercase tracking-wide text-slate-400">Padrao do relatorio:</span>
+          <select value={brand.fontFamily || ""} onChange={(e) => setBranding({ fontFamily: e.target.value || null })} className="rounded border border-slate-300 px-2 py-1 text-sm" title="Fonte padrao do relatorio">
+            <option value="">Fonte padrao</option>
+            <option value="Georgia, serif">Georgia</option>
+            <option value="'Times New Roman', serif">Times</option>
+            <option value="Arial, Helvetica, sans-serif">Arial</option>
+            <option value="'Trebuchet MS', sans-serif">Trebuchet</option>
+            <option value="'Courier New', monospace">Courier</option>
+          </select>
+          <input type="number" min={7} max={18} value={brand.fontSizePt ?? ""} onChange={(e) => setBranding({ fontSizePt: e.target.value ? Number(e.target.value) : null })} placeholder="pt" className="w-14 rounded border border-slate-300 px-2 py-1 text-sm" title="Tamanho base (pt)" />
+          <label className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-sm" title="Cor do texto padrao"><span>A</span><input type="color" value={brand.textColor || "#0f172a"} onChange={(e) => setBranding({ textColor: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
+          <span className="mx-0.5 h-5 w-px bg-slate-300" />
           <label className="text-xs text-slate-600 flex items-center gap-1">Primaria<input type="color" value={brand.primaryColor || "#0f172a"} onChange={(e) => setBranding({ primaryColor: e.target.value })} className="h-7 w-7 cursor-pointer rounded border border-slate-300 p-0" /></label>
           <label className="text-xs text-slate-600 flex items-center gap-1">Destaque<input type="color" value={brand.accentColor || "#1e3a8a"} onChange={(e) => setBranding({ accentColor: e.target.value })} className="h-7 w-7 cursor-pointer rounded border border-slate-300 p-0" /></label>
           <label className="cursor-pointer rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200">📁 Logo<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await uploadAsset(f); setBranding({ logoUrl: url }); toast("Logo enviado", "success"); } catch (err: any) { toast(err.message || "Erro", "error"); } if (e.target) e.target.value = ""; }} /></label>
@@ -529,7 +629,7 @@ export default function PoolPrintLayoutEditorPage() {
       {/* CENTRO: edita a pagina selecionada (sem janela) OU mostra a folha. Nada a direita. */}
       <div className="flex-1 min-w-0 overflow-auto bg-slate-200 p-4">
         {(showAddPage || editingPage) ? (
-          <div className="mx-auto max-w-5xl rounded-xl border border-slate-200 bg-white p-4">
+          <div className="mx-auto max-w-[1400px] rounded-xl border border-slate-200 bg-white p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="text-sm font-semibold text-slate-800">
                 {editingPage
@@ -664,7 +764,7 @@ function PageEditor({ editing, onClose, onSubmit, onUploadImage, inline }: {
           {compMode ? (
             <div>
               <p className="mb-2 text-xs text-slate-500">Monte a pagina com <b>cards</b>, <b>linhas (colunas)</b> e <b>blocos</b> aninhados. Use ➕ pra adicionar dentro de um card. <b>Clique direto na folha</b> pra selecionar e editar o elemento.</p>
-              <div className="grid gap-3 lg:grid-cols-2">
+              <div className="grid gap-3 lg:grid-cols-[300px_minmax(0,1fr)]">
                 <CompositionEditor nodes={nodes} onChange={setNodes} onUploadImage={onUploadImage} selectedId={selNode} onSelectId={setSelNode} />
                 <div>
                   <div className="mb-1 text-xs font-semibold text-slate-600">Folha (edicao ao vivo) <span className="font-normal text-slate-400">— clique no TEXTO pra editar direto aqui; selecione e use a barrinha</span></div>

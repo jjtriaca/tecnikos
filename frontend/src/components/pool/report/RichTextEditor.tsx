@@ -164,7 +164,7 @@ export default function RichTextEditor({ value, onChange }: { value: string; onC
         onMouseUp={refreshState}
         onFocus={refreshState}
         onBlur={emit}
-        className="min-h-[90px] max-h-[220px] overflow-auto px-2 py-1.5 text-sm text-slate-900 focus:outline-none"
+        className="rp-inline-edit min-h-[90px] max-h-[220px] overflow-auto px-2 py-1.5 text-sm text-slate-900 focus:outline-none"
       />
     </div>
   );
