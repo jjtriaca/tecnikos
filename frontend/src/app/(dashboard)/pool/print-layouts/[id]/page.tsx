@@ -139,6 +139,8 @@ export default function PoolPrintLayoutEditorPage() {
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   // Confirmacao de remocao de pagina via MODAL proprio (substitui window.confirm nativo).
   const [pendingDelete, setPendingDelete] = useState<{ id: string; n: number } | null>(null);
+  // Aba "Cab/Rodape": qual esta sendo editado (cabecalho ou rodape).
+  const [hfEdit, setHfEdit] = useState<"header" | "footer">("header");
 
   const load = useCallback(async () => {
     try {
@@ -377,7 +379,7 @@ export default function PoolPrintLayoutEditorPage() {
 
       {/* ABAS DA RIBBON */}
       <div className="flex items-end gap-1 px-3 pt-1 bg-slate-100 border-b border-slate-200 shrink-0">
-        {["Arquivo", "Inicio", "Inserir", "Pagina", "Estilo"].map((t) => (
+        {["Arquivo", "Inicio", "Inserir", "Pagina", "Cab/Rodape", "Estilo"].map((t) => (
           <button key={t} type="button" onClick={() => setTab(t)}
             className={`px-4 py-1.5 text-sm rounded-t-md ${tab === t ? "bg-white font-semibold text-slate-900 border border-b-0 border-slate-200" : "text-slate-600 hover:bg-slate-200"}`}>{t}</button>
         ))}
@@ -433,9 +435,36 @@ export default function PoolPrintLayoutEditorPage() {
             <input type="color" value={brand.bgColor || "#ffffff"} onChange={(e) => setBranding({ bgColor: e.target.value })} className="h-7 w-7 cursor-pointer rounded border border-slate-300 p-0" title="Cor de fundo" />
             {brand.bgType === "gradient" ? <input type="color" value={brand.bgColor2 || "#e2e8f0"} onChange={(e) => setBranding({ bgColor2: e.target.value })} className="h-7 w-7 cursor-pointer rounded border border-slate-300 p-0" title="2a cor" /> : null}
           </label>
-          <input value={brand.headerHtml || ""} onChange={(e) => setBranding({ headerHtml: e.target.value || null })} placeholder="Cabecalho ({budgetCode})" className="w-36 rounded border border-slate-300 px-2 py-1 text-xs" />
-          <input value={brand.footerHtml || ""} onChange={(e) => setBranding({ footerHtml: e.target.value || null })} placeholder="Rodape (SLS · {date})" className="w-36 rounded border border-slate-300 px-2 py-1 text-xs" />
+          <span className="text-[10px] text-slate-400 ml-1">Cabecalho/Rodape ficam na aba &quot;Cab/Rodape&quot;.</span>
         </>)}
+        {tab === "Cab/Rodape" && (() => {
+          const isH = hfEdit === "header";
+          const k = {
+            html: isH ? "headerHtml" : "footerHtml",
+            logo: isH ? "headerLogo" : "logoFooter",
+            size: isH ? "logoSizeHeader" : "logoSizeFooter",
+            side: isH ? "headerLogoSide" : "footerLogoSide",
+            onCover: isH ? "headerOnCover" : "footerOnCover",
+          };
+          const logoOn = isH ? brand.headerLogo !== false : !!brand.logoFooter;
+          return (<>
+            <div className="flex rounded-md border border-slate-300 overflow-hidden text-sm">
+              <button type="button" onClick={() => setHfEdit("header")} className={`px-3 py-1 ${isH ? "bg-cyan-600 text-white" : "bg-white text-slate-700"}`}>Cabecalho</button>
+              <button type="button" onClick={() => setHfEdit("footer")} className={`px-3 py-1 ${!isH ? "bg-cyan-600 text-white" : "bg-white text-slate-700"}`}>Rodape</button>
+            </div>
+            <span className="mx-0.5 h-5 w-px bg-slate-300" />
+            <input value={brand[k.html] || ""} onChange={(e) => setBranding({ [k.html]: e.target.value || null })} placeholder={isH ? "Texto do cabecalho ({budgetCode})" : "Texto do rodape (SLS · {date})"} className="w-56 rounded border border-slate-300 px-2 py-1 text-xs" />
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Mostrar a logo neste local"><input type="checkbox" checked={logoOn} onChange={(e) => setBranding({ [k.logo]: e.target.checked })} />Logo</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura da logo (px)">px<input type="number" min={12} max={120} value={brand[k.size] ?? (isH ? 34 : 28)} onChange={(e) => setBranding({ [k.size]: e.target.value ? Number(e.target.value) : null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Lado da logo">Lado
+              <select value={brand[k.side] || "right"} onChange={(e) => setBranding({ [k.side]: e.target.value })} className="rounded border border-slate-300 px-1 py-1 text-sm">
+                <option value="left">Esquerda</option><option value="right">Direita</option>
+              </select>
+            </label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Mostrar este bloco tambem na capa"><input type="checkbox" checked={!!brand[k.onCover]} onChange={(e) => setBranding({ [k.onCover]: e.target.checked })} />Mostrar na capa</label>
+            <RibbonBtn icon="💾" label="Salvar" onClick={saveBranding} />
+          </>);
+        })()}
         {tab === "Estilo" && (<>
           <span className="text-[10px] uppercase tracking-wide text-slate-400">Padrao do relatorio:</span>
           <select value={brand.fontFamily || ""} onChange={(e) => setBranding({ fontFamily: e.target.value || null })} className="rounded border border-slate-300 px-2 py-1 text-sm" title="Fonte padrao do relatorio">
@@ -453,15 +482,14 @@ export default function PoolPrintLayoutEditorPage() {
           <label className="text-xs text-slate-600 flex items-center gap-1">Destaque<input type="color" value={brand.accentColor || "#1e3a8a"} onChange={(e) => setBranding({ accentColor: e.target.value })} className="h-7 w-7 cursor-pointer rounded border border-slate-300 p-0" /></label>
           <label className="cursor-pointer rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200">📁 Logo<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await uploadAsset(f); setBranding({ logoUrl: url }); toast("Logo enviado", "success"); } catch (err: any) { toast(err.message || "Erro", "error"); } if (e.target) e.target.value = ""; }} /></label>
           {brand.logoUrl ? <img src={brand.logoUrl} alt="logo" className="h-7 rounded border border-slate-200" /> : null}
-          <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura da logo na CAPA (px)">Capa<input type="number" min={16} max={200} value={brand.logoSizeCover ?? 64} onChange={(e) => setBranding({ logoSizeCover: e.target.value ? Number(e.target.value) : null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
-          <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura da logo no CABECALHO (px)">Cabec.<input type="number" min={12} max={80} value={brand.logoSizeHeader ?? 34} onChange={(e) => setBranding({ logoSizeHeader: e.target.value ? Number(e.target.value) : null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
-          <label className="text-xs text-slate-600 flex items-center gap-1" title="Posicao da logo (capa/rodape)">Posicao
+          <span className="text-[10px] text-slate-400">Logo capa:</span>
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura da logo na CAPA (px)">px<input type="number" min={16} max={220} value={brand.logoSizeCover ?? 64} onChange={(e) => setBranding({ logoSizeCover: e.target.value ? Number(e.target.value) : null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Posicao da logo na CAPA">Posicao
             <select value={brand.logoAlign || "right"} onChange={(e) => setBranding({ logoAlign: e.target.value })} className="rounded border border-slate-300 px-1 py-1 text-sm">
               <option value="left">Esquerda</option><option value="center">Centro</option><option value="right">Direita</option>
             </select>
           </label>
-          <label className="text-xs text-slate-600 flex items-center gap-1" title="Mostrar logo no rodape das paginas"><input type="checkbox" checked={!!brand.logoFooter} onChange={(e) => setBranding({ logoFooter: e.target.checked })} />Logo rodape</label>
-          {brand.logoFooter ? <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura da logo no RODAPE (px)">px<input type="number" min={12} max={80} value={brand.logoSizeFooter ?? 28} onChange={(e) => setBranding({ logoSizeFooter: e.target.value ? Number(e.target.value) : null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" /></label> : null}
+          <span className="text-[10px] text-slate-400 ml-1">Cabecalho/Rodape na aba &quot;Cab/Rodape&quot;.</span>
           <RibbonBtn icon="💾" label="Salvar" onClick={saveBranding} />
         </>)}
       </div>
