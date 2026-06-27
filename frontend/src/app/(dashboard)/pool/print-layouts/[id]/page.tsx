@@ -559,6 +559,9 @@ function PageEditor({ editing, onClose, onSubmit, onUploadImage, inline }: {
   // Composicao por cards (v1.14.16): se a pagina tem pageConfig.nodes, abre no modo cards.
   const [compMode, setCompMode] = useState<boolean>(!!(editing?.pageConfig as any)?.nodes);
   const [nodes, setNodes] = useState<ReportNode[]>(((editing?.pageConfig as any)?.nodes as ReportNode[]) || []);
+  // Etapa B: nó selecionado, compartilhado entre o montador (CompositionEditor) e a folha
+  // (CompositionPreview) — clicar num lado destaca/edita no outro.
+  const [selNode, setSelNode] = useState<string | null>(null);
 
   function insertPlaceholder(ph: string) {
     setHtmlContent(htmlContent + ph);
@@ -637,12 +640,12 @@ function PageEditor({ editing, onClose, onSubmit, onUploadImage, inline }: {
 
           {compMode ? (
             <div>
-              <p className="mb-2 text-xs text-slate-500">Monte a pagina com <b>cards</b>, <b>linhas (colunas)</b> e <b>blocos</b> aninhados. Use ➕ pra adicionar dentro de um card.</p>
+              <p className="mb-2 text-xs text-slate-500">Monte a pagina com <b>cards</b>, <b>linhas (colunas)</b> e <b>blocos</b> aninhados. Use ➕ pra adicionar dentro de um card. <b>Clique direto na folha</b> pra selecionar e editar o elemento.</p>
               <div className="grid gap-3 lg:grid-cols-2">
-                <CompositionEditor nodes={nodes} onChange={setNodes} onUploadImage={onUploadImage} />
+                <CompositionEditor nodes={nodes} onChange={setNodes} onUploadImage={onUploadImage} selectedId={selNode} onSelectId={setSelNode} />
                 <div>
-                  <div className="mb-1 text-xs font-semibold text-slate-600">Pre-visualizacao (ao vivo)</div>
-                  <CompositionPreview nodes={nodes} data={SAMPLE_BUDGET} />
+                  <div className="mb-1 text-xs font-semibold text-slate-600">Pre-visualizacao (ao vivo) <span className="font-normal text-slate-400">— clique num elemento pra editar</span></div>
+                  <CompositionPreview nodes={nodes} data={SAMPLE_BUDGET} selectedId={selNode} onSelectNode={setSelNode} />
                 </div>
               </div>
             </div>

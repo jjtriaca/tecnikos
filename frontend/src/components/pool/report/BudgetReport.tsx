@@ -407,15 +407,29 @@ function renderBlockByType(blockType: string | null | undefined, data: BudgetRep
 }
 
 // Renderizador RECURSIVO de um no (card/row/block). Cards/rows seguram filhos (aninhamento).
-function ReportNodeView({ node, data, branding }: { node: ReportNode; data: BudgetReportData; branding?: ReportBranding | null }) {
+// Etapa B (WYSIWYG): quando onSelectNode existe, cada no fica CLICAVEL na folha e ganha
+// contorno quando selecionado. stopPropagation faz o clique pegar o no mais INTERNO
+// (bloco/linha) em vez do card-pai. Sem onSelectNode = render normal (impressao/preview).
+type NodeSelProps = { selectedId?: string | null; onSelectNode?: (id: string) => void };
+function ReportNodeView({ node, data, branding, selectedId, onSelectNode }: { node: ReportNode; data: BudgetReportData; branding?: ReportBranding | null } & NodeSelProps) {
   const st = node.style || {};
+  const selStyle = onSelectNode
+    ? { cursor: "pointer" as const, outline: selectedId === node.id ? "2px solid #06b6d4" : undefined, outlineOffset: "1px" }
+    : null;
+  const childProps: NodeSelProps & { data: BudgetReportData; branding?: ReportBranding | null } = { data, branding, selectedId, onSelectNode };
   if (node.kind === "block") {
-    return <div className="rp-node-block" style={{ flex: st.flex || undefined }}>{renderBlockByType(node.blockType, data, node.config, branding)}</div>;
+    return (
+      <div className="rp-node-block" style={{ flex: st.flex || undefined, ...selStyle }}
+        onClick={onSelectNode ? (e) => { e.stopPropagation(); onSelectNode(node.id); } : undefined}>
+        {renderBlockByType(node.blockType, data, node.config, branding)}
+      </div>
+    );
   }
   if (node.kind === "row") {
     return (
-      <div className="rp-node-row" style={{ gap: `${st.gap ?? 8}px`, alignItems: (st.align as any) || "stretch", flex: st.flex || undefined }}>
-        {(node.children || []).map((c) => <ReportNodeView key={c.id} node={c} data={data} branding={branding} />)}
+      <div className="rp-node-row" style={{ gap: `${st.gap ?? 8}px`, alignItems: (st.align as any) || "stretch", flex: st.flex || undefined, ...selStyle }}
+        onClick={onSelectNode ? (e) => { e.stopPropagation(); onSelectNode(node.id); } : undefined}>
+        {(node.children || []).map((c) => <ReportNodeView key={c.id} node={c} {...childProps} />)}
       </div>
     );
   }
@@ -428,24 +442,30 @@ function ReportNodeView({ node, data, branding }: { node: ReportNode; data: Budg
     color: st.textColor || undefined,
     boxShadow: st.shadow ? "0 1px 6px rgba(0,0,0,.12)" : undefined,
     flex: st.flex || undefined,
+    ...selStyle,
   };
-  return <div className="rp-node-card" style={cardStyle}>{(node.children || []).map((c) => <ReportNodeView key={c.id} node={c} data={data} branding={branding} />)}</div>;
+  return (
+    <div className="rp-node-card" style={cardStyle}
+      onClick={onSelectNode ? (e) => { e.stopPropagation(); onSelectNode(node.id); } : undefined}>
+      {(node.children || []).map((c) => <ReportNodeView key={c.id} node={c} {...childProps} />)}
+    </div>
+  );
 }
 
-export function CompositionNodes({ nodes, data, branding }: { nodes: ReportNode[]; data: BudgetReportData; branding?: ReportBranding | null }) {
-  return <>{(nodes || []).map((n) => <ReportNodeView key={n.id} node={n} data={data} branding={branding} />)}</>;
+export function CompositionNodes({ nodes, data, branding, selectedId, onSelectNode }: { nodes: ReportNode[]; data: BudgetReportData; branding?: ReportBranding | null } & NodeSelProps) {
+  return <>{(nodes || []).map((n) => <ReportNodeView key={n.id} node={n} data={data} branding={branding} selectedId={selectedId} onSelectNode={onSelectNode} />)}</>;
 }
 
 // Preview de uma composicao (lista de nodes) — usado no modal do editor pra ver ao vivo
 // enquanto monta os cards. NAO usa #budget-pdf-area (evita id duplicado com o preview
 // principal); as classes .rp-* sao globais (injetadas pelo BudgetReport da pagina). Inclui
 // o CSS de novo por seguranca (idempotente). Box A4-ish (210mm) so visual.
-export function CompositionPreview({ nodes, data }: { nodes: ReportNode[]; data: BudgetReportData }) {
+export function CompositionPreview({ nodes, data, selectedId, onSelectNode }: { nodes: ReportNode[]; data: BudgetReportData } & NodeSelProps) {
   return (
     <div style={{ background: "#f1f5f9", padding: "10px", borderRadius: 8, overflow: "auto" }}>
       <style dangerouslySetInnerHTML={{ __html: REPORT_CSS }} />
       <div style={{ width: "190mm", maxWidth: "100%", margin: "0 auto", background: "#fff", padding: "10mm", boxShadow: "0 1px 8px rgba(0,0,0,.12)", color: "#0f172a", fontSize: "11px", lineHeight: 1.35 }}>
-        {nodes && nodes.length ? <CompositionNodes nodes={nodes} data={data} /> : <div className="rp-empty">Adicione cards/blocos pra ver aqui.</div>}
+        {nodes && nodes.length ? <CompositionNodes nodes={nodes} data={data} selectedId={selectedId} onSelectNode={onSelectNode} /> : <div className="rp-empty">Adicione cards/blocos pra ver aqui.</div>}
       </div>
     </div>
   );

@@ -220,8 +220,12 @@ function NodeInspector({ node, onChange, onUploadImage }: { node: ReportNode; on
 }
 
 // ── Componente principal ─────────────────────────────────────────────────────
-export default function CompositionEditor({ nodes, onChange, onUploadImage }: { nodes: ReportNode[]; onChange: (nodes: ReportNode[]) => void; onUploadImage?: (file: File) => Promise<string> }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+export default function CompositionEditor({ nodes, onChange, onUploadImage, selectedId: controlledId, onSelectId }: { nodes: ReportNode[]; onChange: (nodes: ReportNode[]) => void; onUploadImage?: (file: File) => Promise<string>; selectedId?: string | null; onSelectId?: (id: string | null) => void }) {
+  // Seleção controlável de fora (Etapa B: clicar na folha seleciona o nó aqui). Se o parent
+  // não passar selectedId/onSelectId, cai no estado interno (retrocompatível).
+  const [internalId, setInternalId] = useState<string | null>(null);
+  const selectedId = controlledId !== undefined ? controlledId : internalId;
+  const setSelectedId = (id: string | null) => { if (onSelectId) onSelectId(id); else setInternalId(id); };
   const [addInto, setAddInto] = useState<string | "root" | null>(null);
 
   const selected = selectedId ? findNode(nodes, selectedId) : null;

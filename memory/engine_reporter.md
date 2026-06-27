@@ -41,14 +41,19 @@ mexer no editor de relatório.** Origem completa em [[sessao_226_summary]].
 - Clicar página (esquerda) → `setEditingPage` → editor inline no centro (`PageEditor inline`, `key={id}` re-monta).
 - O painel "Padrão do relatório" da esquerda está `hidden` (ferramentas migraram pra faixa). NÃO recriar lá.
 
-## 🔜 PRÓXIMO — Etapa B do WYSIWYG (editar clicando na folha)
-Juliano escolheu "só a folha embaixo, clica no elemento e edita pelo ribbon" (Canva/Word). Plano:
+## WYSIWYG — editar clicando na folha (Canva/Word)
+Juliano escolheu "só a folha embaixo, clica no elemento e edita pelo ribbon". Estado:
 - **A (parcial, FEITO):** `BudgetReport` tem props `editable`/`selectedPageId`/`onSelectPage` → página clicável +
-  contorno na seleção. **Ainda NÃO ligado** no editor (dormindo).
-- **B:** tornar os NÓS da composição clicáveis na folha (onClick → seleciona nó + highlight); reusar o
-  `NodeInspector`/`RichTextEditor` num painel de propriedades; ribbon Início age no texto selecionado.
-- **C:** edição de texto inline na própria folha. **D:** arrastar/posicionar.
-- Editar nós → atualizar `pageConfig.nodes` → salvar (`updatePage`).
+  contorno na seleção. **Ainda NÃO ligado** no editor (dormindo — seleção de PÁGINA).
+- **✅ B (FEITO, v1.14.37):** os NÓS da composição ficaram clicáveis na FOLHA. `ReportNodeView`/`CompositionNodes`/
+  `CompositionPreview` ganharam props opcionais `selectedId`/`onSelectNode` (sem elas = render de impressão normal;
+  `stopPropagation` seleciona o nó mais INTERNO, não o card-pai; contorno ciano 2px no selecionado). `CompositionEditor`
+  aceita `selectedId`/`onSelectId` (seleção controlável de fora; senão estado interno — retrocompatível). No `PageEditor`
+  (modo Composição) o state `selNode` liga montador↔folha: clicar num lado seleciona/edita no outro (TEXT abre o
+  `RichTextEditor` do NodeInspector). Reusa o NodeInspector existente — NÃO recriar painel de propriedades.
+- **🔜 C:** edição de texto inline na PRÓPRIA folha (ribbon Início agindo no texto selecionado) — hoje a formatação
+  de texto é via RichTextEditor dentro do inspector. **D:** arrastar/posicionar.
+- Editar nós → `setNodes` → salvar (`onSubmit`→`updatePage`, `pageConfig.nodes`).
 
 ## Regras
 - Módulo Piscina: SEM preview no navegador — build-only + deploy (`feedback_preview_pool_budget`).
