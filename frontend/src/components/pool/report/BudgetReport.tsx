@@ -15,8 +15,8 @@
  * O parent (sandbox /dev/print-test-orcamento ou o modal do orcamento) imprime com
  *   printViaClone({ areaId: "budget-pdf-area", cloneId: "budget-pdf-clone" })
  */
+import { useEffect, useRef } from "react";
 import { BombaDatasheetBlock, SolarDatasheetBlock } from "./HeatingDatasheets";
-import RichTextEditor from "./RichTextEditor";
 
 // ── Tipos (espelham Page/Layout do editor) ──────────────────────────────────
 export type ReportPage = {
@@ -411,8 +411,22 @@ function renderBlockByType(blockType: string | null | undefined, data: BudgetRep
 // Etapa B (WYSIWYG): quando onSelectNode existe, cada no fica CLICAVEL na folha e ganha
 // contorno quando selecionado. stopPropagation faz o clique pegar o no mais INTERNO
 // (bloco/linha) em vez do card-pai. Sem onSelectNode = render normal (impressao/preview).
+// Editavel IN-PLACE SEM barra propria (Etapa C / unificacao): so a area de texto. A barra de
+// formatacao e a aba "Inicio" do ribbon (age na selecao via .rp-inline-edit). innerHTML setado
+// so na montagem (keyed por node.id) -> digitar/execCommand nao reseta o cursor.
+function InlineEditable({ html, onChange }: { html: string; onChange: (html: string) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (ref.current) ref.current.innerHTML = html || ""; /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  const emit = () => onChange(ref.current?.innerHTML || "");
+  return (
+    <div ref={ref} className="rp-inline-edit" contentEditable suppressContentEditableWarning
+      onInput={emit} onBlur={emit}
+      style={{ outline: "2px dashed #06b6d4", outlineOffset: "2px", minHeight: "1em", cursor: "text" }} />
+  );
+}
+
 // onEditText: edicao IN-PLACE (Etapa C). Quando presente e o bloco TEXT esta selecionado,
-// o proprio texto vira editavel na FOLHA (RichTextEditor com a barrinha em cima) — sem abrir
+// o proprio texto vira editavel na FOLHA (InlineEditable; formata pela aba Inicio) — sem abrir
 // painel separado. Edita o HTML CRU (com {placeholders}); resolve so na renderizacao final.
 type NodeSelProps = { selectedId?: string | null; onSelectNode?: (id: string) => void; onEditText?: (id: string, html: string) => void };
 function ReportNodeView({ node, data, branding, selectedId, onSelectNode, onEditText }: { node: ReportNode; data: BudgetReportData; branding?: ReportBranding | null } & NodeSelProps) {
@@ -427,7 +441,7 @@ function ReportNodeView({ node, data, branding, selectedId, onSelectNode, onEdit
       <div className="rp-node-block" style={{ flex: st.flex || undefined, ...selStyle }}
         onClick={onSelectNode ? (e) => { e.stopPropagation(); onSelectNode(node.id); } : undefined}>
         {editingText
-          ? <RichTextEditor key={node.id} value={node.config?.html || ""} onChange={(html) => onEditText!(node.id, html)} />
+          ? <InlineEditable key={node.id} html={node.config?.html || ""} onChange={(html) => onEditText!(node.id, html)} />
           : renderBlockByType(node.blockType, data, node.config, branding)}
       </div>
     );

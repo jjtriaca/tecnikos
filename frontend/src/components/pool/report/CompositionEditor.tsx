@@ -148,7 +148,7 @@ function NodeInspector({ node, onChange, onUploadImage }: { node: ReportNode; on
         </label>
         {node.blockType === "TEXT" ? (
           <div className="rounded border border-cyan-200 bg-cyan-50/60 px-2 py-2 text-xs text-slate-600">
-            ✏️ Edite o texto <b>direto na folha</b> (na pré-visualização ao lado): clique no texto, selecione um trecho e use a barrinha que aparece (fonte, tamanho, cor, negrito, alinhamento…).
+            ✏️ Edite o texto <b>direto na folha</b> (na pré-visualização ao lado): clique no texto, selecione um trecho e formate pela <b>aba Início</b> (em cima) — fonte, tamanho, cor, negrito, alinhamento…
           </div>
         ) : node.blockType === "IMAGE" ? (
           <div className="block text-xs text-slate-600">Imagem

@@ -767,7 +767,7 @@ function PageEditor({ editing, onClose, onSubmit, onUploadImage, inline }: {
               <div className="grid gap-3 lg:grid-cols-[300px_minmax(0,1fr)]">
                 <CompositionEditor nodes={nodes} onChange={setNodes} onUploadImage={onUploadImage} selectedId={selNode} onSelectId={setSelNode} />
                 <div>
-                  <div className="mb-1 text-xs font-semibold text-slate-600">Folha (edicao ao vivo) <span className="font-normal text-slate-400">— clique no TEXTO pra editar direto aqui; selecione e use a barrinha</span></div>
+                  <div className="mb-1 text-xs font-semibold text-slate-600">Folha (edicao ao vivo) <span className="font-normal text-slate-400">— clique no TEXTO pra editar; selecione um trecho e formate pela aba Inicio (em cima)</span></div>
                   <CompositionPreview nodes={nodes} data={SAMPLE_BUDGET} selectedId={selNode} onSelectNode={setSelNode} onEditText={(id, html) => setNodes((ns) => setNodeHtml(ns, id, html))} />
                 </div>
               </div>
