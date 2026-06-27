@@ -66,8 +66,17 @@ Juliano escolheu "só a folha embaixo, clica no elemento e edita pelo ribbon". E
   Edita o HTML CRU (com {placeholders}); resolve na render final. `onEditText` threaded ReportNodeView→CompositionNodes→
   CompositionPreview; `setNodeHtml` (page.tsx) grava no `pageConfig.nodes`. O painel "Editar Bloco" do NodeInspector
   para TEXT foi APOSENTADO → vira dica "edite direto na folha" (RichTextEditor removido do CompositionEditor; inspector
-  segue só p/ card/linha + troca de tipo). Reaproveita o RichTextEditor já corrigido (Increment 1). 🔜 limitações: preview
-  ainda é a caixinha 2-col (cramped) — falta folha grande; ribbon "Início" global ainda separado da barrinha do bloco.
+  segue só p/ card/linha + troca de tipo). Reaproveita o RichTextEditor já corrigido (Increment 1).
+- **✅ C Incremento 3 (DEPLOYED v1.14.39) — folha grande + aba "Início" formata a SELEÇÃO:** (a) FOLHA GRANDE: card de
+  edição `max-w-[1400px]` + composição em `grid-cols-[300px_minmax(0,1fr)]` (folha ganhou bem mais espaço; antes 2-col 50/50
+  apertado). (b) ABA "INÍCIO" = barra de formatação Word-style agindo na SELEÇÃO de texto na folha: font/tamanho/cor + B/I/U
+  + alinhar, todos via `selExec`/`selFontSize` em `page.tsx` (rastreia o último Range dentro de `.rp-inline-edit` por
+  `selectionchange`; botões `onMouseDown preventDefault`; selects/cor restauram o Range; `fireInput` dispara 'input' no
+  editável pra persistir no nó; reflete B/I/U/fonte/tamanho/cor da seleção). Removido o "(em breve)". (c) Padrões GLOBAIS
+  (fonte/tamanho/cor do relatório) MOVIDOS de Início → aba "Estilo" (Início=seleção, Estilo=tema, modelo Office). (d)
+  RichTextEditor.editable ganhou classe `.rp-inline-edit` (alvo do rastreio). A barrinha inline do bloco CONTINUA existindo
+  (coexiste com o ribbon — ambos agem na seleção). ✅ TESTADO ao vivo: B e tamanho(select) do ribbon aplicam na seleção;
+  folha maior; reflexo da seleção OK. 🔜 D: arrastar/posicionar; talvez unificar barrinha inline ↔ ribbon (hoje coexistem).
 - Editar nós → `setNodes` → salvar (`onSubmit`→`updatePage`, `pageConfig.nodes`).
 
 ## Regras
