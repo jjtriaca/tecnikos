@@ -234,9 +234,11 @@ export class PoolPrintLayoutService {
     });
     if (!layout) throw new NotFoundException('Layout não encontrado');
 
-    if (dto.type === PoolPrintPageType.FIXED && !dto.htmlContent) {
+    // FIXED aceita htmlContent OU composicao por cards (pageConfig.nodes).
+    const hasNodes = Array.isArray((dto.pageConfig as any)?.nodes) && (dto.pageConfig as any).nodes.length > 0;
+    if (dto.type === PoolPrintPageType.FIXED && !dto.htmlContent && !hasNodes) {
       throw new BadRequestException(
-        'Página FIXED precisa ter htmlContent preenchido.',
+        'Página FIXED precisa ter htmlContent ou composição (cards) preenchido.',
       );
     }
     if (dto.type === PoolPrintPageType.DYNAMIC && !dto.dynamicType) {
