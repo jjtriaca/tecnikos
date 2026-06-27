@@ -188,39 +188,47 @@ function resolvePlaceholders(html: string, data: BudgetReportData): string {
 // bloco do cliente (Nome/Cidade/Data/Solicitante/Orcamento) e validade no rodape.
 // Auto-preenche por orcamento. Titulo configuravel via config.title.
 function CoverBlock({ data, branding, config }: { data: BudgetReportData; branding?: ReportBranding | null; config?: any }) {
-  const primary = branding?.primaryColor || "#0f172a";
-  const accent = branding?.accentColor || "#1e3a8a";
+  // Capa fiel ao PDF SLS: pagina inteira em CINZA (full-bleed via margem negativa que cancela o
+  // padding do .report-page), logo topo-direita, titulo grande preto, bloco do cliente embaixo-
+  // esquerda (labels em negrito) e rodape de validade centralizado. `coverBg` configuravel
+  // (default cinza SLS) — friction: nao da pra dar fundo so na capa pela tela (bg global e geral).
   const title = config?.title || "Proposta Comercial";
+  const bg = config?.coverBg || "#8c8c8c";               // cinza do PDF (configuravel via pageConfig)
+  const titleColor = config?.titleColor || "#111827";    // titulo preto
   const dateStr = data.budgetDate || new Date().toLocaleDateString("pt-BR");
   const days = data.validityDays ?? 7;
   const rows: [string, string][] = [
     ["Nome", data.clientName || "—"],
-    ...(data.clientCity ? ([["Cidade", data.clientCity]] as [string, string][]) : []),
+    ["Cidade", data.clientCity || "—"],
     ["Data", dateStr],
     ["Solicitante", data.clientName || "—"],
     ["Orcamento no", data.code || "—"],
   ];
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "245mm" }}>
+    <div style={{
+      margin: "-12mm", padding: "16mm 16mm 10mm", background: bg, minHeight: "273mm",
+      display: "flex", flexDirection: "column", boxSizing: "border-box",
+      WebkitPrintColorAdjust: "exact", printColorAdjust: "exact",
+    }}>
       {/* logo topo-direita */}
-      <div style={{ display: "flex", justifyContent: "flex-end", minHeight: 56 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", minHeight: 64 }}>
         {branding?.logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={branding.logoUrl} alt="logo" style={{ height: 56, objectFit: "contain" }} />
+          <img src={branding.logoUrl} alt="logo" style={{ height: 64, objectFit: "contain" }} />
         ) : null}
       </div>
       {/* titulo grande */}
-      <div style={{ marginTop: "12mm", fontSize: 46, fontWeight: 800, lineHeight: 1.05, color: primary, maxWidth: "75%" }}>{title}</div>
+      <div style={{ marginTop: "16mm", fontSize: 54, fontWeight: 800, lineHeight: 1.08, color: titleColor, maxWidth: "62%" }}>{title}</div>
       {/* espacador empurra o bloco do cliente pra baixo */}
-      <div style={{ flex: 1, minHeight: "20mm" }} />
+      <div style={{ flex: 1 }} />
       {/* bloco do cliente */}
-      <div style={{ fontSize: 12, lineHeight: 2 }}>
+      <div style={{ fontSize: 12, lineHeight: 1.9, color: "#111827" }}>
         {rows.map(([k, v]) => (
-          <div key={k}><span style={{ fontWeight: 700, color: accent }}>{k}:</span> <span style={{ fontWeight: 600, color: "#0f172a" }}>{v}</span></div>
+          <div key={k}><span style={{ fontWeight: 700 }}>{k}:</span> {v}</div>
         ))}
       </div>
-      {/* rodape validade */}
-      <div style={{ marginTop: "8mm", paddingTop: "3mm", borderTop: "1px solid #e2e8f0", fontSize: 9, color: "#64748b" }}>
+      {/* rodape validade — centralizado */}
+      <div style={{ marginTop: "10mm", fontSize: 9, color: "#1f2937", textAlign: "center" }}>
         A validade da proposta e de {days} dias. Apos esse periodo, favor consultar se houve alteracao no valor da proposta.
       </div>
     </div>
