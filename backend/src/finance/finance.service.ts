@@ -981,7 +981,9 @@ export class FinanceService {
     }
 
     const batchId = `BATCH_${Date.now().toString(36)}`;
-    const paidAt = body.paidAt ? new Date(body.paidAt) : new Date();
+    // paidAt ancorado ao meio-dia BRT (parseTenantDate) — date-only "YYYY-MM-DD" vira noon,
+    // nunca meia-noite UTC (que cairia no dia anterior em BRT). Ver tenant-date.util.ts.
+    const paidAt = parseTenantDate(body.paidAt) ?? new Date();
     const now = new Date();
     const timestamp = now.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
@@ -1070,7 +1072,7 @@ export class FinanceService {
 
     // Pre-valida mes fechado (mesmo alvo que o changeEntryStatus vai usar) — evita criar o split
     // e so entao a trava barrar o pagamento, deixando 2 lancamentos PENDING em vez de 1.
-    const targetPaidAt = dto.paidAt ? new Date(dto.paidAt) : new Date();
+    const targetPaidAt = parseTenantDate(dto.paidAt) ?? new Date();
     const targetAccount = dto.cashAccountId || entry.cashAccountId;
     await this.closedMonthGuard.assertNotClosed(companyId, targetAccount, targetPaidAt, 'Receber/pagar parcial');
 
@@ -1128,7 +1130,7 @@ export class FinanceService {
     // - Marcar como PAID: verificar paidAt+cashAccountId novos (do DTO ou do entry)
     // - Estornar (PAID -> REVERSED): verificar paidAt+cashAccountId atuais do entry
     if (newStatus === 'PAID') {
-      const targetPaidAt = dto.paidAt ? new Date(dto.paidAt) : new Date();
+      const targetPaidAt = parseTenantDate(dto.paidAt) ?? new Date();
       const targetCashAccountId = dto.cashAccountId || entry.cashAccountId;
       await this.closedMonthGuard.assertNotClosed(
         companyId,
@@ -1201,7 +1203,10 @@ export class FinanceService {
           if (!dto.checkNumber) throw new BadRequestException('Numero do cheque e obrigatorio para pagamento com cheque.');
           if (!dto.checkBank) throw new BadRequestException('Banco emissor do cheque e obrigatorio.');
         }
-        data.paidAt = dto.paidAt ? new Date(dto.paidAt) : now;
+        // parseTenantDate: date-only "YYYY-MM-DD" -> meio-dia BRT (15:00 UTC), nunca meia-noite
+        // UTC (que viraria o dia anterior em BRT). Era a causa do FIN-00625 gravar dia errado no
+        // re-pagamento. Caminhos OFX/conciliacao ja usavam tenantNoon — este faltava.
+        data.paidAt = parseTenantDate(dto.paidAt) ?? now;
         if (dto.paymentMethod) data.paymentMethod = dto.paymentMethod;
         if (dto.cardBrand) data.cardBrand = dto.cardBrand;
         if (dto.cashAccountId) data.cashAccountId = dto.cashAccountId;
