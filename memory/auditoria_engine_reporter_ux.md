@@ -8,6 +8,12 @@
 - [✅ FRICTION 1 — CORRIGIDO v1.14.41] "Remover" página usava `window.confirm()` nativo (UX pobre + travava automação). Trocado por modal de confirmação próprio ("Remover pagina N?" + Cancelar/Remover).
 - [🔴 FRICTION 2] Não dá pra dar fundo SÓ na Capa (cinza, como o PDF) pela tela — o único controle de fundo é GLOBAL (aba Página, afeta TODAS as páginas). Capa precisa de fundo próprio. → Melhoria: bloco Capa com `coverBg` (default cinza SLS), idealmente com color-picker no editor da página dinâmica. (Fix em andamento.)
 - [🔴 FRICTION 3] Capa sem logo fica com canto vazio e não avisa que falta subir o logo (Estilo → 📁 Logo). Sugerir placeholder/aviso "envie o logo".
+- [✅ FRICTION 4 — RESOLVIDO v1.14.43] Tamanho/posição da logo eram FIXOS no código. Agora editáveis na aba Estilo: altura na Capa, altura no Cabeçalho, Posição (esq/centro/dir), Logo no Rodapé (on/off + px). Cabeçalho global (Orçamento nº + logo) automático nas páginas de conteúdo, NÃO na capa.
+- [✅ FRICTION 5 — RESOLVIDO v1.14.44] Posição de card/texto era fixa. Card agora tem: Largura (100/75/66/50/33/25%), Alinhar na página (esq/centro/dir via margin auto), Espaço acima/abaixo (px), Alinhar texto (esq/centro/dir/justif). Linha tem: Distribuir colunas (esq/centro/dir/espaçar). Texto: alinhamento pela aba Início.
+- [PRINCÍPIO] Toda vez que achar algo fixo no código durante a montagem → virar controle editável (Juliano: "nada fixo, tudo editável em qualquer página").
+
+## UPLOAD de imagens (limitação de automação, NÃO do produto)
+A automação (Claude) não consegue usar o seletor nativo de arquivos nem ler arquivos fora de anexos do chat. Então, ao montar via Chrome, **PEDIR ao Juliano** pra subir cada imagem (logo/fotos) pelo 📁 do editor. Imagens da proposta SLS estão em Downloads: Imagem1.png=logo SLS, Imagem2.jpg=foto Juliano, Imagem3.jpg=loja SLS.
 
 
 
