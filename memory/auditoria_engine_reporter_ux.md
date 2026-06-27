@@ -1,5 +1,13 @@
 # Auditoria UX — EngineReporter (editor de Layouts de Impressão) — v1.14.37
 
+## 🔧 REGRA DESTA SESSÃO (definida pelo Juliano)
+**Montar o layout SEMPRE pela tela do Chrome (dogfooding), não hardcodar blocos.** Ao montar, sentir como é o uso real; a CADA dificuldade ou ponto não-intuitivo (fator humano) → ANOTAR aqui pra virar melhoria. Tarefa em curso: apagar as 2 páginas do layout "Piscina Pré Moldada" e remontar do ZERO espelhando o PDF da Andréia Santana (8 págs), considerando ORCP-00001. Abordagem escolhida: ALTA FIDELIDADE, página por página.
+
+### Atrito observado ao montar (vai virar melhoria)
+- [🔴 FRICTION 1] "Remover" página usa `window.confirm()` nativo — UX pobre (não combina com o resto do app, que usa modais/toasts) e ainda trava fluxo. Trocar por modal de confirmação próprio. (Fix em andamento.)
+
+
+
 Auditoria hands-on (Juliano pediu: montar um layout do zero e anotar TUDO de errado, criterioso em pequenos detalhes, fator humano de visualização/entendimento). Sessão via Chrome no app real (sls.tecnikos.com.br).
 
 ## Tela: Lista de Layouts (/pool/print-layouts)

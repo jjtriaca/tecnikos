@@ -137,6 +137,8 @@ export default function PoolPrintLayoutEditorPage() {
   // Pagina "selecionada" para NAVEGAR (mostrar na folha) — clicar numa pagina NAO abre
   // mais o editor (so o "Editar"); ela vira o foco da folha (scroll + contorno).
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
+  // Confirmacao de remocao de pagina via MODAL proprio (substitui window.confirm nativo).
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; n: number } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -296,10 +298,11 @@ export default function PoolPrintLayoutEditorPage() {
     }
   }
 
-  async function removePage(pageId: string) {
-    if (!confirm("Remover esta pagina?")) return;
+  async function doRemovePage(pageId: string) {
     try {
       await api.del(`/pool-print-layouts/pages/${pageId}`);
+      setPendingDelete(null);
+      if (editingPage?.id === pageId) setEditingPage(null);
       await load();
     } catch (err: any) {
       toast(err?.payload?.message || "Erro", "error");
@@ -614,7 +617,7 @@ export default function PoolPrintLayoutEditorPage() {
                     className="text-xs text-cyan-600 hover:text-cyan-800 font-medium">
                     Editar
                   </button>
-                  <button onClick={(e) => { e.stopPropagation(); removePage(p.id); }}
+                  <button onClick={(e) => { e.stopPropagation(); setPendingDelete({ id: p.id, n: idx + 1 }); }}
                     className="text-xs text-red-500 hover:text-red-700 font-medium">
                     Remover
                   </button>
@@ -658,6 +661,22 @@ export default function PoolPrintLayoutEditorPage() {
       </div>
 
       </div>{/* fim 3 paineis */}
+
+      {/* Modal de confirmacao de remocao (substitui window.confirm nativo) */}
+      {pendingDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setPendingDelete(null)}>
+          <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="text-base font-semibold text-slate-900">Remover pagina {pendingDelete.n}?</div>
+            <p className="mt-1 text-sm text-slate-600">Esta acao nao pode ser desfeita.</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setPendingDelete(null)}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Cancelar</button>
+              <button type="button" onClick={() => doRemovePage(pendingDelete.id)}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">Remover</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
