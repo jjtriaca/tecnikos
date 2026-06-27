@@ -51,8 +51,23 @@ Juliano escolheu "só a folha embaixo, clica no elemento e edita pelo ribbon". E
   aceita `selectedId`/`onSelectId` (seleção controlável de fora; senão estado interno — retrocompatível). No `PageEditor`
   (modo Composição) o state `selNode` liga montador↔folha: clicar num lado seleciona/edita no outro (TEXT abre o
   `RichTextEditor` do NodeInspector). Reusa o NodeInspector existente — NÃO recriar painel de propriedades.
-- **🔜 C:** edição de texto inline na PRÓPRIA folha (ribbon Início agindo no texto selecionado) — hoje a formatação
-  de texto é via RichTextEditor dentro do inspector. **D:** arrastar/posicionar.
+- **🟡 C (em andamento) — visão Juliano:** editor de texto NÃO abre painel à parte; é Word/PowerPoint (seleciona na
+  FOLHA, formata pela aba). **Incremento 1 (feito, não deployado):** (a) BUG RAIZ corrigido no `RichTextEditor` — B/I/U,
+  selects de fonte/tamanho e cor NÃO aplicavam porque o clique colapsava a seleção (sem `preventDefault`); agora os
+  botões usam `onMouseDown preventDefault` + guardamos/restauramos o `Range` (savedRange) antes de cada execCommand;
+  ícone do sublinhado "S"→"U". (b) Clicar numa PÁGINA na lista agora NAVEGA (foca/scroll na folha via `selectedPageId`
+  + `id="rp-page-<id>"` + scrollIntoView), não abre mais o editor; "Editar" continua editando; props
+  `editable/selectedPageId/onSelectPage` do BudgetReport LIGADAS. **Incremento 2 (próximo):** edição in-place na folha
+  (blocos TEXT contentEditable direto na página + ribbon Início agindo na seleção) e aposentar o painel "Editar Bloco"
+  pra texto. **D:** arrastar/posicionar. Detalhes/auditoria completa em [[auditoria_engine_reporter_ux]].
+- **✅ C Incremento 2 (feito, não deployado) — edição IN-PLACE na folha:** clicar num bloco TEXT na folha (CompositionPreview)
+  agora torna o PRÓPRIO texto editável ali (RichTextEditor renderizado inline dentro de `ReportNodeView`, só quando
+  `onEditText` + bloco TEXT + selecionado), com a barrinha de formatação em cima — SEM abrir painel separado (visão Juliano).
+  Edita o HTML CRU (com {placeholders}); resolve na render final. `onEditText` threaded ReportNodeView→CompositionNodes→
+  CompositionPreview; `setNodeHtml` (page.tsx) grava no `pageConfig.nodes`. O painel "Editar Bloco" do NodeInspector
+  para TEXT foi APOSENTADO → vira dica "edite direto na folha" (RichTextEditor removido do CompositionEditor; inspector
+  segue só p/ card/linha + troca de tipo). Reaproveita o RichTextEditor já corrigido (Increment 1). 🔜 limitações: preview
+  ainda é a caixinha 2-col (cramped) — falta folha grande; ribbon "Início" global ainda separado da barrinha do bloco.
 - Editar nós → `setNodes` → salvar (`onSubmit`→`updatePage`, `pageConfig.nodes`).
 
 ## Regras

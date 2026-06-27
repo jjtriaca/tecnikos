@@ -9,6 +9,15 @@ import BudgetReport, { BudgetReportData, ReportNode, CompositionPreview } from "
 import { printViaClone } from "@/lib/printViaClone";
 import CompositionEditor from "@/components/pool/report/CompositionEditor";
 
+// Etapa C: grava o HTML editado IN-PLACE (na folha) de volta no no TEXT (recursivo, imutavel).
+function setNodeHtml(nodes: ReportNode[], id: string, html: string): ReportNode[] {
+  return nodes.map((n) =>
+    n.id === id
+      ? { ...n, config: { ...(n.config || {}), html } }
+      : n.children ? { ...n, children: setNodeHtml(n.children, id, html) } : n,
+  );
+}
+
 type Page = {
   id: string;
   order: number;
@@ -125,6 +134,9 @@ export default function PoolPrintLayoutEditorPage() {
   const [name, setName] = useState("");
   const [isDefault, setIsDefault] = useState(false);
   const [tab, setTab] = useState("Inserir"); // aba da ribbon (Office-like)
+  // Pagina "selecionada" para NAVEGAR (mostrar na folha) — clicar numa pagina NAO abre
+  // mais o editor (so o "Editar"); ela vira o foco da folha (scroll + contorno).
+  const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -140,6 +152,15 @@ export default function PoolPrintLayoutEditorPage() {
   }, [id, toast]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Ao selecionar uma pagina (navegar), rola a folha ate ela. So quando a folha esta
+  // visivel (nao em modo edicao/nova pagina, senao o elemento nem existe).
+  useEffect(() => {
+    if (selectedPageId && !editingPage && !showAddPage) {
+      const el = document.getElementById(`rp-page-${selectedPageId}`);
+      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [selectedPageId, editingPage, showAddPage]);
 
   async function saveMeta() {
     try {
@@ -443,12 +464,13 @@ export default function PoolPrintLayoutEditorPage() {
           {layout.pages.map((p, idx) => (
             <div key={p.id}
               draggable
-              onClick={() => setEditingPage(p)}
+              onClick={() => { setEditingPage(null); setShowAddPage(false); setSelectedPageId(p.id); }}
               onDragStart={() => handleDragStart(p.id)}
               onDragOver={(e) => handleDragOver(e, p.id)}
               onDragEnd={handleDragEnd}
+              title="Clique para ver esta pagina na folha · use Editar para alterar"
               className={`rounded-xl border bg-white shadow-sm p-3 cursor-pointer transition ${
-                editingPage?.id === p.id ? "border-cyan-500 ring-2 ring-cyan-200" : draggingId === p.id ? "opacity-50 border-cyan-400" : "border-slate-200 hover:border-cyan-300"
+                editingPage?.id === p.id || selectedPageId === p.id ? "border-cyan-500 ring-2 ring-cyan-200" : draggingId === p.id ? "opacity-50 border-cyan-400" : "border-slate-200 hover:border-cyan-300"
               }`}
             >
               <div className="flex items-start gap-4">
@@ -528,8 +550,9 @@ export default function PoolPrintLayoutEditorPage() {
           </div>
         ) : (
           <>
-            <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-2">Pre-visualizacao <span className="text-slate-400">(dados de exemplo)</span></div>
-            <BudgetReport data={SAMPLE_BUDGET} layout={{ branding: layout.branding, pages: layout.pages }} />
+            <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-2">Pre-visualizacao <span className="text-slate-400">(dados de exemplo)</span> <span className="text-slate-400">— clique numa pagina na lista para focar nela</span></div>
+            <BudgetReport data={SAMPLE_BUDGET} layout={{ branding: layout.branding, pages: layout.pages }}
+              editable selectedPageId={selectedPageId} onSelectPage={(id) => setSelectedPageId(id)} />
           </>
         )}
       </div>
@@ -644,8 +667,8 @@ function PageEditor({ editing, onClose, onSubmit, onUploadImage, inline }: {
               <div className="grid gap-3 lg:grid-cols-2">
                 <CompositionEditor nodes={nodes} onChange={setNodes} onUploadImage={onUploadImage} selectedId={selNode} onSelectId={setSelNode} />
                 <div>
-                  <div className="mb-1 text-xs font-semibold text-slate-600">Pre-visualizacao (ao vivo) <span className="font-normal text-slate-400">— clique num elemento pra editar</span></div>
-                  <CompositionPreview nodes={nodes} data={SAMPLE_BUDGET} selectedId={selNode} onSelectNode={setSelNode} />
+                  <div className="mb-1 text-xs font-semibold text-slate-600">Folha (edicao ao vivo) <span className="font-normal text-slate-400">— clique no TEXTO pra editar direto aqui; selecione e use a barrinha</span></div>
+                  <CompositionPreview nodes={nodes} data={SAMPLE_BUDGET} selectedId={selNode} onSelectNode={setSelNode} onEditText={(id, html) => setNodes((ns) => setNodeHtml(ns, id, html))} />
                 </div>
               </div>
             </div>

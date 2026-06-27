@@ -48,10 +48,24 @@ Auditoria hands-on (Juliano pediu: montar um layout do zero e anotar TUDO de err
 - [PRINT] "Imprimir exemplo" usa printViaClone (não testei pra não abrir diálogo de impressão). Verificar quebras de página entre cards grandes.
 
 ## O que FUNCIONA bem
-- Etapa B (clicar elemento na folha → selecionar+editar) — OK pra blocos.
-- Edição de texto ao vivo + barra refletindo a seleção — OK.
+- Etapa B (clicar elemento na folha → selecionar bloco) — OK pra blocos.
+- DIGITAR texto no RichText (substituir conteúdo) atualiza o preview ao vivo — OK.
 - Modelos de card (titulo+texto, 2 colunas, destaque, capa comercial) — bom atalho.
 - Preview ao vivo com dados de exemplo — bom.
+
+## 🔴🔴 VISÃO DO JULIANO (corrigiu o rumo) + BUGS GRAVES do editor de texto
+**Target:** editor de texto NÃO pode "abrir" painel separado. Igual **Word/Excel/PowerPoint**: SELECIONA o texto na FOLHA e formata pela ABA (Ações/Início). Hoje é o oposto (abre "Editar Bloco" com RichTextEditor embaixo).
+- [🔴 SELEÇÃO PERDIDA — formatação NÃO aplica] B/I/S, selects de Fonte/Tamanho e input de Cor SEM `onMouseDown preventDefault`: ao clicar, o foco sai do contentEditable, a seleção colapsa, e `execCommand` roda sem seleção → **negrito/itálico/fonte/tamanho/cor frequentemente não aplicam**. `focus()` é chamado DEPOIS do execCommand (tarde). Causa exata do "cliquei negrito e nada". (RichTextEditor.tsx L79-85, 111-127.)
+- [🔴 navegação] Clicar numa PÁGINA ABRE o editor em vez de NAVEGAR pra ela na folha. Volta só por "✕ Fechar (ver folha)". `editable/selectedPageId/onSelectPage` do BudgetReport DORMEM.
+- [BUG ícone] Sublinhado usa glifo "S" (parece tachado); não há tachado real. Deveria ser "U".
+- [BUG reflexo] Dropdown Tamanho só mostra se valor EXATO da lista; headings caem em "Tam." vazio. `applyFontSize` mexe em TODOS os `font[size=7]` do editor.
+
+### Plano Etapa C (proposto — edição in-place estilo Office)
+1. FOLHA editável: blocos TEXT com `contentEditable` direto na página (BudgetReport em modo editor).
+2. Ribbon Início/Ações age na SELEÇÃO viva (B/I/U/cor/fonte/tamanho/alinhamento) com `onMouseDown preventDefault` (corrige o bug raiz).
+3. Salvar o HTML de volta no `pageConfig.nodes` (bloco TEXT) no blur.
+4. Aposentar o painel "Editar Bloco" pra TEXT (inspector fica só p/ card/linha + troca de tipo).
+5. Clicar página = NAVEGAR (ligar selectedPageId/onSelectPage + scrollIntoView); "Editar" só p/ estrutura.
 
 ## PRIORIZAÇÃO sugerida (proposta, não executada)
 1. [ALTO/rápido] Sweep de ACENTOS + tirar JARGÃO (FIXED/DYNAMIC/placeholders/page builder) em toda a tela.

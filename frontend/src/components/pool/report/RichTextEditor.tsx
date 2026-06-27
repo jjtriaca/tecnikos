@@ -42,6 +42,12 @@ function rgbToHex(rgb: string): string {
 
 export default function RichTextEditor({ value, onChange }: { value: string; onChange: (html: string) => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  // BUG FIX (v1.14.x): ao clicar num <select>/<input color> da barra, o foco SAI do
+  // contentEditable e a selecao COLAPSA -> execCommand rodava no vazio (negrito/cor/etc
+  // nao aplicavam). Guardamos o ultimo Range valido dentro do editor e o RESTAURAMOS
+  // antes de cada comando. (Botoes B/I/S/alinhar usam onMouseDown preventDefault, que ja
+  // mantem o foco; mas restaurar tambem cobre os selects/cor.)
+  const savedRange = useRef<Range | null>(null);
   const [st, setSt] = useState({ bold: false, italic: false, underline: false, fontName: "", sizePt: "", color: "#000000" });
 
   // Conteudo inicial — so na montagem (evita reset do cursor enquanto digita).
@@ -53,8 +59,29 @@ export default function RichTextEditor({ value, onChange }: { value: string; onC
 
   const emit = () => onChange(ref.current?.innerHTML || "");
 
+  // Guarda o Range atual se estiver DENTRO do editor (chamado em mouseup/keyup/focus).
+  const saveRange = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount) {
+      const r = sel.getRangeAt(0);
+      if (ref.current && ref.current.contains(r.commonAncestorContainer)) {
+        savedRange.current = r.cloneRange();
+      }
+    }
+  };
+  // Restaura a selecao guardada e devolve o foco ao editor (antes de cada execCommand).
+  const restoreRange = () => {
+    const sel = window.getSelection();
+    ref.current?.focus();
+    if (savedRange.current && sel) {
+      sel.removeAllRanges();
+      sel.addRange(savedRange.current);
+    }
+  };
+
   // Le o estado da selecao (B/I/S + fonte/tamanho/cor) e reflete na barra.
   const refreshState = () => {
+    saveRange();
     let bold = false, italic = false, underline = false;
     try {
       bold = document.queryCommandState("bold");
@@ -77,9 +104,9 @@ export default function RichTextEditor({ value, onChange }: { value: string; onC
   };
 
   const exec = (cmd: string, val?: string) => {
+    restoreRange();
     try { document.execCommand("styleWithCSS", false, "true"); } catch { /* noop */ }
     document.execCommand(cmd, false, val);
-    ref.current?.focus();
     emit();
     refreshState();
   };
@@ -87,6 +114,7 @@ export default function RichTextEditor({ value, onChange }: { value: string; onC
   // Tamanho em PT: marca a selecao com fontSize=7 e converte pra span style (pt exato).
   const applyFontSize = (pt: string) => {
     if (!pt) return;
+    restoreRange();
     document.execCommand("fontSize", false, "7");
     ref.current?.querySelectorAll('font[size="7"]').forEach((f) => {
       const s = document.createElement("span");
@@ -118,13 +146,13 @@ export default function RichTextEditor({ value, onChange }: { value: string; onC
         <label className="flex items-center gap-1 rounded border border-slate-300 bg-white px-1 py-0.5 text-xs" title="Cor do texto">
           A<input type="color" value={st.color} onChange={(e) => exec("foreColor", e.target.value)} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" />
         </label>
-        <button type="button" onClick={() => exec("bold")} className={btn(st.bold)} title="Negrito">B</button>
-        <button type="button" onClick={() => exec("italic")} className={btn(st.italic) + " italic"} title="Italico">I</button>
-        <button type="button" onClick={() => exec("underline")} className={btn(st.underline) + " underline"} title="Sublinhado">S</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("bold")} className={btn(st.bold)} title="Negrito">B</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("italic")} className={btn(st.italic) + " italic"} title="Italico">I</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("underline")} className={btn(st.underline) + " underline"} title="Sublinhado">U</button>
         <span className="mx-0.5 h-5 w-px bg-slate-300" />
-        <button type="button" onClick={() => exec("justifyLeft")} className={btn(false)} title="Esquerda">⯇</button>
-        <button type="button" onClick={() => exec("justifyCenter")} className={btn(false)} title="Centro">≡</button>
-        <button type="button" onClick={() => exec("justifyRight")} className={btn(false)} title="Direita">⯈</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("justifyLeft")} className={btn(false)} title="Esquerda">⯇</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("justifyCenter")} className={btn(false)} title="Centro">≡</button>
+        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => exec("justifyRight")} className={btn(false)} title="Direita">⯈</button>
       </div>
       {/* Area editavel */}
       <div

@@ -16,6 +16,7 @@
  *   printViaClone({ areaId: "budget-pdf-area", cloneId: "budget-pdf-clone" })
  */
 import { BombaDatasheetBlock, SolarDatasheetBlock } from "./HeatingDatasheets";
+import RichTextEditor from "./RichTextEditor";
 
 // ── Tipos (espelham Page/Layout do editor) ──────────────────────────────────
 export type ReportPage = {
@@ -410,18 +411,24 @@ function renderBlockByType(blockType: string | null | undefined, data: BudgetRep
 // Etapa B (WYSIWYG): quando onSelectNode existe, cada no fica CLICAVEL na folha e ganha
 // contorno quando selecionado. stopPropagation faz o clique pegar o no mais INTERNO
 // (bloco/linha) em vez do card-pai. Sem onSelectNode = render normal (impressao/preview).
-type NodeSelProps = { selectedId?: string | null; onSelectNode?: (id: string) => void };
-function ReportNodeView({ node, data, branding, selectedId, onSelectNode }: { node: ReportNode; data: BudgetReportData; branding?: ReportBranding | null } & NodeSelProps) {
+// onEditText: edicao IN-PLACE (Etapa C). Quando presente e o bloco TEXT esta selecionado,
+// o proprio texto vira editavel na FOLHA (RichTextEditor com a barrinha em cima) — sem abrir
+// painel separado. Edita o HTML CRU (com {placeholders}); resolve so na renderizacao final.
+type NodeSelProps = { selectedId?: string | null; onSelectNode?: (id: string) => void; onEditText?: (id: string, html: string) => void };
+function ReportNodeView({ node, data, branding, selectedId, onSelectNode, onEditText }: { node: ReportNode; data: BudgetReportData; branding?: ReportBranding | null } & NodeSelProps) {
   const st = node.style || {};
   const selStyle = onSelectNode
     ? { cursor: "pointer" as const, outline: selectedId === node.id ? "2px solid #06b6d4" : undefined, outlineOffset: "1px" }
     : null;
-  const childProps: NodeSelProps & { data: BudgetReportData; branding?: ReportBranding | null } = { data, branding, selectedId, onSelectNode };
+  const childProps: NodeSelProps & { data: BudgetReportData; branding?: ReportBranding | null } = { data, branding, selectedId, onSelectNode, onEditText };
   if (node.kind === "block") {
+    const editingText = !!onEditText && node.blockType === "TEXT" && selectedId === node.id;
     return (
       <div className="rp-node-block" style={{ flex: st.flex || undefined, ...selStyle }}
         onClick={onSelectNode ? (e) => { e.stopPropagation(); onSelectNode(node.id); } : undefined}>
-        {renderBlockByType(node.blockType, data, node.config, branding)}
+        {editingText
+          ? <RichTextEditor key={node.id} value={node.config?.html || ""} onChange={(html) => onEditText!(node.id, html)} />
+          : renderBlockByType(node.blockType, data, node.config, branding)}
       </div>
     );
   }
@@ -452,20 +459,20 @@ function ReportNodeView({ node, data, branding, selectedId, onSelectNode }: { no
   );
 }
 
-export function CompositionNodes({ nodes, data, branding, selectedId, onSelectNode }: { nodes: ReportNode[]; data: BudgetReportData; branding?: ReportBranding | null } & NodeSelProps) {
-  return <>{(nodes || []).map((n) => <ReportNodeView key={n.id} node={n} data={data} branding={branding} selectedId={selectedId} onSelectNode={onSelectNode} />)}</>;
+export function CompositionNodes({ nodes, data, branding, selectedId, onSelectNode, onEditText }: { nodes: ReportNode[]; data: BudgetReportData; branding?: ReportBranding | null } & NodeSelProps) {
+  return <>{(nodes || []).map((n) => <ReportNodeView key={n.id} node={n} data={data} branding={branding} selectedId={selectedId} onSelectNode={onSelectNode} onEditText={onEditText} />)}</>;
 }
 
 // Preview de uma composicao (lista de nodes) — usado no modal do editor pra ver ao vivo
 // enquanto monta os cards. NAO usa #budget-pdf-area (evita id duplicado com o preview
 // principal); as classes .rp-* sao globais (injetadas pelo BudgetReport da pagina). Inclui
 // o CSS de novo por seguranca (idempotente). Box A4-ish (210mm) so visual.
-export function CompositionPreview({ nodes, data, selectedId, onSelectNode }: { nodes: ReportNode[]; data: BudgetReportData } & NodeSelProps) {
+export function CompositionPreview({ nodes, data, selectedId, onSelectNode, onEditText }: { nodes: ReportNode[]; data: BudgetReportData } & NodeSelProps) {
   return (
     <div style={{ background: "#f1f5f9", padding: "10px", borderRadius: 8, overflow: "auto" }}>
       <style dangerouslySetInnerHTML={{ __html: REPORT_CSS }} />
       <div style={{ width: "190mm", maxWidth: "100%", margin: "0 auto", background: "#fff", padding: "10mm", boxShadow: "0 1px 8px rgba(0,0,0,.12)", color: "#0f172a", fontSize: "11px", lineHeight: 1.35 }}>
-        {nodes && nodes.length ? <CompositionNodes nodes={nodes} data={data} selectedId={selectedId} onSelectNode={onSelectNode} /> : <div className="rp-empty">Adicione cards/blocos pra ver aqui.</div>}
+        {nodes && nodes.length ? <CompositionNodes nodes={nodes} data={data} selectedId={selectedId} onSelectNode={onSelectNode} onEditText={onEditText} /> : <div className="rp-empty">Adicione cards/blocos pra ver aqui.</div>}
       </div>
     </div>
   );
@@ -596,6 +603,7 @@ export default function BudgetReport({ data, layout, editable, selectedPageId, o
         ) : (
           pages.map((page) => (
             <div className="report-page" key={page.id}
+              id={editable ? `rp-page-${page.id}` : undefined}
               style={{ ...pageStyle, ...(editable ? { cursor: "pointer", outline: selectedPageId === page.id ? "3px solid #06b6d4" : undefined, outlineOffset: "3px" } : {}) }}
               onClick={editable && onSelectPage ? () => onSelectPage(page.id) : undefined}>
               {header ? <div className="rp-gheader" dangerouslySetInnerHTML={{ __html: resolvePlaceholders(header, data) }} /> : null}

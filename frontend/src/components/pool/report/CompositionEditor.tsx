@@ -8,7 +8,6 @@
  */
 import { useState } from "react";
 import type { ReportNode } from "./BudgetReport";
-import RichTextEditor from "./RichTextEditor";
 
 const genId = () => "n" + Math.random().toString(36).slice(2, 9);
 
@@ -148,9 +147,8 @@ function NodeInspector({ node, onChange, onUploadImage }: { node: ReportNode; on
           </select>
         </label>
         {node.blockType === "TEXT" ? (
-          <div>
-            <div className="mb-1 text-xs text-slate-600">Texto — selecione um trecho pra formatar (fonte, tamanho, cor, negrito…)</div>
-            <RichTextEditor key={node.id} value={cfg.html || ""} onChange={(html) => setCfg({ html })} />
+          <div className="rounded border border-cyan-200 bg-cyan-50/60 px-2 py-2 text-xs text-slate-600">
+            ✏️ Edite o texto <b>direto na folha</b> (na pré-visualização ao lado): clique no texto, selecione um trecho e use a barrinha que aparece (fonte, tamanho, cor, negrito, alinhamento…).
           </div>
         ) : node.blockType === "IMAGE" ? (
           <div className="block text-xs text-slate-600">Imagem
