@@ -47,7 +47,18 @@ export type ReportBranding = {
   orientation?: string | null;  // "portrait" | "landscape"
   pageMarginMm?: number | null; // margem interna da pagina (mm), default 12
   headerHtml?: string | null;   // cabecalho (HTML com {placeholders}), em toda pagina
+  // Logo — tamanho (altura px) e posicao, por local (capa/cabecalho/rodape):
+  logoSizeCover?: number | null;   // altura da logo na CAPA (default 64)
+  logoSizeHeader?: number | null;  // altura da logo no CABECALHO das paginas (default 34)
+  logoFooter?: boolean | null;     // mostrar logo no RODAPE
+  logoSizeFooter?: number | null;  // altura da logo no RODAPE (default 28)
+  logoAlign?: string | null;       // "left" | "center" | "right" (default right) — capa/rodape
 };
+
+// alinhamento (left/center/right) -> flexbox
+function logoFlexAlign(a?: string | null): "flex-start" | "center" | "flex-end" {
+  return a === "left" ? "flex-start" : a === "center" ? "center" : "flex-end";
+}
 
 export type ReportLayout = {
   id?: string;
@@ -210,11 +221,11 @@ function CoverBlock({ data, branding, config }: { data: BudgetReportData; brandi
       display: "flex", flexDirection: "column", boxSizing: "border-box",
       WebkitPrintColorAdjust: "exact", printColorAdjust: "exact",
     }}>
-      {/* logo topo-direita */}
-      <div style={{ display: "flex", justifyContent: "flex-end", minHeight: 64 }}>
+      {/* logo (posicao/tamanho configuraveis; default topo-direita 64px) */}
+      <div style={{ display: "flex", justifyContent: logoFlexAlign(branding?.logoAlign), minHeight: branding?.logoSizeCover || 64 }}>
         {branding?.logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={branding.logoUrl} alt="logo" style={{ height: 64, objectFit: "contain" }} />
+          <img src={branding.logoUrl} alt="logo" style={{ height: branding?.logoSizeCover || 64, objectFit: "contain" }} />
         ) : null}
       </div>
       {/* titulo grande */}
@@ -623,16 +634,37 @@ export default function BudgetReport({ data, layout, editable, selectedPageId, o
         {pages.length === 0 ? (
           <div className="report-page"><div className="rp-empty">Layout sem paginas ativas.</div></div>
         ) : (
-          pages.map((page) => (
+          pages.map((page) => {
+            // Capa (COVER) e full-bleed: NAO leva cabecalho/rodape. As demais paginas levam o
+            // cabecalho global = texto (ex: "Orcamento no: {budgetCode}") a esquerda + LOGO a direita.
+            const isCover = page.type === "DYNAMIC" && page.dynamicType === "COVER";
+            const showHeader = !isCover && (!!header || !!branding?.logoUrl);
+            return (
             <div className="report-page" key={page.id}
               id={editable ? `rp-page-${page.id}` : undefined}
               style={{ ...pageStyle, ...(editable ? { cursor: "pointer", outline: selectedPageId === page.id ? "3px solid #06b6d4" : undefined, outlineOffset: "3px" } : {}) }}
               onClick={editable && onSelectPage ? () => onSelectPage(page.id) : undefined}>
-              {header ? <div className="rp-gheader" dangerouslySetInnerHTML={{ __html: resolvePlaceholders(header, data) }} /> : null}
+              {showHeader ? (
+                <div className="rp-gheader" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <div dangerouslySetInnerHTML={{ __html: header ? resolvePlaceholders(header, data) : "" }} />
+                  {branding?.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={branding.logoUrl} alt="logo" style={{ height: branding?.logoSizeHeader || 34, objectFit: "contain", flexShrink: 0 }} />
+                  ) : null}
+                </div>
+              ) : null}
               <div className="rp-page-body">{renderPageContent(page, data, branding)}</div>
-              {footer ? <div className="rp-gfooter" dangerouslySetInnerHTML={{ __html: resolvePlaceholders(footer, data) }} /> : null}
+              {!isCover && (footer || (branding?.logoFooter && branding?.logoUrl)) ? (
+                <div className="rp-gfooter" style={{ display: "flex", flexDirection: "column", alignItems: logoFlexAlign(branding?.logoAlign), gap: 4 }}>
+                  {branding?.logoFooter && branding?.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={branding.logoUrl} alt="logo" style={{ height: branding?.logoSizeFooter || 28, objectFit: "contain" }} />
+                  ) : null}
+                  {footer ? <div style={{ width: "100%", textAlign: "center" }} dangerouslySetInnerHTML={{ __html: resolvePlaceholders(footer, data) }} /> : null}
+                </div>
+              ) : null}
             </div>
-          ))
+          );})
         )}
       </div>
     </>

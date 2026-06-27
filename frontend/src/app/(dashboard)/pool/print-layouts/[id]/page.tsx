@@ -453,6 +453,15 @@ export default function PoolPrintLayoutEditorPage() {
           <label className="text-xs text-slate-600 flex items-center gap-1">Destaque<input type="color" value={brand.accentColor || "#1e3a8a"} onChange={(e) => setBranding({ accentColor: e.target.value })} className="h-7 w-7 cursor-pointer rounded border border-slate-300 p-0" /></label>
           <label className="cursor-pointer rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200">📁 Logo<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await uploadAsset(f); setBranding({ logoUrl: url }); toast("Logo enviado", "success"); } catch (err: any) { toast(err.message || "Erro", "error"); } if (e.target) e.target.value = ""; }} /></label>
           {brand.logoUrl ? <img src={brand.logoUrl} alt="logo" className="h-7 rounded border border-slate-200" /> : null}
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura da logo na CAPA (px)">Capa<input type="number" min={16} max={200} value={brand.logoSizeCover ?? 64} onChange={(e) => setBranding({ logoSizeCover: e.target.value ? Number(e.target.value) : null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura da logo no CABECALHO (px)">Cabec.<input type="number" min={12} max={80} value={brand.logoSizeHeader ?? 34} onChange={(e) => setBranding({ logoSizeHeader: e.target.value ? Number(e.target.value) : null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Posicao da logo (capa/rodape)">Posicao
+            <select value={brand.logoAlign || "right"} onChange={(e) => setBranding({ logoAlign: e.target.value })} className="rounded border border-slate-300 px-1 py-1 text-sm">
+              <option value="left">Esquerda</option><option value="center">Centro</option><option value="right">Direita</option>
+            </select>
+          </label>
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Mostrar logo no rodape das paginas"><input type="checkbox" checked={!!brand.logoFooter} onChange={(e) => setBranding({ logoFooter: e.target.checked })} />Logo rodape</label>
+          {brand.logoFooter ? <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura da logo no RODAPE (px)">px<input type="number" min={12} max={80} value={brand.logoSizeFooter ?? 28} onChange={(e) => setBranding({ logoSizeFooter: e.target.value ? Number(e.target.value) : null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" /></label> : null}
           <RibbonBtn icon="💾" label="Salvar" onClick={saveBranding} />
         </>)}
       </div>
