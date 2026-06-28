@@ -448,7 +448,7 @@ function renderBlockByType(blockType: string | null | undefined, data: BudgetRep
     case "TEXT": return <FixedBlock html={config?.html || ""} data={data} />;
     case "IMAGE":
       // eslint-disable-next-line @next/next/no-img-element
-      return config?.url ? <img src={config.url} alt={config?.alt || ""} style={{ maxWidth: "100%", borderRadius: 6, display: "block" }} /> : <div className="rp-empty">Imagem sem URL.</div>;
+      return config?.url ? <img src={config.url} alt={config?.alt || ""} style={{ width: config?.width || undefined, maxWidth: "100%", maxHeight: config?.maxHeight ? `${config.maxHeight}px` : undefined, objectFit: "cover", borderRadius: 6, display: "block", marginLeft: config?.align === "center" || config?.align === "right" ? "auto" : undefined, marginRight: config?.align === "center" || config?.align === "left" ? "auto" : undefined }} /> : <div className="rp-empty">Imagem sem URL.</div>;
     default: return <TodoBlock kind={blockType || "?"} />;
   }
 }
