@@ -11,7 +11,7 @@ export default function ReportFieldLibrary({ onInsertText, onInsertBlock, onClos
   onInsertBlock: (blockType: string) => void;
   onClose?: () => void;
 }) {
-  const [open, setOpen] = useState<string | null>("orcamento_piscina"); // 1 grupo aberto
+  const [open, setOpen] = useState<string | null>("orcamento_obras"); // 1 origem aberta
   const [q, setQ] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
   const query = q.trim().toLowerCase();
@@ -46,33 +46,43 @@ export default function ReportFieldLibrary({ onInsertText, onInsertBlock, onClos
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-1">
         {query ? (
-          // Busca: lista achatada com a origem ao lado
-          REPORT_FIELD_CATALOG.flatMap((s) => s.fields
-            .filter((f) => (f.label + " " + (f.token || f.blockType || "")).toLowerCase().includes(query))
-            .map((f) => ({ s, f }))
-          ).slice(0, 200).map(({ s, f }, i) => (
-            <div key={s.id + i} className="flex items-center gap-1">
-              <span className="w-4 shrink-0 text-center text-[11px]" title={s.label}>{s.icon}</span>
-              <div className="min-w-0 flex-1"><Row f={f} /></div>
+          // Busca: lista achatada (origem › subgrupo) ao lado
+          REPORT_FIELD_CATALOG.flatMap((s) => s.groups.flatMap((g) => g.fields
+            .filter((f) => (f.label + " " + (f.token || f.blockType || "") + " " + g.label + " " + s.label).toLowerCase().includes(query))
+            .map((f) => ({ s, g, f }))
+          )).slice(0, 250).map(({ s, g, f }, i) => (
+            <div key={s.id + i}>
+              <div className="px-1 pt-1 text-[9px] text-slate-400">{s.icon} {s.label} › {g.label}</div>
+              <Row f={f} />
             </div>
           ))
         ) : (
-          REPORT_FIELD_CATALOG.map((s) => (
-            <div key={s.id} className="mb-0.5">
-              <button type="button" onClick={() => setOpen(open === s.id ? null : s.id)}
-                className={`flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[12px] font-semibold ${open === s.id ? "bg-cyan-100 text-cyan-800" : "text-slate-700 hover:bg-slate-100"}`}>
-                <span className="w-4 shrink-0 text-center">{open === s.id ? "▾" : "▸"}</span>
-                <span>{s.icon}</span>
-                <span className="truncate">{s.label}</span>
-                {s.live ? <span className="ml-auto rounded-full bg-emerald-100 px-1.5 text-[9px] text-emerald-700">dados reais</span> : <span className="ml-auto text-[9px] text-slate-400">{s.fields.length}</span>}
-              </button>
-              {open === s.id ? (
-                <div className="ml-2 border-l border-slate-200 pl-1">
-                  {s.fields.map((f, i) => <Row key={i} f={f} />)}
-                </div>
-              ) : null}
-            </div>
-          ))
+          REPORT_FIELD_CATALOG.map((s) => {
+            const count = s.groups.reduce((n, g) => n + g.fields.length, 0);
+            return (
+              <div key={s.id} className="mb-0.5">
+                <button type="button" onClick={() => setOpen(open === s.id ? null : s.id)}
+                  className={`flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[12px] font-semibold ${open === s.id ? "bg-cyan-100 text-cyan-800" : "text-slate-700 hover:bg-slate-100"}`}>
+                  <span className="w-4 shrink-0 text-center">{open === s.id ? "▾" : "▸"}</span>
+                  <span>{s.icon}</span>
+                  <span className="truncate">{s.label}</span>
+                  {s.live ? <span className="ml-auto rounded-full bg-emerald-100 px-1.5 text-[9px] text-emerald-700">dados reais</span> : <span className="ml-auto text-[9px] text-slate-400">{count}</span>}
+                </button>
+                {open === s.id ? (
+                  <div className="ml-1.5 border-l border-slate-200 pl-1">
+                    {s.groups.map((g, gi) => (
+                      <div key={gi} className="mb-0.5">
+                        <div className="flex items-center gap-1 px-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                          <span>{g.icon}</span><span className="truncate">{g.label}</span>
+                        </div>
+                        {g.fields.map((f, fi) => <Row key={fi} f={f} />)}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })
         )}
       </div>
       <div className="border-t border-slate-200 px-2 py-1 text-[9px] text-slate-400">Clique num campo pra inserir na folha. Origens sem &quot;dados reais&quot; inserem o token (resolve quando ligar a fonte).</div>
