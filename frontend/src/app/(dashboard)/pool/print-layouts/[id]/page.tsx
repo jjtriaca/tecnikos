@@ -637,11 +637,11 @@ export default function PoolPrintLayoutEditorPage() {
           {layout.pages.map((p, idx) => (
             <div key={p.id}
               draggable
-              onClick={() => { setEditingPage(null); setShowAddPage(false); setSelectedPageId(p.id); }}
+              onClick={() => { setShowAddPage(false); setSelectedPageId(p.id); setEditingPage(p); }}
               onDragStart={() => handleDragStart(p.id)}
               onDragOver={(e) => handleDragOver(e, p.id)}
               onDragEnd={handleDragEnd}
-              title="Clique para ver esta pagina na folha · use Editar para alterar"
+              title="Clique para editar esta pagina (estilo PowerPoint)"
               className={`rounded-xl border bg-white shadow-sm p-3 cursor-pointer transition ${
                 editingPage?.id === p.id || selectedPageId === p.id ? "border-cyan-500 ring-2 ring-cyan-200" : draggingId === p.id ? "opacity-50 border-cyan-400" : "border-slate-200 hover:border-cyan-300"
               }`}
@@ -682,16 +682,9 @@ export default function PoolPrintLayoutEditorPage() {
                     </div>
                   )}
                 </div>
-                <div className="flex flex-col gap-1">
-                  <button onClick={(e) => { e.stopPropagation(); setEditingPage(p); }}
-                    className="text-xs text-cyan-600 hover:text-cyan-800 font-medium">
-                    Editar
-                  </button>
-                  <button onClick={(e) => { e.stopPropagation(); setPendingDelete({ id: p.id, n: idx + 1 }); }}
-                    className="text-xs text-red-500 hover:text-red-700 font-medium">
-                    Remover
-                  </button>
-                </div>
+                <button onClick={(e) => { e.stopPropagation(); setPendingDelete({ id: p.id, n: idx + 1 }); }}
+                  title="Remover pagina"
+                  className="h-6 w-6 shrink-0 rounded text-sm text-slate-400 hover:bg-red-50 hover:text-red-600">✕</button>
               </div>
             </div>
           ))}

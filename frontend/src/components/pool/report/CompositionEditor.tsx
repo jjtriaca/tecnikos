@@ -307,13 +307,19 @@ function NodeInspector({ node, onChange, onUploadImage }: { node: ReportNode; on
       <div className="rounded border border-slate-200 bg-slate-50 p-2 space-y-2">
         <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Posicao na pagina</div>
         <div className="grid grid-cols-2 gap-2">
-          <label className="block text-xs text-slate-600">Largura
-            <select value={st.width || "100%"} onChange={(e) => setStyle({ width: e.target.value })}
-              className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm">
-              <option value="100%">100% (cheia)</option><option value="75%">75%</option>
-              <option value="66%">66%</option><option value="50%">50%</option>
-              <option value="33%">33%</option><option value="25%">25%</option>
-            </select>
+          <label className="block text-xs text-slate-600">Largura {st.bleed ? "(sangria: cheia)" : ""}
+            <div className="mt-0.5 flex gap-1">
+              <input type="number" min={0} disabled={!!st.bleed} placeholder="auto"
+                value={st.width && st.width !== "auto" ? (parseFloat(st.width as string) || "") : (st.widthPx ?? "")}
+                onChange={(e) => { const n = e.target.value; const cur = (st.width as string) || ""; const u = cur.endsWith("px") ? "px" : "%"; setStyle({ width: n ? `${n}${u}` : null, widthPx: null }); }}
+                className="w-full rounded border border-slate-300 px-2 py-1 text-sm disabled:bg-slate-100 disabled:text-slate-400" />
+              <select disabled={!!st.bleed}
+                value={(st.width as string)?.endsWith("px") || st.widthPx != null ? "px" : st.width ? "%" : "auto"}
+                onChange={(e) => { const u = e.target.value; const n = st.width ? parseFloat(st.width as string) : st.widthPx ?? ""; setStyle({ width: u === "auto" || !n ? null : `${n}${u}`, widthPx: null }); }}
+                className="rounded border border-slate-300 px-1 py-1 text-xs disabled:bg-slate-100 disabled:text-slate-400">
+                <option value="auto">auto</option><option value="%">%</option><option value="px">px</option>
+              </select>
+            </div>
           </label>
           <label className="block text-xs text-slate-600">Alinhar na pagina
             <select value={st.selfAlign || "left"} onChange={(e) => setStyle({ selfAlign: e.target.value })}
@@ -321,20 +327,16 @@ function NodeInspector({ node, onChange, onUploadImage }: { node: ReportNode; on
               <option value="left">Esquerda</option><option value="center">Centro</option><option value="right">Direita</option>
             </select>
           </label>
-          <label className="block text-xs text-slate-600">Largura exata (px)
-            <input type="number" min={0} value={st.widthPx ?? ""} placeholder="usa a % acima" onChange={(e) => setStyle({ widthPx: e.target.value ? Number(e.target.value) : null })}
-              className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" />
-          </label>
           <label className="block text-xs text-slate-600">Altura do card (px)
             <input type="number" min={0} value={st.height ?? ""} placeholder="automática" onChange={(e) => setStyle({ height: e.target.value ? Number(e.target.value) : null })}
               className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" />
           </label>
           <label className="block text-xs text-slate-600">Peso na linha (lado a lado)
-            <input type="number" min={0} step={1} value={st.flex ?? ""} placeholder="igual" onChange={(e) => setStyle({ flex: e.target.value ? Number(e.target.value) : null })}
-              className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" />
+            <input type="number" min={0} step={1} disabled={!!st.bleed} value={st.flex ?? ""} placeholder="igual" onChange={(e) => setStyle({ flex: e.target.value ? Number(e.target.value) : null })}
+              className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm disabled:bg-slate-100 disabled:text-slate-400" />
           </label>
         </div>
-        <div className="text-[10px] text-slate-400">Largura exata (px) vence a % acima. <b>Peso</b> divide o espaço entre cards lado a lado (ex.: 2 e 1 = 66%/33%). Deixe vazio pra largura/iguais.</div>
+        <div className="text-[10px] text-slate-400">Largura em <b>px</b>, <b>%</b> ou <b>auto</b> (cheia) — escolha a unidade. <b>Peso</b> divide o espaço entre cards lado a lado (ex.: 2 e 1 = 66%/33%). {st.bleed ? "Sangria liga: a capa ocupa a folha toda, largura/peso travados." : ""}</div>
         <div className="grid grid-cols-3 gap-2">
           <label className="block text-xs text-slate-600">Espaco acima (px)
             <input type="number" min={0} value={st.marginTop ?? 0} onChange={(e) => setStyle({ marginTop: Number(e.target.value) })} className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" /></label>
