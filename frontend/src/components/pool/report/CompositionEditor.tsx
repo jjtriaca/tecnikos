@@ -170,17 +170,30 @@ function NodeInspector({ node, onChange, onUploadImage }: { node: ReportNode; on
                 {cfg.url ? <img src={cfg.url} alt="" className="h-8 rounded border border-slate-200 bg-white" /> : null}
               </div>
             ) : null}
+            {/* Ajuste da imagem (editavel — nada fixo) */}
+            <label className="mt-2 block text-[11px] text-slate-600">Ajuste
+              <select value={cfg.fit || "proportional"} onChange={(e) => setCfg({ fit: e.target.value })} className="mt-0.5 w-full rounded border border-slate-300 px-1 py-1 text-xs">
+                <option value="proportional">Proporcional (largura manda, não distorce)</option>
+                <option value="fill">Preencher card 100% (corta sobra, não distorce)</option>
+                <option value="stretch">Esticar (ocupa tudo, pode distorcer)</option>
+              </select>
+            </label>
+            {(cfg.fit || "proportional") === "fill" ? (
+              <div className="mt-1 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] text-amber-700">
+                Pra preencher 100% defina a <b>Altura do card</b> (no Card pai). A imagem ocupa todo o card.
+              </div>
+            ) : null}
             {/* Tamanho/posicao da imagem (editavel — nada fixo) */}
             <div className="mt-2 grid grid-cols-3 gap-2">
               <label className="block text-[11px] text-slate-600">Largura
-                <select value={cfg.width || "100%"} onChange={(e) => setCfg({ width: e.target.value })} className="mt-0.5 w-full rounded border border-slate-300 px-1 py-1 text-xs">
+                <select value={cfg.width || "100%"} onChange={(e) => setCfg({ width: e.target.value })} className="mt-0.5 w-full rounded border border-slate-300 px-1 py-1 text-xs" disabled={cfg.fit === "fill"}>
                   <option value="100%">100%</option><option value="75%">75%</option><option value="50%">50%</option><option value="auto">auto</option>
                 </select>
               </label>
               <label className="block text-[11px] text-slate-600">Altura máx (px)
-                <input type="number" min={0} value={cfg.maxHeight ?? ""} placeholder="auto" onChange={(e) => setCfg({ maxHeight: e.target.value ? Number(e.target.value) : null })} className="mt-0.5 w-full rounded border border-slate-300 px-1 py-1 text-xs" /></label>
+                <input type="number" min={0} value={cfg.maxHeight ?? ""} placeholder="auto" onChange={(e) => setCfg({ maxHeight: e.target.value ? Number(e.target.value) : null })} className="mt-0.5 w-full rounded border border-slate-300 px-1 py-1 text-xs" disabled={cfg.fit === "fill"} /></label>
               <label className="block text-[11px] text-slate-600">Alinhar
-                <select value={cfg.align || "left"} onChange={(e) => setCfg({ align: e.target.value })} className="mt-0.5 w-full rounded border border-slate-300 px-1 py-1 text-xs">
+                <select value={cfg.align || "left"} onChange={(e) => setCfg({ align: e.target.value })} className="mt-0.5 w-full rounded border border-slate-300 px-1 py-1 text-xs" disabled={cfg.fit === "fill"}>
                   <option value="left">Esq.</option><option value="center">Centro</option><option value="right">Dir.</option>
                 </select>
               </label>
@@ -259,6 +272,10 @@ function NodeInspector({ node, onChange, onUploadImage }: { node: ReportNode; on
               className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm">
               <option value="left">Esquerda</option><option value="center">Centro</option><option value="right">Direita</option>
             </select>
+          </label>
+          <label className="block text-xs text-slate-600">Altura do card (px)
+            <input type="number" min={0} value={st.height ?? ""} placeholder="automática" onChange={(e) => setStyle({ height: e.target.value ? Number(e.target.value) : null })}
+              className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" />
           </label>
         </div>
         <div className="grid grid-cols-3 gap-2">

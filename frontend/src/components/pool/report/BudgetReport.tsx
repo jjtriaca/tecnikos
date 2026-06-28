@@ -89,6 +89,7 @@ export type ReportNode = {
     justify?: string | null;      // row: distribuicao das colunas (start|center|end|between)
     textAlign?: string | null;    // alinhamento do texto dentro do no (left|center|right|justify)
     fontSize?: number | null;     // tamanho do texto do bloco/card inteiro (pt) — aplica em tudo dentro
+    height?: number | null;       // altura do card (px) — permite imagem preencher 100%
   } | null;
   children?: ReportNode[];        // card / row
   blockType?: string | null;      // block: TEXT | IMAGE | COVER | PRODUCTS_BY_SECTION | BUDGET_SUMMARY | ...
@@ -447,9 +448,25 @@ function renderBlockByType(blockType: string | null | undefined, data: BudgetRep
     case "HEATING_BOMBA": return <BombaDatasheetBlock data={data} />;
     case "HEATING_SOLAR": return <SolarDatasheetBlock data={data} />;
     case "TEXT": return <FixedBlock html={config?.html || ""} data={data} />;
-    case "IMAGE":
+    case "IMAGE": {
+      if (!config?.url) return <div className="rp-empty">Imagem sem URL.</div>;
+      const fit = config?.fit || "proportional";
+      const radius = config?.radius != null ? `${config.radius}px` : 6;
+      // PREENCHER CARD: imagem absoluta ocupa 100%x100% do card (card precisa ter Altura definida).
+      // object-fit:cover NAO distorce — só corta o excedente pra preencher.
+      if (fit === "fill") {
+        // eslint-disable-next-line @next/next/no-img-element
+        return <img src={config.url} alt={config?.alt || ""} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", borderRadius: radius }} />;
+      }
+      // ESTICAR: ocupa o espaco todo distorcendo (object-fit:fill) — opcao explicita.
+      if (fit === "stretch") {
+        // eslint-disable-next-line @next/next/no-img-element
+        return <img src={config.url} alt={config?.alt || ""} style={{ width: "100%", height: config?.maxHeight ? `${config.maxHeight}px` : "100%", objectFit: "fill", display: "block", borderRadius: radius }} />;
+      }
+      // PROPORCIONAL (padrao): a Largura (%) manda, altura automatica -> mantem a proporcao, NUNCA distorce.
       // eslint-disable-next-line @next/next/no-img-element
-      return config?.url ? <img src={config.url} alt={config?.alt || ""} style={{ width: config?.width || undefined, maxWidth: "100%", maxHeight: config?.maxHeight ? `${config.maxHeight}px` : undefined, objectFit: "cover", borderRadius: 6, display: "block", marginLeft: config?.align === "center" || config?.align === "right" ? "auto" : undefined, marginRight: config?.align === "center" || config?.align === "left" ? "auto" : undefined }} /> : <div className="rp-empty">Imagem sem URL.</div>;
+      return <img src={config.url} alt={config?.alt || ""} style={{ width: config?.width || "auto", maxWidth: "100%", height: "auto", maxHeight: config?.maxHeight ? `${config.maxHeight}px` : undefined, objectFit: "contain", borderRadius: radius, display: "block", marginLeft: config?.align === "center" || config?.align === "right" ? "auto" : undefined, marginRight: config?.align === "center" || config?.align === "left" ? "auto" : undefined }} />;
+    }
     default: return <TodoBlock kind={blockType || "?"} />;
   }
 }
@@ -518,6 +535,11 @@ function ReportNodeView({ node, data, branding, selectedId, onSelectNode, onEdit
     marginRight: st.selfAlign === "center" || st.selfAlign === "left" ? "auto" : undefined,
     textAlign: (st.textAlign as any) || undefined,
     fontSize: st.fontSize ? `${st.fontSize}pt` : undefined,
+    // altura fixa do card (px) — permite imagem "Preencher card" ocupar 100%.
+    // position:relative + overflow:hidden ancoram a imagem absoluta e cortam o excedente.
+    height: st.height != null ? `${st.height}px` : undefined,
+    position: st.height != null ? "relative" : undefined,
+    overflow: st.height != null ? "hidden" : undefined,
     ...selStyle,
   };
   return (
