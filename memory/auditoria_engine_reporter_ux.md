@@ -5,6 +5,7 @@
 **Montar o layout SEMPRE pela tela do Chrome (dogfooding), não hardcodar blocos.** Ao montar, sentir como é o uso real; a CADA dificuldade ou ponto não-intuitivo (fator humano) → ANOTAR aqui pra virar melhoria. Tarefa em curso: apagar as 2 páginas do layout "Piscina Pré Moldada" e remontar do ZERO espelhando o PDF da Andréia Santana (8 págs), considerando ORCP-00001. Abordagem escolhida: ALTA FIDELIDADE, página por página.
 
 ### Atrito observado ao montar (vai virar melhoria)
+- [✅ FRICTION 8 — CORRIGIDO v1.14.47] Botão "+ no topo" era contraditório (sempre adiciona embaixo, no nível raiz). Renomeado para "+ Novo" (Juliano apontou).
 - [✅ FRICTION 1 — CORRIGIDO v1.14.41] "Remover" página usava `window.confirm()` nativo (UX pobre + travava automação). Trocado por modal de confirmação próprio ("Remover pagina N?" + Cancelar/Remover).
 - [🔴 FRICTION 2] Não dá pra dar fundo SÓ na Capa (cinza, como o PDF) pela tela — o único controle de fundo é GLOBAL (aba Página, afeta TODAS as páginas). Capa precisa de fundo próprio. → Melhoria: bloco Capa com `coverBg` (default cinza SLS), idealmente com color-picker no editor da página dinâmica. (Fix em andamento.)
 - [🔴 FRICTION 3] Capa sem logo fica com canto vazio e não avisa que falta subir o logo (Estilo → 📁 Logo). Sugerir placeholder/aviso "envie o logo".
