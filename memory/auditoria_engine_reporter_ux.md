@@ -11,7 +11,16 @@
 - [x] **Bugs texto v1.14.65:** (1) texto **autossalva** (onCanvasChange→scheduleSave; blur→commit); (2) **desfazer desfaz o texto** (commit no blur empurra histórico). 
 - [x] **Novo card v1.14.65:** botão "Novo card" no Inserir = caixa CARD (retângulo bg/borda). 🔜 PENDENTE: **hierarquia/cascata do card** (card contendo outras caixas + árvore inline ao clicar) — nesting ainda não implementado (modelo de boxes é plano; sobrepõe por z-order). Próximo item. clicar "Cabeçalho" mostra a faixa do cabeçalho na página e DESFOCA o resto; edita inserindo (Inserir → imagem/texto/bloco) — SEM checkbox "incluir logo". Idem rodapé. (header/footer viram canvas próprio: branding.headerBoxes/footerBoxes; rendem em todas as páginas de conteúdo)
 
-## 🧪 DOGFOODING rodada 2 (28/06, v1.14.68) — ACUMULANDO (NÃO corrigir ainda; fazer tudo num deploy depois)
+## ✅ PACOTE v1.14.69 (28/06) — implementado
+- [x] F2/card: **clique simples seleciona, duplo-clique edita** (não entra em edição no 1º clique; dá pra mover/apagar). 
+- [x] F10: **fonte/tamanho/cor agem na CAIXA selecionada** (não só editando texto) — resolve "aumentar fonte não funciona".
+- [x] Campo de tamanho: **setas nativas, removido +/−**, aplica na hora.
+- [x] F9: **Capa e Termos saíram** dos blocos; ficaram só as tabelas dinâmicas.
+- [x] F3: **painel "Campos" não colapsa** mais ao perder foco.
+- [x] F8: **nomear páginas** (✏️ inline no card; pageConfig.name; preservado no autosave).
+- [x] F1 (EDITOR): campos de Cliente/Empresa **resolvem no preview** com dados de exemplo ({clientPhone}/{clientEmail}/{clientAddress}/{clientState}/{clientZip}/{clientTradeName}/{company*}). 🔜 FALTA ligar no relatório REAL (BudgetReportModal.buildReportData mapear partner+company do orçamento).
+
+## 🧪 DOGFOODING rodada 2 (28/06, v1.14.68) — ACUMULANDO (resto pendente)
 - [ ] **F1 (ALTO) Campos do Cliente/Empresa NÃO resolvem** — só `{clientName}/{clientDocument}/{clientCity}` + `{budget*}/{pool*}` resolvem. `{clientPhone}/{clientEmail}/{clientAddress}/{clientNeighborhood}/{clientState}/{clientZip}/{clientTradeName}` e TODOS os `{company*}` ficam LITERAIS, mesmo no Pool (origem "dados reais"). A bíblia oferece campos que não funcionam. → Ligar TODOS os campos de Partner + Company ao contexto de dados (backend buildReportData/BudgetReportModal + BudgetReportData + resolvePlaceholders). Testado: inseri {clientName}=Anderson ✓ mas {clientPhone}={clientPhone} ✗.
 - [ ] **F2 Editar texto x arrastar** — clicar DE NOVO numa caixa de texto selecionada entra em EDIÇÃO; ao tentar mover dá pra editar sem querer. → Editar TEXTO só por **duplo-clique** (clique simples = selecionar/mover). (arrasto real só testável manualmente — automação não dispara pointer-drag)
 - [ ] **F3 Painel "Campos" fecha/colapsa fácil** ao perder foco (auto-minimizar agressivo) e os itens viram stale; inserir vários campos seguidos é chato. → não colapsar ao clicar num campo; manter aberto/fixável.
