@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/Toast";
 import BudgetReport, { BudgetReportData, ReportNode, CompositionPreview, CanvasEditor, Box } from "@/components/pool/report/BudgetReport";
 import { printViaClone } from "@/lib/printViaClone";
 import CompositionEditor from "@/components/pool/report/CompositionEditor";
+import ReportFieldLibrary from "@/components/pool/report/ReportFieldLibrary";
 
 const genBoxId = () => "b" + Math.random().toString(36).slice(2, 9);
 
@@ -143,6 +144,7 @@ export default function PoolPrintLayoutEditorPage() {
   const [pendingDelete, setPendingDelete] = useState<{ id: string; n: number } | null>(null);
   // Aba "Cab/Rodape": qual esta sendo editado (cabecalho ou rodape).
   const [hfEdit, setHfEdit] = useState<"header" | "footer">("header");
+  const [showLibrary, setShowLibrary] = useState(true); // painel "biblia" de campos/blocos
 
   // ── CANVAS (PowerPoint): caixas livres da pagina em edicao ──
   const [boxes, setBoxes] = useState<Box[]>([]);
@@ -595,20 +597,9 @@ export default function PoolPrintLayoutEditorPage() {
           {editingPage && pageIsCanvas(editingPage) ? (<>
             <RibbonBtn icon="🇹" label="Texto" onClick={() => addBox("TEXT", {})} />
             <RibbonBtn icon="🖼️" label="Imagem" onClick={() => addBox("IMAGE", {})} />
-            <label className="text-xs text-slate-600 flex items-center gap-1">Bloco
-              <select value="" onChange={(e) => { if (e.target.value) addBox("BLOCK", { blockType: e.target.value }); }} className="rounded border border-slate-300 px-2 py-1 text-sm">
-                <option value="">+ inserir…</option>
-                <option value="COVER">Capa</option>
-                <option value="PRODUCTS_BY_SECTION">Produtos por etapa</option>
-                <option value="BUDGET_SUMMARY">Resumo do orcamento</option>
-                <option value="TERMS_CONDITIONS">Termos e condicoes</option>
-                <option value="INSTALLMENTS">Plano de pagamento</option>
-                <option value="PHOTOS_GALLERY">Galeria de fotos</option>
-                <option value="HEATING_SOLAR">Datasheet Solar</option>
-                <option value="HEATING_BOMBA">Datasheet Bomba</option>
-              </select>
-            </label>
-            <span className="text-[10px] text-slate-400 ml-1">Clique pra adicionar · arraste na folha pra mover · alças pra redimensionar.</span>
+            <span className="mx-0.5 h-5 w-px bg-slate-300" />
+            <RibbonBtn icon="📚" label={showLibrary ? "Ocultar campos" : "Campos & blocos"} onClick={() => setShowLibrary((v) => !v)} />
+            <span className="text-[10px] text-slate-400 ml-1">Insira pela bíblia (→) · arraste na folha pra mover · alças pra redimensionar.</span>
           </>) : (
             <span className="text-xs text-slate-500 px-2">Crie/abra uma pagina pra inserir caixas (texto, imagem, bloco).</span>
           )}
@@ -931,6 +922,14 @@ export default function PoolPrintLayoutEditorPage() {
           <div className="flex-1 flex items-center justify-center text-slate-500 text-sm">Selecione uma pagina a esquerda (ou crie uma nova) para editar.</div>
         )}
       </div>
+      {/* DIREITA: biblioteca de campos/blocos (a "biblia") — so em pagina canvas */}
+      {editingPage && pageIsCanvas(editingPage) && showLibrary ? (
+        <ReportFieldLibrary
+          onInsertText={(token) => addBox("TEXT", { html: `<p>${token}</p>` })}
+          onInsertBlock={(blockType) => addBox("BLOCK", { blockType })}
+          onClose={() => setShowLibrary(false)} />
+      ) : null}
+
       {/* OCULTO: render completo (#budget-pdf-area) p/ impressao — reflete os boxes ao vivo */}
       <div aria-hidden style={{ position: "absolute", left: -99999, top: 0 }}>
         <BudgetReport data={SAMPLE_BUDGET} layout={{ branding: layout.branding, pages: layout.pages.map((p) => editingPage && p.id === editingPage.id && pageIsCanvas(editingPage) ? { ...p, type: "FIXED", pageConfig: { canvas: true, boxes } } : p) }} />
