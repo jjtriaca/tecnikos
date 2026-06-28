@@ -4,6 +4,19 @@
 **PRINCÍPIO-MESTRE: NADA fixo no código — em QUALQUER página, TUDO é editável pelo operador** (tamanho/posição/cor/texto/imagem). Quando algo está hardcoded (ex.: tamanho/posição da logo), virar controle editável. **Quando travar numa dificuldade (ex.: upload de arquivo via automação), CHAMAR o Juliano** em vez de inventar contorno.
 **Montar o layout SEMPRE pela tela do Chrome (dogfooding), não hardcodar blocos.** Ao montar, sentir como é o uso real; a CADA dificuldade ou ponto não-intuitivo (fator humano) → ANOTAR aqui pra virar melhoria. Tarefa em curso: apagar as 2 páginas do layout "Piscina Pré Moldada" e remontar do ZERO espelhando o PDF da Andréia Santana (8 págs), considerando ORCP-00001. Abordagem escolhida: ALTA FIDELIDADE, página por página.
 
+## 📋 ESTADO DO LAYOUT "Piscina Pré Moldada" (28/06, v1.14.50) — 7 páginas
+1. Capa (dinâmica COVER) ✅ cinza+logo+cliente, título reposicionado ~40%.
+2. Sobre (Composição) ✅ intro + Sobre Mim/foto Juliano + Nossa História/foto loja + 2 contatos.
+3. Produtos por seção (dinâmica PRODUCTS_BY_SECTION) — renderiza todas as etapas (rascunho).
+4. Resumo do orçamento (dinâmica BUDGET_SUMMARY) — resumo por etapa (NÃO é o detalhado).
+5. Termos e condições (dinâmica TERMS_CONDITIONS).
+6. Plano de pagamento (dinâmica INSTALLMENTS).
+7. Datasheet Coletor Solar (Composição c/ bloco HEATING_SOLAR — pois o enum do backend não tem HEATING_*).
+
+## 🔶 PENDÊNCIAS (anotadas; algumas precisam do Juliano)
+**Precisam de você:** (a) **Verificar a IMPRESSÃO** — não controlo o diálogo nativo de impressão pela automação; confira se sai idêntico (quebras, capa full-bleed, cab/rodapé por página). (b) Decisões de estilo fino (tamanhos de fonte exatos, cor laranja das Condições). (c) Reordenar Datasheet Solar pra antes do Resumo (ou eu reordeno).
+**Posso fazer (grandes):** (1) faixa de CARACTERÍSTICAS da piscina (dimensões) no topo da P3; (2) dividir Produtos em 2 págs + formato 3 colunas (etapa|itens|imagem)+notas NBR como o PDF; (3) **Resumo Financeiro DETALHADO** (item a item por etapa + total produtos/serviços) = BLOCO NOVO — checar se BudgetReportData tem dados item-level; (4) Condições+Parcelas numa página só com estilo laranja; (5) **ícones + links clicáveis** nas redes sociais (precisa botão de link no editor de texto); (6) polir tamanhos/negrito da P2; (7) avaliar enum backend HEATING_* (migration multi-tenant) se quiser datasheet como página dinâmica.
+
 ### Atrito observado ao montar (vai virar melhoria)
 - [✅ FRICTION 8 — CORRIGIDO v1.14.47] Botão "+ no topo" era contraditório (sempre adiciona embaixo, no nível raiz). Renomeado para "+ Novo" (Juliano apontou).
 - [🐞 FRICTION 9 — CORRIGIDO v1.14.48] Mudar tamanho da fonte deixava o texto GIGANTE e o seletor mostrava só "Tam". Causa: `selExec` (B/I/cor) liga `styleWithCSS=true` no documento; aí o `fontSize=7` virava `<span font-size:xx-large>` e o conversor (que busca `font[size=7]`) não achava → ficava enorme. Fix: forçar `styleWithCSS=false` antes do fontSize no `selFontSize` + converter `.rp-inline-edit font[size=7]` em todo o documento. TAMBÉM: tamanho virou **campo digitável** (input number, aplica no Enter/blur) em vez de dropdown fixo (Juliano: "poder digitar, ex 6"). ⚠️ Textos já salvos com o tamanho-gigante: re-selecionar e setar o tamanho de novo (agora funciona).
