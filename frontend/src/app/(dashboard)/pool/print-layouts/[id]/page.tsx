@@ -212,6 +212,8 @@ export default function PoolPrintLayoutEditorPage() {
   // Campo de tamanho DIGITÁVEL (reflete a seleção, mas aceita qualquer valor digitado).
   const [sizeInput, setSizeInput] = useState("");
   useEffect(() => { setSizeInput(selFmt.sizePt || ""); }, [selFmt.sizePt]);
+  // Campo de LINK (aba Inicio): digita a URL/numero/@ e aplica na selecao.
+  const [linkInput, setLinkInput] = useState("");
   const ribFmtBtn = (active: boolean) =>
     `h-7 w-7 rounded text-sm font-bold ${active ? "bg-cyan-600 text-white" : "bg-white text-slate-700 border border-slate-300"} hover:bg-cyan-50`;
 
@@ -283,6 +285,22 @@ export default function PoolPrintLayoutEditorPage() {
       while (f.firstChild) s.appendChild(f.firstChild);
       f.replaceWith(s);
     });
+    fireInput(); reflectSel();
+  };
+  // Link clicavel na selecao (createLink). O <a href> vira link clicavel no PDF (Salvar como PDF).
+  const selLink = (url: string) => {
+    if (!closestEditable(selRange.current)) return;
+    let href = url.trim();
+    if (!href) { restoreSel(); document.execCommand("unlink"); fireInput(); reflectSel(); return; }
+    // normaliza: numero de WhatsApp -> wa.me; @ Instagram -> instagram.com; senao https://
+    const digits = href.replace(/[^\d]/g, "");
+    if (/^@/.test(href)) href = `https://instagram.com/${href.replace(/^@/, "")}`;
+    else if (/whats|wa\.me/i.test(href)) href = href.startsWith("http") ? href : `https://wa.me/${digits}`;
+    else if (!/^https?:\/\//i.test(href)) href = digits.length >= 10 ? `https://wa.me/55${digits}` : `https://${href}`;
+    restoreSel();
+    document.execCommand("createLink", false, href);
+    // marca os <a> recem-criados pra abrir em nova aba (cosmetico; no PDF vira link)
+    closestEditable(selRange.current)?.querySelectorAll('a:not([target])').forEach((a) => { (a as HTMLAnchorElement).target = "_blank"; (a as HTMLAnchorElement).rel = "noopener"; });
     fireInput(); reflectSel();
   };
 
@@ -424,6 +442,12 @@ export default function PoolPrintLayoutEditorPage() {
           <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selExec("justifyLeft")} className={ribFmtBtn(false)} title="Esquerda">⯇</button>
           <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selExec("justifyCenter")} className={ribFmtBtn(false)} title="Centro">≡</button>
           <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selExec("justifyRight")} className={ribFmtBtn(false)} title="Direita">⯈</button>
+          <span className="mx-0.5 h-5 w-px bg-slate-300" />
+          <input value={linkInput} placeholder="link/número/@" title="Selecione o texto, digite o link (URL, número do WhatsApp ou @ do Instagram) e clique 🔗 (vazio = remover link)"
+            onChange={(e) => setLinkInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); selLink(linkInput); } }}
+            className="w-32 rounded border border-slate-300 px-1 py-1 text-xs" />
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selLink(linkInput)} className={ribFmtBtn(false)} title="Aplicar link na seleção">🔗</button>
           <span className="text-[10px] text-slate-400 ml-1">selecione um texto na folha pra formatar</span>
         </>)}
         {tab === "Inserir" && (<>
