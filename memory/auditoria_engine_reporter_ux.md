@@ -11,6 +11,15 @@
 - [x] **Bugs texto v1.14.65:** (1) texto **autossalva** (onCanvasChange→scheduleSave; blur→commit); (2) **desfazer desfaz o texto** (commit no blur empurra histórico). 
 - [x] **Novo card v1.14.65:** botão "Novo card" no Inserir = caixa CARD (retângulo bg/borda). 🔜 PENDENTE: **hierarquia/cascata do card** (card contendo outras caixas + árvore inline ao clicar) — nesting ainda não implementado (modelo de boxes é plano; sobrepõe por z-order). Próximo item. clicar "Cabeçalho" mostra a faixa do cabeçalho na página e DESFOCA o resto; edita inserindo (Inserir → imagem/texto/bloco) — SEM checkbox "incluir logo". Idem rodapé. (header/footer viram canvas próprio: branding.headerBoxes/footerBoxes; rendem em todas as páginas de conteúdo)
 
+## 🧪 DOGFOODING editor canvas (28/06, v1.14.68) — achados + correções
+- [x] **Fundo da página era GLOBAL** (mudava todas) → agora **por página** (`pageConfig.bg/bgType/bgColor2`; aba Início "Fundo" mexe só na página atual; render usa o fundo da própria página). ✅ v1.14.68
+- [x] **Caixas novas sobrepunham** (mesma x,y) → **offset em cascata** ao inserir. ✅
+- [x] **Badge "HTML FIXO"** em página canvas → **"CANVAS"** + descrição "Canvas · N caixas". ✅
+- [x] **Duplicar caixa** (faltava) → botão Duplicar na aba Layout (Ctrl não). ✅
+- [ ] **Aninhamento do card** (card contendo caixas + cascata/hierarquia ao clicar) — PENDENTE (grande; modelo de boxes é plano). Próximo.
+- [ ] **Tokens de origens não-Pool não resolvem** (quote*/os*/fin*/client extra/company*) — precisam de PROVIDER de dados por origem no backend (futuro). Estrutura do catálogo já é final ([[engine_reporter_field_catalog]]).
+- [ ] Nice-to-have observados: guias de alinhamento/snapping, copiar/colar, multi-seleção.
+
 ## 🔧 REGRA DESTA SESSÃO (definida pelo Juliano)
 **PRINCÍPIO-MESTRE: NADA fixo no código — em QUALQUER página, TUDO é editável pelo operador** (tamanho/posição/cor/texto/imagem). Quando algo está hardcoded (ex.: tamanho/posição da logo), virar controle editável. **Quando travar numa dificuldade (ex.: upload de arquivo via automação), CHAMAR o Juliano** em vez de inventar contorno.
 **Montar o layout SEMPRE pela tela do Chrome (dogfooding), não hardcodar blocos.** Ao montar, sentir como é o uso real; a CADA dificuldade ou ponto não-intuitivo (fator humano) → ANOTAR aqui pra virar melhoria. Tarefa em curso: apagar as 2 páginas do layout "Piscina Pré Moldada" e remontar do ZERO espelhando o PDF da Andréia Santana (8 págs), considerando ORCP-00001. Abordagem escolhida: ALTA FIDELIDADE, página por página.
