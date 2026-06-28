@@ -92,6 +92,7 @@ export type ReportNode = {
     height?: number | null;       // altura do card (px) — permite imagem preencher 100%
     widthPx?: number | null;      // largura EXATA do card (px) — sobrepoe width (%)
     wrap?: boolean | null;        // row: quebrar colunas em telas pequenas (flex-wrap)
+    bleed?: boolean | null;       // card: sangria (cancela padding da pagina, fundo ate as bordas) — capa
   } | null;
   children?: ReportNode[];        // card / row
   blockType?: string | null;      // block: TEXT | IMAGE | COVER | PRODUCTS_BY_SECTION | BUDGET_SUMMARY | ...
@@ -548,6 +549,11 @@ function ReportNodeView({ node, data, branding, selectedId, onSelectNode, onEdit
     height: st.height != null ? `${st.height}px` : undefined,
     position: "relative",
     overflow: st.height != null ? "hidden" : undefined,
+    // SANGRIA (capa cheia): cancela o padding de 12mm da pagina -> fundo vai ate as bordas.
+    // vira flex-column pra usar espacadores (flex:1) e posicionar titulo/rodape; ocupa a folha toda.
+    ...(st.bleed
+      ? { margin: "-12mm", width: "auto", borderRadius: 0, minHeight: st.height != null ? undefined : "273mm", display: "flex", flexDirection: "column" }
+      : {}),
     ...selStyle,
   };
   return (

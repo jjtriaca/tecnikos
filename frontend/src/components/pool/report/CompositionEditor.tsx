@@ -54,17 +54,21 @@ const TEMPLATES: { label: string; make: () => ReportNode }[] = [
     ] }),
   },
   {
-    // Capa comercial EDITAVEL — mesma cara do bloco Capa, mas em cards/textos que o
-    // operador edita a vontade. Auto-preenche por placeholders ({clientName} etc.).
-    label: "Capa comercial",
-    make: () => ({ id: genId(), kind: "card", style: { padding: 10, bg: "#ffffff", borderWidth: 0, radius: 0 }, children: [
-      { id: genId(), kind: "row", style: { gap: 8 }, children: [
-        { id: genId(), kind: "block", blockType: "TEXT", style: { flex: 5 }, config: { html: "" } },
-        { id: genId(), kind: "block", blockType: "IMAGE", style: { flex: 1 }, config: { url: "" } },
+    // Capa comercial EDITAVEL — mesma cara do bloco Capa (cinza cheio ate as bordas, logo no topo,
+    // titulo grande no meio, bloco do cliente, rodape), mas TUDO em cards/textos que o operador
+    // edita a vontade (posicao, tamanho, cor). Auto-preenche por placeholders ({clientName} etc.).
+    // Espacadores (TEXT vazio com flex) empurram o titulo pro meio e o rodape pro pe.
+    label: "Capa comercial (cheia)",
+    make: () => ({ id: genId(), kind: "card", style: { bleed: true, bg: "#8c8c8c", padding: 56, textColor: "#0f172a" }, children: [
+      { id: genId(), kind: "row", style: { gap: 8, justify: "end" }, children: [
+        { id: genId(), kind: "block", blockType: "IMAGE", config: { url: "", w: 90, lockAspect: true, alignH: "right" } },
       ] },
-      { id: genId(), kind: "block", blockType: "TEXT", config: { html: "<div style='font-size:42px;font-weight:800;color:#0f172a;margin-top:24px'>Proposta Comercial</div>" } },
-      { id: genId(), kind: "block", blockType: "TEXT", config: { html: "<div style='font-size:13px;line-height:2;margin-top:80px'><b>Nome:</b> {clientName}<br><b>Cidade:</b> {clientCity}<br><b>Data:</b> {budgetDate}<br><b>Solicitante:</b> {clientName}<br><b>Orcamento no:</b> {budgetCode}</div>" } },
-      { id: genId(), kind: "block", blockType: "TEXT", config: { html: "<div style='font-size:10px;color:#64748b;border-top:1px solid #e2e8f0;padding-top:8px;margin-top:40px'>A validade da proposta e de {validityDays} dias. Apos esse periodo, favor consultar se houve alteracao no valor da proposta.</div>" } },
+      { id: genId(), kind: "block", blockType: "TEXT", style: { flex: 1 }, config: { html: "" } },
+      { id: genId(), kind: "block", blockType: "TEXT", config: { html: "<div style='font-size:54px;font-weight:800;line-height:1.05'>Proposta<br>Comercial</div>" } },
+      { id: genId(), kind: "block", blockType: "TEXT", style: { flex: 1.3 }, config: { html: "" } },
+      { id: genId(), kind: "block", blockType: "TEXT", config: { html: "<div style='font-size:13px;line-height:1.9'><b>Nome:</b> {clientName}<br><b>Cidade:</b> {clientCity}<br><b>Data:</b> {budgetDate}<br><b>Solicitante:</b> {clientName}<br><b>Orcamento no:</b> {budgetCode}</div>" } },
+      { id: genId(), kind: "block", blockType: "TEXT", style: { flex: 0.4 }, config: { html: "" } },
+      { id: genId(), kind: "block", blockType: "TEXT", style: { textAlign: "center" }, config: { html: "<div style='font-size:10px'>A validade da proposta e de {validityDays} dias. Apos esse periodo, favor consultar se houve alteracao no valor da proposta.</div>" } },
     ] }),
   },
 ];
@@ -287,6 +291,10 @@ function NodeInspector({ node, onChange, onUploadImage }: { node: ReportNode; on
         <label className="flex items-center gap-2 text-xs text-slate-600 rounded border border-slate-200 px-2 py-1">
           <input type="checkbox" checked={!!st.shadow} onChange={(e) => setStyle({ shadow: e.target.checked })} /> Sombra</label>
       </div>
+      <label className="flex items-center gap-2 rounded border border-slate-200 px-2 py-1 text-xs text-slate-600">
+        <input type="checkbox" checked={!!st.bleed} onChange={(e) => setStyle({ bleed: e.target.checked })} />
+        Sangria — capa cheia (fundo vai até as bordas, ocupa a folha toda)
+      </label>
       <div className="grid grid-cols-3 gap-2">
         <label className="block text-xs text-slate-600">Borda (px)
           <input type="number" min={0} value={st.borderWidth ?? 1} onChange={(e) => setStyle({ borderWidth: Number(e.target.value) })} className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" /></label>
