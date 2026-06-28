@@ -1,13 +1,12 @@
 # Auditoria UX — EngineReporter (editor de Layouts de Impressão) — v1.14.37
 
 ## 🟦 BACKLOG ABERTO — Editor PowerPoint (canvas) — fazer 1 a 1, 1 deploy só (pedido Juliano 28/06)
-> Canvas de caixas livres x,y JÁ no código (não deployado — v1.14.61 só tem a base). Itens pendentes:
-- [ ] **A. Digitar texto não funciona** (CRÍTICO): `preventDefault` do arrasto bloqueia o duplo-clique. Fix: arrasto só com threshold (~4px), sem preventDefault, clique-de-novo/duplo-clique entra em edição, InlineEditable com autofocus. (BudgetReport: BoxFrame + InlineEditable)
-- [ ] **B. Página quadrada / tamanho**: a folha na tela deve ficar no TAMANHO configurado (A4 retrato = alta, não quadrada), cabendo no painel (fit-to-height). Add opção **Tamanho da página (default A4)** na aba Página (210×297). (BudgetReport CanvasEditor + page.tsx)
-- [ ] **C. Bíblia em ABA própria**: tab "Campos"; clicar abre a cascata (acordeão); cada bloco/campo com **"+"** pra inserir na página. Tirar o toggle de Inserir/drawer atual. (page.tsx + ReportFieldLibrary)
-- [ ] **D. Juntar ferramentas de Página + Estilo na aba Início** (há redundância de ferramentas — fonte/cor duplicada). Remover abas Página/Estilo, folddar na Início. (page.tsx)
-- [ ] **E. Cabeçalho/Rodapé = modo de edição na folha**: clicar "Cabeçalho" mostra a faixa do cabeçalho na página e DESFOCA o resto; edita inserindo (Inserir → imagem/texto/bloco) — SEM checkbox "incluir logo". Idem rodapé. (header/footer viram canvas próprio: branding.headerBoxes/footerBoxes; rendem em todas as páginas de conteúdo)
-- [x] (feito no código) canvas de caixas, biblioteca de campos (catálogo hierárquico extensível p/ qualquer relatório), remover dropdown "Bloco".
+> Canvas de caixas livres x,y. DEPLOYED v1.14.64. Status:
+- [x] **A. Digitar texto** ✅ v1.14.63/64 (testado): arrasto com threshold (~4px) sem preventDefault; clicar-de-novo/duplo-clique entra em edição; InlineEditable autofocus. (BudgetReport: BoxFrame + InlineEditable)
+- [x] **B. Tamanho/escala da folha** ✅ v1.14.64: folha usa TODO o espaço (largura cheia, maxWidth 980) + ROLA pra baixo (não encolhe pra caber). Tamanho da página editável **L×A mm na aba Início** (default A4 210×297; orientação define default; diminuir altura deixa mais "quadrada"). `pageDims()` no BudgetReport; render/print usam W×H mm. (BudgetReport CanvasEditor + page.tsx)
+- [x] **C. Bíblia na aba "Campos"** ✅ v1.14.63: tab própria; painel cascata (acordeão 1-aberto, busca, fontes pequenas, minimiza ao perder foco); cada item com **"+"** (hover) pra inserir. (ReportFieldLibrary + reportFieldCatalog — catálogo hierárquico extensível: Genéricos/Empresa/Cliente/Orçamento Piscina[dados reais]/Ordem de Serviço/Financeiro/Produto)
+- [x] **D. Página + Estilo juntos na aba Início** ✅ v1.14.63 (testado): grupos separados por linhas finas (estilo PowerPoint): [Texto] | [Página: orient/L/A mm/Fundo] | [Marca: Logo/Prim/Dest/Salvar] | [Flags: Ativa/Quebra/Converter]. Abas Página e Estilo REMOVIDAS (sem redundância). (page.tsx)
+- [ ] **E. Cabeçalho/Rodapé = modo de edição na folha** (PENDENTE, próximo): clicar "Cabeçalho" mostra a faixa do cabeçalho na página e DESFOCA o resto; edita inserindo (Inserir → imagem/texto/bloco) — SEM checkbox "incluir logo". Idem rodapé. (header/footer viram canvas próprio: branding.headerBoxes/footerBoxes; rendem em todas as páginas de conteúdo)
 
 ## 🔧 REGRA DESTA SESSÃO (definida pelo Juliano)
 **PRINCÍPIO-MESTRE: NADA fixo no código — em QUALQUER página, TUDO é editável pelo operador** (tamanho/posição/cor/texto/imagem). Quando algo está hardcoded (ex.: tamanho/posição da logo), virar controle editável. **Quando travar numa dificuldade (ex.: upload de arquivo via automação), CHAMAR o Juliano** em vez de inventar contorno.
