@@ -142,21 +142,25 @@ export default function PoolPrintLayoutEditorPage() {
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   // Confirmacao de remocao de pagina via MODAL proprio (substitui window.confirm nativo).
   const [pendingDelete, setPendingDelete] = useState<{ id: string; n: number } | null>(null);
-  // Aba "Cab/Rodape": qual esta sendo editado (cabecalho ou rodape).
-  const [hfEdit, setHfEdit] = useState<"header" | "footer">("header");
 
   // ── CANVAS (PowerPoint): caixas livres da pagina em edicao ──
+  // `region` = o que se edita: a PAGINA, o CABECALHO ou o RODAPE. `boxes` segura as caixas
+  // da regiao ativa; scheduleSave grava no lugar certo (pagina -> pageConfig; cab/rodape -> branding).
+  const [region, setRegion] = useState<"page" | "header" | "footer">("page");
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [selBox, setSelBox] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [histInfo, setHistInfo] = useState({ canUndo: false, canRedo: false });
   const histRef = useRef<{ stack: Box[][]; idx: number }>({ stack: [], idx: -1 });
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const layoutRef = useRef<Layout | null>(null);
+  useEffect(() => { layoutRef.current = layout; }, [layout]);
   const pageIsCanvas = (p: Page | null) => !!((p?.pageConfig as any)?.canvas);
   const selectedBox = boxes.find((b) => b.id === selBox) || null;
 
-  // Carrega os boxes ao abrir uma pagina canvas (reseta historico).
+  // Carrega os boxes ao abrir uma pagina canvas (volta pra regiao PAGINA, reseta historico).
   useEffect(() => {
+    setRegion("page");
     if (editingPage && pageIsCanvas(editingPage)) {
       const bs = (((editingPage.pageConfig as any)?.boxes) || []) as Box[];
       setBoxes(bs); setSelBox(null); setSaveState("idle");
@@ -166,16 +170,37 @@ export default function PoolPrintLayoutEditorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingPage?.id]);
 
+  // Entra numa regiao de edicao (pagina / cabecalho / rodape) carregando suas caixas.
+  function enterRegion(r: "page" | "header" | "footer") {
+    const brandNow = (layoutRef.current?.branding || {}) as any;
+    const src = r === "page"
+      ? (((editingPage?.pageConfig as any)?.boxes) || [])
+      : (brandNow[r === "header" ? "headerBoxes" : "footerBoxes"] || []);
+    const bs = JSON.parse(JSON.stringify(src)) as Box[];
+    setRegion(r); setBoxes(bs); setSelBox(null); setSaveState("idle");
+    histRef.current = { stack: [JSON.parse(JSON.stringify(bs))], idx: 0 };
+    setHistInfo({ canUndo: false, canRedo: false });
+    setTab("Inserir");
+  }
+
   function scheduleSave(bs: Box[]) {
-    if (!editingPage) return;
-    const pageId = editingPage.id;
+    const r = region;
     setSaveState("saving");
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       try {
-        await api.put(`/pool-print-layouts/pages/${pageId}`, { type: "FIXED", htmlContent: null, dynamicType: null, pageConfig: { canvas: true, boxes: bs } });
+        if (r === "page") {
+          if (!editingPage) return;
+          const pageId = editingPage.id;
+          await api.put(`/pool-print-layouts/pages/${pageId}`, { type: "FIXED", htmlContent: null, dynamicType: null, pageConfig: { canvas: true, boxes: bs } });
+          setLayout((prev) => prev ? { ...prev, pages: prev.pages.map((p) => p.id === pageId ? { ...p, type: "FIXED", pageConfig: { canvas: true, boxes: bs } } : p) } : prev);
+        } else {
+          const key = r === "header" ? "headerBoxes" : "footerBoxes";
+          const nextBrand = { ...((layoutRef.current?.branding || {}) as any), [key]: bs };
+          await api.put(`/pool-print-layouts/${id}`, { branding: nextBrand });
+          setLayout((prev) => prev ? { ...prev, branding: nextBrand } : prev);
+        }
         setSaveState("saved");
-        setLayout((prev) => prev ? { ...prev, pages: prev.pages.map((p) => p.id === pageId ? { ...p, type: "FIXED", pageConfig: { canvas: true, boxes: bs } } : p) } : prev);
       } catch { setSaveState("idle"); }
     }, 700);
   }
@@ -198,16 +223,19 @@ export default function PoolPrintLayoutEditorPage() {
     h.idx++; const snap = JSON.parse(JSON.stringify(h.stack[h.idx])) as Box[];
     setBoxes(snap); setHistInfo({ canUndo: h.idx > 0, canRedo: h.idx < h.stack.length - 1 }); scheduleSave(snap);
   }
-  // Drag/resize ao vivo (sem historico) + commit (1 passo) no fim do gesto.
-  const onCanvasChange = (b: Box) => setBoxes((cur) => cur.map((x) => x.id === b.id ? b : x));
+  // Drag/resize/digitação ao vivo: atualiza + AUTOSAVE (debounce). Commit (1 passo de histórico)
+  // no fim do gesto (pointerup) e no blur do texto.
+  const onCanvasChange = (b: Box) => setBoxes((cur) => { const next = cur.map((x) => x.id === b.id ? b : x); scheduleSave(next); return next; });
   const onCanvasCommit = () => setBoxes((cur) => { pushHist(cur); scheduleSave(cur); return cur; });
 
   const maxZ = () => boxes.reduce((m, b) => Math.max(m, b.z || 0), 0);
-  function addBox(kind: "TEXT" | "IMAGE" | "BLOCK", extra: Partial<Box>) {
+  function addBox(kind: "TEXT" | "IMAGE" | "BLOCK" | "CARD", extra: Partial<Box>) {
     const base: Box = kind === "TEXT"
       ? { id: genBoxId(), type: "TEXT", x: 12, y: 12, w: 55, h: 12, z: maxZ() + 1, html: "<p>Novo texto</p>", style: { fontSize: 12 } }
       : kind === "IMAGE"
       ? { id: genBoxId(), type: "IMAGE", x: 20, y: 20, w: 40, h: 28, z: maxZ() + 1, url: "", fit: "cover" }
+      : kind === "CARD"
+      ? { id: genBoxId(), type: "CARD", x: 8, y: 8, w: 55, h: 30, z: maxZ() + 1, style: { bg: "#ffffff", borderColor: "#e2e8f0", borderWidth: 1, radius: 8 } }
       : { id: genBoxId(), type: "BLOCK", x: 5, y: 8, w: 90, h: 80, z: maxZ() + 1, blockType: "PRODUCTS_BY_SECTION", config: {} };
     const nb = { ...base, ...extra } as Box;
     commitBoxes([...boxes, nb]); setSelBox(nb.id); setTab("Layout");
@@ -558,21 +586,33 @@ export default function PoolPrintLayoutEditorPage() {
           <RibbonBtn icon="📑" label="Duplicar" onClick={() => toast("Duplicar: em breve", "info")} />
         </>)}
         {tab === "Inicio" && (<>
-          <select value={selFmt.fontName} onChange={(e) => selExec("fontName", e.target.value)} className="rounded border border-slate-300 px-2 py-1 text-sm" title="Fonte do texto selecionado">
+          <select value={selFmt.fontName} onMouseDown={(e) => e.stopPropagation()} onChange={(e) => selExec("fontName", e.target.value)} className="rounded border border-slate-300 px-2 py-1 text-sm" title="Fonte do texto selecionado">
             <option value="">Fonte</option>
-            <option value="Georgia, serif">Georgia</option>
-            <option value="'Times New Roman', serif">Times</option>
             <option value="Arial, Helvetica, sans-serif">Arial</option>
-            <option value="'Trebuchet MS', sans-serif">Trebuchet</option>
-            <option value="'Courier New', monospace">Courier</option>
+            <option value="'Helvetica Neue', Helvetica, sans-serif">Helvetica</option>
+            <option value="Verdana, Geneva, sans-serif">Verdana</option>
+            <option value="Tahoma, Geneva, sans-serif">Tahoma</option>
+            <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+            <option value="Calibri, sans-serif">Calibri</option>
+            <option value="'Segoe UI', sans-serif">Segoe UI</option>
+            <option value="Georgia, serif">Georgia</option>
+            <option value="'Times New Roman', Times, serif">Times New Roman</option>
+            <option value="Garamond, serif">Garamond</option>
+            <option value="'Palatino Linotype', Palatino, serif">Palatino</option>
+            <option value="Cambria, serif">Cambria</option>
+            <option value="'Courier New', monospace">Courier New</option>
+            <option value="'Roboto', sans-serif">Roboto</option>
           </select>
-          <label className="text-xs text-slate-600 flex items-center gap-1" title="Tamanho do texto selecionado (pt) — digite e Enter">
-            <input type="number" min={5} max={120} value={sizeInput} placeholder="Tam"
+          {/* Tamanho: − e + aplicam NA HORA mantendo a seleção (onMouseDown preventDefault); o campo aceita digitar + Enter */}
+          <div className="flex items-center" title="Tamanho do texto selecionado (pt)">
+            <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selFontSize(String(Math.max(5, (Number(sizeInput) || Number(selFmt.sizePt) || 12) - 1)))} className="rounded-l border border-slate-300 px-1.5 py-1 text-sm hover:bg-slate-100">−</button>
+            <input type="number" min={5} max={200} value={sizeInput} placeholder="Tam"
               onChange={(e) => setSizeInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); selFontSize(sizeInput); } }}
               onBlur={() => { if (sizeInput) selFontSize(sizeInput); }}
-              className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />pt
-          </label>
+              className="w-12 border-y border-slate-300 px-1 py-1 text-center text-sm" />
+            <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selFontSize(String((Number(sizeInput) || Number(selFmt.sizePt) || 12) + 1))} className="rounded-r border border-slate-300 px-1.5 py-1 text-sm hover:bg-slate-100">+</button>
+          </div>
           <label className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-sm" title="Cor do texto"><span>A</span><input type="color" value={selFmt.color} onChange={(e) => selExec("foreColor", e.target.value)} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
           <span className="mx-0.5 h-5 w-px bg-slate-300" />
           <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selExec("bold")} className={ribFmtBtn(selFmt.bold)} title="Negrito">B</button>
@@ -588,6 +628,9 @@ export default function PoolPrintLayoutEditorPage() {
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); selLink(linkInput); } }}
             className="w-32 rounded border border-slate-300 px-1 py-1 text-xs" />
           <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selLink(linkInput)} className={ribFmtBtn(false)} title="Aplicar link na seleção">🔗</button>
+          {selectedBox?.type === "TEXT" ? (
+            <label className="text-xs text-slate-600 flex items-center gap-1 ml-1" title="Quebra automática de linha na caixa de texto"><input type="checkbox" checked={!((selectedBox.style as any)?.noWrap)} onChange={(e) => patchSelStyle({ noWrap: !e.target.checked })} />Quebra linha</label>
+          ) : null}
           {/* ── grupo PAGINA (tamanho/orientacao/fundo) ── */}
           <span className="mx-1 h-6 w-px bg-slate-300" />
           <label className="text-xs text-slate-600 flex items-center gap-1" title="Orientação (define o tamanho padrão)">Pág.
@@ -602,10 +645,8 @@ export default function PoolPrintLayoutEditorPage() {
             <input type="color" value={brand.bgColor || "#ffffff"} onChange={(e) => setBranding({ bgColor: e.target.value })} className="h-6 w-6 cursor-pointer rounded border border-slate-300 p-0" />
             {brand.bgType === "gradient" ? <input type="color" value={brand.bgColor2 || "#e2e8f0"} onChange={(e) => setBranding({ bgColor2: e.target.value })} className="h-6 w-6 cursor-pointer rounded border border-slate-300 p-0" /> : null}
           </label>
-          {/* ── grupo MARCA (logo/cores) ── */}
+          {/* ── grupo MARCA (cores) — logo agora é só inserir IMAGEM (Inserir/Campos) ── */}
           <span className="mx-1 h-6 w-px bg-slate-300" />
-          <label className="cursor-pointer rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200" title="Enviar a logo da empresa">📁 Logo<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await uploadAsset(f); setBranding({ logoUrl: url }); toast("Logo enviado", "success"); } catch (err: any) { toast(err.message || "Erro", "error"); } if (e.target) e.target.value = ""; }} /></label>
-          {brand.logoUrl ? <img src={brand.logoUrl} alt="logo" className="h-6 rounded border border-slate-200" /> : null}
           <label className="text-xs text-slate-600 flex items-center gap-1" title="Cor primária">Prim.<input type="color" value={brand.primaryColor || "#0f172a"} onChange={(e) => setBranding({ primaryColor: e.target.value })} className="h-6 w-6 cursor-pointer rounded border border-slate-300 p-0" /></label>
           <label className="text-xs text-slate-600 flex items-center gap-1" title="Cor de destaque">Dest.<input type="color" value={brand.accentColor || "#1e3a8a"} onChange={(e) => setBranding({ accentColor: e.target.value })} className="h-6 w-6 cursor-pointer rounded border border-slate-300 p-0" /></label>
           <RibbonBtn icon="💾" label="Salvar estilo" onClick={saveBranding} />
@@ -621,6 +662,7 @@ export default function PoolPrintLayoutEditorPage() {
           <RibbonBtn icon="➕" label="Nova pagina" onClick={newCanvasPage} />
           <span className="mx-0.5 h-5 w-px bg-slate-300" />
           {editingPage && pageIsCanvas(editingPage) ? (<>
+            <RibbonBtn icon="🃏" label="Novo card" onClick={() => addBox("CARD", {})} />
             <RibbonBtn icon="🇹" label="Texto" onClick={() => addBox("TEXT", {})} />
             <RibbonBtn icon="🖼️" label="Imagem" onClick={() => addBox("IMAGE", {})} />
             <span className="mx-0.5 h-5 w-px bg-slate-300" />
@@ -670,34 +712,17 @@ export default function PoolPrintLayoutEditorPage() {
         })() : (
           <span className="text-xs text-slate-500 px-2">{editingPage && pageIsCanvas(editingPage) ? "Clique numa caixa na folha pra ver tamanho, posição e estilo aqui." : "Abra uma página canvas e selecione uma caixa."}</span>
         ))}
-        {tab === "Cab/Rodape" && (() => {
-          const isH = hfEdit === "header";
-          const k = {
-            html: isH ? "headerHtml" : "footerHtml",
-            logo: isH ? "headerLogo" : "logoFooter",
-            size: isH ? "logoSizeHeader" : "logoSizeFooter",
-            side: isH ? "headerLogoSide" : "footerLogoSide",
-            onCover: isH ? "headerOnCover" : "footerOnCover",
-          };
-          const logoOn = isH ? brand.headerLogo !== false : !!brand.logoFooter;
-          return (<>
-            <div className="flex rounded-md border border-slate-300 overflow-hidden text-sm">
-              <button type="button" onClick={() => setHfEdit("header")} className={`px-3 py-1 ${isH ? "bg-cyan-600 text-white" : "bg-white text-slate-700"}`}>Cabecalho</button>
-              <button type="button" onClick={() => setHfEdit("footer")} className={`px-3 py-1 ${!isH ? "bg-cyan-600 text-white" : "bg-white text-slate-700"}`}>Rodape</button>
-            </div>
-            <span className="mx-0.5 h-5 w-px bg-slate-300" />
-            <input value={brand[k.html] || ""} onChange={(e) => setBranding({ [k.html]: e.target.value || null })} placeholder={isH ? "Texto do cabecalho ({budgetCode})" : "Texto do rodape (SLS · {date})"} className="w-56 rounded border border-slate-300 px-2 py-1 text-xs" />
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Mostrar a logo neste local"><input type="checkbox" checked={logoOn} onChange={(e) => setBranding({ [k.logo]: e.target.checked })} />Logo</label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura da logo (px)">px<input type="number" min={12} max={120} value={brand[k.size] ?? (isH ? 34 : 28)} onChange={(e) => setBranding({ [k.size]: e.target.value ? Number(e.target.value) : null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Lado da logo">Lado
-              <select value={brand[k.side] || "right"} onChange={(e) => setBranding({ [k.side]: e.target.value })} className="rounded border border-slate-300 px-1 py-1 text-sm">
-                <option value="left">Esquerda</option><option value="right">Direita</option>
-              </select>
-            </label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Mostrar este bloco tambem na capa"><input type="checkbox" checked={!!brand[k.onCover]} onChange={(e) => setBranding({ [k.onCover]: e.target.checked })} />Mostrar na capa</label>
-            <RibbonBtn icon="💾" label="Salvar" onClick={saveBranding} />
-          </>);
-        })()}
+        {tab === "Cab/Rodape" && (<>
+          <span className="text-[10px] uppercase tracking-wide text-slate-400">Editar faixa:</span>
+          <RibbonBtn icon="🔝" label="Cabeçalho" onClick={() => enterRegion("header")} />
+          <RibbonBtn icon="🔻" label="Rodapé" onClick={() => enterRegion("footer")} />
+          {region !== "page" ? <RibbonBtn icon="↩️" label="Voltar à página" onClick={() => enterRegion("page")} /> : null}
+          <span className="mx-1 h-6 w-px bg-slate-300" />
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura do cabeçalho (mm)">Cab.<input type="number" min={0} max={80} value={brand.headerHmm ?? 18} onChange={(e) => setBranding({ headerHmm: e.target.value ? Number(e.target.value) : null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura do rodapé (mm)">Rod.<input type="number" min={0} max={80} value={brand.footerHmm ?? 14} onChange={(e) => setBranding({ footerHmm: e.target.value ? Number(e.target.value) : null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+          <RibbonBtn icon="💾" label="Salvar" onClick={saveBranding} />
+          <span className="text-[10px] text-slate-400 ml-1">Edite como uma página: vá em <b>Inserir</b> (texto, imagem, campos) — aparece em todas as páginas.</span>
+        </>)}
       </div>
 
       {/* 3 PAINEIS — topo (titulo+abas+faixa) fica FIXO; aqui embaixo: paginas | folha | editor */}
@@ -867,12 +892,26 @@ export default function PoolPrintLayoutEditorPage() {
 
       {/* CENTRO: folha da pagina selecionada (canvas editavel, estilo PowerPoint) */}
       <div className="flex-1 min-w-0 overflow-auto bg-slate-200 flex flex-col">
-        {editingPage && pageIsCanvas(editingPage) ? (
+        {editingPage && pageIsCanvas(editingPage) && region !== "page" ? (
+          <div className="flex flex-col" style={{ height: "100%" }}>
+            <div className="flex items-center gap-2 bg-amber-50 border-b border-amber-200 px-3 py-1.5 text-xs text-amber-800">
+              ✏️ Editando <b>{region === "header" ? "cabeçalho" : "rodapé"}</b> — vá em <b>Inserir</b>/<b>Campos</b> pra adicionar. Aparece em todas as páginas.
+              <button type="button" onClick={() => enterRegion("page")} className="ml-auto rounded bg-amber-600 px-2 py-0.5 font-semibold text-white hover:bg-amber-700">↩ Voltar à página</button>
+            </div>
+            <div className="flex-1 min-h-0">
+              <CanvasEditor boxes={boxes} data={SAMPLE_BUDGET} branding={layout.branding}
+                selBox={selBox} pageW={pageDims(layout.branding).w} pageH={region === "header" ? (brand.headerHmm ?? 18) : (brand.footerHmm ?? 14)}
+                pageBg="#ffffff"
+                onSelect={(idv) => { setSelBox(idv); if (idv) { const b = boxes.find((x) => x.id === idv); setTab(b?.type === "TEXT" ? "Inicio" : "Layout"); } }}
+                onChange={onCanvasChange} onCommit={onCanvasCommit} onEditStart={() => setTab("Inicio")} />
+            </div>
+          </div>
+        ) : editingPage && pageIsCanvas(editingPage) ? (
           <CanvasEditor boxes={boxes} data={SAMPLE_BUDGET} branding={layout.branding}
             selBox={selBox} pageW={pageDims(layout.branding).w} pageH={pageDims(layout.branding).h}
             pageBg={brand.bgType === "gradient" ? `linear-gradient(135deg, ${brand.bgColor || "#ffffff"}, ${brand.bgColor2 || "#e2e8f0"})` : (brand.bgColor || "#ffffff")}
-            onSelect={(idv) => { setSelBox(idv); if (idv) setTab("Layout"); }}
-            onChange={onCanvasChange} onCommit={onCanvasCommit} />
+            onSelect={(idv) => { setSelBox(idv); if (idv) { const b = boxes.find((x) => x.id === idv); setTab(b?.type === "TEXT" ? "Inicio" : "Layout"); } }}
+            onChange={onCanvasChange} onCommit={onCanvasCommit} onEditStart={() => setTab("Inicio")} />
         ) : showAddPage ? (
           <div className="p-4">
             <div className="mx-auto max-w-[1100px] rounded-xl border border-slate-200 bg-white p-4">

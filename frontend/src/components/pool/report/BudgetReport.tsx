@@ -486,7 +486,7 @@ function renderBlockByType(blockType: string | null | undefined, data: BudgetRep
 // Editavel IN-PLACE SEM barra propria (Etapa C / unificacao): so a area de texto. A barra de
 // formatacao e a aba "Inicio" do ribbon (age na selecao via .rp-inline-edit). innerHTML setado
 // so na montagem (keyed por node.id) -> digitar/execCommand nao reseta o cursor.
-function InlineEditable({ html, onChange }: { html: string; onChange: (html: string) => void }) {
+function InlineEditable({ html, onChange, onCommit }: { html: string; onChange: (html: string) => void; onCommit?: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (ref.current) { ref.current.innerHTML = html || ""; ref.current.focus(); }
@@ -495,7 +495,7 @@ function InlineEditable({ html, onChange }: { html: string; onChange: (html: str
   const emit = () => onChange(ref.current?.innerHTML || "");
   return (
     <div ref={ref} className="rp-inline-edit" contentEditable suppressContentEditableWarning
-      onInput={emit} onBlur={emit}
+      onInput={emit} onBlur={() => { emit(); onCommit?.(); }}
       style={{ outline: "2px dashed #06b6d4", outlineOffset: "2px", minHeight: "1em", cursor: "text" }} />
   );
 }
@@ -599,7 +599,7 @@ export function CompositionPreview({ nodes, data, selectedId, onSelectNode, onEd
 // absolutamente posicionado em % da folha (mesmo valor na tela e na impressao A4).
 export type Box = {
   id: string;
-  type: "TEXT" | "IMAGE" | "BLOCK";
+  type: "TEXT" | "IMAGE" | "BLOCK" | "CARD";
   x: number; y: number; w: number; h: number; // % da folha (0..100)
   z?: number;
   html?: string;                              // TEXT (HTML cru com {placeholders})
@@ -645,12 +645,14 @@ function boxRectStyle(b: Box): CSSProperties {
 }
 
 // Conteudo interno de um Box (compartilhado entre render de impressao e editor).
-function BoxContent({ box, data, branding, editingText, onEditText }: { box: Box; data: BudgetReportData; branding?: ReportBranding | null; editingText?: boolean; onEditText?: (id: string, html: string) => void }) {
+function BoxContent({ box, data, branding, editingText, onEditText, onEditCommit }: { box: Box; data: BudgetReportData; branding?: ReportBranding | null; editingText?: boolean; onEditText?: (id: string, html: string) => void; onEditCommit?: () => void }) {
   const st = box.style || {};
+  if ((box.type as string) === "CARD") return null; // card = retangulo (bg/borda via boxRectStyle); conteudo vem de outras caixas
   if (box.type === "TEXT") {
-    if (editingText && onEditText) return <InlineEditable key={box.id} html={box.html || ""} onChange={(h) => onEditText(box.id, h)} />;
+    const wrap = (st as any).noWrap ? "nowrap" : "normal";
+    if (editingText && onEditText) return <div style={{ width: "100%", height: "100%", whiteSpace: wrap, overflow: "hidden" }}><InlineEditable key={box.id} html={box.html || ""} onChange={(h) => onEditText(box.id, h)} onCommit={onEditCommit} /></div>;
     const valign = st.valign === "center" ? "center" : st.valign === "bottom" ? "flex-end" : "flex-start";
-    return <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: valign, textAlign: (st.align as any) || undefined }} dangerouslySetInnerHTML={{ __html: resolvePlaceholders(box.html || "", data) }} />;
+    return <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: valign, textAlign: (st.align as any) || undefined, whiteSpace: wrap }} dangerouslySetInnerHTML={{ __html: resolvePlaceholders(box.html || "", data) }} />;
   }
   if (box.type === "IMAGE") {
     if (!box.url) return <div className="rp-empty" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>Imagem</div>;
@@ -740,10 +742,10 @@ function BoxFrame({ box, selected, editing, canvasRef, lockAspect, onSelect, onS
 // Editor de canvas (uma pagina) — usado no centro do editor. Renderiza a folha A4
 // (aspect-ratio) e os boxes interativos. onChange = update ao vivo; onCommit = passo
 // de historico (undo/redo) no fim do gesto. Edicao de texto inline via duplo-clique.
-export function CanvasEditor({ boxes, data, branding, selBox, pageW, pageH, pageBg, onSelect, onChange, onCommit }: {
+export function CanvasEditor({ boxes, data, branding, selBox, pageW, pageH, pageBg, onSelect, onChange, onCommit, onEditStart }: {
   boxes: Box[]; data: BudgetReportData; branding?: ReportBranding | null; selBox: string | null;
   pageW?: number; pageH?: number; pageBg?: string;
-  onSelect: (id: string | null) => void; onChange: (b: Box) => void; onCommit: () => void;
+  onSelect: (id: string | null) => void; onChange: (b: Box) => void; onCommit: () => void; onEditStart?: (id: string) => void;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -761,9 +763,9 @@ export function CanvasEditor({ boxes, data, branding, selBox, pageW, pageH, page
         {[...(boxes || [])].sort((a, b) => (a.z || 0) - (b.z || 0)).map((b) => (
           <BoxFrame key={b.id} box={b} selected={selBox === b.id} editing={editingId === b.id} canvasRef={canvasRef}
             onSelect={() => onSelect(b.id)}
-            onStartEdit={() => { if (b.type === "TEXT") setEditingId(b.id); }}
+            onStartEdit={() => { if (b.type === "TEXT") { setEditingId(b.id); onEditStart?.(b.id); } }}
             onChange={onChange} onCommit={onCommit}>
-            <BoxContent box={b} data={data} branding={branding} editingText={editingId === b.id} onEditText={(id, html) => onChange({ ...b, html })} />
+            <BoxContent box={b} data={data} branding={branding} editingText={editingId === b.id} onEditText={(id, html) => onChange({ ...b, html })} onEditCommit={onCommit} />
           </BoxFrame>
         ))}
         {(!boxes || boxes.length === 0) ? <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontStyle: "italic" }}>Use a aba Inserir pra adicionar caixas (texto, imagem, bloco).</div> : null}
@@ -920,6 +922,17 @@ export default function BudgetReport({ data, layout, editable, selectedPageId, o
                     ...(editable ? { cursor: "pointer", outline: selectedPageId === page.id ? "3px solid #06b6d4" : undefined, outlineOffset: "3px" } : {}) }}
                   onClick={editable && onSelectPage ? () => onSelectPage(page.id) : undefined}>
                   <CanvasPage boxes={(page.pageConfig as any).boxes || []} data={data} branding={branding} />
+                  {/* Cabecalho/Rodape (faixas de caixas) — repetem em toda pagina (exceto se noHF) */}
+                  {!(page.pageConfig as any)?.noHF && Array.isArray((branding as any)?.headerBoxes) && (branding as any).headerBoxes.length ? (
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: `${(branding as any)?.headerHmm ?? 18}mm`, overflow: "hidden" }}>
+                      <CanvasPage boxes={(branding as any).headerBoxes} data={data} branding={branding} />
+                    </div>
+                  ) : null}
+                  {!(page.pageConfig as any)?.noHF && Array.isArray((branding as any)?.footerBoxes) && (branding as any).footerBoxes.length ? (
+                    <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: `${(branding as any)?.footerHmm ?? 14}mm`, overflow: "hidden" }}>
+                      <CanvasPage boxes={(branding as any).footerBoxes} data={data} branding={branding} />
+                    </div>
+                  ) : null}
                 </div>
               );
             }
