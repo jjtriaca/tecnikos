@@ -427,7 +427,6 @@ export default function PoolPrintLayoutEditorPage() {
   const [sizeInput, setSizeInput] = useState("");
   useEffect(() => { setSizeInput(selFmt.sizePt || ""); }, [selFmt.sizePt]);
   // Campo de LINK (aba Inicio): digita a URL/numero/@ e aplica na selecao.
-  const [linkInput, setLinkInput] = useState("");
   const ribFmtBtn = (active: boolean) =>
     `h-7 w-7 rounded text-sm font-bold ${active ? "bg-cyan-600 text-white" : "bg-white text-slate-700 border border-slate-300"} hover:bg-cyan-50`;
 
@@ -510,22 +509,6 @@ export default function PoolPrintLayoutEditorPage() {
       sel?.removeAllRanges(); sel?.addRange(nr);
       selRange.current = nr.cloneRange();
     }
-    fireInput(); reflectSel();
-  };
-  // Link clicavel na selecao (createLink). O <a href> vira link clicavel no PDF (Salvar como PDF).
-  const selLink = (url: string) => {
-    if (!closestEditable(selRange.current)) return;
-    let href = url.trim();
-    if (!href) { restoreSel(); document.execCommand("unlink"); fireInput(); reflectSel(); return; }
-    // normaliza: numero de WhatsApp -> wa.me; @ Instagram -> instagram.com; senao https://
-    const digits = href.replace(/[^\d]/g, "");
-    if (/^@/.test(href)) href = `https://instagram.com/${href.replace(/^@/, "")}`;
-    else if (/whats|wa\.me/i.test(href)) href = href.startsWith("http") ? href : `https://wa.me/${digits}`;
-    else if (!/^https?:\/\//i.test(href)) href = digits.length >= 10 ? `https://wa.me/55${digits}` : `https://${href}`;
-    restoreSel();
-    document.execCommand("createLink", false, href);
-    // marca os <a> recem-criados pra abrir em nova aba (cosmetico; no PDF vira link)
-    closestEditable(selRange.current)?.querySelectorAll('a:not([target])').forEach((a) => { (a as HTMLAnchorElement).target = "_blank"; (a as HTMLAnchorElement).rel = "noopener"; });
     fireInput(); reflectSel();
   };
   // Fonte/tamanho/cor: aplica na SELECAO se estiver editando texto; senao na CAIXA inteira
@@ -696,11 +679,9 @@ export default function PoolPrintLayoutEditorPage() {
           <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selExec("justifyCenter")} className={ribFmtBtn(false)} title="Centro">≡</button>
           <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selExec("justifyRight")} className={ribFmtBtn(false)} title="Direita">⯈</button>
           <span className="mx-0.5 h-5 w-px bg-slate-300" />
-          <input value={linkInput} placeholder="link/número/@" title="Selecione o texto, digite o link (URL, número do WhatsApp ou @ do Instagram) e clique 🔗 (vazio = remover link)"
-            onChange={(e) => setLinkInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); selLink(linkInput); } }}
-            className="w-32 rounded border border-slate-300 px-1 py-1 text-xs" />
-          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selLink(linkInput)} className={ribFmtBtn(false)} title="Aplicar link na seleção">🔗</button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => patchSelStyle({ valign: "top" })} className={ribFmtBtn((selectedBox?.style as any)?.valign === "top" || !(selectedBox?.style as any)?.valign)} title="Alinhar em cima">⤒</button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => patchSelStyle({ valign: "center" })} className={ribFmtBtn((selectedBox?.style as any)?.valign === "center")} title="Alinhar no meio (vertical)">⇲</button>
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => patchSelStyle({ valign: "bottom" })} className={ribFmtBtn((selectedBox?.style as any)?.valign === "bottom")} title="Alinhar embaixo">⤓</button>
           {selectedBox?.type === "TEXT" ? (<>
             <label className="text-xs text-slate-600 flex items-center gap-1 ml-1" title="Quebra automática de linha na caixa de texto"><input type="checkbox" checked={!((selectedBox.style as any)?.noWrap)} onChange={(e) => patchSelStyle({ noWrap: !e.target.checked })} />Quebra linha</label>
             <label className="text-xs text-slate-600 flex items-center gap-1" title="Espaçamento entre linhas (entrelinha)">Entrelinha
@@ -742,6 +723,7 @@ export default function PoolPrintLayoutEditorPage() {
             <RibbonBtn icon="🃏" label="Novo card" onClick={() => addBox("CARD", {})} />
             <RibbonBtn icon="🇹" label="Texto" onClick={() => addBox("TEXT", {})} />
             <RibbonBtn icon="🖼️" label="Imagem" onClick={() => addBox("IMAGE", {})} />
+            <RibbonBtn icon="🔗" label="Link" onClick={() => addBox("TEXT", { html: "<p>Clique aqui</p>", href: "https://exemplo.com", style: { fontSize: 12, textColor: "#1d4ed8" } })} />
             <span className="mx-0.5 h-5 w-px bg-slate-300" />
             <RibbonBtn icon="📚" label="Campos & blocos" onClick={() => setTab("Campos")} />
             <span className="text-[10px] text-slate-400 ml-1">Campos/blocos do sistema na aba &quot;Campos&quot; · arraste na folha pra mover · alças pra redimensionar.</span>
@@ -783,6 +765,9 @@ export default function PoolPrintLayoutEditorPage() {
                 <select value={sb.fit || "cover"} onChange={(e) => patchSelBox({ fit: e.target.value as any })} className="rounded border border-slate-300 px-1 py-1 text-sm"><option value="cover">Preencher (corta)</option><option value="contain">Conter (inteira)</option><option value="fill">Esticar</option></select>
               </label>
             </>) : null}
+            {sb.type === "TEXT" || sb.type === "IMAGE" ? (
+              <label className="text-xs text-slate-600 flex items-center gap-1" title="Link clicável da caixa (URL, nº WhatsApp ou @ Instagram). Vazio = sem link.">🔗<input value={sb.href || ""} placeholder="link/número/@" onChange={(e) => patchSelBox({ href: e.target.value || null })} className="w-32 rounded border border-slate-300 px-1 py-1 text-xs" /></label>
+            ) : null}
             <span className="mx-0.5 h-5 w-px bg-slate-300" />
             <RibbonBtn icon="📑" label="Duplicar" onClick={duplicateSelBox} />
             <RibbonBtn icon="🗑️" label="Excluir" onClick={removeSelBox} />

@@ -16,7 +16,7 @@
  *   printViaClone({ areaId: "budget-pdf-area", cloneId: "budget-pdf-clone" })
  */
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { BombaDatasheetBlock, SolarDatasheetBlock } from "./HeatingDatasheets";
 
 // ── Tipos (espelham Page/Layout do editor) ──────────────────────────────────
@@ -633,6 +633,7 @@ export type Box = {
   x: number; y: number; w: number; h: number; // % da folha (0..100)
   z?: number;
   html?: string;                              // TEXT (HTML cru com {placeholders})
+  href?: string | null;                       // link clicavel da caixa toda (TEXT/IMAGE) — vira <a> no PDF
   url?: string; fit?: "cover" | "contain" | "fill"; // IMAGE
   blockType?: string; config?: any;           // BLOCK (PRODUCTS_BY_SECTION, COVER, ...)
   style?: {
@@ -678,19 +679,32 @@ function boxRectStyle(b: Box): CSSProperties {
 // Conteudo interno de um Box (compartilhado entre render de impressao e editor).
 function BoxContent({ box, data, branding, editingText, onEditText, onEditCommit }: { box: Box; data: BudgetReportData; branding?: ReportBranding | null; editingText?: boolean; onEditText?: (id: string, html: string) => void; onEditCommit?: () => void }) {
   const st = box.style || {};
+  const wrapLink = (inner: ReactNode) => (box.href && !editingText)
+    ? <a href={normalizeHref(box.href)} target="_blank" rel="noopener" style={{ display: "block", width: "100%", height: "100%", color: "inherit", textDecoration: "none" }}>{inner}</a>
+    : inner;
   if ((box.type as string) === "CARD") return null; // card = retangulo (bg/borda via boxRectStyle); conteudo vem de outras caixas
   if (box.type === "TEXT") {
     const wrap = (st as any).noWrap ? "nowrap" : "normal";
     if (editingText && onEditText) return <div style={{ width: "100%", height: "100%", whiteSpace: wrap, overflow: "hidden" }}><InlineEditable key={box.id} html={box.html || ""} onChange={(h) => onEditText(box.id, h)} onCommit={onEditCommit} /></div>;
     const valign = st.valign === "center" ? "center" : st.valign === "bottom" ? "flex-end" : "flex-start";
-    return <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: valign, textAlign: (st.align as any) || undefined, whiteSpace: wrap }} dangerouslySetInnerHTML={{ __html: resolvePlaceholders(box.html || "", data) }} />;
+    return wrapLink(<div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: valign, textAlign: (st.align as any) || undefined, whiteSpace: wrap }} dangerouslySetInnerHTML={{ __html: resolvePlaceholders(box.html || "", data) }} />);
   }
   if (box.type === "IMAGE") {
     if (!box.url) return <div className="rp-empty" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>Imagem</div>;
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={box.url} alt="" style={{ width: "100%", height: "100%", objectFit: (box.fit as any) || "cover", display: "block" }} />;
+    return wrapLink(<img src={box.url} alt="" style={{ width: "100%", height: "100%", objectFit: (box.fit as any) || "cover", display: "block" }} />);
   }
   return <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>{renderBlockByType(box.blockType, data, box.config, branding)}</div>;
+}
+// Normaliza link: numero->wa.me, @->instagram, senao https:// (igual ao selLink antigo).
+function normalizeHref(url: string): string {
+  let href = (url || "").trim();
+  if (!href) return "#";
+  const digits = href.replace(/[^\d]/g, "");
+  if (/^@/.test(href)) return `https://instagram.com/${href.replace(/^@/, "")}`;
+  if (/whats|wa\.me/i.test(href)) return href.startsWith("http") ? href : `https://wa.me/${digits}`;
+  if (!/^https?:\/\//i.test(href)) return digits.length >= 10 ? `https://wa.me/55${digits}` : `https://${href}`;
+  return href;
 }
 
 // Render READ-ONLY de uma pagina canvas (impressao / preview / miniatura).
