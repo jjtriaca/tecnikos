@@ -535,10 +535,12 @@ function ReportNodeView({ node, data, branding, selectedId, onSelectNode, onEdit
     marginRight: st.selfAlign === "center" || st.selfAlign === "left" ? "auto" : undefined,
     textAlign: (st.textAlign as any) || undefined,
     fontSize: st.fontSize ? `${st.fontSize}pt` : undefined,
-    // altura fixa do card (px) — permite imagem "Preencher card" ocupar 100%.
-    // position:relative + overflow:hidden ancoram a imagem absoluta e cortam o excedente.
+    // altura fixa do card (px) — opcional; permite imagem "Preencher card" com altura definida.
+    // position:relative SEMPRE: ancora a imagem absoluta ("Preencher card") tanto na altura fixa
+    // quanto na altura herdada do "esticar" da linha (imagem ao lado do texto preenche a coluna).
+    // overflow:hidden corta o excedente do cover e respeita o arredondamento.
     height: st.height != null ? `${st.height}px` : undefined,
-    position: st.height != null ? "relative" : undefined,
+    position: "relative",
     overflow: st.height != null ? "hidden" : undefined,
     ...selStyle,
   };
