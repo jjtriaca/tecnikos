@@ -6,7 +6,7 @@
  * Aninhamento livre: card dentro de card, linha com colunas, qualquer bloco dentro.
  * Pares com o renderizador recursivo de BudgetReport.ReportNodeView.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReportNode } from "./BudgetReport";
 
 const genId = () => "n" + Math.random().toString(36).slice(2, 9);
@@ -132,6 +132,56 @@ function NodeRow({ node, depth, selectedId, onSelect, onAddInto, onMove, onRemov
   );
 }
 
+// Controles de TAMANHO da imagem: Largura x Altura (px) com CADEADO de proporcao.
+// Cadeado LIGADO (padrao): mexeu num campo, o outro acompanha pela proporcao real da imagem
+// (le naturalWidth/naturalHeight) -> nunca distorce. Desligado: livre (so altura ou so largura).
+// Alem disso: alinhar Horizontal x Vertical da imagem dentro do card (vertical pede altura no card).
+function ImageSizeControls({ cfg, setCfg }: { cfg: any; setCfg: (p: Record<string, any>) => void }) {
+  const [ratio, setRatio] = useState<number | null>(null);
+  useEffect(() => {
+    if (!cfg.url) { setRatio(null); return; }
+    const img = new window.Image();
+    img.onload = () => { if (img.naturalHeight) setRatio(img.naturalWidth / img.naturalHeight); };
+    img.src = cfg.url;
+  }, [cfg.url]);
+  const locked = cfg.lockAspect !== false; // padrao LIGADO
+  const setW = (val: string) => {
+    const w = val ? Number(val) : null;
+    if (w && locked && ratio) setCfg({ w, h: Math.round(w / ratio) });
+    else setCfg({ w });
+  };
+  const setH = (val: string) => {
+    const h = val ? Number(val) : null;
+    if (h && locked && ratio) setCfg({ h, w: Math.round(h * ratio) });
+    else setCfg({ h });
+  };
+  const inp = "mt-0.5 w-full rounded border border-slate-300 px-1 py-1 text-xs";
+  return (
+    <div className="mt-2 space-y-2">
+      <div className="flex items-end gap-1">
+        <label className="block flex-1 text-[11px] text-slate-600">Largura (px)
+          <input type="number" min={0} value={cfg.w ?? ""} placeholder="auto" onChange={(e) => setW(e.target.value)} className={inp} /></label>
+        <button type="button" title={locked ? "Proporcao TRAVADA — mexer num campo ajusta o outro. Clique pra liberar." : "Proporcao LIVRE — largura e altura independentes. Clique pra travar."}
+          onClick={() => setCfg({ lockAspect: !locked })}
+          className={`mb-0.5 shrink-0 rounded border px-2 py-1 text-sm ${locked ? "border-cyan-300 bg-cyan-50 text-cyan-700" : "border-slate-300 bg-white text-slate-400"}`}>{locked ? "🔒" : "🔓"}</button>
+        <label className="block flex-1 text-[11px] text-slate-600">Altura (px)
+          <input type="number" min={0} value={cfg.h ?? ""} placeholder="auto" onChange={(e) => setH(e.target.value)} className={inp} /></label>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block text-[11px] text-slate-600">Alinhar horizontal
+          <select value={cfg.alignH || "left"} onChange={(e) => setCfg({ alignH: e.target.value })} className={inp}>
+            <option value="left">Esquerda</option><option value="center">Centro</option><option value="right">Direita</option>
+          </select></label>
+        <label className="block text-[11px] text-slate-600">Alinhar vertical
+          <select value={cfg.alignV || "top"} onChange={(e) => setCfg({ alignV: e.target.value })} className={inp}>
+            <option value="top">Topo</option><option value="center">Centro</option><option value="bottom">Base</option>
+          </select></label>
+      </div>
+      <div className="text-[10px] text-slate-400">Só um campo preenchido = o outro fica automático (mantém proporção). Alinhar vertical precisa de <b>Altura do card</b>.</div>
+    </div>
+  );
+}
+
 // ── Editor de UM no selecionado ──────────────────────────────────────────────
 function NodeInspector({ node, onChange, onUploadImage }: { node: ReportNode; onChange: (patch: Partial<ReportNode>) => void; onUploadImage?: (file: File) => Promise<string> }) {
   const st: any = node.style || {};
@@ -170,34 +220,18 @@ function NodeInspector({ node, onChange, onUploadImage }: { node: ReportNode; on
                 {cfg.url ? <img src={cfg.url} alt="" className="h-8 rounded border border-slate-200 bg-white" /> : null}
               </div>
             ) : null}
-            {/* Ajuste da imagem (editavel — nada fixo) */}
-            <label className="mt-2 block text-[11px] text-slate-600">Ajuste
-              <select value={cfg.fit || "proportional"} onChange={(e) => setCfg({ fit: e.target.value })} className="mt-0.5 w-full rounded border border-slate-300 px-1 py-1 text-xs">
-                <option value="proportional">Proporcional (largura manda, não distorce)</option>
-                <option value="fill">Preencher card 100% (corta sobra, não distorce)</option>
-                <option value="stretch">Esticar (ocupa tudo, pode distorcer)</option>
-              </select>
+            {/* Preencher card: imagem ocupa 100% do card (precisa Altura no card pai). */}
+            <label className="mt-2 flex items-center gap-2 rounded border border-slate-200 px-2 py-1 text-xs text-slate-600">
+              <input type="checkbox" checked={!!(cfg.fill || cfg.fit === "fill")} onChange={(e) => setCfg({ fill: e.target.checked, fit: null })} />
+              Preencher o card 100% (corta a sobra, não distorce)
             </label>
-            {(cfg.fit || "proportional") === "fill" ? (
+            {cfg.fill || cfg.fit === "fill" ? (
               <div className="mt-1 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] text-amber-700">
-                Pra preencher 100% defina a <b>Altura do card</b> (no Card pai). A imagem ocupa todo o card.
+                Defina a <b>Altura do card</b> (no Card pai) — ou deixe a imagem ao lado de um card mais alto (esticar). A imagem ocupa tudo.
               </div>
-            ) : null}
-            {/* Tamanho/posicao da imagem (editavel — nada fixo) */}
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              <label className="block text-[11px] text-slate-600">Largura
-                <select value={cfg.width || "100%"} onChange={(e) => setCfg({ width: e.target.value })} className="mt-0.5 w-full rounded border border-slate-300 px-1 py-1 text-xs" disabled={cfg.fit === "fill"}>
-                  <option value="100%">100%</option><option value="75%">75%</option><option value="50%">50%</option><option value="auto">auto</option>
-                </select>
-              </label>
-              <label className="block text-[11px] text-slate-600">Altura máx (px)
-                <input type="number" min={0} value={cfg.maxHeight ?? ""} placeholder="auto" onChange={(e) => setCfg({ maxHeight: e.target.value ? Number(e.target.value) : null })} className="mt-0.5 w-full rounded border border-slate-300 px-1 py-1 text-xs" disabled={cfg.fit === "fill"} /></label>
-              <label className="block text-[11px] text-slate-600">Alinhar
-                <select value={cfg.align || "left"} onChange={(e) => setCfg({ align: e.target.value })} className="mt-0.5 w-full rounded border border-slate-300 px-1 py-1 text-xs" disabled={cfg.fit === "fill"}>
-                  <option value="left">Esq.</option><option value="center">Centro</option><option value="right">Dir.</option>
-                </select>
-              </label>
-            </div>
+            ) : (
+              <ImageSizeControls cfg={cfg} setCfg={setCfg} />
+            )}
           </div>
         ) : (
           <label className="block text-xs text-slate-600">Configuracao (JSON, opcional)
@@ -228,9 +262,15 @@ function NodeInspector({ node, onChange, onUploadImage }: { node: ReportNode; on
           <select value={st.justify || "start"} onChange={(e) => setStyle({ justify: e.target.value })}
             className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm">
             <option value="start">Esquerda</option><option value="center">Centro</option>
-            <option value="end">Direita</option><option value="between">Espacar igualmente</option>
+            <option value="end">Direita</option><option value="between">Espaçar entre (extremos colados)</option>
+            <option value="around">Espaçar ao redor (margem nas pontas)</option>
           </select>
         </label>
+        <label className="col-span-2 flex items-center gap-2 text-xs text-slate-600 rounded border border-slate-200 px-2 py-1">
+          <input type="checkbox" checked={!!st.wrap} onChange={(e) => setStyle({ wrap: e.target.checked })} />
+          Quebrar colunas em telas pequenas (empilhar no mobile)
+        </label>
+        <div className="col-span-2 text-[10px] text-slate-400">A largura de cada coluna é definida em cada <b>Card</b> (Largura %/exata ou Peso). Aqui você controla o espaço, o alinhamento e a quebra entre eles.</div>
       </div>
     );
   }
@@ -273,11 +313,20 @@ function NodeInspector({ node, onChange, onUploadImage }: { node: ReportNode; on
               <option value="left">Esquerda</option><option value="center">Centro</option><option value="right">Direita</option>
             </select>
           </label>
+          <label className="block text-xs text-slate-600">Largura exata (px)
+            <input type="number" min={0} value={st.widthPx ?? ""} placeholder="usa a % acima" onChange={(e) => setStyle({ widthPx: e.target.value ? Number(e.target.value) : null })}
+              className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" />
+          </label>
           <label className="block text-xs text-slate-600">Altura do card (px)
             <input type="number" min={0} value={st.height ?? ""} placeholder="automática" onChange={(e) => setStyle({ height: e.target.value ? Number(e.target.value) : null })}
               className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" />
           </label>
+          <label className="block text-xs text-slate-600">Peso na linha (lado a lado)
+            <input type="number" min={0} step={1} value={st.flex ?? ""} placeholder="igual" onChange={(e) => setStyle({ flex: e.target.value ? Number(e.target.value) : null })}
+              className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" />
+          </label>
         </div>
+        <div className="text-[10px] text-slate-400">Largura exata (px) vence a % acima. <b>Peso</b> divide o espaço entre cards lado a lado (ex.: 2 e 1 = 66%/33%). Deixe vazio pra largura/iguais.</div>
         <div className="grid grid-cols-3 gap-2">
           <label className="block text-xs text-slate-600">Espaco acima (px)
             <input type="number" min={0} value={st.marginTop ?? 0} onChange={(e) => setStyle({ marginTop: Number(e.target.value) })} className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" /></label>

@@ -90,6 +90,8 @@ export type ReportNode = {
     textAlign?: string | null;    // alinhamento do texto dentro do no (left|center|right|justify)
     fontSize?: number | null;     // tamanho do texto do bloco/card inteiro (pt) — aplica em tudo dentro
     height?: number | null;       // altura do card (px) — permite imagem preencher 100%
+    widthPx?: number | null;      // largura EXATA do card (px) — sobrepoe width (%)
+    wrap?: boolean | null;        // row: quebrar colunas em telas pequenas (flex-wrap)
   } | null;
   children?: ReportNode[];        // card / row
   blockType?: string | null;      // block: TEXT | IMAGE | COVER | PRODUCTS_BY_SECTION | BUDGET_SUMMARY | ...
@@ -450,22 +452,19 @@ function renderBlockByType(blockType: string | null | undefined, data: BudgetRep
     case "TEXT": return <FixedBlock html={config?.html || ""} data={data} />;
     case "IMAGE": {
       if (!config?.url) return <div className="rp-empty">Imagem sem URL.</div>;
-      const fit = config?.fit || "proportional";
       const radius = config?.radius != null ? `${config.radius}px` : 6;
-      // PREENCHER CARD: imagem absoluta ocupa 100%x100% do card (card precisa ter Altura definida).
-      // object-fit:cover NAO distorce — só corta o excedente pra preencher.
-      if (fit === "fill") {
+      // PREENCHER CARD: imagem absoluta ocupa 100%x100% do card (card precisa ter Altura,
+      // fixa ou herdada do "esticar" da linha). object-fit:cover NAO distorce — só corta a sobra.
+      if (config?.fill || config?.fit === "fill") {
         // eslint-disable-next-line @next/next/no-img-element
         return <img src={config.url} alt={config?.alt || ""} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block", borderRadius: radius }} />;
       }
-      // ESTICAR: ocupa o espaco todo distorcendo (object-fit:fill) — opcao explicita.
-      if (fit === "stretch") {
-        // eslint-disable-next-line @next/next/no-img-element
-        return <img src={config.url} alt={config?.alt || ""} style={{ width: "100%", height: config?.maxHeight ? `${config.maxHeight}px` : "100%", objectFit: "fill", display: "block", borderRadius: radius }} />;
-      }
-      // PROPORCIONAL (padrao): a Largura (%) manda, altura automatica -> mantem a proporcao, NUNCA distorce.
+      // TAMANHO POR CAMPOS Largura(w) x Altura(h) em px. Com o cadeado de proporcao LIGADO
+      // (no editor) o w:h ja vem na proporcao certa -> object-fit:fill nao distorce. Desligado =
+      // caixa exata. So um dos campos = o outro fica "auto" (mantem proporcao). Fallback: width legado.
+      const w = config?.w; const h = config?.h;
       // eslint-disable-next-line @next/next/no-img-element
-      return <img src={config.url} alt={config?.alt || ""} style={{ width: config?.width || "auto", maxWidth: "100%", height: "auto", maxHeight: config?.maxHeight ? `${config.maxHeight}px` : undefined, objectFit: "contain", borderRadius: radius, display: "block", marginLeft: config?.align === "center" || config?.align === "right" ? "auto" : undefined, marginRight: config?.align === "center" || config?.align === "left" ? "auto" : undefined }} />;
+      return <img src={config.url} alt={config?.alt || ""} style={{ width: w ? `${w}px` : config?.width || "auto", height: h ? `${h}px` : "auto", maxWidth: "100%", objectFit: "fill", borderRadius: radius, display: "block" }} />;
     }
     default: return <TodoBlock kind={blockType || "?"} />;
   }
@@ -501,8 +500,15 @@ function ReportNodeView({ node, data, branding, selectedId, onSelectNode, onEdit
   const childProps: NodeSelProps & { data: BudgetReportData; branding?: ReportBranding | null } = { data, branding, selectedId, onSelectNode, onEditText };
   if (node.kind === "block") {
     const editingText = !!onEditText && node.blockType === "TEXT" && selectedId === node.id;
+    const bcfg: any = node.config || {};
+    const isImg = node.blockType === "IMAGE";
+    const isFillImg = isImg && (bcfg.fill || bcfg.fit === "fill");
+    // Imagem (modo nao-preencher): o bloco vira flex pra alinhar a imagem H x V dentro do card.
+    // height:100% so surte efeito quando o card tem altura definida (senao colapsa pra auto — ok).
+    const toFlex = (a?: string) => (a === "center" ? "center" : a === "right" || a === "bottom" ? "flex-end" : "flex-start");
+    const imgAlign = isImg && !isFillImg ? { display: "flex", height: "100%", justifyContent: toFlex(bcfg.alignH), alignItems: toFlex(bcfg.alignV) } : null;
     return (
-      <div className="rp-node-block" style={{ flex: st.flex || undefined, textAlign: (st.textAlign as any) || undefined, fontSize: st.fontSize ? `${st.fontSize}pt` : undefined, ...selStyle }}
+      <div className="rp-node-block" style={{ flex: st.flex || undefined, textAlign: (st.textAlign as any) || undefined, fontSize: st.fontSize ? `${st.fontSize}pt` : undefined, ...(imgAlign || {}), ...selStyle }}
         onClick={onSelectNode ? (e) => { e.stopPropagation(); onSelectNode(node.id); } : undefined}>
         {editingText
           ? <InlineEditable key={node.id} html={node.config?.html || ""} onChange={(html) => onEditText!(node.id, html)} />
@@ -512,7 +518,7 @@ function ReportNodeView({ node, data, branding, selectedId, onSelectNode, onEdit
   }
   if (node.kind === "row") {
     return (
-      <div className="rp-node-row" style={{ gap: `${st.gap ?? 8}px`, alignItems: (st.align as any) || "stretch", justifyContent: st.justify === "center" ? "center" : st.justify === "end" ? "flex-end" : st.justify === "between" ? "space-between" : st.justify === "start" ? "flex-start" : undefined, flex: st.flex || undefined, ...selStyle }}
+      <div className="rp-node-row" style={{ gap: `${st.gap ?? 8}px`, alignItems: (st.align as any) || "stretch", justifyContent: st.justify === "center" ? "center" : st.justify === "end" ? "flex-end" : st.justify === "between" ? "space-between" : st.justify === "around" ? "space-around" : st.justify === "start" ? "flex-start" : undefined, flexWrap: st.wrap ? "wrap" : undefined, flex: st.flex || undefined, ...selStyle }}
         onClick={onSelectNode ? (e) => { e.stopPropagation(); onSelectNode(node.id); } : undefined}>
         {(node.children || []).map((c) => <ReportNodeView key={c.id} node={c} {...childProps} />)}
       </div>
@@ -527,8 +533,8 @@ function ReportNodeView({ node, data, branding, selectedId, onSelectNode, onEdit
     color: st.textColor || undefined,
     boxShadow: st.shadow ? "0 1px 6px rgba(0,0,0,.12)" : undefined,
     flex: st.flex || undefined,
-    // posicionamento do card na pagina (editavel):
-    width: st.width || undefined,
+    // posicionamento do card na pagina (editavel): largura EXATA (px) sobrepoe a largura (%)
+    width: st.widthPx != null ? `${st.widthPx}px` : st.width || undefined,
     marginTop: st.marginTop != null ? `${st.marginTop}px` : undefined,
     marginBottom: st.marginBottom != null ? `${st.marginBottom}px` : undefined,
     marginLeft: st.selfAlign === "center" || st.selfAlign === "right" ? "auto" : undefined,
