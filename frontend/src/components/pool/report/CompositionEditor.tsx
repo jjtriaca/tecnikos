@@ -21,6 +21,8 @@ const BLOCK_TYPES: [string, string][] = [
   ["PHOTOS_GALLERY", "Galeria de fotos"],
   ["INSTALLMENTS", "Plano de pagamento"],
   ["CUSTOM_TABLE", "Tabela personalizada"],
+  ["HEATING_SOLAR", "Datasheet Coletor Solar"],
+  ["HEATING_BOMBA", "Datasheet Bomba de Calor"],
 ];
 const BLOCK_LABEL: Record<string, string> = Object.fromEntries(BLOCK_TYPES);
 

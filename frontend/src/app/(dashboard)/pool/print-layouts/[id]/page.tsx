@@ -49,8 +49,8 @@ const DYNAMIC_LABEL: Record<string, string> = {
   TERMS_CONDITIONS: "Termos e condicoes",
   INSTALLMENTS: "Plano de pagamento",
   CUSTOM_TABLE: "Tabela personalizada",
-  HEATING_BOMBA: "Datasheet Bomba de Calor",
-  HEATING_SOLAR: "Datasheet Coletor Solar",
+  // HEATING_SOLAR/HEATING_BOMBA NAO sao paginas dinamicas (enum do backend nao tem) —
+  // usar como BLOCO dentro de uma pagina de Composicao.
 };
 
 const PLACEHOLDERS = [
