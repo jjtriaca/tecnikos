@@ -209,6 +209,9 @@ export default function PoolPrintLayoutEditorPage() {
   // restauram o Range antes do comando. fireInput propaga a mudanca pro React (salva no no).
   const selRange = useRef<Range | null>(null);
   const [selFmt, setSelFmt] = useState({ bold: false, italic: false, underline: false, fontName: "", sizePt: "", color: "#000000" });
+  // Campo de tamanho DIGITÁVEL (reflete a seleção, mas aceita qualquer valor digitado).
+  const [sizeInput, setSizeInput] = useState("");
+  useEffect(() => { setSizeInput(selFmt.sizePt || ""); }, [selFmt.sizePt]);
   const ribFmtBtn = (active: boolean) =>
     `h-7 w-7 rounded text-sm font-bold ${active ? "bg-cyan-600 text-white" : "bg-white text-slate-700 border border-slate-300"} hover:bg-cyan-50`;
 
@@ -267,11 +270,14 @@ export default function PoolPrintLayoutEditorPage() {
     fireInput(); reflectSel();
   };
   const selFontSize = (pt: string) => {
-    const root = closestEditable(selRange.current);
-    if (!pt || !root) return;
+    if (!pt || !closestEditable(selRange.current)) return;
     restoreSel();
+    // IMPORTANTE: forcar styleWithCSS=false aqui, senao (apos um B/I/cor que liga
+    // styleWithCSS) o fontSize=7 vira <span font-size:xx-large> (GIGANTE) e o conversor
+    // nao acha o font[size=7] pra trocar pelo pt. Com false, gera <font size=7> e convertemos.
+    try { document.execCommand("styleWithCSS", false, "false"); } catch { /* noop */ }
     document.execCommand("fontSize", false, "7");
-    root.querySelectorAll('font[size="7"]').forEach((f) => {
+    document.querySelectorAll('.rp-inline-edit font[size="7"]').forEach((f) => {
       const s = document.createElement("span");
       s.style.fontSize = `${pt}pt`;
       while (f.firstChild) s.appendChild(f.firstChild);
@@ -402,10 +408,13 @@ export default function PoolPrintLayoutEditorPage() {
             <option value="'Trebuchet MS', sans-serif">Trebuchet</option>
             <option value="'Courier New', monospace">Courier</option>
           </select>
-          <select value={["8","9","10","11","12","14","16","18","20","24","28","32"].includes(selFmt.sizePt) ? selFmt.sizePt : ""} onChange={(e) => selFontSize(e.target.value)} className="rounded border border-slate-300 px-1 py-1 text-sm" title="Tamanho">
-            <option value="">Tam.</option>
-            {[8,9,10,11,12,14,16,18,20,24,28,32].map((s) => <option key={s} value={s}>{s}pt</option>)}
-          </select>
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Tamanho do texto selecionado (pt) — digite e Enter">
+            <input type="number" min={5} max={120} value={sizeInput} placeholder="Tam"
+              onChange={(e) => setSizeInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); selFontSize(sizeInput); } }}
+              onBlur={() => { if (sizeInput) selFontSize(sizeInput); }}
+              className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />pt
+          </label>
           <label className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-sm" title="Cor do texto"><span>A</span><input type="color" value={selFmt.color} onChange={(e) => selExec("foreColor", e.target.value)} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
           <span className="mx-0.5 h-5 w-px bg-slate-300" />
           <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selExec("bold")} className={ribFmtBtn(selFmt.bold)} title="Negrito">B</button>
