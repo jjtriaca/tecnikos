@@ -115,8 +115,19 @@ export type BudgetReportData = {
   code: string;
   title?: string | null;
   clientName?: string | null;
+  clientTradeName?: string | null;
   clientDocument?: string | null;
+  clientPhone?: string | null;
+  clientEmail?: string | null;
+  clientAddress?: string | null;
+  clientNeighborhood?: string | null;
   clientCity?: string | null;
+  clientState?: string | null;
+  clientZip?: string | null;
+  company?: {
+    name?: string | null; tradeName?: string | null; cnpj?: string | null; ie?: string | null;
+    phone?: string | null; email?: string | null; address?: string | null; city?: string | null; ownerName?: string | null;
+  } | null;
   budgetDate?: string | null;
   dimensions?: {
     length?: number; width?: number; depth?: number;
@@ -194,8 +205,24 @@ function resolvePlaceholders(html: string, data: BudgetReportData): string {
   const d = data.dimensions || {};
   const map: Record<string, string> = {
     "{clientName}": data.clientName || "",
+    "{clientTradeName}": data.clientTradeName || "",
     "{clientDocument}": data.clientDocument || "",
+    "{clientPhone}": data.clientPhone || "",
+    "{clientEmail}": data.clientEmail || "",
+    "{clientAddress}": data.clientAddress || "",
+    "{clientNeighborhood}": data.clientNeighborhood || "",
     "{clientCity}": data.clientCity || "",
+    "{clientState}": data.clientState || "",
+    "{clientZip}": data.clientZip || "",
+    "{companyName}": data.company?.name || "",
+    "{companyTradeName}": data.company?.tradeName || "",
+    "{companyCnpj}": data.company?.cnpj || "",
+    "{companyIe}": data.company?.ie || "",
+    "{companyPhone}": data.company?.phone || "",
+    "{companyEmail}": data.company?.email || "",
+    "{companyAddress}": data.company?.address || "",
+    "{companyCity}": data.company?.city || "",
+    "{companyOwnerName}": data.company?.ownerName || "",
     "{budgetCode}": data.code || "",
     "{budgetDate}": data.budgetDate || new Date().toLocaleDateString("pt-BR"),
     "{budgetTitle}": data.title || "",
@@ -731,7 +758,7 @@ function BoxFrame({ box, selected, editing, canvasRef, lockAspect, onSelect, onS
   return (
     <div style={{ ...boxRectStyle(box), cursor: editing ? "text" : "move", outline: selected ? "2px solid #06b6d4" : undefined, outlineOffset: 0 }}
       onPointerDown={begin("move")}
-      onClick={(e) => { e.stopPropagation(); if (draggedRef.current) return; if (selected && box.type === "TEXT") onStartEdit(); else onSelect(); }}
+      onClick={(e) => { e.stopPropagation(); if (draggedRef.current) return; onSelect(); }}
       onDoubleClick={(e) => { e.stopPropagation(); onStartEdit(); }}>
       {children}
       {selected && !editing ? HANDLES.map((h) => (<div key={h} style={handleStyle(h)} onPointerDown={begin(h)} />)) : null}

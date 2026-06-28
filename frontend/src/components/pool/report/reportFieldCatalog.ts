@@ -118,12 +118,12 @@ export const REPORT_FIELD_CATALOG: CatalogSource[] = [
         T("{poolPerimeter}", "Perímetro (m)", "📐"),
       ] },
       EMPRESA,
-      { label: "Blocos prontos", icon: "🧩", fields: [
-        B("COVER", "Capa pronta", "🖼️"),
+      // Blocos de DADO VARIÁVEL (lista de N itens) — não dá pra montar com caixa livre.
+      // Capa e Termos saíram (viram caixas/campos livres).
+      { label: "Blocos (tabelas dinâmicas)", icon: "🧩", fields: [
         B("PRODUCTS_BY_SECTION", "Produtos por etapa", "📋"),
         B("BUDGET_SUMMARY", "Resumo do orçamento", "🧮"),
         B("INSTALLMENTS", "Plano de pagamento", "💳"),
-        B("TERMS_CONDITIONS", "Termos e condições", "📜"),
         B("PHOTOS_GALLERY", "Galeria de fotos", "🖼️"),
         B("CUSTOM_TABLE", "Tabela personalizada", "▦"),
         B("HEATING_SOLAR", "Datasheet Coletor Solar", "☀️"),

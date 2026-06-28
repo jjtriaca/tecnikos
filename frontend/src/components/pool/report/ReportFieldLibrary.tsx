@@ -20,9 +20,6 @@ export default function ReportFieldLibrary({ onInsertText, onInsertBlock, onClos
     if (f.kind === "block" && f.blockType) onInsertBlock(f.blockType);
     else if (f.token) onInsertText(f.token);
   };
-  // Minimiza (fecha acordeao) ao perder o foco do painel.
-  const onBlurPanel = () => { setTimeout(() => { if (!panelRef.current?.contains(document.activeElement)) setOpen(null); }, 120); };
-
   const Row = ({ f }: { f: CatalogField }) => (
     <button type="button" onClick={() => insert(f)} title={`Inserir ${f.token || f.blockType}`}
       className="group flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[11px] text-slate-700 hover:bg-cyan-50">
@@ -34,7 +31,7 @@ export default function ReportFieldLibrary({ onInsertText, onInsertBlock, onClos
   );
 
   return (
-    <div ref={panelRef} onBlur={onBlurPanel} tabIndex={-1}
+    <div ref={panelRef} tabIndex={-1}
       className="flex w-72 shrink-0 flex-col border-l border-slate-200 bg-slate-50">
       <div className="flex items-center justify-between border-b border-slate-200 px-2 py-1.5">
         <span className="text-[11px] font-bold uppercase tracking-wide text-slate-500">📚 Campos &amp; blocos</span>

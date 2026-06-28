@@ -85,8 +85,16 @@ const SAMPLE_BUDGET: BudgetReportData = {
   code: "ORCP-00001",
   title: "Piscina Pre moldada",
   clientName: "Anderson da Silva Prado",
+  clientTradeName: "",
   clientDocument: "123.456.789-00",
+  clientPhone: "(66) 99999-0000",
+  clientEmail: "anderson@email.com",
+  clientAddress: "Rua das Palmeiras, 123",
+  clientNeighborhood: "Centro",
   clientCity: "Primavera do Leste - MT",
+  clientState: "MT",
+  clientZip: "78850-000",
+  company: { name: "SLS Obras LTDA", tradeName: "SLS — Sol e Lazer Soluções", cnpj: "47.226.599/0001-40", ie: "ISENTO", phone: "(66) 99986-1230", email: "contato@sls.com.br", address: "Av. Paraná, 340 — Primavera do Leste/MT", city: "Primavera do Leste - MT", ownerName: "Juliano Triaca" },
   budgetDate: "11/06/2026",
   dimensions: { length: 7, width: 3, depth: 1.4, area: 28.5, volume: 33.3, perimeter: 20 },
   subtotalCents: 18561520,
@@ -160,6 +168,10 @@ export default function PoolPrintLayoutEditorPage() {
   // Fundo POR PAGINA (nao global): bg/bgType/bgColor2 vivem no pageConfig da pagina.
   const [pageBgCfg, setPageBgCfg] = useState<{ bg?: string | null; bgType?: string; bgColor2?: string }>({});
   const pageBgRef = useRef(pageBgCfg);
+  // Nome da pagina (pageConfig.name) — operador batiza (Capa, Sobre, Produtos…).
+  const [pageName, setPageName] = useState<string>("");
+  const pageNameRef = useRef("");
+  const [nameEdit, setNameEdit] = useState<{ id: string; v: string } | null>(null);
 
   // Carrega os boxes + fundo ao abrir uma pagina canvas (volta pra regiao PAGINA, reseta historico).
   useEffect(() => {
@@ -170,6 +182,7 @@ export default function PoolPrintLayoutEditorPage() {
       setBoxes(bs); setSelBox(null); setSaveState("idle");
       const bg = { bg: pc.bg ?? null, bgType: pc.bgType || "solid", bgColor2: pc.bgColor2 };
       setPageBgCfg(bg); pageBgRef.current = bg;
+      const nm = pc.name || ""; setPageName(nm); pageNameRef.current = nm;
       histRef.current = { stack: [JSON.parse(JSON.stringify(bs))], idx: 0 };
       setHistInfo({ canUndo: false, canRedo: false });
     }
@@ -209,7 +222,7 @@ export default function PoolPrintLayoutEditorPage() {
           if (!editingPage) return;
           const pageId = editingPage.id;
           const bgc = pageBgRef.current;
-          const pageConfig = { canvas: true, boxes: bs, bg: bgc.bg ?? null, bgType: bgc.bgType || "solid", bgColor2: bgc.bgColor2 ?? null };
+          const pageConfig = { canvas: true, boxes: bs, bg: bgc.bg ?? null, bgType: bgc.bgType || "solid", bgColor2: bgc.bgColor2 ?? null, name: pageNameRef.current || null };
           await api.put(`/pool-print-layouts/pages/${pageId}`, { type: "FIXED", htmlContent: null, dynamicType: null, pageConfig });
           setLayout((prev) => prev ? { ...prev, pages: prev.pages.map((p) => p.id === pageId ? { ...p, type: "FIXED", pageConfig } : p) } : prev);
         } else {
@@ -303,6 +316,16 @@ export default function PoolPrintLayoutEditorPage() {
     histRef.current = { stack: [JSON.parse(JSON.stringify(bs))], idx: 0 }; setHistInfo({ canUndo: false, canRedo: false });
     setEditingPage({ ...p, type: "FIXED", pageConfig: { canvas: true, boxes: bs } } as Page);
     scheduleSave(bs);
+  }
+  async function renamePage(pageId: string, name: string) {
+    setNameEdit(null);
+    if (editingPage?.id === pageId) { setPageName(name); pageNameRef.current = name; }
+    const p = layoutRef.current?.pages.find((x) => x.id === pageId); if (!p) return;
+    const pc = { ...((p.pageConfig as any) || {}), name: name || null };
+    try {
+      await api.put(`/pool-print-layouts/pages/${pageId}`, { pageConfig: pc });
+      setLayout((prev) => prev ? { ...prev, pages: prev.pages.map((x) => x.id === pageId ? { ...x, pageConfig: pc } : x) } : prev);
+    } catch (e: any) { toast(e?.payload?.message || "Erro", "error"); }
   }
   async function savePageMeta(patch: any) {
     if (!editingPage) return;
@@ -500,6 +523,17 @@ export default function PoolPrintLayoutEditorPage() {
     closestEditable(selRange.current)?.querySelectorAll('a:not([target])').forEach((a) => { (a as HTMLAnchorElement).target = "_blank"; (a as HTMLAnchorElement).rel = "noopener"; });
     fireInput(); reflectSel();
   };
+  // Fonte/tamanho/cor: aplica na SELECAO se estiver editando texto; senao na CAIXA inteira
+  // (style.fontSize/fontFamily/textColor). Resolve o "aumentar fonte nao funciona" com a caixa so selecionada.
+  const isEditingText = () => { const ed = closestEditable(selRange.current); return !!(ed && selRange.current && !selRange.current.collapsed); };
+  const applySize = (pt: string) => { if (!pt) return; if (isEditingText()) selFontSize(pt); else if (selectedBox?.type === "TEXT") patchSelStyle({ fontSize: Number(pt) }); };
+  const applyFontName = (v: string) => { if (isEditingText()) selExec("fontName", v); else if (selectedBox?.type === "TEXT") patchSelStyle({ fontFamily: v || null }); };
+  const applyColor = (v: string) => { if (isEditingText()) selExec("foreColor", v); else if (selectedBox?.type === "TEXT") patchSelStyle({ textColor: v }); };
+  // Reflete o tamanho/cor da CAIXA selecionada (quando nao esta editando texto).
+  useEffect(() => {
+    if (selectedBox?.type === "TEXT" && !isEditingText()) setSizeInput(String(selectedBox.style?.fontSize ?? ""));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selBox]);
 
   async function addPage(payload: any) {
     try {
@@ -623,7 +657,7 @@ export default function PoolPrintLayoutEditorPage() {
           <RibbonBtn icon="📑" label="Duplicar" onClick={() => toast("Duplicar: em breve", "info")} />
         </>)}
         {tab === "Inicio" && (<>
-          <select value={selFmt.fontName} onMouseDown={(e) => e.stopPropagation()} onChange={(e) => selExec("fontName", e.target.value)} className="rounded border border-slate-300 px-2 py-1 text-sm" title="Fonte do texto selecionado">
+          <select value={selFmt.fontName} onMouseDown={(e) => e.stopPropagation()} onChange={(e) => applyFontName(e.target.value)} className="rounded border border-slate-300 px-2 py-1 text-sm" title="Fonte (do trecho selecionado, ou da caixa toda se só selecionada)">
             <option value="">Fonte</option>
             <option value="Arial, Helvetica, sans-serif">Arial</option>
             <option value="'Helvetica Neue', Helvetica, sans-serif">Helvetica</option>
@@ -640,17 +674,14 @@ export default function PoolPrintLayoutEditorPage() {
             <option value="'Courier New', monospace">Courier New</option>
             <option value="'Roboto', sans-serif">Roboto</option>
           </select>
-          {/* Tamanho: − e + aplicam NA HORA mantendo a seleção (onMouseDown preventDefault); o campo aceita digitar + Enter */}
-          <div className="flex items-center" title="Tamanho do texto selecionado (pt)">
-            <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selFontSize(String(Math.max(5, (Number(sizeInput) || Number(selFmt.sizePt) || 12) - 1)))} className="rounded-l border border-slate-300 px-1.5 py-1 text-sm hover:bg-slate-100">−</button>
+          {/* Tamanho (pt): setas nativas do campo; aplica NA HORA (na seleção se editando, senão na caixa toda) */}
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Tamanho (pt) — do trecho selecionado, ou da caixa toda se só selecionada">
             <input type="number" min={5} max={200} value={sizeInput} placeholder="Tam"
-              onChange={(e) => setSizeInput(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); selFontSize(sizeInput); } }}
-              onBlur={() => { if (sizeInput) selFontSize(sizeInput); }}
-              className="w-12 border-y border-slate-300 px-1 py-1 text-center text-sm" />
-            <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selFontSize(String((Number(sizeInput) || Number(selFmt.sizePt) || 12) + 1))} className="rounded-r border border-slate-300 px-1.5 py-1 text-sm hover:bg-slate-100">+</button>
-          </div>
-          <label className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-sm" title="Cor do texto"><span>A</span><input type="color" value={selFmt.color} onChange={(e) => selExec("foreColor", e.target.value)} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
+              onChange={(e) => { setSizeInput(e.target.value); applySize(e.target.value); }}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applySize(sizeInput); } }}
+              className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />pt
+          </label>
+          <label className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-sm" title="Cor do texto (trecho ou caixa toda)"><span>A</span><input type="color" value={selFmt.color} onChange={(e) => applyColor(e.target.value)} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
           <span className="mx-0.5 h-5 w-px bg-slate-300" />
           <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selExec("bold")} className={ribFmtBtn(selFmt.bold)} title="Negrito">B</button>
           <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selExec("italic")} className={ribFmtBtn(selFmt.italic) + " italic"} title="Italico">I</button>
@@ -906,16 +937,17 @@ export default function PoolPrintLayoutEditorPage() {
                       <span className="rounded-full bg-slate-100 text-slate-500 text-[10px] px-2 py-0.5">inativa</span>
                     )}
                   </div>
-                  <div className="font-medium text-slate-900">
-                    {(p.pageConfig as any)?.canvas
-                      ? <span className="text-slate-700">Canvas · {((p.pageConfig as any).boxes || []).length} caixa(s)</span>
-                      : (p.pageConfig as any)?.nodes?.length
-                      ? <span className="text-slate-700">Composicao de cards · {(p.pageConfig as any).nodes.length} no topo</span>
-                      : p.type === "DYNAMIC"
-                      ? (DYNAMIC_LABEL[p.dynamicType || ""] || p.dynamicType || "Pagina dinamica")
-                      : p.htmlContent
-                        ? <span className="text-slate-700">{p.htmlContent.slice(0, 80).replace(/<[^>]+>/g, "").trim() || "(sem conteudo)"}{p.htmlContent.length > 80 ? "..." : ""}</span>
-                        : "(sem conteudo)"}
+                  <div className="font-medium text-slate-900 flex items-center gap-1">
+                    {nameEdit?.id === p.id ? (
+                      <input autoFocus value={nameEdit.v} onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => setNameEdit({ id: p.id, v: e.target.value })}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); renamePage(p.id, nameEdit!.v); } else if (e.key === "Escape") setNameEdit(null); }}
+                        onBlur={() => renamePage(p.id, nameEdit!.v)}
+                        placeholder={`Página ${idx + 1}`} className="w-full rounded border border-cyan-300 px-1 py-0.5 text-sm" />
+                    ) : (<>
+                      <span className="truncate">{(p.pageConfig as any)?.name || `Página ${idx + 1}`}</span>
+                      <button onClick={(e) => { e.stopPropagation(); setNameEdit({ id: p.id, v: (p.pageConfig as any)?.name || "" }); }} title="Renomear página" className="text-xs text-slate-400 hover:text-cyan-600">✏️</button>
+                    </>)}
                   </div>
                   {p.isConditional && (
                     <div className="text-xs text-orange-600 mt-1">
