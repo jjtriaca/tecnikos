@@ -742,24 +742,35 @@ function BoxFrame({ box, selected, editing, canvasRef, lockAspect, onSelect, onS
 // Editor de canvas (uma pagina) — usado no centro do editor. Renderiza a folha A4
 // (aspect-ratio) e os boxes interativos. onChange = update ao vivo; onCommit = passo
 // de historico (undo/redo) no fim do gesto. Edicao de texto inline via duplo-clique.
-export function CanvasEditor({ boxes, data, branding, selBox, pageW, pageH, pageBg, onSelect, onChange, onCommit, onEditStart }: {
+export function CanvasEditor({ boxes, data, branding, selBox, pageW, pageH, pageBg, onSelect, onChange, onCommit, onEditStart, hfOverlay }: {
   boxes: Box[]; data: BudgetReportData; branding?: ReportBranding | null; selBox: string | null;
   pageW?: number; pageH?: number; pageBg?: string;
   onSelect: (id: string | null) => void; onChange: (b: Box) => void; onCommit: () => void; onEditStart?: (id: string) => void;
+  hfOverlay?: { headerBoxes?: Box[]; footerBoxes?: Box[]; headerHmm?: number; footerHmm?: number };
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (selBox !== editingId) setEditingId(null); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [selBox]);
   const W = pageW || 210, H = pageH || 297;
   return (
-    // Caixa A4 (ou tamanho configurado) que CABE no painel (fit-contain): altura manda,
-    // largura segue a proporcao real W/H; se passar da largura, max-width corta. Reflete o
-    // tamanho real -> diminuir a altura deixa a folha mais "quadrada", como o usuario espera.
+    // Folha no TAMANHO REAL (mm) -> proporcao IDENTICA a impressao (fonte vs pagina). Rola
+    // no painel (overflow auto) quando passa do espaco.
     <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 16, background: "#475569", overflow: "auto" }}>
       <style dangerouslySetInnerHTML={{ __html: REPORT_CSS }} />
       <div ref={canvasRef}
-        style={{ position: "relative", width: "100%", maxWidth: 980, aspectRatio: `${W} / ${H}`, background: pageBg || "#fff", boxShadow: "0 2px 18px rgba(0,0,0,.35)", overflow: "hidden", flexShrink: 0, color: "#0f172a", fontSize: "11px", lineHeight: 1.35 }}
+        style={{ position: "relative", width: `${W}mm`, height: `${H}mm`, background: pageBg || "#fff", boxShadow: "0 2px 18px rgba(0,0,0,.35)", overflow: "hidden", flexShrink: 0, color: "#0f172a", fontSize: "11px", lineHeight: 1.35 }}
         onPointerDown={(e) => { if (e.target === canvasRef.current) { onSelect(null); setEditingId(null); } }}>
+        {/* Cabecalho/Rodape como SOBREPOSICAO esmaecida (contexto; nao editavel aqui) */}
+        {hfOverlay?.headerBoxes && hfOverlay.headerBoxes.length ? (
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: `${hfOverlay.headerHmm ?? 18}mm`, overflow: "hidden", opacity: 0.55, pointerEvents: "none", borderBottom: "1px dashed #cbd5e1" }}>
+            <CanvasPage boxes={hfOverlay.headerBoxes} data={data} branding={branding} />
+          </div>
+        ) : null}
+        {hfOverlay?.footerBoxes && hfOverlay.footerBoxes.length ? (
+          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: `${hfOverlay.footerHmm ?? 14}mm`, overflow: "hidden", opacity: 0.55, pointerEvents: "none", borderTop: "1px dashed #cbd5e1" }}>
+            <CanvasPage boxes={hfOverlay.footerBoxes} data={data} branding={branding} />
+          </div>
+        ) : null}
         {[...(boxes || [])].sort((a, b) => (a.z || 0) - (b.z || 0)).map((b) => (
           <BoxFrame key={b.id} box={b} selected={selBox === b.id} editing={editingId === b.id} canvasRef={canvasRef}
             onSelect={() => onSelect(b.id)}

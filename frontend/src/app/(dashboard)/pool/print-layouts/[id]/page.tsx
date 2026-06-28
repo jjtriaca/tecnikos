@@ -432,19 +432,30 @@ export default function PoolPrintLayoutEditorPage() {
     fireInput(); reflectSel();
   };
   const selFontSize = (pt: string) => {
-    if (!pt || !closestEditable(selRange.current)) return;
+    const ed = closestEditable(selRange.current);
+    if (!pt || !ed) return;
     restoreSel();
-    // IMPORTANTE: forcar styleWithCSS=false aqui, senao (apos um B/I/cor que liga
-    // styleWithCSS) o fontSize=7 vira <span font-size:xx-large> (GIGANTE) e o conversor
-    // nao acha o font[size=7] pra trocar pelo pt. Com false, gera <font size=7> e convertemos.
+    // IMPORTANTE: forcar styleWithCSS=false (senao fontSize=7 vira xx-large). Gera <font size=7>
+    // e convertemos pra <span pt>. Depois RE-SELECIONA o trecho convertido (do 1o ao ultimo span)
+    // pra NAO perder a selecao ao mudar o tamanho (permite ajustar varias vezes seguidas).
     try { document.execCommand("styleWithCSS", false, "false"); } catch { /* noop */ }
     document.execCommand("fontSize", false, "7");
-    document.querySelectorAll('.rp-inline-edit font[size="7"]').forEach((f) => {
+    const created: HTMLElement[] = [];
+    ed.querySelectorAll('font[size="7"]').forEach((f) => {
       const s = document.createElement("span");
       s.style.fontSize = `${pt}pt`;
       while (f.firstChild) s.appendChild(f.firstChild);
       f.replaceWith(s);
+      created.push(s);
     });
+    if (created.length) {
+      const sel = window.getSelection();
+      const nr = document.createRange();
+      nr.setStartBefore(created[0]);
+      nr.setEndAfter(created[created.length - 1]);
+      sel?.removeAllRanges(); sel?.addRange(nr);
+      selRange.current = nr.cloneRange();
+    }
     fireInput(); reflectSel();
   };
   // Link clicavel na selecao (createLink). O <a href> vira link clicavel no PDF (Salvar como PDF).
@@ -910,6 +921,7 @@ export default function PoolPrintLayoutEditorPage() {
           <CanvasEditor boxes={boxes} data={SAMPLE_BUDGET} branding={layout.branding}
             selBox={selBox} pageW={pageDims(layout.branding).w} pageH={pageDims(layout.branding).h}
             pageBg={brand.bgType === "gradient" ? `linear-gradient(135deg, ${brand.bgColor || "#ffffff"}, ${brand.bgColor2 || "#e2e8f0"})` : (brand.bgColor || "#ffffff")}
+            hfOverlay={{ headerBoxes: brand.headerBoxes, footerBoxes: brand.footerBoxes, headerHmm: brand.headerHmm, footerHmm: brand.footerHmm }}
             onSelect={(idv) => { setSelBox(idv); if (idv) { const b = boxes.find((x) => x.id === idv); setTab(b?.type === "TEXT" ? "Inicio" : "Layout"); } }}
             onChange={onCanvasChange} onCommit={onCanvasCommit} onEditStart={() => setTab("Inicio")} />
         ) : showAddPage ? (
