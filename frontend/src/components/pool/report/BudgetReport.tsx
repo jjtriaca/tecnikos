@@ -753,10 +753,10 @@ export function CanvasEditor({ boxes, data, branding, selBox, pageW, pageH, page
     // Caixa A4 (ou tamanho configurado) que CABE no painel (fit-contain): altura manda,
     // largura segue a proporcao real W/H; se passar da largura, max-width corta. Reflete o
     // tamanho real -> diminuir a altura deixa a folha mais "quadrada", como o usuario espera.
-    <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "#475569", overflow: "auto" }}>
+    <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 16, background: "#475569", overflow: "auto" }}>
       <style dangerouslySetInnerHTML={{ __html: REPORT_CSS }} />
       <div ref={canvasRef}
-        style={{ position: "relative", height: "100%", width: "auto", aspectRatio: `${W} / ${H}`, maxWidth: "100%", maxHeight: "100%", background: pageBg || "#fff", boxShadow: "0 2px 18px rgba(0,0,0,.35)", overflow: "hidden", flexShrink: 0, color: "#0f172a", fontSize: "11px", lineHeight: 1.35 }}
+        style={{ position: "relative", width: "100%", maxWidth: 980, aspectRatio: `${W} / ${H}`, background: pageBg || "#fff", boxShadow: "0 2px 18px rgba(0,0,0,.35)", overflow: "hidden", flexShrink: 0, color: "#0f172a", fontSize: "11px", lineHeight: 1.35 }}
         onPointerDown={(e) => { if (e.target === canvasRef.current) { onSelect(null); setEditingId(null); } }}>
         {[...(boxes || [])].sort((a, b) => (a.z || 0) - (b.z || 0)).map((b) => (
           <BoxFrame key={b.id} box={b} selected={selBox === b.id} editing={editingId === b.id} canvasRef={canvasRef}
