@@ -157,18 +157,34 @@ export default function PoolPrintLayoutEditorPage() {
   useEffect(() => { layoutRef.current = layout; }, [layout]);
   const pageIsCanvas = (p: Page | null) => !!((p?.pageConfig as any)?.canvas);
   const selectedBox = boxes.find((b) => b.id === selBox) || null;
+  // Fundo POR PAGINA (nao global): bg/bgType/bgColor2 vivem no pageConfig da pagina.
+  const [pageBgCfg, setPageBgCfg] = useState<{ bg?: string | null; bgType?: string; bgColor2?: string }>({});
+  const pageBgRef = useRef(pageBgCfg);
 
-  // Carrega os boxes ao abrir uma pagina canvas (volta pra regiao PAGINA, reseta historico).
+  // Carrega os boxes + fundo ao abrir uma pagina canvas (volta pra regiao PAGINA, reseta historico).
   useEffect(() => {
     setRegion("page");
     if (editingPage && pageIsCanvas(editingPage)) {
-      const bs = (((editingPage.pageConfig as any)?.boxes) || []) as Box[];
+      const pc = (editingPage.pageConfig as any) || {};
+      const bs = (pc.boxes || []) as Box[];
       setBoxes(bs); setSelBox(null); setSaveState("idle");
+      const bg = { bg: pc.bg ?? null, bgType: pc.bgType || "solid", bgColor2: pc.bgColor2 };
+      setPageBgCfg(bg); pageBgRef.current = bg;
       histRef.current = { stack: [JSON.parse(JSON.stringify(bs))], idx: 0 };
       setHistInfo({ canUndo: false, canRedo: false });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingPage?.id]);
+
+  // Muda o fundo SO desta pagina (persiste no pageConfig via scheduleSave).
+  function setPageBg(patch: Record<string, any>) {
+    const next = { ...pageBgRef.current, ...patch };
+    pageBgRef.current = next; setPageBgCfg(next); scheduleSave(boxes);
+  }
+  // CSS do fundo da pagina atual (gradiente ou solido); usado no editor.
+  const pageBgCss = pageBgCfg.bgType === "gradient"
+    ? `linear-gradient(135deg, ${pageBgCfg.bg || "#ffffff"}, ${pageBgCfg.bgColor2 || "#e2e8f0"})`
+    : (pageBgCfg.bg || "#ffffff");
 
   // Entra numa regiao de edicao (pagina / cabecalho / rodape) carregando suas caixas.
   function enterRegion(r: "page" | "header" | "footer") {
@@ -192,8 +208,10 @@ export default function PoolPrintLayoutEditorPage() {
         if (r === "page") {
           if (!editingPage) return;
           const pageId = editingPage.id;
-          await api.put(`/pool-print-layouts/pages/${pageId}`, { type: "FIXED", htmlContent: null, dynamicType: null, pageConfig: { canvas: true, boxes: bs } });
-          setLayout((prev) => prev ? { ...prev, pages: prev.pages.map((p) => p.id === pageId ? { ...p, type: "FIXED", pageConfig: { canvas: true, boxes: bs } } : p) } : prev);
+          const bgc = pageBgRef.current;
+          const pageConfig = { canvas: true, boxes: bs, bg: bgc.bg ?? null, bgType: bgc.bgType || "solid", bgColor2: bgc.bgColor2 ?? null };
+          await api.put(`/pool-print-layouts/pages/${pageId}`, { type: "FIXED", htmlContent: null, dynamicType: null, pageConfig });
+          setLayout((prev) => prev ? { ...prev, pages: prev.pages.map((p) => p.id === pageId ? { ...p, type: "FIXED", pageConfig } : p) } : prev);
         } else {
           const key = r === "header" ? "headerBoxes" : "footerBoxes";
           const nextBrand = { ...((layoutRef.current?.branding || {}) as any), [key]: bs };
@@ -237,8 +255,16 @@ export default function PoolPrintLayoutEditorPage() {
       : kind === "CARD"
       ? { id: genBoxId(), type: "CARD", x: 8, y: 8, w: 55, h: 30, z: maxZ() + 1, style: { bg: "#ffffff", borderColor: "#e2e8f0", borderWidth: 1, radius: 8 } }
       : { id: genBoxId(), type: "BLOCK", x: 5, y: 8, w: 90, h: 80, z: maxZ() + 1, blockType: "PRODUCTS_BY_SECTION", config: {} };
+    // offset em cascata pra caixas novas NAO sobreporem exatamente (estilo PowerPoint)
+    const off = (boxes.length % 6) * 3;
+    base.x = Math.min(85, (base.x || 0) + off); base.y = Math.min(85, (base.y || 0) + off);
     const nb = { ...base, ...extra } as Box;
     commitBoxes([...boxes, nb]); setSelBox(nb.id); setTab("Layout");
+  }
+  function duplicateSelBox() {
+    if (!selectedBox) return;
+    const nb = { ...JSON.parse(JSON.stringify(selectedBox)), id: genBoxId(), x: Math.min(88, selectedBox.x + 3), y: Math.min(88, selectedBox.y + 3), z: maxZ() + 1 } as Box;
+    commitBoxes([...boxes, nb]); setSelBox(nb.id);
   }
   function patchSelBox(patch: Partial<Box>) {
     if (!selBox) return;
@@ -651,10 +677,11 @@ export default function PoolPrintLayoutEditorPage() {
           </label>
           <label className="text-xs text-slate-600 flex items-center gap-1" title="Largura da página (mm)">L<input type="number" min={50} value={pageDims(layout.branding).w} onChange={(e) => setBranding({ pageWidthMm: Number(e.target.value) || null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
           <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura da página (mm) — diminua p/ folha mais baixa">A<input type="number" min={50} value={pageDims(layout.branding).h} onChange={(e) => setBranding({ pageHeightMm: Number(e.target.value) || null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
-          <label className="text-xs text-slate-600 flex items-center gap-1" title="Fundo da página">Fundo
-            <select value={brand.bgType || "solid"} onChange={(e) => setBranding({ bgType: e.target.value })} className="rounded border border-slate-300 px-1 py-1 text-sm"><option value="solid">Sólido</option><option value="gradient">Gradiente</option></select>
-            <input type="color" value={brand.bgColor || "#ffffff"} onChange={(e) => setBranding({ bgColor: e.target.value })} className="h-6 w-6 cursor-pointer rounded border border-slate-300 p-0" />
-            {brand.bgType === "gradient" ? <input type="color" value={brand.bgColor2 || "#e2e8f0"} onChange={(e) => setBranding({ bgColor2: e.target.value })} className="h-6 w-6 cursor-pointer rounded border border-slate-300 p-0" /> : null}
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Fundo SÓ desta página">Fundo
+            <select value={pageBgCfg.bgType || "solid"} onChange={(e) => setPageBg({ bgType: e.target.value })} className="rounded border border-slate-300 px-1 py-1 text-sm"><option value="solid">Sólido</option><option value="gradient">Gradiente</option></select>
+            <input type="color" value={pageBgCfg.bg || "#ffffff"} onChange={(e) => setPageBg({ bg: e.target.value })} className="h-6 w-6 cursor-pointer rounded border border-slate-300 p-0" />
+            {pageBgCfg.bgType === "gradient" ? <input type="color" value={pageBgCfg.bgColor2 || "#e2e8f0"} onChange={(e) => setPageBg({ bgColor2: e.target.value })} className="h-6 w-6 cursor-pointer rounded border border-slate-300 p-0" /> : null}
+            <button type="button" onClick={() => setPageBg({ bg: null })} title="Sem fundo (branco)" className="text-slate-400 hover:text-slate-700">⌫</button>
           </label>
           {/* ── grupo MARCA (cores) — logo agora é só inserir IMAGEM (Inserir/Campos) ── */}
           <span className="mx-1 h-6 w-px bg-slate-300" />
@@ -718,6 +745,7 @@ export default function PoolPrintLayoutEditorPage() {
               </label>
             </>) : null}
             <span className="mx-0.5 h-5 w-px bg-slate-300" />
+            <RibbonBtn icon="📑" label="Duplicar" onClick={duplicateSelBox} />
             <RibbonBtn icon="🗑️" label="Excluir" onClick={removeSelBox} />
           </>);
         })() : (
@@ -862,7 +890,9 @@ export default function PoolPrintLayoutEditorPage() {
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    {(p.pageConfig as any)?.nodes?.length ? (
+                    {(p.pageConfig as any)?.canvas ? (
+                      <span className="rounded-full bg-cyan-100 text-cyan-700 text-[10px] px-2 py-0.5 font-semibold">CANVAS</span>
+                    ) : (p.pageConfig as any)?.nodes?.length ? (
                       <span className="rounded-full bg-amber-100 text-amber-700 text-[10px] px-2 py-0.5 font-semibold">COMPOSICAO</span>
                     ) : p.type === "FIXED" ? (
                       <span className="rounded-full bg-purple-100 text-purple-700 text-[10px] px-2 py-0.5 font-semibold">HTML FIXO</span>
@@ -877,7 +907,9 @@ export default function PoolPrintLayoutEditorPage() {
                     )}
                   </div>
                   <div className="font-medium text-slate-900">
-                    {(p.pageConfig as any)?.nodes?.length
+                    {(p.pageConfig as any)?.canvas
+                      ? <span className="text-slate-700">Canvas · {((p.pageConfig as any).boxes || []).length} caixa(s)</span>
+                      : (p.pageConfig as any)?.nodes?.length
                       ? <span className="text-slate-700">Composicao de cards · {(p.pageConfig as any).nodes.length} no topo</span>
                       : p.type === "DYNAMIC"
                       ? (DYNAMIC_LABEL[p.dynamicType || ""] || p.dynamicType || "Pagina dinamica")
@@ -920,7 +952,7 @@ export default function PoolPrintLayoutEditorPage() {
         ) : editingPage && pageIsCanvas(editingPage) ? (
           <CanvasEditor boxes={boxes} data={SAMPLE_BUDGET} branding={layout.branding}
             selBox={selBox} pageW={pageDims(layout.branding).w} pageH={pageDims(layout.branding).h}
-            pageBg={brand.bgType === "gradient" ? `linear-gradient(135deg, ${brand.bgColor || "#ffffff"}, ${brand.bgColor2 || "#e2e8f0"})` : (brand.bgColor || "#ffffff")}
+            pageBg={pageBgCss}
             hfOverlay={{ headerBoxes: brand.headerBoxes, footerBoxes: brand.footerBoxes, headerHmm: brand.headerHmm, footerHmm: brand.footerHmm }}
             onSelect={(idv) => { setSelBox(idv); if (idv) { const b = boxes.find((x) => x.id === idv); setTab(b?.type === "TEXT" ? "Inicio" : "Layout"); } }}
             onChange={onCanvasChange} onCommit={onCanvasCommit} onEditStart={() => setTab("Inicio")} />

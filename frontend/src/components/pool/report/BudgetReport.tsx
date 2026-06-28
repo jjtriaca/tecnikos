@@ -926,10 +926,15 @@ export default function BudgetReport({ data, layout, editable, selectedPageId, o
             const isCanvas = !!(page.pageConfig as any)?.canvas;
             if (isCanvas) {
               const { w: cW, h: cH } = pageDims(branding);
+              // Fundo POR PAGINA (pageConfig.bg/bgType/bgColor2); cai pro fundo global so se a pagina nao definir.
+              const pc = page.pageConfig as any;
+              const cbg = pc?.bgType === "gradient"
+                ? `linear-gradient(135deg, ${pc.bg || "#ffffff"}, ${pc.bgColor2 || "#e2e8f0"})`
+                : (pc?.bg || (pageStyle as any).background || "#ffffff");
               return (
                 <div className="report-page rp-canvas-page" key={page.id}
                   id={editable ? `rp-page-${page.id}` : undefined}
-                  style={{ ...pageStyle, padding: 0, position: "relative", width: `${cW}mm`, height: `${cH}mm`, minHeight: `${cH}mm`, overflow: "hidden",
+                  style={{ ...pageStyle, background: cbg, padding: 0, position: "relative", width: `${cW}mm`, height: `${cH}mm`, minHeight: `${cH}mm`, overflow: "hidden",
                     ...(editable ? { cursor: "pointer", outline: selectedPageId === page.id ? "3px solid #06b6d4" : undefined, outlineOffset: "3px" } : {}) }}
                   onClick={editable && onSelectPage ? () => onSelectPage(page.id) : undefined}>
                   <CanvasPage boxes={(page.pageConfig as any).boxes || []} data={data} branding={branding} />
