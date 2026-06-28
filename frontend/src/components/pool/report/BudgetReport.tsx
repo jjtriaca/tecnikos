@@ -488,7 +488,10 @@ function renderBlockByType(blockType: string | null | undefined, data: BudgetRep
 // so na montagem (keyed por node.id) -> digitar/execCommand nao reseta o cursor.
 function InlineEditable({ html, onChange }: { html: string; onChange: (html: string) => void }) {
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (ref.current) ref.current.innerHTML = html || ""; /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => {
+    if (ref.current) { ref.current.innerHTML = html || ""; ref.current.focus(); }
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, []);
   const emit = () => onChange(ref.current?.innerHTML || "");
   return (
     <div ref={ref} className="rp-inline-edit" contentEditable suppressContentEditableWarning
@@ -613,6 +616,15 @@ export type Box = {
 const clampN = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
+// Dimensoes da pagina (mm). Default por orientacao: retrato A4 210x297, paisagem 297x210.
+// Largura/altura customizadas (pageWidthMm/pageHeightMm) sobrepoem.
+export function pageDims(branding?: ReportBranding | null): { w: number; h: number } {
+  const land = branding?.orientation === "landscape";
+  const w = (branding as any)?.pageWidthMm ?? (land ? 297 : 210);
+  const h = (branding as any)?.pageHeightMm ?? (land ? 210 : 297);
+  return { w, h };
+}
+
 function boxRectStyle(b: Box): CSSProperties {
   const st = b.style || {};
   return {
@@ -677,17 +689,24 @@ function BoxFrame({ box, selected, editing, canvasRef, lockAspect, onSelect, onS
   box: Box; selected: boolean; editing: boolean; canvasRef: React.RefObject<HTMLDivElement>; lockAspect?: boolean;
   onSelect: () => void; onStartEdit: () => void; onChange: (b: Box) => void; onCommit: () => void; children: React.ReactNode;
 }) {
+  const draggedRef = useRef(false);
   const begin = (mode: string) => (e: React.PointerEvent) => {
     if (editing) return;
-    e.stopPropagation(); e.preventDefault();
+    // SEM preventDefault aqui: senao o navegador suprime o dblclick (= nao da pra editar).
+    e.stopPropagation();
     onSelect();
+    draggedRef.current = false;
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
     const start = { sx: e.clientX, sy: e.clientY, b: { ...box } };
     const ratio = box.h ? box.w / box.h : 1;
+    let dragging = false;
     const onMove = (ev: PointerEvent) => {
-      const dxp = ((ev.clientX - start.sx) / rect.width) * 100;
-      const dyp = ((ev.clientY - start.sy) / rect.height) * 100;
+      const ddx = ev.clientX - start.sx, ddy = ev.clientY - start.sy;
+      if (!dragging && Math.abs(ddx) + Math.abs(ddy) < 4) return; // threshold: clique nao move
+      if (!dragging) { dragging = true; draggedRef.current = true; document.body.style.userSelect = "none"; }
+      const dxp = (ddx / rect.width) * 100;
+      const dyp = (ddy / rect.height) * 100;
       let { x, y, w, h } = start.b;
       if (mode === "move") { x = clampN(start.b.x + dxp, 0, 100 - start.b.w); y = clampN(start.b.y + dyp, 0, 100 - start.b.h); }
       else {
@@ -695,20 +714,22 @@ function BoxFrame({ box, selected, editing, canvasRef, lockAspect, onSelect, onS
         if (mode.includes("s")) h = clampN(start.b.h + dyp, 3, 100 - start.b.y);
         if (mode.includes("w")) { const nw = clampN(start.b.w - dxp, 3, start.b.x + start.b.w); x = start.b.x + (start.b.w - nw); w = nw; }
         if (mode.includes("n")) { const nh = clampN(start.b.h - dyp, 3, start.b.y + start.b.h); y = start.b.y + (start.b.h - nh); h = nh; }
-        if (lockAspect && ratio && (mode === "se" || mode === "ne" || mode === "sw" || mode === "nw")) {
-          h = w / ratio; // canvas % nao e quadrado, mas mantem a relacao visual aproximada
-        }
+        if (lockAspect && ratio && (mode === "se" || mode === "ne" || mode === "sw" || mode === "nw")) h = w / ratio;
       }
       onChange({ ...start.b, x: round2(x), y: round2(y), w: round2(w), h: round2(h) });
     };
-    const onUp = () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); onCommit(); };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp);
+      document.body.style.userSelect = "";
+      if (dragging) onCommit();
+    };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
   };
   return (
     <div style={{ ...boxRectStyle(box), cursor: editing ? "text" : "move", outline: selected ? "2px solid #06b6d4" : undefined, outlineOffset: 0 }}
       onPointerDown={begin("move")}
-      onClick={(e) => { e.stopPropagation(); onSelect(); }}
+      onClick={(e) => { e.stopPropagation(); if (draggedRef.current) return; if (selected && box.type === "TEXT") onStartEdit(); else onSelect(); }}
       onDoubleClick={(e) => { e.stopPropagation(); onStartEdit(); }}>
       {children}
       {selected && !editing ? HANDLES.map((h) => (<div key={h} style={handleStyle(h)} onPointerDown={begin(h)} />)) : null}
@@ -719,19 +740,23 @@ function BoxFrame({ box, selected, editing, canvasRef, lockAspect, onSelect, onS
 // Editor de canvas (uma pagina) — usado no centro do editor. Renderiza a folha A4
 // (aspect-ratio) e os boxes interativos. onChange = update ao vivo; onCommit = passo
 // de historico (undo/redo) no fim do gesto. Edicao de texto inline via duplo-clique.
-export function CanvasEditor({ boxes, data, branding, selBox, orientation, pageBg, onSelect, onChange, onCommit }: {
+export function CanvasEditor({ boxes, data, branding, selBox, pageW, pageH, pageBg, onSelect, onChange, onCommit }: {
   boxes: Box[]; data: BudgetReportData; branding?: ReportBranding | null; selBox: string | null;
-  orientation?: string; pageBg?: string;
+  pageW?: number; pageH?: number; pageBg?: string;
   onSelect: (id: string | null) => void; onChange: (b: Box) => void; onCommit: () => void;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (selBox !== editingId) setEditingId(null); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [selBox]);
+  const W = pageW || 210, H = pageH || 297;
   return (
-    <div style={{ display: "flex", justifyContent: "center", padding: 16, background: "#475569", minHeight: "100%", overflow: "auto" }}>
+    // Caixa A4 (ou tamanho configurado) que CABE no painel (fit-contain): altura manda,
+    // largura segue a proporcao real W/H; se passar da largura, max-width corta. Reflete o
+    // tamanho real -> diminuir a altura deixa a folha mais "quadrada", como o usuario espera.
+    <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, background: "#475569", overflow: "auto" }}>
       <style dangerouslySetInnerHTML={{ __html: REPORT_CSS }} />
       <div ref={canvasRef}
-        style={{ position: "relative", width: "min(100%, 760px)", aspectRatio: orientation === "landscape" ? "297 / 210" : "210 / 297", background: pageBg || "#fff", boxShadow: "0 2px 18px rgba(0,0,0,.35)", overflow: "hidden", flexShrink: 0, color: "#0f172a", fontSize: "11px", lineHeight: 1.35 }}
+        style={{ position: "relative", height: "100%", width: "auto", aspectRatio: `${W} / ${H}`, maxWidth: "100%", maxHeight: "100%", background: pageBg || "#fff", boxShadow: "0 2px 18px rgba(0,0,0,.35)", overflow: "hidden", flexShrink: 0, color: "#0f172a", fontSize: "11px", lineHeight: 1.35 }}
         onPointerDown={(e) => { if (e.target === canvasRef.current) { onSelect(null); setEditingId(null); } }}>
         {[...(boxes || [])].sort((a, b) => (a.z || 0) - (b.z || 0)).map((b) => (
           <BoxFrame key={b.id} box={b} selected={selBox === b.id} editing={editingId === b.id} canvasRef={canvasRef}
@@ -887,11 +912,11 @@ export default function BudgetReport({ data, layout, editable, selectedPageId, o
             // (pra % dos boxes resolver); CanvasPage posiciona os boxes em absoluto.
             const isCanvas = !!(page.pageConfig as any)?.canvas;
             if (isCanvas) {
-              const cH = branding?.orientation === "landscape" ? "210mm" : "297mm";
+              const { w: cW, h: cH } = pageDims(branding);
               return (
                 <div className="report-page rp-canvas-page" key={page.id}
                   id={editable ? `rp-page-${page.id}` : undefined}
-                  style={{ ...pageStyle, padding: 0, position: "relative", height: cH, minHeight: cH, overflow: "hidden",
+                  style={{ ...pageStyle, padding: 0, position: "relative", width: `${cW}mm`, height: `${cH}mm`, minHeight: `${cH}mm`, overflow: "hidden",
                     ...(editable ? { cursor: "pointer", outline: selectedPageId === page.id ? "3px solid #06b6d4" : undefined, outlineOffset: "3px" } : {}) }}
                   onClick={editable && onSelectPage ? () => onSelectPage(page.id) : undefined}>
                   <CanvasPage boxes={(page.pageConfig as any).boxes || []} data={data} branding={branding} />

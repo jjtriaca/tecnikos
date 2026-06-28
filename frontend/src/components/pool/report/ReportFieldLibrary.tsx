@@ -25,10 +25,11 @@ export default function ReportFieldLibrary({ onInsertText, onInsertBlock, onClos
 
   const Row = ({ f }: { f: CatalogField }) => (
     <button type="button" onClick={() => insert(f)} title={`Inserir ${f.token || f.blockType}`}
-      className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[11px] text-slate-700 hover:bg-cyan-50">
+      className="group flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[11px] text-slate-700 hover:bg-cyan-50">
       <span className="w-4 shrink-0 text-center">{f.icon || (f.kind === "block" ? "🧩" : "🔤")}</span>
       <span className="shrink-0 font-mono text-[10px] text-cyan-700">{f.kind === "block" ? "▦" : f.token}</span>
       <span className="truncate text-slate-600">{f.label}</span>
+      <span className="ml-auto shrink-0 rounded bg-cyan-600 px-1.5 text-[11px] font-bold leading-tight text-white opacity-0 group-hover:opacity-100" title="Inserir na página">+</span>
     </button>
   );
 

@@ -1,5 +1,14 @@
 # Auditoria UX — EngineReporter (editor de Layouts de Impressão) — v1.14.37
 
+## 🟦 BACKLOG ABERTO — Editor PowerPoint (canvas) — fazer 1 a 1, 1 deploy só (pedido Juliano 28/06)
+> Canvas de caixas livres x,y JÁ no código (não deployado — v1.14.61 só tem a base). Itens pendentes:
+- [ ] **A. Digitar texto não funciona** (CRÍTICO): `preventDefault` do arrasto bloqueia o duplo-clique. Fix: arrasto só com threshold (~4px), sem preventDefault, clique-de-novo/duplo-clique entra em edição, InlineEditable com autofocus. (BudgetReport: BoxFrame + InlineEditable)
+- [ ] **B. Página quadrada / tamanho**: a folha na tela deve ficar no TAMANHO configurado (A4 retrato = alta, não quadrada), cabendo no painel (fit-to-height). Add opção **Tamanho da página (default A4)** na aba Página (210×297). (BudgetReport CanvasEditor + page.tsx)
+- [ ] **C. Bíblia em ABA própria**: tab "Campos"; clicar abre a cascata (acordeão); cada bloco/campo com **"+"** pra inserir na página. Tirar o toggle de Inserir/drawer atual. (page.tsx + ReportFieldLibrary)
+- [ ] **D. Juntar ferramentas de Página + Estilo na aba Início** (há redundância de ferramentas — fonte/cor duplicada). Remover abas Página/Estilo, folddar na Início. (page.tsx)
+- [ ] **E. Cabeçalho/Rodapé = modo de edição na folha**: clicar "Cabeçalho" mostra a faixa do cabeçalho na página e DESFOCA o resto; edita inserindo (Inserir → imagem/texto/bloco) — SEM checkbox "incluir logo". Idem rodapé. (header/footer viram canvas próprio: branding.headerBoxes/footerBoxes; rendem em todas as páginas de conteúdo)
+- [x] (feito no código) canvas de caixas, biblioteca de campos (catálogo hierárquico extensível p/ qualquer relatório), remover dropdown "Bloco".
+
 ## 🔧 REGRA DESTA SESSÃO (definida pelo Juliano)
 **PRINCÍPIO-MESTRE: NADA fixo no código — em QUALQUER página, TUDO é editável pelo operador** (tamanho/posição/cor/texto/imagem). Quando algo está hardcoded (ex.: tamanho/posição da logo), virar controle editável. **Quando travar numa dificuldade (ex.: upload de arquivo via automação), CHAMAR o Juliano** em vez de inventar contorno.
 **Montar o layout SEMPRE pela tela do Chrome (dogfooding), não hardcodar blocos.** Ao montar, sentir como é o uso real; a CADA dificuldade ou ponto não-intuitivo (fator humano) → ANOTAR aqui pra virar melhoria. Tarefa em curso: apagar as 2 páginas do layout "Piscina Pré Moldada" e remontar do ZERO espelhando o PDF da Andréia Santana (8 págs), considerando ORCP-00001. Abordagem escolhida: ALTA FIDELIDADE, página por página.

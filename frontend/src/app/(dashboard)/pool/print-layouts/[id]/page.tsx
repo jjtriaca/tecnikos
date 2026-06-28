@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, getAccessToken } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
-import BudgetReport, { BudgetReportData, ReportNode, CompositionPreview, CanvasEditor, Box } from "@/components/pool/report/BudgetReport";
+import BudgetReport, { BudgetReportData, ReportNode, CompositionPreview, CanvasEditor, Box, pageDims } from "@/components/pool/report/BudgetReport";
 import { printViaClone } from "@/lib/printViaClone";
 import CompositionEditor from "@/components/pool/report/CompositionEditor";
 import ReportFieldLibrary from "@/components/pool/report/ReportFieldLibrary";
@@ -144,7 +144,6 @@ export default function PoolPrintLayoutEditorPage() {
   const [pendingDelete, setPendingDelete] = useState<{ id: string; n: number } | null>(null);
   // Aba "Cab/Rodape": qual esta sendo editado (cabecalho ou rodape).
   const [hfEdit, setHfEdit] = useState<"header" | "footer">("header");
-  const [showLibrary, setShowLibrary] = useState(true); // painel "biblia" de campos/blocos
 
   // ── CANVAS (PowerPoint): caixas livres da pagina em edicao ──
   const [boxes, setBoxes] = useState<Box[]>([]);
@@ -544,7 +543,7 @@ export default function PoolPrintLayoutEditorPage() {
 
       {/* ABAS DA RIBBON */}
       <div className="flex items-end gap-1 px-3 pt-1 bg-slate-100 border-b border-slate-200 shrink-0">
-        {["Arquivo", "Inicio", "Inserir", "Layout", "Pagina", "Cab/Rodape", "Estilo"].map((t) => (
+        {["Arquivo", "Inicio", "Inserir", "Campos", "Layout", "Cab/Rodape"].map((t) => (
           <button key={t} type="button" onClick={() => setTab(t)}
             className={`px-4 py-1.5 text-sm rounded-t-md ${tab === t ? "bg-white font-semibold text-slate-900 border border-b-0 border-slate-200" : "text-slate-600 hover:bg-slate-200"}`}>{t}</button>
         ))}
@@ -589,7 +588,34 @@ export default function PoolPrintLayoutEditorPage() {
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); selLink(linkInput); } }}
             className="w-32 rounded border border-slate-300 px-1 py-1 text-xs" />
           <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selLink(linkInput)} className={ribFmtBtn(false)} title="Aplicar link na seleção">🔗</button>
-          <span className="text-[10px] text-slate-400 ml-1">selecione um texto na folha pra formatar</span>
+          {/* ── grupo PAGINA (tamanho/orientacao/fundo) ── */}
+          <span className="mx-1 h-6 w-px bg-slate-300" />
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Orientação (define o tamanho padrão)">Pág.
+            <select value={brand.orientation || "portrait"} onChange={(e) => { const v = e.target.value; setBranding({ orientation: v, pageWidthMm: v === "landscape" ? 297 : 210, pageHeightMm: v === "landscape" ? 210 : 297 }); }} className="rounded border border-slate-300 px-1 py-1 text-sm">
+              <option value="portrait">Retrato</option><option value="landscape">Paisagem</option>
+            </select>
+          </label>
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Largura da página (mm)">L<input type="number" min={50} value={pageDims(layout.branding).w} onChange={(e) => setBranding({ pageWidthMm: Number(e.target.value) || null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura da página (mm) — diminua p/ folha mais baixa">A<input type="number" min={50} value={pageDims(layout.branding).h} onChange={(e) => setBranding({ pageHeightMm: Number(e.target.value) || null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Fundo da página">Fundo
+            <select value={brand.bgType || "solid"} onChange={(e) => setBranding({ bgType: e.target.value })} className="rounded border border-slate-300 px-1 py-1 text-sm"><option value="solid">Sólido</option><option value="gradient">Gradiente</option></select>
+            <input type="color" value={brand.bgColor || "#ffffff"} onChange={(e) => setBranding({ bgColor: e.target.value })} className="h-6 w-6 cursor-pointer rounded border border-slate-300 p-0" />
+            {brand.bgType === "gradient" ? <input type="color" value={brand.bgColor2 || "#e2e8f0"} onChange={(e) => setBranding({ bgColor2: e.target.value })} className="h-6 w-6 cursor-pointer rounded border border-slate-300 p-0" /> : null}
+          </label>
+          {/* ── grupo MARCA (logo/cores) ── */}
+          <span className="mx-1 h-6 w-px bg-slate-300" />
+          <label className="cursor-pointer rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200" title="Enviar a logo da empresa">📁 Logo<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await uploadAsset(f); setBranding({ logoUrl: url }); toast("Logo enviado", "success"); } catch (err: any) { toast(err.message || "Erro", "error"); } if (e.target) e.target.value = ""; }} /></label>
+          {brand.logoUrl ? <img src={brand.logoUrl} alt="logo" className="h-6 rounded border border-slate-200" /> : null}
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Cor primária">Prim.<input type="color" value={brand.primaryColor || "#0f172a"} onChange={(e) => setBranding({ primaryColor: e.target.value })} className="h-6 w-6 cursor-pointer rounded border border-slate-300 p-0" /></label>
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Cor de destaque">Dest.<input type="color" value={brand.accentColor || "#1e3a8a"} onChange={(e) => setBranding({ accentColor: e.target.value })} className="h-6 w-6 cursor-pointer rounded border border-slate-300 p-0" /></label>
+          <RibbonBtn icon="💾" label="Salvar estilo" onClick={saveBranding} />
+          {/* ── grupo PAGINA (flags) ── */}
+          {editingPage ? (<>
+            <span className="mx-1 h-6 w-px bg-slate-300" />
+            {!pageIsCanvas(editingPage) ? <RibbonBtn icon="🔓" label="Converter canvas" onClick={convertToCanvas} /> : null}
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Página ativa"><input type="checkbox" checked={editingPage.isActive !== false} onChange={(e) => savePageMeta({ isActive: e.target.checked })} />Ativa</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Quebra de página depois"><input type="checkbox" checked={editingPage.pageBreak !== false} onChange={(e) => savePageMeta({ pageBreak: e.target.checked })} />Quebra</label>
+          </>) : null}
         </>)}
         {tab === "Inserir" && (<>
           <RibbonBtn icon="➕" label="Nova pagina" onClick={newCanvasPage} />
@@ -598,12 +624,15 @@ export default function PoolPrintLayoutEditorPage() {
             <RibbonBtn icon="🇹" label="Texto" onClick={() => addBox("TEXT", {})} />
             <RibbonBtn icon="🖼️" label="Imagem" onClick={() => addBox("IMAGE", {})} />
             <span className="mx-0.5 h-5 w-px bg-slate-300" />
-            <RibbonBtn icon="📚" label={showLibrary ? "Ocultar campos" : "Campos & blocos"} onClick={() => setShowLibrary((v) => !v)} />
-            <span className="text-[10px] text-slate-400 ml-1">Insira pela bíblia (→) · arraste na folha pra mover · alças pra redimensionar.</span>
+            <RibbonBtn icon="📚" label="Campos & blocos" onClick={() => setTab("Campos")} />
+            <span className="text-[10px] text-slate-400 ml-1">Campos/blocos do sistema na aba &quot;Campos&quot; · arraste na folha pra mover · alças pra redimensionar.</span>
           </>) : (
             <span className="text-xs text-slate-500 px-2">Crie/abra uma pagina pra inserir caixas (texto, imagem, bloco).</span>
           )}
         </>)}
+        {tab === "Campos" && (
+          <span className="text-xs text-slate-500 px-2">📚 Bíblia de campos &amp; blocos no painel à direita → · clique num item (ou no &quot;+&quot;) pra inserir na página. Origens: Orçamento, Ordem de Serviço, Financeiro, Cliente…</span>
+        )}
         {tab === "Layout" && (selectedBox ? (() => {
           const sb = selectedBox; const sbst: any = sb.style || {};
           return (<>
@@ -641,30 +670,6 @@ export default function PoolPrintLayoutEditorPage() {
         })() : (
           <span className="text-xs text-slate-500 px-2">{editingPage && pageIsCanvas(editingPage) ? "Clique numa caixa na folha pra ver tamanho, posição e estilo aqui." : "Abra uma página canvas e selecione uma caixa."}</span>
         ))}
-        {tab === "Pagina" && (<>
-          <label className="text-xs text-slate-600 flex items-center gap-1">Orientacao
-            <select value={brand.orientation || "portrait"} onChange={(e) => setBranding({ orientation: e.target.value })} className="rounded border border-slate-300 px-2 py-1 text-sm">
-              <option value="portrait">Retrato</option><option value="landscape">Paisagem</option>
-            </select>
-          </label>
-          <label className="text-xs text-slate-600 flex items-center gap-1">Margem
-            <input type="number" min={0} max={30} value={brand.pageMarginMm ?? 12} onChange={(e) => setBranding({ pageMarginMm: e.target.value === "" ? null : Number(e.target.value) })} className="w-14 rounded border border-slate-300 px-2 py-1 text-sm" />mm
-          </label>
-          <label className="text-xs text-slate-600 flex items-center gap-1">Fundo
-            <select value={brand.bgType || "solid"} onChange={(e) => setBranding({ bgType: e.target.value })} className="rounded border border-slate-300 px-2 py-1 text-sm"><option value="solid">Solido</option><option value="gradient">Gradiente</option></select>
-            <input type="color" value={brand.bgColor || "#ffffff"} onChange={(e) => setBranding({ bgColor: e.target.value })} className="h-7 w-7 cursor-pointer rounded border border-slate-300 p-0" title="Cor de fundo" />
-            {brand.bgType === "gradient" ? <input type="color" value={brand.bgColor2 || "#e2e8f0"} onChange={(e) => setBranding({ bgColor2: e.target.value })} className="h-7 w-7 cursor-pointer rounded border border-slate-300 p-0" title="2a cor" /> : null}
-          </label>
-          <span className="mx-0.5 h-5 w-px bg-slate-300" />
-          {editingPage && !pageIsCanvas(editingPage) ? (
-            <RibbonBtn icon="🔓" label="Converter p/ canvas" onClick={convertToCanvas} />
-          ) : null}
-          {editingPage ? (<>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Pagina ativa (aparece no relatorio)"><input type="checkbox" checked={editingPage.isActive !== false} onChange={(e) => savePageMeta({ isActive: e.target.checked })} />Ativa</label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Quebra de pagina depois desta"><input type="checkbox" checked={editingPage.pageBreak !== false} onChange={(e) => savePageMeta({ pageBreak: e.target.checked })} />Quebra</label>
-          </>) : null}
-          <span className="text-[10px] text-slate-400 ml-1">Cabecalho/Rodape ficam na aba &quot;Cab/Rodape&quot;.</span>
-        </>)}
         {tab === "Cab/Rodape" && (() => {
           const isH = hfEdit === "header";
           const k = {
@@ -693,33 +698,6 @@ export default function PoolPrintLayoutEditorPage() {
             <RibbonBtn icon="💾" label="Salvar" onClick={saveBranding} />
           </>);
         })()}
-        {tab === "Estilo" && (<>
-          <span className="text-[10px] uppercase tracking-wide text-slate-400">Padrao do relatorio:</span>
-          <select value={brand.fontFamily || ""} onChange={(e) => setBranding({ fontFamily: e.target.value || null })} className="rounded border border-slate-300 px-2 py-1 text-sm" title="Fonte padrao do relatorio">
-            <option value="">Fonte padrao</option>
-            <option value="Georgia, serif">Georgia</option>
-            <option value="'Times New Roman', serif">Times</option>
-            <option value="Arial, Helvetica, sans-serif">Arial</option>
-            <option value="'Trebuchet MS', sans-serif">Trebuchet</option>
-            <option value="'Courier New', monospace">Courier</option>
-          </select>
-          <input type="number" min={7} max={18} value={brand.fontSizePt ?? ""} onChange={(e) => setBranding({ fontSizePt: e.target.value ? Number(e.target.value) : null })} placeholder="pt" className="w-14 rounded border border-slate-300 px-2 py-1 text-sm" title="Tamanho base (pt)" />
-          <label className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-sm" title="Cor do texto padrao"><span>A</span><input type="color" value={brand.textColor || "#0f172a"} onChange={(e) => setBranding({ textColor: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
-          <span className="mx-0.5 h-5 w-px bg-slate-300" />
-          <label className="text-xs text-slate-600 flex items-center gap-1">Primaria<input type="color" value={brand.primaryColor || "#0f172a"} onChange={(e) => setBranding({ primaryColor: e.target.value })} className="h-7 w-7 cursor-pointer rounded border border-slate-300 p-0" /></label>
-          <label className="text-xs text-slate-600 flex items-center gap-1">Destaque<input type="color" value={brand.accentColor || "#1e3a8a"} onChange={(e) => setBranding({ accentColor: e.target.value })} className="h-7 w-7 cursor-pointer rounded border border-slate-300 p-0" /></label>
-          <label className="cursor-pointer rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200">📁 Logo<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await uploadAsset(f); setBranding({ logoUrl: url }); toast("Logo enviado", "success"); } catch (err: any) { toast(err.message || "Erro", "error"); } if (e.target) e.target.value = ""; }} /></label>
-          {brand.logoUrl ? <img src={brand.logoUrl} alt="logo" className="h-7 rounded border border-slate-200" /> : null}
-          <span className="text-[10px] text-slate-400">Logo capa:</span>
-          <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura da logo na CAPA (px)">px<input type="number" min={16} max={220} value={brand.logoSizeCover ?? 64} onChange={(e) => setBranding({ logoSizeCover: e.target.value ? Number(e.target.value) : null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
-          <label className="text-xs text-slate-600 flex items-center gap-1" title="Posicao da logo na CAPA">Posicao
-            <select value={brand.logoAlign || "right"} onChange={(e) => setBranding({ logoAlign: e.target.value })} className="rounded border border-slate-300 px-1 py-1 text-sm">
-              <option value="left">Esquerda</option><option value="center">Centro</option><option value="right">Direita</option>
-            </select>
-          </label>
-          <span className="text-[10px] text-slate-400 ml-1">Cabecalho/Rodape na aba &quot;Cab/Rodape&quot;.</span>
-          <RibbonBtn icon="💾" label="Salvar" onClick={saveBranding} />
-        </>)}
       </div>
 
       {/* 3 PAINEIS — topo (titulo+abas+faixa) fica FIXO; aqui embaixo: paginas | folha | editor */}
@@ -891,7 +869,7 @@ export default function PoolPrintLayoutEditorPage() {
       <div className="flex-1 min-w-0 overflow-auto bg-slate-200 flex flex-col">
         {editingPage && pageIsCanvas(editingPage) ? (
           <CanvasEditor boxes={boxes} data={SAMPLE_BUDGET} branding={layout.branding}
-            selBox={selBox} orientation={brand.orientation}
+            selBox={selBox} pageW={pageDims(layout.branding).w} pageH={pageDims(layout.branding).h}
             pageBg={brand.bgType === "gradient" ? `linear-gradient(135deg, ${brand.bgColor || "#ffffff"}, ${brand.bgColor2 || "#e2e8f0"})` : (brand.bgColor || "#ffffff")}
             onSelect={(idv) => { setSelBox(idv); if (idv) setTab("Layout"); }}
             onChange={onCanvasChange} onCommit={onCanvasCommit} />
@@ -922,12 +900,12 @@ export default function PoolPrintLayoutEditorPage() {
           <div className="flex-1 flex items-center justify-center text-slate-500 text-sm">Selecione uma pagina a esquerda (ou crie uma nova) para editar.</div>
         )}
       </div>
-      {/* DIREITA: biblioteca de campos/blocos (a "biblia") — so em pagina canvas */}
-      {editingPage && pageIsCanvas(editingPage) && showLibrary ? (
+      {/* DIREITA: biblioteca de campos/blocos (a "biblia") — aba Campos, so em pagina canvas */}
+      {editingPage && pageIsCanvas(editingPage) && tab === "Campos" ? (
         <ReportFieldLibrary
           onInsertText={(token) => addBox("TEXT", { html: `<p>${token}</p>` })}
           onInsertBlock={(blockType) => addBox("BLOCK", { blockType })}
-          onClose={() => setShowLibrary(false)} />
+          onClose={() => setTab("Inserir")} />
       ) : null}
 
       {/* OCULTO: render completo (#budget-pdf-area) p/ impressao — reflete os boxes ao vivo */}
