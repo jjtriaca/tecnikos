@@ -288,10 +288,10 @@ export default function CompositionEditor({ nodes, onChange, onUploadImage, sele
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
         <div className="mb-1 flex items-center justify-between">
           <span className="text-xs font-semibold text-slate-600">Estrutura {addInto && addInto !== "root" ? "(adicionando dentro do card/linha selecionado)" : ""}</span>
-          <button type="button" onClick={() => setAddInto("root")} className="rounded bg-cyan-600 px-2 py-0.5 text-xs font-semibold text-white hover:bg-cyan-700">+ no topo</button>
+          <button type="button" onClick={() => setAddInto("root")} className="rounded bg-cyan-600 px-2 py-0.5 text-xs font-semibold text-white hover:bg-cyan-700">+ Novo</button>
         </div>
         {nodes.length === 0 ? (
-          <div className="px-2 py-3 text-xs text-slate-500">Vazio. Use &quot;+ no topo&quot; pra adicionar o primeiro card/bloco.</div>
+          <div className="px-2 py-3 text-xs text-slate-500">Vazio. Use &quot;+ Novo&quot; pra adicionar o primeiro card/bloco.</div>
         ) : (
           <div className="max-h-56 overflow-auto">
             {nodes.map((n) => (
