@@ -20,6 +20,8 @@
 - [ ] **F6 Nice-to-have:** guias de alinhamento/snapping, copiar-colar (Ctrl+C/V), multi-seleção, "limpar página", grade.
 - [ ] **F7** Inserir campo de TEXTO joga pra aba Layout; pra inserir vários, melhor manter foco na bíblia.
 - ✅ Confirmado funcionando: {clientName} resolve, bloco Produtos renderiza c/ dados+imagem, offset de inserção, fundo por página, badge CANVAS, overlay cabeçalho, autosave, duplicar.
+- [ ] **F8 NOMEAR PÁGINAS** (Juliano): tirar o resumo automático "sem conteúdo"/"Canvas · N caixas" do card da página e deixar o operador **dar NOME** a cada página (Capa, Sobre, Produtos…). Campo `pageConfig.name` (ou Page.name) editável inline no card; default "Página N".
+- [ ] **F9 BLOCOS PRONTOS — decisão (Juliano achou hardcode):** PARECER do Claude: blocos que mostram **dados de tamanho variável** (lista de N itens) NÃO são hardcode dispensável — são a ÚNICA forma de exibir conteúdo dinâmico (caixa livre só guarda conteúdo fixo). MANTER: **Produtos por etapa, Resumo do orçamento, Plano de pagamento, Galeria de fotos, Datasheets (solar/bomba), Tabela personalizada**. REMOVER (redundante c/ campos/canvas livre): **Capa pronta** (capa já se monta com caixas) e **Termos e condições** (usar campos {termsConditions}/{equipmentWarranty}/{workWarranty}). Evolução: tornar a APARÊNCIA dos blocos mantidos configurável (colunas/fonte/cor) p/ deixar de ser "fixo". AGUARDA decisão do Juliano.
 
 ## 🧪 DOGFOODING editor canvas (28/06, v1.14.68) — achados + correções
 - [x] **Fundo da página era GLOBAL** (mudava todas) → agora **por página** (`pageConfig.bg/bgType/bgColor2`; aba Início "Fundo" mexe só na página atual; render usa o fundo da própria página). ✅ v1.14.68
