@@ -552,7 +552,7 @@ function ReportNodeView({ node, data, branding, selectedId, onSelectNode, onEdit
     // SANGRIA (capa cheia): cancela o padding de 12mm da pagina -> fundo vai ate as bordas.
     // vira flex-column pra usar espacadores (flex:1) e posicionar titulo/rodape; ocupa a folha toda.
     ...(st.bleed
-      ? { margin: "-12mm", width: "auto", borderRadius: 0, minHeight: st.height != null ? undefined : "273mm", display: "flex", flexDirection: "column" }
+      ? { margin: "-12mm", width: "auto", borderRadius: 0, minHeight: st.height != null ? undefined : "297mm", display: "flex", flexDirection: "column" }
       : {}),
     ...selStyle,
   };
@@ -710,10 +710,15 @@ export default function BudgetReport({ data, layout, editable, selectedPageId, o
             // Capa (COVER) e full-bleed: NAO leva cabecalho/rodape. As demais paginas levam o
             // cabecalho global = texto (ex: "Orcamento no: {budgetCode}") a esquerda + LOGO a direita.
             const isCover = page.type === "DYNAMIC" && page.dynamicType === "COVER";
+            // Capa em COMPOSICAO (sangria): um card de topo com style.bleed = pagina full-bleed
+            // (capa montada por cards) -> tambem NAO leva cabecalho/rodape global.
+            const pageNodes = (page as any)?.pageConfig?.nodes;
+            const hasBleed = Array.isArray(pageNodes) && pageNodes.some((n: any) => n?.style?.bleed);
+            const chrome = !isCover && !hasBleed;
             const hLogo = branding?.headerLogo !== false && !!branding?.logoUrl;   // cabecalho: default ON
             const fLogo = !!branding?.logoFooter && !!branding?.logoUrl;           // rodape: default OFF
-            const showHeader = !isCover && (!!header || hLogo);
-            const showFooter = !isCover && (!!footer || fLogo);
+            const showHeader = chrome && (!!header || hLogo);
+            const showFooter = chrome && (!!footer || fLogo);
             return (
             <div className="report-page" key={page.id}
               id={editable ? `rp-page-${page.id}` : undefined}
