@@ -88,6 +88,7 @@ export type ReportNode = {
     marginBottom?: number | null; // espaco abaixo (px)
     justify?: string | null;      // row: distribuicao das colunas (start|center|end|between)
     textAlign?: string | null;    // alinhamento do texto dentro do no (left|center|right|justify)
+    fontSize?: number | null;     // tamanho do texto do bloco/card inteiro (pt) — aplica em tudo dentro
   } | null;
   children?: ReportNode[];        // card / row
   blockType?: string | null;      // block: TEXT | IMAGE | COVER | PRODUCTS_BY_SECTION | BUDGET_SUMMARY | ...
@@ -484,7 +485,7 @@ function ReportNodeView({ node, data, branding, selectedId, onSelectNode, onEdit
   if (node.kind === "block") {
     const editingText = !!onEditText && node.blockType === "TEXT" && selectedId === node.id;
     return (
-      <div className="rp-node-block" style={{ flex: st.flex || undefined, textAlign: (st.textAlign as any) || undefined, ...selStyle }}
+      <div className="rp-node-block" style={{ flex: st.flex || undefined, textAlign: (st.textAlign as any) || undefined, fontSize: st.fontSize ? `${st.fontSize}pt` : undefined, ...selStyle }}
         onClick={onSelectNode ? (e) => { e.stopPropagation(); onSelectNode(node.id); } : undefined}>
         {editingText
           ? <InlineEditable key={node.id} html={node.config?.html || ""} onChange={(html) => onEditText!(node.id, html)} />
@@ -516,6 +517,7 @@ function ReportNodeView({ node, data, branding, selectedId, onSelectNode, onEdit
     marginLeft: st.selfAlign === "center" || st.selfAlign === "right" ? "auto" : undefined,
     marginRight: st.selfAlign === "center" || st.selfAlign === "left" ? "auto" : undefined,
     textAlign: (st.textAlign as any) || undefined,
+    fontSize: st.fontSize ? `${st.fontSize}pt` : undefined,
     ...selStyle,
   };
   return (

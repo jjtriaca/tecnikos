@@ -149,8 +149,13 @@ function NodeInspector({ node, onChange, onUploadImage }: { node: ReportNode; on
           </select>
         </label>
         {node.blockType === "TEXT" ? (
-          <div className="rounded border border-cyan-200 bg-cyan-50/60 px-2 py-2 text-xs text-slate-600">
-            ✏️ Edite o texto <b>direto na folha</b> (na pré-visualização ao lado): clique no texto, selecione um trecho e formate pela <b>aba Início</b> (em cima) — fonte, tamanho, cor, negrito, alinhamento…
+          <div className="space-y-2">
+            <label className="block text-xs text-slate-600">Tamanho do texto do bloco inteiro (pt)
+              <input type="number" min={5} max={48} value={st.fontSize ?? ""} placeholder="padrão" onChange={(e) => setStyle({ fontSize: e.target.value ? Number(e.target.value) : null })} className="mt-0.5 w-24 rounded border border-slate-300 px-2 py-1 text-sm" />
+            </label>
+            <div className="rounded border border-cyan-200 bg-cyan-50/60 px-2 py-2 text-xs text-slate-600">
+              ✏️ Edite o texto <b>direto na folha</b>: clique no texto, selecione um trecho e formate pela <b>aba Início</b>. Pra mudar o tamanho de TODO o bloco de uma vez, use o campo acima.
+            </div>
           </div>
         ) : node.blockType === "IMAGE" ? (
           <div className="block text-xs text-slate-600">Imagem
