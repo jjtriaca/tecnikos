@@ -11,6 +11,16 @@
 - [x] **Bugs texto v1.14.65:** (1) texto **autossalva** (onCanvasChange→scheduleSave; blur→commit); (2) **desfazer desfaz o texto** (commit no blur empurra histórico). 
 - [x] **Novo card v1.14.65:** botão "Novo card" no Inserir = caixa CARD (retângulo bg/borda). 🔜 PENDENTE: **hierarquia/cascata do card** (card contendo outras caixas + árvore inline ao clicar) — nesting ainda não implementado (modelo de boxes é plano; sobrepõe por z-order). Próximo item. clicar "Cabeçalho" mostra a faixa do cabeçalho na página e DESFOCA o resto; edita inserindo (Inserir → imagem/texto/bloco) — SEM checkbox "incluir logo". Idem rodapé. (header/footer viram canvas próprio: branding.headerBoxes/footerBoxes; rendem em todas as páginas de conteúdo)
 
+## 🧪 DOGFOODING rodada 2 (28/06, v1.14.68) — ACUMULANDO (NÃO corrigir ainda; fazer tudo num deploy depois)
+- [ ] **F1 (ALTO) Campos do Cliente/Empresa NÃO resolvem** — só `{clientName}/{clientDocument}/{clientCity}` + `{budget*}/{pool*}` resolvem. `{clientPhone}/{clientEmail}/{clientAddress}/{clientNeighborhood}/{clientState}/{clientZip}/{clientTradeName}` e TODOS os `{company*}` ficam LITERAIS, mesmo no Pool (origem "dados reais"). A bíblia oferece campos que não funcionam. → Ligar TODOS os campos de Partner + Company ao contexto de dados (backend buildReportData/BudgetReportModal + BudgetReportData + resolvePlaceholders). Testado: inseri {clientName}=Anderson ✓ mas {clientPhone}={clientPhone} ✗.
+- [ ] **F2 Editar texto x arrastar** — clicar DE NOVO numa caixa de texto selecionada entra em EDIÇÃO; ao tentar mover dá pra editar sem querer. → Editar TEXTO só por **duplo-clique** (clique simples = selecionar/mover). (arrasto real só testável manualmente — automação não dispara pointer-drag)
+- [ ] **F3 Painel "Campos" fecha/colapsa fácil** ao perder foco (auto-minimizar agressivo) e os itens viram stale; inserir vários campos seguidos é chato. → não colapsar ao clicar num campo; manter aberto/fixável.
+- [ ] **F4 Aninhamento do card** (card contendo caixas + cascata/hierarquia ao clicar) — pendente (grande; modelo plano).
+- [ ] **F5 Bloco grande (w90 h80) cobre o conteúdo** ao inserir (offset só ajuda nas caixas pequenas). → inserir bloco em área vazia / abaixo do conteúdo, ou avisar.
+- [ ] **F6 Nice-to-have:** guias de alinhamento/snapping, copiar-colar (Ctrl+C/V), multi-seleção, "limpar página", grade.
+- [ ] **F7** Inserir campo de TEXTO joga pra aba Layout; pra inserir vários, melhor manter foco na bíblia.
+- ✅ Confirmado funcionando: {clientName} resolve, bloco Produtos renderiza c/ dados+imagem, offset de inserção, fundo por página, badge CANVAS, overlay cabeçalho, autosave, duplicar.
+
 ## 🧪 DOGFOODING editor canvas (28/06, v1.14.68) — achados + correções
 - [x] **Fundo da página era GLOBAL** (mudava todas) → agora **por página** (`pageConfig.bg/bgType/bgColor2`; aba Início "Fundo" mexe só na página atual; render usa o fundo da própria página). ✅ v1.14.68
 - [x] **Caixas novas sobrepunham** (mesma x,y) → **offset em cascata** ao inserir. ✅
