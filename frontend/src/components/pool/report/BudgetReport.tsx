@@ -15,7 +15,8 @@
  * O parent (sandbox /dev/print-test-orcamento ou o modal do orcamento) imprime com
  *   printViaClone({ areaId: "budget-pdf-area", cloneId: "budget-pdf-clone" })
  */
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { BombaDatasheetBlock, SolarDatasheetBlock } from "./HeatingDatasheets";
 
 // ── Tipos (espelham Page/Layout do editor) ──────────────────────────────────
@@ -583,6 +584,162 @@ export function CompositionPreview({ nodes, data, selectedId, onSelectNode, onEd
   );
 }
 
+// ── CANVAS (estilo PowerPoint): caixas livres x,y,w,h em % da folha A4 ────────
+// Uma pagina "canvas" guarda pageConfig = { canvas:true, boxes:Box[] }. Cada Box e
+// absolutamente posicionado em % da folha (mesmo valor na tela e na impressao A4).
+export type Box = {
+  id: string;
+  type: "TEXT" | "IMAGE" | "BLOCK";
+  x: number; y: number; w: number; h: number; // % da folha (0..100)
+  z?: number;
+  html?: string;                              // TEXT (HTML cru com {placeholders})
+  url?: string; fit?: "cover" | "contain" | "fill"; // IMAGE
+  blockType?: string; config?: any;           // BLOCK (PRODUCTS_BY_SECTION, COVER, ...)
+  style?: {
+    bg?: string | null; borderColor?: string | null; borderWidth?: number | null;
+    radius?: number | null; padding?: number | null; textColor?: string | null;
+    fontSize?: number | null; fontFamily?: string | null;
+    align?: string | null; valign?: string | null; shadow?: boolean | null; opacity?: number | null;
+  } | null;
+};
+
+const clampN = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+const round2 = (v: number) => Math.round(v * 100) / 100;
+
+function boxRectStyle(b: Box): CSSProperties {
+  const st = b.style || {};
+  return {
+    position: "absolute", boxSizing: "border-box",
+    left: `${b.x}%`, top: `${b.y}%`, width: `${b.w}%`, height: `${b.h}%`,
+    zIndex: b.z || 1,
+    background: st.bg || undefined,
+    border: st.borderWidth ? `${st.borderWidth}px solid ${st.borderColor || "#e2e8f0"}` : undefined,
+    borderRadius: st.radius != null ? `${st.radius}px` : undefined,
+    padding: st.padding != null ? `${st.padding}px` : undefined,
+    color: st.textColor || undefined,
+    fontSize: st.fontSize ? `${st.fontSize}pt` : undefined,
+    fontFamily: st.fontFamily || undefined,
+    boxShadow: st.shadow ? "0 1px 6px rgba(0,0,0,.18)" : undefined,
+    opacity: st.opacity != null ? st.opacity : undefined,
+    overflow: "hidden",
+  };
+}
+
+// Conteudo interno de um Box (compartilhado entre render de impressao e editor).
+function BoxContent({ box, data, branding, editingText, onEditText }: { box: Box; data: BudgetReportData; branding?: ReportBranding | null; editingText?: boolean; onEditText?: (id: string, html: string) => void }) {
+  const st = box.style || {};
+  if (box.type === "TEXT") {
+    if (editingText && onEditText) return <InlineEditable key={box.id} html={box.html || ""} onChange={(h) => onEditText(box.id, h)} />;
+    const valign = st.valign === "center" ? "center" : st.valign === "bottom" ? "flex-end" : "flex-start";
+    return <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: valign, textAlign: (st.align as any) || undefined }} dangerouslySetInnerHTML={{ __html: resolvePlaceholders(box.html || "", data) }} />;
+  }
+  if (box.type === "IMAGE") {
+    if (!box.url) return <div className="rp-empty" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>Imagem</div>;
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={box.url} alt="" style={{ width: "100%", height: "100%", objectFit: (box.fit as any) || "cover", display: "block" }} />;
+  }
+  return <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>{renderBlockByType(box.blockType, data, box.config, branding)}</div>;
+}
+
+// Render READ-ONLY de uma pagina canvas (impressao / preview / miniatura).
+export function CanvasPage({ boxes, data, branding }: { boxes: Box[]; data: BudgetReportData; branding?: ReportBranding | null }) {
+  return (
+    <div className="rp-canvas" style={{ position: "absolute", inset: 0 }}>
+      {[...(boxes || [])].sort((a, b) => (a.z || 0) - (b.z || 0)).map((b) => (
+        <div key={b.id} style={boxRectStyle(b)}><BoxContent box={b} data={data} branding={branding} /></div>
+      ))}
+    </div>
+  );
+}
+
+// Moldura interativa de UM box no editor: clicar seleciona, arrastar move, alcas
+// redimensionam, duplo-clique no TEXT edita. Geometria em % via rect do canvas pai.
+const HANDLES = ["nw", "n", "ne", "e", "se", "s", "sw", "w"] as const;
+function handleStyle(h: string): CSSProperties {
+  const base: CSSProperties = { position: "absolute", width: 10, height: 10, background: "#fff", border: "1.5px solid #06b6d4", borderRadius: 2, zIndex: 50 };
+  const m = -5;
+  if (h.includes("n")) base.top = m; if (h.includes("s")) base.bottom = m;
+  if (h.includes("w")) base.left = m; if (h.includes("e")) base.right = m;
+  if (h === "n" || h === "s") { base.left = "50%"; base.marginLeft = -5; }
+  if (h === "e" || h === "w") { base.top = "50%"; base.marginTop = -5; }
+  const cursors: Record<string, string> = { n: "ns-resize", s: "ns-resize", e: "ew-resize", w: "ew-resize", nw: "nwse-resize", se: "nwse-resize", ne: "nesw-resize", sw: "nesw-resize" };
+  base.cursor = cursors[h];
+  return base;
+}
+function BoxFrame({ box, selected, editing, canvasRef, lockAspect, onSelect, onStartEdit, onChange, onCommit, children }: {
+  box: Box; selected: boolean; editing: boolean; canvasRef: React.RefObject<HTMLDivElement>; lockAspect?: boolean;
+  onSelect: () => void; onStartEdit: () => void; onChange: (b: Box) => void; onCommit: () => void; children: React.ReactNode;
+}) {
+  const begin = (mode: string) => (e: React.PointerEvent) => {
+    if (editing) return;
+    e.stopPropagation(); e.preventDefault();
+    onSelect();
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const start = { sx: e.clientX, sy: e.clientY, b: { ...box } };
+    const ratio = box.h ? box.w / box.h : 1;
+    const onMove = (ev: PointerEvent) => {
+      const dxp = ((ev.clientX - start.sx) / rect.width) * 100;
+      const dyp = ((ev.clientY - start.sy) / rect.height) * 100;
+      let { x, y, w, h } = start.b;
+      if (mode === "move") { x = clampN(start.b.x + dxp, 0, 100 - start.b.w); y = clampN(start.b.y + dyp, 0, 100 - start.b.h); }
+      else {
+        if (mode.includes("e")) w = clampN(start.b.w + dxp, 3, 100 - start.b.x);
+        if (mode.includes("s")) h = clampN(start.b.h + dyp, 3, 100 - start.b.y);
+        if (mode.includes("w")) { const nw = clampN(start.b.w - dxp, 3, start.b.x + start.b.w); x = start.b.x + (start.b.w - nw); w = nw; }
+        if (mode.includes("n")) { const nh = clampN(start.b.h - dyp, 3, start.b.y + start.b.h); y = start.b.y + (start.b.h - nh); h = nh; }
+        if (lockAspect && ratio && (mode === "se" || mode === "ne" || mode === "sw" || mode === "nw")) {
+          h = w / ratio; // canvas % nao e quadrado, mas mantem a relacao visual aproximada
+        }
+      }
+      onChange({ ...start.b, x: round2(x), y: round2(y), w: round2(w), h: round2(h) });
+    };
+    const onUp = () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); onCommit(); };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  };
+  return (
+    <div style={{ ...boxRectStyle(box), cursor: editing ? "text" : "move", outline: selected ? "2px solid #06b6d4" : undefined, outlineOffset: 0 }}
+      onPointerDown={begin("move")}
+      onClick={(e) => { e.stopPropagation(); onSelect(); }}
+      onDoubleClick={(e) => { e.stopPropagation(); onStartEdit(); }}>
+      {children}
+      {selected && !editing ? HANDLES.map((h) => (<div key={h} style={handleStyle(h)} onPointerDown={begin(h)} />)) : null}
+    </div>
+  );
+}
+
+// Editor de canvas (uma pagina) — usado no centro do editor. Renderiza a folha A4
+// (aspect-ratio) e os boxes interativos. onChange = update ao vivo; onCommit = passo
+// de historico (undo/redo) no fim do gesto. Edicao de texto inline via duplo-clique.
+export function CanvasEditor({ boxes, data, branding, selBox, orientation, pageBg, onSelect, onChange, onCommit }: {
+  boxes: Box[]; data: BudgetReportData; branding?: ReportBranding | null; selBox: string | null;
+  orientation?: string; pageBg?: string;
+  onSelect: (id: string | null) => void; onChange: (b: Box) => void; onCommit: () => void;
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (selBox !== editingId) setEditingId(null); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [selBox]);
+  return (
+    <div style={{ display: "flex", justifyContent: "center", padding: 16, background: "#475569", minHeight: "100%", overflow: "auto" }}>
+      <style dangerouslySetInnerHTML={{ __html: REPORT_CSS }} />
+      <div ref={canvasRef}
+        style={{ position: "relative", width: "min(100%, 760px)", aspectRatio: orientation === "landscape" ? "297 / 210" : "210 / 297", background: pageBg || "#fff", boxShadow: "0 2px 18px rgba(0,0,0,.35)", overflow: "hidden", flexShrink: 0, color: "#0f172a", fontSize: "11px", lineHeight: 1.35 }}
+        onPointerDown={(e) => { if (e.target === canvasRef.current) { onSelect(null); setEditingId(null); } }}>
+        {[...(boxes || [])].sort((a, b) => (a.z || 0) - (b.z || 0)).map((b) => (
+          <BoxFrame key={b.id} box={b} selected={selBox === b.id} editing={editingId === b.id} canvasRef={canvasRef}
+            onSelect={() => onSelect(b.id)}
+            onStartEdit={() => { if (b.type === "TEXT") setEditingId(b.id); }}
+            onChange={onChange} onCommit={onCommit}>
+            <BoxContent box={b} data={data} branding={branding} editingText={editingId === b.id} onEditText={(id, html) => onChange({ ...b, html })} />
+          </BoxFrame>
+        ))}
+        {(!boxes || boxes.length === 0) ? <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontStyle: "italic" }}>Use a aba Inserir pra adicionar caixas (texto, imagem, bloco).</div> : null}
+      </div>
+    </div>
+  );
+}
+
 function renderPageContent(page: ReportPage, data: BudgetReportData, branding?: ReportBranding | null) {
   // Composicao por cards: se a pagina tem pageConfig.nodes, renderiza a arvore (independe do tipo).
   const nodes = page.pageConfig && (page.pageConfig as any).nodes;
@@ -719,6 +876,21 @@ export default function BudgetReport({ data, layout, editable, selectedPageId, o
             const fLogo = !!branding?.logoFooter && !!branding?.logoUrl;           // rodape: default OFF
             const showHeader = chrome && (!!header || hLogo);
             const showFooter = chrome && (!!footer || fLogo);
+            // Pagina CANVAS (caixas livres): sem cabecalho/rodape/padding; altura A4 definida
+            // (pra % dos boxes resolver); CanvasPage posiciona os boxes em absoluto.
+            const isCanvas = !!(page.pageConfig as any)?.canvas;
+            if (isCanvas) {
+              const cH = branding?.orientation === "landscape" ? "210mm" : "297mm";
+              return (
+                <div className="report-page rp-canvas-page" key={page.id}
+                  id={editable ? `rp-page-${page.id}` : undefined}
+                  style={{ ...pageStyle, padding: 0, position: "relative", height: cH, minHeight: cH, overflow: "hidden",
+                    ...(editable ? { cursor: "pointer", outline: selectedPageId === page.id ? "3px solid #06b6d4" : undefined, outlineOffset: "3px" } : {}) }}
+                  onClick={editable && onSelectPage ? () => onSelectPage(page.id) : undefined}>
+                  <CanvasPage boxes={(page.pageConfig as any).boxes || []} data={data} branding={branding} />
+                </div>
+              );
+            }
             return (
             <div className="report-page" key={page.id}
               id={editable ? `rp-page-${page.id}` : undefined}

@@ -5,9 +5,11 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, getAccessToken } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
-import BudgetReport, { BudgetReportData, ReportNode, CompositionPreview } from "@/components/pool/report/BudgetReport";
+import BudgetReport, { BudgetReportData, ReportNode, CompositionPreview, CanvasEditor, Box } from "@/components/pool/report/BudgetReport";
 import { printViaClone } from "@/lib/printViaClone";
 import CompositionEditor from "@/components/pool/report/CompositionEditor";
+
+const genBoxId = () => "b" + Math.random().toString(36).slice(2, 9);
 
 // Etapa C: grava o HTML editado IN-PLACE (na folha) de volta no no TEXT (recursivo, imutavel).
 function setNodeHtml(nodes: ReportNode[], id: string, html: string): ReportNode[] {
@@ -141,6 +143,135 @@ export default function PoolPrintLayoutEditorPage() {
   const [pendingDelete, setPendingDelete] = useState<{ id: string; n: number } | null>(null);
   // Aba "Cab/Rodape": qual esta sendo editado (cabecalho ou rodape).
   const [hfEdit, setHfEdit] = useState<"header" | "footer">("header");
+
+  // ── CANVAS (PowerPoint): caixas livres da pagina em edicao ──
+  const [boxes, setBoxes] = useState<Box[]>([]);
+  const [selBox, setSelBox] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const [histInfo, setHistInfo] = useState({ canUndo: false, canRedo: false });
+  const histRef = useRef<{ stack: Box[][]; idx: number }>({ stack: [], idx: -1 });
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pageIsCanvas = (p: Page | null) => !!((p?.pageConfig as any)?.canvas);
+  const selectedBox = boxes.find((b) => b.id === selBox) || null;
+
+  // Carrega os boxes ao abrir uma pagina canvas (reseta historico).
+  useEffect(() => {
+    if (editingPage && pageIsCanvas(editingPage)) {
+      const bs = (((editingPage.pageConfig as any)?.boxes) || []) as Box[];
+      setBoxes(bs); setSelBox(null); setSaveState("idle");
+      histRef.current = { stack: [JSON.parse(JSON.stringify(bs))], idx: 0 };
+      setHistInfo({ canUndo: false, canRedo: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingPage?.id]);
+
+  function scheduleSave(bs: Box[]) {
+    if (!editingPage) return;
+    const pageId = editingPage.id;
+    setSaveState("saving");
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      try {
+        await api.put(`/pool-print-layouts/pages/${pageId}`, { type: "FIXED", htmlContent: null, dynamicType: null, pageConfig: { canvas: true, boxes: bs } });
+        setSaveState("saved");
+        setLayout((prev) => prev ? { ...prev, pages: prev.pages.map((p) => p.id === pageId ? { ...p, type: "FIXED", pageConfig: { canvas: true, boxes: bs } } : p) } : prev);
+      } catch { setSaveState("idle"); }
+    }, 700);
+  }
+  function pushHist(next: Box[]) {
+    const h = histRef.current;
+    h.stack = h.stack.slice(0, h.idx + 1);
+    h.stack.push(JSON.parse(JSON.stringify(next)));
+    if (h.stack.length > 60) h.stack.shift();
+    h.idx = h.stack.length - 1;
+    setHistInfo({ canUndo: h.idx > 0, canRedo: false });
+  }
+  function commitBoxes(next: Box[]) { setBoxes(next); pushHist(next); scheduleSave(next); }
+  function undo() {
+    const h = histRef.current; if (h.idx <= 0) return;
+    h.idx--; const snap = JSON.parse(JSON.stringify(h.stack[h.idx])) as Box[];
+    setBoxes(snap); setHistInfo({ canUndo: h.idx > 0, canRedo: h.idx < h.stack.length - 1 }); scheduleSave(snap);
+  }
+  function redo() {
+    const h = histRef.current; if (h.idx >= h.stack.length - 1) return;
+    h.idx++; const snap = JSON.parse(JSON.stringify(h.stack[h.idx])) as Box[];
+    setBoxes(snap); setHistInfo({ canUndo: h.idx > 0, canRedo: h.idx < h.stack.length - 1 }); scheduleSave(snap);
+  }
+  // Drag/resize ao vivo (sem historico) + commit (1 passo) no fim do gesto.
+  const onCanvasChange = (b: Box) => setBoxes((cur) => cur.map((x) => x.id === b.id ? b : x));
+  const onCanvasCommit = () => setBoxes((cur) => { pushHist(cur); scheduleSave(cur); return cur; });
+
+  const maxZ = () => boxes.reduce((m, b) => Math.max(m, b.z || 0), 0);
+  function addBox(kind: "TEXT" | "IMAGE" | "BLOCK", extra: Partial<Box>) {
+    const base: Box = kind === "TEXT"
+      ? { id: genBoxId(), type: "TEXT", x: 12, y: 12, w: 55, h: 12, z: maxZ() + 1, html: "<p>Novo texto</p>", style: { fontSize: 12 } }
+      : kind === "IMAGE"
+      ? { id: genBoxId(), type: "IMAGE", x: 20, y: 20, w: 40, h: 28, z: maxZ() + 1, url: "", fit: "cover" }
+      : { id: genBoxId(), type: "BLOCK", x: 5, y: 8, w: 90, h: 80, z: maxZ() + 1, blockType: "PRODUCTS_BY_SECTION", config: {} };
+    const nb = { ...base, ...extra } as Box;
+    commitBoxes([...boxes, nb]); setSelBox(nb.id); setTab("Layout");
+  }
+  function patchSelBox(patch: Partial<Box>) {
+    if (!selBox) return;
+    commitBoxes(boxes.map((b) => b.id === selBox ? { ...b, ...patch } : b));
+  }
+  function patchSelStyle(patch: Record<string, any>) {
+    if (!selBox) return;
+    commitBoxes(boxes.map((b) => b.id === selBox ? { ...b, style: { ...(b.style || {}), ...patch } } : b));
+  }
+  function removeSelBox() {
+    if (!selBox) return;
+    commitBoxes(boxes.filter((b) => b.id !== selBox)); setSelBox(null);
+  }
+  function zOrder(dir: "front" | "back") {
+    if (!selBox) return;
+    const zs = boxes.map((b) => b.z || 0); const top = Math.max(...zs, 0); const bot = Math.min(...zs, 0);
+    patchSelBox({ z: dir === "front" ? top + 1 : bot - 1 });
+  }
+  async function newCanvasPage() {
+    try {
+      await api.post(`/pool-print-layouts/${id}/pages`, { type: "FIXED", htmlContent: null, dynamicType: null, pageConfig: { canvas: true, boxes: [] }, pageBreak: true, isActive: true });
+      const data = await api.get<Layout>(`/pool-print-layouts/${id}`);
+      setLayout(data); setName(data.name); setIsDefault(data.isDefault);
+      const last = data.pages[data.pages.length - 1];
+      if (last) { setShowAddPage(false); setSelectedPageId(last.id); setEditingPage(last); setTab("Inserir"); }
+    } catch (err: any) { toast(err?.payload?.message || "Erro", "error"); }
+  }
+  function convertToCanvas() {
+    if (!editingPage) return;
+    const p = editingPage; let bs: Box[] = [];
+    const nodes = (p.pageConfig as any)?.nodes;
+    if (p.type === "DYNAMIC" && p.dynamicType) bs = [{ id: genBoxId(), type: "BLOCK", blockType: p.dynamicType, config: p.pageConfig || {}, x: 4, y: 4, w: 92, h: 92, z: 1 }];
+    else if (p.type === "FIXED" && p.htmlContent) bs = [{ id: genBoxId(), type: "TEXT", html: p.htmlContent, x: 6, y: 6, w: 88, h: 80, z: 1 }];
+    else if (Array.isArray(nodes) && nodes.length) bs = [{ id: genBoxId(), type: "TEXT", html: "<p>Página convertida — recrie os elementos como caixas (aba Inserir).</p>", x: 6, y: 6, w: 88, h: 16, z: 1 }];
+    setBoxes(bs); setSelBox(null);
+    histRef.current = { stack: [JSON.parse(JSON.stringify(bs))], idx: 0 }; setHistInfo({ canUndo: false, canRedo: false });
+    setEditingPage({ ...p, type: "FIXED", pageConfig: { canvas: true, boxes: bs } } as Page);
+    scheduleSave(bs);
+  }
+  async function savePageMeta(patch: any) {
+    if (!editingPage) return;
+    const pid = editingPage.id;
+    try {
+      await api.put(`/pool-print-layouts/pages/${pid}`, patch);
+      setEditingPage((prev) => prev ? { ...prev, ...patch } as Page : prev);
+      setLayout((prev) => prev ? { ...prev, pages: prev.pages.map((p) => p.id === pid ? { ...p, ...patch } : p) } : prev);
+    } catch (e: any) { toast(e?.payload?.message || "Erro", "error"); }
+  }
+  // Atalhos: Ctrl+Z / Ctrl+Y / Delete (so em pagina canvas e fora de campo de texto).
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => {
+      if (!editingPage || !pageIsCanvas(editingPage)) return;
+      const t = e.target as HTMLElement;
+      const inField = !!t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z"))) { e.preventDefault(); redo(); }
+      else if ((e.key === "Delete" || e.key === "Backspace") && selBox && !inField) { e.preventDefault(); removeSelBox(); }
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingPage, selBox, boxes]);
 
   const load = useCallback(async () => {
     try {
@@ -396,6 +527,14 @@ export default function PoolPrintLayoutEditorPage() {
           </div>
         )}
         <div className="ml-auto flex items-center gap-2">
+          {editingPage && pageIsCanvas(editingPage) ? (<>
+            <button type="button" onClick={undo} disabled={!histInfo.canUndo} title="Voltar (Ctrl+Z)"
+              className="h-8 w-8 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed">⟲</button>
+            <button type="button" onClick={redo} disabled={!histInfo.canRedo} title="Refazer (Ctrl+Y)"
+              className="h-8 w-8 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed">⟳</button>
+            <span className="text-[11px] text-slate-400 min-w-[52px]">{saveState === "saving" ? "salvando…" : saveState === "saved" ? "salvo ✓" : ""}</span>
+            <span className="h-5 w-px bg-slate-300" />
+          </>) : null}
           <button onClick={() => printViaClone({ areaId: "budget-pdf-area", cloneId: "budget-pdf-clone" })}
             className="rounded-md bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800">🖨️ Imprimir exemplo</button>
         </div>
@@ -403,7 +542,7 @@ export default function PoolPrintLayoutEditorPage() {
 
       {/* ABAS DA RIBBON */}
       <div className="flex items-end gap-1 px-3 pt-1 bg-slate-100 border-b border-slate-200 shrink-0">
-        {["Arquivo", "Inicio", "Inserir", "Pagina", "Cab/Rodape", "Estilo"].map((t) => (
+        {["Arquivo", "Inicio", "Inserir", "Layout", "Pagina", "Cab/Rodape", "Estilo"].map((t) => (
           <button key={t} type="button" onClick={() => setTab(t)}
             className={`px-4 py-1.5 text-sm rounded-t-md ${tab === t ? "bg-white font-semibold text-slate-900 border border-b-0 border-slate-200" : "text-slate-600 hover:bg-slate-200"}`}>{t}</button>
         ))}
@@ -451,9 +590,66 @@ export default function PoolPrintLayoutEditorPage() {
           <span className="text-[10px] text-slate-400 ml-1">selecione um texto na folha pra formatar</span>
         </>)}
         {tab === "Inserir" && (<>
-          <RibbonBtn icon="➕" label="Nova pagina" onClick={() => setShowAddPage(true)} />
-          <span className="text-xs text-slate-500 px-2">Capa, Produtos, Datasheets, Cards, Texto, Imagem… escolha o tipo ao adicionar.</span>
+          <RibbonBtn icon="➕" label="Nova pagina" onClick={newCanvasPage} />
+          <span className="mx-0.5 h-5 w-px bg-slate-300" />
+          {editingPage && pageIsCanvas(editingPage) ? (<>
+            <RibbonBtn icon="🇹" label="Texto" onClick={() => addBox("TEXT", {})} />
+            <RibbonBtn icon="🖼️" label="Imagem" onClick={() => addBox("IMAGE", {})} />
+            <label className="text-xs text-slate-600 flex items-center gap-1">Bloco
+              <select value="" onChange={(e) => { if (e.target.value) addBox("BLOCK", { blockType: e.target.value }); }} className="rounded border border-slate-300 px-2 py-1 text-sm">
+                <option value="">+ inserir…</option>
+                <option value="COVER">Capa</option>
+                <option value="PRODUCTS_BY_SECTION">Produtos por etapa</option>
+                <option value="BUDGET_SUMMARY">Resumo do orcamento</option>
+                <option value="TERMS_CONDITIONS">Termos e condicoes</option>
+                <option value="INSTALLMENTS">Plano de pagamento</option>
+                <option value="PHOTOS_GALLERY">Galeria de fotos</option>
+                <option value="HEATING_SOLAR">Datasheet Solar</option>
+                <option value="HEATING_BOMBA">Datasheet Bomba</option>
+              </select>
+            </label>
+            <span className="text-[10px] text-slate-400 ml-1">Clique pra adicionar · arraste na folha pra mover · alças pra redimensionar.</span>
+          </>) : (
+            <span className="text-xs text-slate-500 px-2">Crie/abra uma pagina pra inserir caixas (texto, imagem, bloco).</span>
+          )}
         </>)}
+        {tab === "Layout" && (selectedBox ? (() => {
+          const sb = selectedBox; const sbst: any = sb.style || {};
+          return (<>
+            <span className="text-[10px] uppercase tracking-wide text-slate-400">Caixa:</span>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Posicao horizontal (% da folha)">X<input type="number" value={Math.round(sb.x)} onChange={(e) => patchSelBox({ x: Number(e.target.value) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />%</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Posicao vertical (% da folha)">Y<input type="number" value={Math.round(sb.y)} onChange={(e) => patchSelBox({ y: Number(e.target.value) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />%</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Largura (% da folha)">L<input type="number" value={Math.round(sb.w)} onChange={(e) => patchSelBox({ w: Number(e.target.value) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />%</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura (% da folha)">A<input type="number" value={Math.round(sb.h)} onChange={(e) => patchSelBox({ h: Number(e.target.value) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />%</label>
+            <span className="mx-0.5 h-5 w-px bg-slate-300" />
+            <RibbonBtn icon="⬄" label="Centro H" onClick={() => patchSelBox({ x: Math.round((100 - sb.w) / 2) })} />
+            <RibbonBtn icon="⬍" label="Centro V" onClick={() => patchSelBox({ y: Math.round((100 - sb.h) / 2) })} />
+            <RibbonBtn icon="⤒" label="Frente" onClick={() => zOrder("front")} />
+            <RibbonBtn icon="⤓" label="Tras" onClick={() => zOrder("back")} />
+            <span className="mx-0.5 h-5 w-px bg-slate-300" />
+            <label className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs" title="Cor de fundo da caixa">Fundo<input type="color" value={sbst.bg || "#ffffff"} onChange={(e) => patchSelStyle({ bg: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /><button type="button" onClick={() => patchSelStyle({ bg: null })} title="Sem fundo" className="text-slate-400 hover:text-slate-700">⌫</button></label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Borda (px)">Borda<input type="number" min={0} value={sbst.borderWidth ?? 0} onChange={(e) => patchSelStyle({ borderWidth: Number(e.target.value) || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" /><input type="color" value={sbst.borderColor || "#e2e8f0"} onChange={(e) => patchSelStyle({ borderColor: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Cantos (px)">Cantos<input type="number" min={0} value={sbst.radius ?? 0} onChange={(e) => patchSelStyle({ radius: Number(e.target.value) || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Espacamento interno (px)">Padding<input type="number" min={0} value={sbst.padding ?? 0} onChange={(e) => patchSelStyle({ padding: Number(e.target.value) || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Sombra"><input type="checkbox" checked={!!sbst.shadow} onChange={(e) => patchSelStyle({ shadow: e.target.checked })} />Sombra</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Opacidade (0-1)">Opac.<input type="number" min={0} max={1} step={0.1} value={sbst.opacity ?? 1} onChange={(e) => patchSelStyle({ opacity: Number(e.target.value) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
+            {sb.type === "TEXT" ? (
+              <label className="text-xs text-slate-600 flex items-center gap-1" title="Alinhamento vertical do texto">V-align
+                <select value={sbst.valign || "top"} onChange={(e) => patchSelStyle({ valign: e.target.value })} className="rounded border border-slate-300 px-1 py-1 text-sm"><option value="top">Topo</option><option value="center">Centro</option><option value="bottom">Base</option></select>
+              </label>
+            ) : null}
+            {sb.type === "IMAGE" ? (<>
+              <label className="cursor-pointer rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200">📁 Imagem<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; try { const url = await uploadAsset(f); patchSelBox({ url }); } catch (err: any) { toast(err.message || "Erro", "error"); } if (e.target) e.target.value = ""; }} /></label>
+              <label className="text-xs text-slate-600 flex items-center gap-1" title="Ajuste da imagem">Ajuste
+                <select value={sb.fit || "cover"} onChange={(e) => patchSelBox({ fit: e.target.value as any })} className="rounded border border-slate-300 px-1 py-1 text-sm"><option value="cover">Preencher (corta)</option><option value="contain">Conter (inteira)</option><option value="fill">Esticar</option></select>
+              </label>
+            </>) : null}
+            <span className="mx-0.5 h-5 w-px bg-slate-300" />
+            <RibbonBtn icon="🗑️" label="Excluir" onClick={removeSelBox} />
+          </>);
+        })() : (
+          <span className="text-xs text-slate-500 px-2">{editingPage && pageIsCanvas(editingPage) ? "Clique numa caixa na folha pra ver tamanho, posição e estilo aqui." : "Abra uma página canvas e selecione uma caixa."}</span>
+        ))}
         {tab === "Pagina" && (<>
           <label className="text-xs text-slate-600 flex items-center gap-1">Orientacao
             <select value={brand.orientation || "portrait"} onChange={(e) => setBranding({ orientation: e.target.value })} className="rounded border border-slate-300 px-2 py-1 text-sm">
@@ -468,6 +664,14 @@ export default function PoolPrintLayoutEditorPage() {
             <input type="color" value={brand.bgColor || "#ffffff"} onChange={(e) => setBranding({ bgColor: e.target.value })} className="h-7 w-7 cursor-pointer rounded border border-slate-300 p-0" title="Cor de fundo" />
             {brand.bgType === "gradient" ? <input type="color" value={brand.bgColor2 || "#e2e8f0"} onChange={(e) => setBranding({ bgColor2: e.target.value })} className="h-7 w-7 cursor-pointer rounded border border-slate-300 p-0" title="2a cor" /> : null}
           </label>
+          <span className="mx-0.5 h-5 w-px bg-slate-300" />
+          {editingPage && !pageIsCanvas(editingPage) ? (
+            <RibbonBtn icon="🔓" label="Converter p/ canvas" onClick={convertToCanvas} />
+          ) : null}
+          {editingPage ? (<>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Pagina ativa (aparece no relatorio)"><input type="checkbox" checked={editingPage.isActive !== false} onChange={(e) => savePageMeta({ isActive: e.target.checked })} />Ativa</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Quebra de pagina depois desta"><input type="checkbox" checked={editingPage.pageBreak !== false} onChange={(e) => savePageMeta({ pageBreak: e.target.checked })} />Quebra</label>
+          </>) : null}
           <span className="text-[10px] text-slate-400 ml-1">Cabecalho/Rodape ficam na aba &quot;Cab/Rodape&quot;.</span>
         </>)}
         {tab === "Cab/Rodape" && (() => {
@@ -533,7 +737,7 @@ export default function PoolPrintLayoutEditorPage() {
       <div className="w-[340px] shrink-0 border-r border-slate-200 bg-slate-50 overflow-y-auto p-3 space-y-3">
       <div className="flex items-center justify-between">
         <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Paginas</div>
-        <button onClick={() => setShowAddPage(true)} className="rounded bg-cyan-600 px-2 py-1 text-xs font-medium text-white hover:bg-cyan-700">+ Pagina</button>
+        <button onClick={newCanvasPage} className="rounded bg-cyan-600 px-2 py-1 text-xs font-medium text-white hover:bg-cyan-700">+ Pagina</button>
       </div>
 
       {/* Branding agora vive nas ABAS da faixa (Inicio/Pagina/Estilo). Painel escondido. */}
@@ -692,35 +896,44 @@ export default function PoolPrintLayoutEditorPage() {
       )}
       </div>{/* fim painel esquerdo (Paginas & estilo) */}
 
-      {/* CENTRO: edita a pagina selecionada (sem janela) OU mostra a folha. Nada a direita. */}
-      <div className="flex-1 min-w-0 overflow-auto bg-slate-200 p-4">
-        {(showAddPage || editingPage) ? (
-          <div className="mx-auto max-w-[1400px] rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-sm font-semibold text-slate-800">
-                {editingPage
-                  ? <>✎ Pagina {layout.pages.findIndex((p) => p.id === editingPage.id) + 1} <span className="font-normal text-slate-500">— {(editingPage.pageConfig as any)?.nodes?.length ? "Composicao" : editingPage.type === "DYNAMIC" ? (DYNAMIC_LABEL[editingPage.dynamicType || ""] || "Dinamica") : "HTML fixo"}</span></>
-                  : <>➕ Nova pagina</>}
+      {/* CENTRO: folha da pagina selecionada (canvas editavel, estilo PowerPoint) */}
+      <div className="flex-1 min-w-0 overflow-auto bg-slate-200 flex flex-col">
+        {editingPage && pageIsCanvas(editingPage) ? (
+          <CanvasEditor boxes={boxes} data={SAMPLE_BUDGET} branding={layout.branding}
+            selBox={selBox} orientation={brand.orientation}
+            pageBg={brand.bgType === "gradient" ? `linear-gradient(135deg, ${brand.bgColor || "#ffffff"}, ${brand.bgColor2 || "#e2e8f0"})` : (brand.bgColor || "#ffffff")}
+            onSelect={(idv) => { setSelBox(idv); if (idv) setTab("Layout"); }}
+            onChange={onCanvasChange} onCommit={onCanvasCommit} />
+        ) : showAddPage ? (
+          <div className="p-4">
+            <div className="mx-auto max-w-[1100px] rounded-xl border border-slate-200 bg-white p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm font-semibold text-slate-800">➕ Nova pagina (avancado)</div>
+                <button type="button" onClick={() => setShowAddPage(false)} className="text-xs text-slate-500 hover:text-slate-700">✕ Fechar</button>
               </div>
-              <button type="button" onClick={() => { setShowAddPage(false); setEditingPage(null); }}
-                className="text-xs text-slate-500 hover:text-slate-700">✕ Fechar (ver folha)</button>
+              <PageEditor inline editing={null} onClose={() => setShowAddPage(false)} onSubmit={(payload) => addPage(payload)} onUploadImage={uploadAsset} />
             </div>
-            <PageEditor
-              inline
-              key={editingPage?.id || "new"}
-              editing={editingPage}
-              onClose={() => { setShowAddPage(false); setEditingPage(null); }}
-              onSubmit={(payload) => editingPage ? updatePage(editingPage.id, payload) : addPage(payload)}
-              onUploadImage={uploadAsset}
-            />
+          </div>
+        ) : editingPage ? (
+          <div className="p-4 overflow-auto">
+            <div className="mx-auto max-w-[1100px] space-y-3">
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">Pagina no formato antigo. Para editar livremente (estilo PowerPoint), <button onClick={convertToCanvas} className="font-semibold underline">converter pra canvas</button>. Ela continua aparecendo na impressao.</div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-sm font-semibold text-slate-800">✎ Pagina {layout.pages.findIndex((p) => p.id === editingPage!.id) + 1} <span className="font-normal text-slate-500">— editor antigo</span></div>
+                  <button type="button" onClick={() => setEditingPage(null)} className="text-xs text-slate-500 hover:text-slate-700">✕ Fechar</button>
+                </div>
+                <PageEditor inline key={editingPage.id} editing={editingPage} onClose={() => setEditingPage(null)} onSubmit={(payload) => updatePage(editingPage!.id, payload)} onUploadImage={uploadAsset} />
+              </div>
+            </div>
           </div>
         ) : (
-          <>
-            <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-2">Pre-visualizacao <span className="text-slate-400">(dados de exemplo)</span> <span className="text-slate-400">— clique numa pagina na lista para focar nela</span></div>
-            <BudgetReport data={SAMPLE_BUDGET} layout={{ branding: layout.branding, pages: layout.pages }}
-              editable selectedPageId={selectedPageId} onSelectPage={(id) => setSelectedPageId(id)} />
-          </>
+          <div className="flex-1 flex items-center justify-center text-slate-500 text-sm">Selecione uma pagina a esquerda (ou crie uma nova) para editar.</div>
         )}
+      </div>
+      {/* OCULTO: render completo (#budget-pdf-area) p/ impressao — reflete os boxes ao vivo */}
+      <div aria-hidden style={{ position: "absolute", left: -99999, top: 0 }}>
+        <BudgetReport data={SAMPLE_BUDGET} layout={{ branding: layout.branding, pages: layout.pages.map((p) => editingPage && p.id === editingPage.id && pageIsCanvas(editingPage) ? { ...p, type: "FIXED", pageConfig: { canvas: true, boxes } } : p) }} />
       </div>
 
       </div>{/* fim 3 paineis */}

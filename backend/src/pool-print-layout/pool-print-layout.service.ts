@@ -234,11 +234,12 @@ export class PoolPrintLayoutService {
     });
     if (!layout) throw new NotFoundException('Layout não encontrado');
 
-    // FIXED aceita htmlContent OU composicao por cards (pageConfig.nodes).
+    // FIXED aceita htmlContent OU composicao por cards (pageConfig.nodes) OU canvas livre (pageConfig.canvas).
     const hasNodes = Array.isArray((dto.pageConfig as any)?.nodes) && (dto.pageConfig as any).nodes.length > 0;
-    if (dto.type === PoolPrintPageType.FIXED && !dto.htmlContent && !hasNodes) {
+    const isCanvas = (dto.pageConfig as any)?.canvas === true;
+    if (dto.type === PoolPrintPageType.FIXED && !dto.htmlContent && !hasNodes && !isCanvas) {
       throw new BadRequestException(
-        'Página FIXED precisa ter htmlContent ou composição (cards) preenchido.',
+        'Página FIXED precisa ter htmlContent, composição (cards) ou canvas livre.',
       );
     }
     if (dto.type === PoolPrintPageType.DYNAMIC && !dto.dynamicType) {
