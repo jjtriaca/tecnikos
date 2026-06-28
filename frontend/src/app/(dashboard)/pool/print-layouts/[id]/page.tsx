@@ -112,6 +112,7 @@ const SAMPLE_BUDGET: BudgetReportData = {
     { label: "Parcela (3/3)", dueLabel: "+90 dias", valueCents: 3741187 },
   ],
   validityDays: 30,
+  environmentParams: { solicitante: "Anderson da Silva Prado", cidade: "Primavera do Leste", regiaoSolar: "MT" },
   sectionOrder: ["CONSTRUCAO", "FILTRO", "CASCATA", "ACIONAMENTOS"],
   sectionLabels: { CONSTRUCAO: "Construcao", FILTRO: "Filtragem", CASCATA: "Cascata", ACIONAMENTOS: "Acionamentos eletricos" },
   items: [
@@ -172,6 +173,9 @@ export default function PoolPrintLayoutEditorPage() {
   const [pageName, setPageName] = useState<string>("");
   const pageNameRef = useRef("");
   const [nameEdit, setNameEdit] = useState<{ id: string; v: string } | null>(null);
+  // Cabeçalho/rodapé nesta página? (pageConfig.noHF) — default mostra.
+  const [pageNoHF, setPageNoHF] = useState(false);
+  const pageNoHFRef = useRef(false);
 
   // Carrega os boxes + fundo ao abrir uma pagina canvas (volta pra regiao PAGINA, reseta historico).
   useEffect(() => {
@@ -183,6 +187,7 @@ export default function PoolPrintLayoutEditorPage() {
       const bg = { bg: pc.bg ?? null, bgType: pc.bgType || "solid", bgColor2: pc.bgColor2 };
       setPageBgCfg(bg); pageBgRef.current = bg;
       const nm = pc.name || ""; setPageName(nm); pageNameRef.current = nm;
+      const nohf = !!pc.noHF; setPageNoHF(nohf); pageNoHFRef.current = nohf;
       histRef.current = { stack: [JSON.parse(JSON.stringify(bs))], idx: 0 };
       setHistInfo({ canUndo: false, canRedo: false });
     }
@@ -222,7 +227,7 @@ export default function PoolPrintLayoutEditorPage() {
           if (!editingPage) return;
           const pageId = editingPage.id;
           const bgc = pageBgRef.current;
-          const pageConfig = { canvas: true, boxes: bs, bg: bgc.bg ?? null, bgType: bgc.bgType || "solid", bgColor2: bgc.bgColor2 ?? null, name: pageNameRef.current || null };
+          const pageConfig = { canvas: true, boxes: bs, bg: bgc.bg ?? null, bgType: bgc.bgType || "solid", bgColor2: bgc.bgColor2 ?? null, name: pageNameRef.current || null, noHF: pageNoHFRef.current || undefined };
           await api.put(`/pool-print-layouts/pages/${pageId}`, { type: "FIXED", htmlContent: null, dynamicType: null, pageConfig });
           setLayout((prev) => prev ? { ...prev, pages: prev.pages.map((p) => p.id === pageId ? { ...p, type: "FIXED", pageConfig } : p) } : prev);
         } else {
@@ -696,9 +701,11 @@ export default function PoolPrintLayoutEditorPage() {
             onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); selLink(linkInput); } }}
             className="w-32 rounded border border-slate-300 px-1 py-1 text-xs" />
           <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => selLink(linkInput)} className={ribFmtBtn(false)} title="Aplicar link na seleção">🔗</button>
-          {selectedBox?.type === "TEXT" ? (
+          {selectedBox?.type === "TEXT" ? (<>
             <label className="text-xs text-slate-600 flex items-center gap-1 ml-1" title="Quebra automática de linha na caixa de texto"><input type="checkbox" checked={!((selectedBox.style as any)?.noWrap)} onChange={(e) => patchSelStyle({ noWrap: !e.target.checked })} />Quebra linha</label>
-          ) : null}
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Espaçamento entre linhas (entrelinha)">Entrelinha
+              <input type="number" min={0.8} max={3} step={0.1} value={(selectedBox.style as any)?.lineHeight ?? ""} placeholder="auto" onChange={(e) => patchSelStyle({ lineHeight: e.target.value ? Number(e.target.value) : null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
+          </>) : null}
           {/* ── grupo PAGINA (tamanho/orientacao/fundo) ── */}
           <span className="mx-1 h-6 w-px bg-slate-300" />
           <label className="text-xs text-slate-600 flex items-center gap-1" title="Orientação (define o tamanho padrão)">Pág.
@@ -708,6 +715,7 @@ export default function PoolPrintLayoutEditorPage() {
           </label>
           <label className="text-xs text-slate-600 flex items-center gap-1" title="Largura da página (mm)">L<input type="number" min={50} value={pageDims(layout.branding).w} onChange={(e) => setBranding({ pageWidthMm: Number(e.target.value) || null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
           <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura da página (mm) — diminua p/ folha mais baixa">A<input type="number" min={50} value={pageDims(layout.branding).h} onChange={(e) => setBranding({ pageHeightMm: Number(e.target.value) || null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Margem (guia tracejada no editor; só referência)">Margem<input type="number" min={0} max={40} value={brand.pageMarginMm ?? 12} onChange={(e) => setBranding({ pageMarginMm: e.target.value === "" ? null : Number(e.target.value) })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
           <label className="text-xs text-slate-600 flex items-center gap-1" title="Fundo SÓ desta página">Fundo
             <select value={pageBgCfg.bgType || "solid"} onChange={(e) => setPageBg({ bgType: e.target.value })} className="rounded border border-slate-300 px-1 py-1 text-sm"><option value="solid">Sólido</option><option value="gradient">Gradiente</option></select>
             <input type="color" value={pageBgCfg.bg || "#ffffff"} onChange={(e) => setPageBg({ bg: e.target.value })} className="h-6 w-6 cursor-pointer rounded border border-slate-300 p-0" />
@@ -791,7 +799,10 @@ export default function PoolPrintLayoutEditorPage() {
           <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura do cabeçalho (mm)">Cab.<input type="number" min={0} max={80} value={brand.headerHmm ?? 18} onChange={(e) => setBranding({ headerHmm: e.target.value ? Number(e.target.value) : null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
           <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura do rodapé (mm)">Rod.<input type="number" min={0} max={80} value={brand.footerHmm ?? 14} onChange={(e) => setBranding({ footerHmm: e.target.value ? Number(e.target.value) : null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
           <RibbonBtn icon="💾" label="Salvar" onClick={saveBranding} />
-          <span className="text-[10px] text-slate-400 ml-1">Edite como uma página: vá em <b>Inserir</b> (texto, imagem, campos) — aparece em todas as páginas.</span>
+          {editingPage && pageIsCanvas(editingPage) ? (
+            <label className="text-xs text-slate-600 flex items-center gap-1 ml-1" title="Mostrar cabeçalho/rodapé NESTA página"><input type="checkbox" checked={!pageNoHF} onChange={(e) => { const nohf = !e.target.checked; setPageNoHF(nohf); pageNoHFRef.current = nohf; scheduleSave(boxes); }} />Mostrar nesta página</label>
+          ) : null}
+          <span className="text-[10px] text-slate-400 ml-1">Edite como uma página: vá em <b>Inserir</b> (texto, imagem, campos) — aparece nas páginas (desmarque pra esconder numa).</span>
         </>)}
       </div>
 
@@ -977,7 +988,7 @@ export default function PoolPrintLayoutEditorPage() {
               <CanvasEditor boxes={boxes} data={SAMPLE_BUDGET} branding={layout.branding}
                 selBox={selBox} pageW={pageDims(layout.branding).w} pageH={region === "header" ? (brand.headerHmm ?? 18) : (brand.footerHmm ?? 14)}
                 pageBg="#ffffff"
-                onSelect={(idv) => { setSelBox(idv); if (idv) { const b = boxes.find((x) => x.id === idv); setTab(b?.type === "TEXT" ? "Inicio" : "Layout"); } }}
+                onSelect={(idv) => { setSelBox(idv); if (idv) setTab("Layout"); }}
                 onChange={onCanvasChange} onCommit={onCanvasCommit} onEditStart={() => setTab("Inicio")} />
             </div>
           </div>
@@ -986,7 +997,7 @@ export default function PoolPrintLayoutEditorPage() {
             selBox={selBox} pageW={pageDims(layout.branding).w} pageH={pageDims(layout.branding).h}
             pageBg={pageBgCss}
             hfOverlay={{ headerBoxes: brand.headerBoxes, footerBoxes: brand.footerBoxes, headerHmm: brand.headerHmm, footerHmm: brand.footerHmm }}
-            onSelect={(idv) => { setSelBox(idv); if (idv) { const b = boxes.find((x) => x.id === idv); setTab(b?.type === "TEXT" ? "Inicio" : "Layout"); } }}
+            onSelect={(idv) => { setSelBox(idv); if (idv) setTab("Layout"); }}
             onChange={onCanvasChange} onCommit={onCanvasCommit} onEditStart={() => setTab("Inicio")} />
         ) : showAddPage ? (
           <div className="p-4">
@@ -1025,7 +1036,7 @@ export default function PoolPrintLayoutEditorPage() {
 
       {/* OCULTO: render completo (#budget-pdf-area) p/ impressao — reflete os boxes ao vivo */}
       <div aria-hidden style={{ position: "absolute", left: -99999, top: 0 }}>
-        <BudgetReport data={SAMPLE_BUDGET} layout={{ branding: layout.branding, pages: layout.pages.map((p) => editingPage && p.id === editingPage.id && pageIsCanvas(editingPage) ? { ...p, type: "FIXED", pageConfig: { canvas: true, boxes } } : p) }} />
+        <BudgetReport data={SAMPLE_BUDGET} layout={{ branding: layout.branding, pages: layout.pages.map((p) => editingPage && p.id === editingPage.id && pageIsCanvas(editingPage) ? { ...p, type: "FIXED", pageConfig: { ...((p.pageConfig as any) || {}), canvas: true, boxes, bg: pageBgCfg.bg ?? null, bgType: pageBgCfg.bgType || "solid", bgColor2: pageBgCfg.bgColor2 ?? null, name: pageName || null, noHF: pageNoHF || undefined } } : p) }} />
       </div>
 
       </div>{/* fim 3 paineis */}

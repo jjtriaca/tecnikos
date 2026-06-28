@@ -241,6 +241,9 @@ function resolvePlaceholders(html: string, data: BudgetReportData): string {
     "{poolVolume}": num(d.volume),
     "{poolPerimeter}": num(d.perimeter),
     "{validityDays}": String(data.validityDays ?? ""),
+    "{solicitante}": (data.environmentParams as any)?.solicitante || data.clientName || "",
+    "{climateCity}": (data.environmentParams as any)?.cidade || "",
+    "{climateState}": (data.environmentParams as any)?.regiaoSolar || "",
     "{date}": new Date().toLocaleDateString("pt-BR"),
   };
   return html.replace(/\{[a-zA-Z]+\}/g, (m) => (m in map ? map[m] : m));
@@ -635,8 +638,8 @@ export type Box = {
   style?: {
     bg?: string | null; borderColor?: string | null; borderWidth?: number | null;
     radius?: number | null; padding?: number | null; textColor?: string | null;
-    fontSize?: number | null; fontFamily?: string | null;
-    align?: string | null; valign?: string | null; shadow?: boolean | null; opacity?: number | null;
+    fontSize?: number | null; fontFamily?: string | null; lineHeight?: number | null;
+    align?: string | null; valign?: string | null; shadow?: boolean | null; opacity?: number | null; noWrap?: boolean | null;
   } | null;
 };
 
@@ -665,6 +668,7 @@ function boxRectStyle(b: Box): CSSProperties {
     color: st.textColor || undefined,
     fontSize: st.fontSize ? `${st.fontSize}pt` : undefined,
     fontFamily: st.fontFamily || undefined,
+    lineHeight: st.lineHeight != null ? st.lineHeight : undefined,
     boxShadow: st.shadow ? "0 1px 6px rgba(0,0,0,.18)" : undefined,
     opacity: st.opacity != null ? st.opacity : undefined,
     overflow: "hidden",
@@ -787,6 +791,10 @@ export function CanvasEditor({ boxes, data, branding, selBox, pageW, pageH, page
       <div ref={canvasRef}
         style={{ position: "relative", width: `${W}mm`, height: `${H}mm`, background: pageBg || "#fff", boxShadow: "0 2px 18px rgba(0,0,0,.35)", overflow: "hidden", flexShrink: 0, color: "#0f172a", fontSize: "11px", lineHeight: 1.35 }}
         onPointerDown={(e) => { if (e.target === canvasRef.current) { onSelect(null); setEditingId(null); } }}>
+        {/* Guia das MARGENS (so no editor; nao imprime) — tracejado do recuo */}
+        {((branding as any)?.pageMarginMm ?? 12) > 0 ? (
+          <div style={{ position: "absolute", inset: `${(branding as any)?.pageMarginMm ?? 12}mm`, border: "1px dashed #cbd5e1", pointerEvents: "none", zIndex: 0 }} />
+        ) : null}
         {/* Cabecalho/Rodape como SOBREPOSICAO esmaecida (contexto; nao editavel aqui) */}
         {hfOverlay?.headerBoxes && hfOverlay.headerBoxes.length ? (
           <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: `${hfOverlay.headerHmm ?? 18}mm`, overflow: "hidden", opacity: 0.55, pointerEvents: "none", borderBottom: "1px dashed #cbd5e1" }}>
