@@ -20,7 +20,18 @@
 - [x] F8: **nomear páginas** (✏️ inline no card; pageConfig.name; preservado no autosave).
 - [x] F1 (EDITOR): campos de Cliente/Empresa **resolvem no preview** com dados de exemplo ({clientPhone}/{clientEmail}/{clientAddress}/{clientState}/{clientZip}/{clientTradeName}/{company*}). 🔜 FALTA ligar no relatório REAL (BudgetReportModal.buildReportData mapear partner+company do orçamento).
 
-## 🧪 DOGFOODING rodada 3 (28/06, v1.14.69) — ACUMULANDO (Juliano listando; NÃO corrigir ainda)
+## ✅ PACOTE G1–G10 (28/06, v1.14.71) — implementado
+- [x] G1 clique simples → Layout; duplo-clique → Início (edição).
+- [x] G2 entrelinha (style.lineHeight) na Início.
+- [x] G3 {solicitante} (environmentParams.solicitante) + G4 {climateCity}/{climateState} (environmentParams.cidade/regiaoSolar) no catálogo + resolver + SAMPLE.
+- [x] G5 fundo da página vai pra impressão (render oculto da página aberta mescla bg/nome/noHF).
+- [x] G6 toggle "Mostrar cab/rodapé nesta página" (pageConfig.noHF) na aba Cab/Rodapé.
+- [x] G7 guia tracejada das margens no editor + controle "Margem (mm)" na Início.
+- [x] G8 campo de tamanho reflete a fonte da caixa selecionada (efeito por selBox) + reflectSel na edição.
+- [x] G9 alinhamento vertical (cima/meio/baixo) na Início (style.valign).
+- [x] G10 link saiu da Início → "Link" no Inserir (caixa TEXT com href) + campo "🔗 link" no Layout (TEXT/IMAGE, box.href → vira <a> clicável no PDF). selLink/linkInput removidos.
+
+## 🧪 DOGFOODING rodada 3 (28/06, v1.14.69) — implementado em v1.14.71
 - [ ] **G1** Clicar (1 clique) numa caixa já vai pra aba **Início** — deveria ir pra **Layout** no clique simples e só ir pra **Início** no **duplo-clique** (edição). Fix: `onSelect` → setTab("Layout") sempre; só `onEditStart` (duplo-clique) → setTab("Inicio"). (page.tsx CanvasEditor onSelect)
 - [ ] **G8** Ao selecionar texto/caixa, o **campo de tamanho deve mostrar o tamanho atual** da fonte (detectar). Hoje fica valor padrão/desatualizado. Vale p/ trecho (reflectSel px→pt) e p/ caixa só selecionada (style.fontSize).
 - [ ] **G7** Mostrar **limite das margens** na página (guia tracejada do recuo, como as linhas de cab/rodapé) no editor; usa `pageMarginMm`. Só guia visual (não imprime).
