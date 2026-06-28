@@ -240,16 +240,20 @@ function CoverBlock({ data, branding, config }: { data: BudgetReportData; brandi
           <img src={branding.logoUrl} alt="logo" style={{ height: branding?.logoSizeCover || 64, objectFit: "contain" }} />
         ) : null}
       </div>
-      {/* titulo grande */}
-      <div style={{ marginTop: "16mm", fontSize: 54, fontWeight: 800, lineHeight: 1.08, color: titleColor, maxWidth: "62%" }}>{title}</div>
-      {/* espacador empurra o bloco do cliente pra baixo */}
+      {/* espacador acima do titulo (posiciona ~40% como no modelo) */}
       <div style={{ flex: 1 }} />
+      {/* titulo grande */}
+      <div style={{ fontSize: 54, fontWeight: 800, lineHeight: 1.08, color: titleColor, maxWidth: "62%" }}>{title}</div>
+      {/* espacador maior empurra o bloco do cliente pra ~73% */}
+      <div style={{ flex: 1.4 }} />
       {/* bloco do cliente */}
       <div style={{ fontSize: 12, lineHeight: 1.9, color: "#111827" }}>
         {rows.map(([k, v]) => (
           <div key={k}><span style={{ fontWeight: 700 }}>{k}:</span> {v}</div>
         ))}
       </div>
+      {/* folga ate o rodape (rodape vai pro fim da pagina) */}
+      <div style={{ flex: 0.5 }} />
       {/* rodape: se "mostrar rodape na capa" estiver ligado, usa o rodape configuravel
           (conteudo + logo opcional); senao, o texto de validade padrao. */}
       {branding?.footerOnCover ? (
