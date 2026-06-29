@@ -109,6 +109,7 @@ export type ReportItem = {
   unitPriceCents: number;
   totalCents: number;
   imageUrl?: string | null; // produto/servico vinculado (vem do findOne)
+  cellRef?: string | null;  // endereco estavel da linha (L1, L2, L130) — usado em {linha:Lx.campo}
 };
 
 export type BudgetReportData = {
@@ -206,7 +207,51 @@ function pageShows(page: ReportPage, data: BudgetReportData): boolean {
   return requires.every((r) => presentes.has(r));
 }
 
-/** Resolve {placeholders} (mesmas chaves do editor pool/print-layouts). */
+/** Rotulo da etapa (poolSection) — usa sectionLabels do orcamento, senao o proprio codigo. */
+function sectionLabel(data: BudgetReportData, section: string): string {
+  const labels = (data.sectionLabels || {}) as Record<string, string>;
+  return labels[section] || labels[(section || "").toUpperCase()] || section || "";
+}
+
+/** Resolve tokens ENDERECADOS de etapa/linha:
+ *   {linha:L130.produto|descricao|qtd|valor|unitario|papel|etapa}
+ *   {etapa:CASCATA.total|linhas|nome}
+ *  Retorna string ja formatada, "" se o alvo nao existe, ou null se nao casa (deixa o token cru). */
+function resolveAddressedToken(token: string, data: BudgetReportData): string | null {
+  const inner = token.slice(1, -1); // tira { }
+  const items = data.items || [];
+  let m = inner.match(/^linha:([A-Za-z]?\d+)\.([a-zA-Z]+)$/);
+  if (m) {
+    const ref = m[1].toUpperCase();
+    const field = m[2].toLowerCase();
+    const it = items.find((x) => (x.cellRef || "").toUpperCase() === ref);
+    if (!it) return "";
+    switch (field) {
+      case "produto": case "descricao": case "item": case "nome": return it.description || "";
+      case "qtd": case "quantidade": case "qty": return num(it.qty);
+      case "valor": case "total": return brl(it.totalCents);
+      case "unitario": case "preco": case "unit": return brl(it.unitPriceCents);
+      case "papel": case "slot": return it.slotName || "";
+      case "etapa": case "secao": return sectionLabel(data, it.poolSection);
+      default: return "";
+    }
+  }
+  m = inner.match(/^etapa:([A-Za-z0-9_-]+)\.([a-zA-Z]+)$/);
+  if (m) {
+    const sec = m[1].toUpperCase();
+    const field = m[2].toLowerCase();
+    const list = items.filter((x) => (x.poolSection || "").toUpperCase() === sec);
+    switch (field) {
+      case "total": case "valor": return brl(list.reduce((s, x) => s + (x.totalCents || 0), 0));
+      case "linhas": case "qtd": case "count": return String(list.length);
+      case "nome": case "rotulo": case "etapa": return sectionLabel(data, sec);
+      default: return "";
+    }
+  }
+  return null;
+}
+
+/** Resolve {placeholders} (mesmas chaves do editor pool/print-layouts) + tokens enderecados. */
 function resolvePlaceholders(html: string, data: BudgetReportData): string {
   const d = data.dimensions || {};
   const map: Record<string, string> = {
@@ -263,7 +308,12 @@ function resolvePlaceholders(html: string, data: BudgetReportData): string {
     "{climateState}": (data.environmentParams as any)?.regiaoSolar || "",
     "{date}": new Date().toLocaleDateString("pt-BR"),
   };
-  return html.replace(/\{[a-zA-Z]+\}/g, (m) => (m in map ? map[m] : m));
+  return html.replace(/\{[a-zA-Z][\w.:-]*\}/g, (m) => {
+    if (m in map) return map[m];
+    const addressed = resolveAddressedToken(m, data);
+    if (addressed != null) return addressed;
+    return m; // token desconhecido: deixa cru (nao quebra o texto)
+  });
 }
 
 // ── Blocos ───────────────────────────────────────────────────────────────────

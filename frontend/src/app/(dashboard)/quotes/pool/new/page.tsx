@@ -359,7 +359,7 @@ export default function NewPoolBudgetPage() {
       return;
     }
     if (!form.templateId) {
-      toast("Selecione um modelo (template) — campo obrigatorio", "error");
+      toast("Selecione um modelo de obra — campo obrigatorio", "error");
       return;
     }
     if (avisos.some((a) => a.nivel === "erro") && !confirm("⚠ A pagina tem ERROS (veja a Central de avisos no topo) — os calculos vao ficar ERRADOS. Tem certeza que quer salvar assim mesmo?")) {
@@ -525,7 +525,7 @@ export default function NewPoolBudgetPage() {
               </p>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Template <span className="text-red-500">*</span></label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Modelo de obra <span className="text-red-500">*</span></label>
               <select
                 value={form.templateId}
                 onChange={(e) => setForm({ ...form, templateId: e.target.value })}

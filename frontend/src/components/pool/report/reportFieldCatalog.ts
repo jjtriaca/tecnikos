@@ -133,6 +133,15 @@ export const REPORT_FIELD_CATALOG: CatalogSource[] = [
         T("{poolRadierVolume}", "Radier (m³)", "🧱"),
         T("{poolExcavation}", "Escavação (m³)", "⛏️"),
       ] },
+      { label: "Etapas e linhas (avançado)", icon: "🔗", fields: [
+        T("{linha:L1.produto}", "Produto/descrição da linha (troque L1)", "🔗"),
+        T("{linha:L1.qtd}", "Quantidade da linha", "🔗"),
+        T("{linha:L1.valor}", "Valor total da linha", "🔗"),
+        T("{linha:L1.unitario}", "Preço unitário da linha", "🔗"),
+        T("{linha:L1.etapa}", "Etapa a que a linha pertence", "🔗"),
+        T("{etapa:CONSTRUCAO.total}", "Total de uma etapa (troque o nome)", "🧱"),
+        T("{etapa:CONSTRUCAO.linhas}", "Nº de linhas da etapa", "🧱"),
+      ] },
       EMPRESA,
       // Blocos de DADO VARIÁVEL (lista de N itens) — não dá pra montar com caixa livre.
       // Capa e Termos saíram (viram caixas/campos livres).

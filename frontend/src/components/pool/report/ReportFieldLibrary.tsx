@@ -6,13 +6,17 @@
 import { useRef, useState } from "react";
 import { REPORT_FIELD_CATALOG, CatalogField } from "./reportFieldCatalog";
 
-export default function ReportFieldLibrary({ onInsertText, onInsertBlock, onClose }: {
+export default function ReportFieldLibrary({ onInsertText, onInsertBlock, onClose, sourceId }: {
   onInsertText: (token: string) => void;
   onInsertBlock: (blockType: string) => void;
   onClose?: () => void;
+  sourceId?: string; // se vier, escopa o painel a UMA origem (a do layout) — esconde as outras
 }) {
-  const [open, setOpen] = useState<string | null>("orcamento_obras"); // 1 origem aberta
+  // Escopo: layout ligado a uma origem mostra SO os campos dela (evita inserir campo de outra origem).
+  const sources = sourceId ? REPORT_FIELD_CATALOG.filter((s) => s.id === sourceId) : REPORT_FIELD_CATALOG;
+  const [open, setOpen] = useState<string | null>(sourceId ?? "orcamento_obras"); // 1 origem aberta
   const [q, setQ] = useState("");
+  const [copied, setCopied] = useState<string | null>(null); // token copiado (feedback)
   const panelRef = useRef<HTMLDivElement>(null);
   const query = q.trim().toLowerCase();
 
@@ -20,15 +24,32 @@ export default function ReportFieldLibrary({ onInsertText, onInsertBlock, onClos
     if (f.kind === "block" && f.blockType) onInsertBlock(f.blockType);
     else if (f.token) onInsertText(f.token);
   };
-  const Row = ({ f }: { f: CatalogField }) => (
-    <button type="button" onClick={() => insert(f)} title={`Inserir ${f.token || f.blockType}`}
-      className="group flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[11px] text-slate-700 hover:bg-cyan-50">
-      <span className="w-4 shrink-0 text-center">{f.icon || (f.kind === "block" ? "🧩" : "🔤")}</span>
-      <span className="shrink-0 font-mono text-[10px] text-cyan-700">{f.kind === "block" ? "▦" : f.token}</span>
-      <span className="truncate text-slate-600">{f.label}</span>
-      <span className="ml-auto shrink-0 rounded bg-cyan-600 px-1.5 text-[11px] font-bold leading-tight text-white opacity-0 group-hover:opacity-100" title="Inserir na página">+</span>
-    </button>
-  );
+  // Clicar no codigo: copia pro clipboard pra colar dentro de um texto (NAO insere caixa).
+  const copyToken = (token: string) => {
+    try { navigator.clipboard?.writeText(token); } catch { /* clipboard bloqueado: select-all ainda permite copiar */ }
+    setCopied(token);
+    window.setTimeout(() => setCopied((c) => (c === token ? null : c)), 1200);
+  };
+  const Row = ({ f }: { f: CatalogField }) => {
+    const isBlock = f.kind === "block";
+    return (
+      <div className="group flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[11px] text-slate-700 hover:bg-cyan-50">
+        <span className="w-4 shrink-0 text-center">{f.icon || (isBlock ? "🧩" : "🔤")}</span>
+        {isBlock ? (
+          <span className="shrink-0 font-mono text-[10px] text-cyan-700">▦</span>
+        ) : (
+          <button type="button" onClick={() => copyToken(f.token!)}
+            title="Clique pra copiar o código e colar dentro de um texto"
+            className="shrink-0 cursor-copy select-all rounded bg-slate-100 px-1 font-mono text-[10px] text-cyan-700 hover:bg-cyan-100">
+            {copied === f.token ? "copiado!" : f.token}
+          </button>
+        )}
+        <span className="truncate text-slate-600">{f.label}</span>
+        <button type="button" onClick={() => insert(f)} title="Inserir caixa do campo na página"
+          className="ml-auto shrink-0 rounded bg-cyan-600 px-1.5 text-[11px] font-bold leading-tight text-white opacity-60 group-hover:opacity-100">+</button>
+      </div>
+    );
+  };
 
   return (
     <div ref={panelRef} tabIndex={-1}
@@ -44,7 +65,7 @@ export default function ReportFieldLibrary({ onInsertText, onInsertBlock, onClos
       <div className="min-h-0 flex-1 overflow-y-auto p-1">
         {query ? (
           // Busca: lista achatada (origem › subgrupo) ao lado
-          REPORT_FIELD_CATALOG.flatMap((s) => s.groups.flatMap((g) => g.fields
+          sources.flatMap((s) => s.groups.flatMap((g) => g.fields
             .filter((f) => (f.label + " " + (f.token || f.blockType || "") + " " + g.label + " " + s.label).toLowerCase().includes(query))
             .map((f) => ({ s, g, f }))
           )).slice(0, 250).map(({ s, g, f }, i) => (
@@ -54,7 +75,7 @@ export default function ReportFieldLibrary({ onInsertText, onInsertBlock, onClos
             </div>
           ))
         ) : (
-          REPORT_FIELD_CATALOG.map((s) => {
+          sources.map((s) => {
             const count = s.groups.reduce((n, g) => n + g.fields.length, 0);
             return (
               <div key={s.id} className="mb-0.5">
@@ -82,7 +103,7 @@ export default function ReportFieldLibrary({ onInsertText, onInsertBlock, onClos
           })
         )}
       </div>
-      <div className="border-t border-slate-200 px-2 py-1 text-[9px] text-slate-400">Clique num campo pra inserir na folha. Origens sem &quot;dados reais&quot; inserem o token (resolve quando ligar a fonte).</div>
+      <div className="border-t border-slate-200 px-2 py-1 text-[9px] text-slate-400">Clique no <b>+</b> pra inserir a caixa na folha • clique no <b>código</b> pra copiar e colar dentro de um texto.</div>
     </div>
   );
 }

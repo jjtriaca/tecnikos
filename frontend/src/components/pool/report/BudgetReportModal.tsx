@@ -60,6 +60,7 @@ function buildReportData(budget: any, sectionLabels: Record<string, string>): Bu
     unitPriceCents: Number(it.unitPriceCents) || 0,
     totalCents: Number(it.totalCents) || 0,
     imageUrl: it.product?.imageUrl ?? it.service?.imageUrl ?? null,
+    cellRef: it.cellRef ?? null,
   }));
   return {
     code: budget?.code ?? "",

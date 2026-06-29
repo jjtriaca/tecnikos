@@ -73,6 +73,8 @@ export class PoolPrintLayoutService {
         isDefault: dto.isDefault ?? false,
         branding: dto.branding as Prisma.InputJsonValue | undefined,
         isActive: dto.isActive ?? true,
+        sourceType: dto.sourceType ?? 'POOL_BUDGET',
+        templateId: dto.templateId ?? null,
       },
     });
 
@@ -163,6 +165,8 @@ export class PoolPrintLayoutService {
         isDefault: dto.isDefault,
         branding: dto.branding as Prisma.InputJsonValue | undefined,
         isActive: dto.isActive,
+        sourceType: dto.sourceType,
+        templateId: dto.templateId,
       },
     });
 

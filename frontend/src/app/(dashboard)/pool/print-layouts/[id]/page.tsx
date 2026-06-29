@@ -40,7 +40,18 @@ type Layout = {
   isDefault: boolean;
   branding: any;
   isActive: boolean;
+  sourceType?: string | null; // origem dos dados (EngineReporter): POOL_BUDGET (default) | QUOTE | ...
+  templateId?: string | null; // (obras) modelo de obra alvo
   pages: Page[];
+};
+
+// Origem (sourceType do layout) -> id da fonte no catalogo de campos (REPORT_FIELD_CATALOG).
+const SOURCE_CATALOG_ID: Record<string, string> = {
+  POOL_BUDGET: "orcamento_obras",
+  QUOTE: "orcamento_servicos",
+  SERVICE_ORDER: "ordem_servico",
+  FIN_RECEIVABLE: "contas_receber",
+  FIN_PAYABLE: "contas_pagar",
 };
 
 const DYNAMIC_LABEL: Record<string, string> = {
@@ -1141,6 +1152,7 @@ export default function PoolPrintLayoutEditorPage() {
       {/* DIREITA: biblioteca de campos/blocos (a "biblia") — aba Campos, so em pagina canvas */}
       {editingPage && pageIsCanvas(editingPage) && tab === "Campos" ? (
         <ReportFieldLibrary
+          sourceId={SOURCE_CATALOG_ID[layout.sourceType || "POOL_BUDGET"] || "orcamento_obras"}
           onInsertText={(token) => addBox("TEXT", { html: `<p>${token}</p>` })}
           onInsertBlock={(blockType) => addBox("BLOCK", { blockType })}
           onClose={() => setTab("Inserir")} />

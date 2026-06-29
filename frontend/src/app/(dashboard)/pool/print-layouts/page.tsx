@@ -12,9 +12,19 @@ type Layout = {
   isDefault: boolean;
   branding: any;
   isActive: boolean;
+  sourceType?: string | null;
   createdAt: string;
   _count?: { pages: number };
 };
+
+// Origem (cabecalho) de onde o relatorio coleta os dados. Define quais campos aparecem no editor.
+const ORIGIN_OPTIONS: { value: string; label: string }[] = [
+  { value: "POOL_BUDGET", label: "Orcamento de Obra (Piscina)" },
+  { value: "QUOTE", label: "Orcamento de Servicos" },
+  { value: "SERVICE_ORDER", label: "Ordem de Servico" },
+  { value: "FIN_RECEIVABLE", label: "Conta a Receber" },
+  { value: "FIN_PAYABLE", label: "Conta a Pagar" },
+];
 
 export default function PoolPrintLayoutsListPage() {
   const router = useRouter();
@@ -23,6 +33,7 @@ export default function PoolPrintLayoutsListPage() {
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState("");
+  const [sourceType, setSourceType] = useState("POOL_BUDGET"); // origem do relatorio
   const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
@@ -43,7 +54,7 @@ export default function PoolPrintLayoutsListPage() {
     if (!name.trim()) return;
     setCreating(true);
     try {
-      const created: Layout = await api.post("/pool-print-layouts", { name: name.trim() });
+      const created: Layout = await api.post("/pool-print-layouts", { name: name.trim(), sourceType });
       toast("Layout criado", "success");
       router.push(`/pool/print-layouts/${created.id}`);
     } catch (err: any) {
@@ -118,7 +129,13 @@ export default function PoolPrintLayoutsListPage() {
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-4">Novo layout</h3>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do layout (ex: Padrao)"
-              className="w-full rounded border border-slate-300 px-3 py-2 text-sm mb-4" autoFocus />
+              className="w-full rounded border border-slate-300 px-3 py-2 text-sm mb-3" autoFocus />
+            <label className="block text-xs font-medium text-slate-600 mb-1">Origem dos dados (cabecalho)</label>
+            <select value={sourceType} onChange={(e) => setSourceType(e.target.value)}
+              className="w-full rounded border border-slate-300 px-3 py-2 text-sm mb-1">
+              {ORIGIN_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <p className="text-[11px] text-slate-500 mb-4">Define de qual documento o relatorio puxa os campos. So aparecem no editor os campos desta origem.</p>
             <div className="flex justify-end gap-2">
               <button onClick={() => setShowAdd(false)}
                 className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">

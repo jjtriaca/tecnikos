@@ -3913,6 +3913,11 @@ model PoolPrintLayout {
   // {logoUrl, primaryColor, accentColor, fontFamily, footerHtml}
   branding  Json?
   isActive  Boolean   @default(true)
+  // Origem ligada ao layout (EngineReporter biblia): POOL_BUDGET (default/legado) | QUOTE |
+  // SERVICE_ORDER | FIN_RECEIVABLE | FIN_PAYABLE. null = POOL_BUDGET (tratado no codigo).
+  sourceType String?
+  // (Obras) modelo de obra alvo (PoolBudgetTemplate.id) — escopa etapas/linhas no catalogo. null = qualquer.
+  templateId String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
