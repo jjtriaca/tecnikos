@@ -66,9 +66,13 @@ O template estreita o universo de etapas/linhas endereçáveis → menos ruído 
 pela metade) até a reforma inteira ficar pronta + typecheck/build, aí UM único deploy.
 
 - **Fase 0 (FEITO, deploy v1.14.78):** formatação 2 casas (`dim()`: 7→7,00) + medidas de obra no catálogo. MinDepth fora.
-- **Fase 1 — parcial (working tree, sem deploy):**
+- **Fase 1 — backend FEITO (working tree), front a fazer:**
   - ✅ Renomear "Template" → "Modelo de obra" (`quotes/pool/new/page.tsx`: label l528, toast l362).
-  - ⏳ `sourceType` no layout + wizard origem(+template) + escopar painel. (FALTA — backend+front.)
+  - ✅ Backend: `sourceType`+`templateId` no `PoolPrintLayout` (schema + migração `20260629120000_add_print_layout_source_type`
+    ADD COLUMN IF NOT EXISTS + backfill POOL_BUDGET; TenantMigrator propaga). DTO `REPORT_SOURCE_TYPES` (IsIn) + persiste
+    no create (default POOL_BUDGET) / update. Prisma client regenerado, backend tsc verde.
+  - ⏳ FRONT: wizard escolher origem (+modelo de obra p/ obras) na criação do layout + escopar o painel de campos à
+    origem do layout. (Lista de layouts: `pool/print-layouts/page.tsx`; editor: `.../[id]/page.tsx`.)
 - **Fase 2 — parcial (working tree):** regex do resolver ampliada (`/\{[a-zA-Z][\w.:-]*\}/`) + fallback. Path
   genérico/alias completo FALTA (vem junto da Fase 3/DMMF).
 - **Fase 4 — motor FEITO (working tree), PICKER a fazer:** célula endereçada etapa/linha. `resolveAddressedToken`
