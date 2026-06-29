@@ -137,6 +137,13 @@ sincroniza só sem foco) e troquei TODOS os `input type=number` do editor por el
 dims da página, Cab/Rod, fonte, entrelinha, colunas). Pendência: dedup das cópias locais de NumInput (quotes/pool/new +
 HeatingSimulatorModal) → importar o compartilhado.
 
+### Kit de alinhamento (pedido Juliano "medir alinhamentos com precisão")
+- **FEITO (v1.14.89): Guias inteligentes + snap.** `BoxFrame.begin` (move mode) faz snap nas bordas/centro das OUTRAS
+  caixas e da página (limiar 1.5mm); props novas `others`/`onGuides`; `CanvasEditor` state `guides` + linhas magenta
+  (#e11d8f, zIndex 50, não imprime). **Alt** arrastando = livre (sem snap).
+- ⏳ FALTA (parte 1): **multi-seleção + alinhar + distribuir** — reforma o modelo de seleção (hoje single `selBox` →
+  Set de ids; shift-clique/laço); botões alinhar (esq/centro/dir/topo/meio/base) + distribuir H/V. Invasivo.
+
 ## Decisões de negócio (29/06 — Juliano respondeu "pode fazer todas")
 1. **Renomear "Template" → "Modelo de obra"** ✅ DECIDIDO (Juliano, 29/06).
 2. **"Menor profundidade"** → default recomendado: menor profundidade entre TODAS as partes (determinístico).
