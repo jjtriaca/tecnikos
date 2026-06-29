@@ -54,7 +54,12 @@ automático). Quer "a melhor maneira" (tipo Crystal/Jasper/VBA), não a mais fá
   SÓ o template + selo 🔁 ×N (não expande, pra editar). UI: botão "🔁 Repetir" na barra Layout → modal (Por linha / Por etapa /
   Remover banda). Token ATUAL: `{linha:ATUAL.produto}`, `{linha:ATUAL.prodImagem}`, `{etapa:ATUAL.nome}`.
   PENDENTE: preview do template no editor resolve ATUAL→"" (mostra vazio); listar N itens dentro de banda-por-etapa (nested).
-- **Fase 3 — Paginação automática:** medir altura, fluir pra páginas novas; cab/rodapé repetem; "continua…".
+- **Fase 3 — Paginação automática ✓ (v1.15.07):** `paginateCanvasBoxes(boxes,data,pageH,topPad,botPad)` → `Box[][]`.
+  SEGURO: se `bottom <= pageH-botPad` retorna `[visible]` (1 página, IGUAL antes — zero regressão no print existente).
+  Se ESTOURA: separa estáticos (pág 1) das linhas da banda (fluem); `fitP1`=linhas na pág 1, `perCont`=por continuação;
+  emite N `.report-page`. `expandBandsForPrint` agora tagueia clones `__bandRow`(i)/`__bandH`. Cab/rodapé repetem em todas.
+  Editor (CanvasEditor) NÃO pagina (mostra template+selo). Só BudgetReport (print/preview) pagina.
+  PENDENTE verificar com print real de overflow (band×N alta); preview do template mostra 1ª linha (Fase #1 v1.15.06).
 - **Fase 4 — Fallback/variações:** banda com variações por prioridade (1ª condição que bate).
 
 ## Gotchas

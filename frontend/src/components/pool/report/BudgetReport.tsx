@@ -280,9 +280,41 @@ function expandBandsForPrint(boxes: Box[], data: BudgetReportData): Box[] {
     refs.forEach((ref, i) => {
       for (const b of bboxes) {
         out.push({ ...b, id: `${b.id}__b${i}`, y: b.y + i * height, band: null,
-          html: applyBandRef(b.html, ref), url: applyBandRef(b.url, ref) });
+          html: applyBandRef(b.html, ref), url: applyBandRef(b.url, ref),
+          __bandRow: i, __bandH: height } as any);
       }
     });
+  }
+  return out;
+}
+
+/** PAGINACAO AUTOMATICA (Fase 3): divide as caixas de uma pagina canvas em VARIAS paginas A4
+ *  quando a banda estoura a altura. SEGURO: se tudo cabe, retorna 1 pagina (igual antes).
+ *  topPad/botPad = alturas de cabecalho/rodape (mm) pra banda nao invadir. */
+function paginateCanvasBoxes(boxes: Box[], data: BudgetReportData, pageH: number, topPad: number, botPad: number): Box[][] {
+  const visible = expandBandsForPrint(boxes, data).filter((b) => boxShows(b, data));
+  const usable = pageH - botPad;
+  const bottom = visible.reduce((m, b) => Math.max(m, b.y + b.h), 0);
+  if (bottom <= usable + 0.5) return [visible]; // CABE -> 1 pagina (sem mudanca no que ja funciona)
+  const bandRows = visible.filter((b) => typeof (b as any).__bandRow === "number");
+  const statics = visible.filter((b) => typeof (b as any).__bandRow !== "number");
+  if (!bandRows.length) return [visible]; // overflow sem banda -> deixa numa pagina (clip, como hoje)
+  const bandH = Math.max(...bandRows.map((b) => (b as any).__bandH || b.h)) || 1;
+  const byRow = new Map<number, Box[]>();
+  for (const b of bandRows) { const i = (b as any).__bandRow as number; const a = byRow.get(i) || []; a.push(b); byRow.set(i, a); }
+  const rows = [...byRow.entries()].sort((a, c) => a[0] - c[0]).map((e) => e[1]);
+  const bandTop = Math.min(...bandRows.map((b) => b.y));
+  const fitP1 = Math.max(1, Math.floor((usable - bandTop) / bandH));      // linhas na 1a pagina (com o conteudo estatico)
+  const perCont = Math.max(1, Math.floor((usable - topPad) / bandH));     // linhas por pagina de continuacao
+  const out: Box[][] = [];
+  out.push([...statics, ...rows.slice(0, fitP1).flat()]);                 // pagina 1: estaticos + 1as linhas
+  let idx = fitP1;
+  while (idx < rows.length) {
+    const chunk = rows.slice(idx, idx + perCont).flat();
+    const firstY = Math.min(...chunk.map((b) => b.y));
+    const off = firstY - topPad;                                         // sobe o chunk pro topo da pagina nova
+    out.push(chunk.map((b) => ({ ...b, y: b.y - off })));
+    idx += perCont;
   }
   return out;
 }
@@ -1283,26 +1315,32 @@ export default function BudgetReport({ data, layout, editable, selectedPageId, o
               const cbg = pc?.bgType === "gradient"
                 ? `linear-gradient(135deg, ${pc.bg || "#ffffff"}, ${pc.bgColor2 || "#e2e8f0"})`
                 : (pc?.bg || (pageStyle as any).background || "#ffffff");
-              return (
-                <div className="report-page rp-canvas-page" key={page.id}
-                  id={editable ? `rp-page-${page.id}` : undefined}
+              // PAGINACAO AUTOMATICA (Fase 3): banda que estoura vira N paginas A4. Se cabe = 1 pagina (igual antes).
+              const showHdr = !(pc?.noHF || pc?.noHeader) && Array.isArray((branding as any)?.headerBoxes) && (branding as any).headerBoxes.length;
+              const showFtr = !(pc?.noHF || pc?.noFooter) && Array.isArray((branding as any)?.footerBoxes) && (branding as any).footerBoxes.length;
+              const hH = showHdr ? ((branding as any)?.headerHmm ?? 18) : 0;
+              const fH = showFtr ? ((branding as any)?.footerHmm ?? 14) : 0;
+              const chunks = paginateCanvasBoxes((page.pageConfig as any).boxes || [], data, cH, hH, fH);
+              return chunks.map((chunkBoxes, ci) => (
+                <div className="report-page rp-canvas-page" key={`${page.id}__p${ci}`}
+                  id={editable && ci === 0 ? `rp-page-${page.id}` : undefined}
                   style={{ ...pageStyle, background: cbg, padding: 0, position: "relative", width: `${cW}mm`, height: `${cH}mm`, minHeight: `${cH}mm`, overflow: "hidden",
                     ...(editable ? { cursor: "pointer", outline: selectedPageId === page.id ? "3px solid #06b6d4" : undefined, outlineOffset: "3px" } : {}) }}
                   onClick={editable && onSelectPage ? () => onSelectPage(page.id) : undefined}>
-                  <CanvasPage boxes={(page.pageConfig as any).boxes || []} data={data} branding={branding} unit={pc?.unit === "mm" ? "mm" : "%"} />
-                  {/* Cabecalho/Rodape (faixas de caixas) — INDEPENDENTES por pagina (noHeader/noFooter; noHF legado esconde os 2) */}
-                  {!(pc?.noHF || pc?.noHeader) && Array.isArray((branding as any)?.headerBoxes) && (branding as any).headerBoxes.length ? (
-                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: `${(branding as any)?.headerHmm ?? 18}mm`, overflow: "hidden" }}>
+                  <CanvasPage boxes={chunkBoxes} data={data} branding={branding} unit={pc?.unit === "mm" ? "mm" : "%"} />
+                  {/* Cabecalho/Rodape (faixas de caixas) — repetem em TODAS as paginas da banda */}
+                  {showHdr ? (
+                    <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: `${hH}mm`, overflow: "hidden" }}>
                       <CanvasPage boxes={(branding as any).headerBoxes} data={data} branding={branding} unit={(branding as any)?.hfUnit === "mm" ? "mm" : "%"} />
                     </div>
                   ) : null}
-                  {!(pc?.noHF || pc?.noFooter) && Array.isArray((branding as any)?.footerBoxes) && (branding as any).footerBoxes.length ? (
-                    <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: `${(branding as any)?.footerHmm ?? 14}mm`, overflow: "hidden" }}>
+                  {showFtr ? (
+                    <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: `${fH}mm`, overflow: "hidden" }}>
                       <CanvasPage boxes={(branding as any).footerBoxes} data={data} branding={branding} unit={(branding as any)?.hfUnit === "mm" ? "mm" : "%"} />
                     </div>
                   ) : null}
                 </div>
-              );
+              ));
             }
             return (
             <div className="report-page" key={page.id}
