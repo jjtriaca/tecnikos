@@ -49,7 +49,7 @@ export function LineRefPicker({
   icon?: string;
   specKey: string | null;
   combine: 'sum' | 'max';
-  refKind?: 'PRODUCT' | 'SERVICE';
+  refKind?: 'PRODUCT' | 'SERVICE' | 'ALL'; // ALL = nao filtra por tipo (uso do relatorio)
   lines: LineRefPickerLine[];
   environmentParams?: any;
   sectionOrder?: string[];
@@ -62,7 +62,7 @@ export function LineRefPicker({
   const [expanded, setExpanded] = useState<Set<string>>(new Set()); // colapsadas por padrao
   const customLabels = (environmentParams?.customSections?.labels ?? {}) as Record<string, string>;
   const labelFor = (k: string) => customLabels[k] ?? SECTION_LABEL[k] ?? k;
-  const eligible = lines.filter((l) => !!l.cellRef && (l.kind || 'PRODUCT') === refKind);
+  const eligible = lines.filter((l) => !!l.cellRef && (refKind === 'ALL' || (l.kind || 'PRODUCT') === refKind));
   const groups = new Map<string, LineRefPickerLine[]>();
   for (const l of eligible) {
     const s = l.poolSection || 'OUTROS';
@@ -86,7 +86,9 @@ export function LineRefPicker({
       </div>
       {eligible.length === 0 ? (
         <div className="text-[11px] text-amber-700 italic px-1 py-2">
-          Nenhuma linha de {refKind === 'SERVICE' ? 'servico' : 'produto'} neste orcamento.
+          {refKind === 'ALL'
+            ? 'Nenhuma linha neste modelo (escolha um modelo de obra com linhas).'
+            : `Nenhuma linha de ${refKind === 'SERVICE' ? 'servico' : 'produto'} neste orcamento.`}
         </div>
       ) : (
         <div className="space-y-1 max-h-64 overflow-y-auto">

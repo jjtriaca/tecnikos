@@ -104,6 +104,7 @@ tar -czf /tmp/tecnikos-deploy.tar.gz \
   --exclude=.next \
   --exclude=dist \
   --exclude=.git \
+  --exclude=.claude \
   --exclude=postgres-data \
   --exclude='*.tar.gz' \
   --exclude='.env.production' \

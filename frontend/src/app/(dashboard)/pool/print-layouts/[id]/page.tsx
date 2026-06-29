@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, getAccessToken } from "@/lib/api";
@@ -9,6 +9,8 @@ import BudgetReport, { BudgetReportData, ReportNode, CompositionPreview, CanvasE
 import { printViaClone } from "@/lib/printViaClone";
 import CompositionEditor from "@/components/pool/report/CompositionEditor";
 import ReportFieldLibrary from "@/components/pool/report/ReportFieldLibrary";
+import { LineRefPicker, type LineRefPickerLine } from "@/components/pool/LineRefPicker";
+import { validateLayoutTokens } from "@/components/pool/report/reportValidate";
 
 const genBoxId = () => "b" + Math.random().toString(36).slice(2, 9);
 
@@ -182,6 +184,13 @@ export default function PoolPrintLayoutEditorPage() {
   // Confirmacao de remocao de pagina via MODAL proprio (substitui window.confirm nativo).
   const [pendingDelete, setPendingDelete] = useState<{ id: string; n: number } | null>(null);
   const [linkModal, setLinkModal] = useState<{ url: string; text: string } | null>(null);
+  // Picker de etapa/linha (reusa o LineRefPicker do AutoSelect) — alimentado pelas linhas do
+  // modelo de obra (templateId) ligado ao layout. Insere {linha:Lx.atributo} no relatorio.
+  const [tplLines, setTplLines] = useState<LineRefPickerLine[]>([]);
+  const [pickLine, setPickLine] = useState(false);
+  const [lineSel, setLineSel] = useState<Set<string>>(new Set());
+  const [lineAttr, setLineAttr] = useState("produto");
+  const [edTemplates, setEdTemplates] = useState<{ id: string; name: string; isDefault?: boolean }[]>([]);
 
   // ── CANVAS (PowerPoint): caixas livres da pagina em edicao ──
   // `region` = o que se edita: a PAGINA, o CABECALHO ou o RODAPE. `boxes` segura as caixas
@@ -471,6 +480,57 @@ export default function PoolPrintLayoutEditorPage() {
   }, [id, toast]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Modelos de obra (p/ escolher/trocar o modelo do layout no picker de etapa/linha).
+  useEffect(() => {
+    api.get<{ data: { id: string; name: string; isDefault?: boolean }[] }>("/pool-budget-templates?limit=100")
+      .then((r) => setEdTemplates(r.data || [])).catch(() => {});
+  }, []);
+  // Liga/troca o modelo de obra do layout (persiste) — recarrega as linhas via efeito abaixo.
+  const setLayoutTemplate = async (tid: string) => {
+    setLayout((prev) => (prev ? { ...prev, templateId: tid || null } : prev));
+    try { await api.put(`/pool-print-layouts/${id}`, { templateId: tid || null }); }
+    catch { toast("Erro ao salvar o modelo", "error"); }
+  };
+
+  // Carrega as linhas do modelo de obra (itemsSnapshot) p/ alimentar o picker de etapa/linha.
+  useEffect(() => {
+    const tid = layout?.templateId;
+    if (!tid) { setTplLines([]); return; }
+    let cancel = false;
+    (async () => {
+      try {
+        const tpl = await api.get<any>(`/pool-budget-templates/${tid}`);
+        const snap = Array.isArray(tpl?.itemsSnapshot) ? tpl.itemsSnapshot : [];
+        const lines: LineRefPickerLine[] = snap
+          .filter((it: any) => it?.cellRef)
+          .map((it: any) => ({
+            cellRef: String(it.cellRef),
+            slotName: it.slotName ?? null,
+            description: it.description ?? "",
+            poolSection: it.poolSection ?? null,
+            kind: it.kind ?? "PRODUCT",
+            linked: true,
+            specs: null,
+            qty: Number(it.qty) || 0,
+          }));
+        if (!cancel) setTplLines(lines);
+      } catch { if (!cancel) setTplLines([]); }
+    })();
+    return () => { cancel = true; };
+  }, [layout?.templateId]);
+
+  // Fase 5 — alertas: tokens do layout que nao vao resolver (outra origem / linha inexistente / desconhecido).
+  const reportIssues = useMemo(
+    () => layout
+      ? validateLayoutTokens(
+          layout,
+          SOURCE_CATALOG_ID[layout.sourceType || "POOL_BUDGET"] || "orcamento_obras",
+          new Set(tplLines.map((l) => l.cellRef.toUpperCase())),
+        )
+      : [],
+    [layout, tplLines],
+  );
 
   // Ao selecionar uma pagina (navegar), rola a folha ate ela. So quando a folha esta
   // visivel (nao em modo edicao/nova pagina, senao o elemento nem existe).
@@ -1155,8 +1215,63 @@ export default function PoolPrintLayoutEditorPage() {
           sourceId={SOURCE_CATALOG_ID[layout.sourceType || "POOL_BUDGET"] || "orcamento_obras"}
           onInsertText={(token) => addBox("TEXT", { html: `<p>${token}</p>` })}
           onInsertBlock={(blockType) => addBox("BLOCK", { blockType })}
+          onPickLine={(layout.sourceType || "POOL_BUDGET") === "POOL_BUDGET" ? () => { setLineSel(new Set()); setPickLine(true); } : undefined}
           onClose={() => setTab("Inserir")} />
       ) : null}
+
+      {pickLine && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setPickLine(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-slate-900 mb-1">Inserir campo de etapa/linha</h3>
+            <p className="text-[11px] text-slate-500 mb-3">Escolha a linha pelo modelo de obra e o que inserir. Vira um codigo {"{linha:Lx.atributo}"} que resolve no orcamento real na hora de imprimir.</p>
+            <label className="block text-[11px] font-medium text-slate-600 mb-1">Modelo de obra</label>
+            <select value={layout.templateId || ""} onChange={(e) => setLayoutTemplate(e.target.value)}
+              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm mb-3">
+              <option value="">— Escolha um modelo —</option>
+              {edTemplates.map((t) => <option key={t.id} value={t.id}>{t.name}{t.isDefault ? " (padrao)" : ""}</option>)}
+            </select>
+            <label className="block text-[11px] font-medium text-slate-600 mb-1">O que inserir</label>
+            <select value={lineAttr} onChange={(e) => setLineAttr(e.target.value)} className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm mb-3">
+              <option value="produto">Produto / descricao</option>
+              <option value="qtd">Quantidade</option>
+              <option value="valor">Valor total</option>
+              <option value="unitario">Preco unitario</option>
+              <option value="papel">Item (papel)</option>
+              <option value="etapa">Etapa</option>
+            </select>
+            <LineRefPicker
+              icon="📄" specKey={null} combine="sum" refKind="ALL"
+              lines={tplLines}
+              selected={lineSel}
+              onToggle={(ref) => setLineSel((p) => { const n = new Set(p); if (n.has(ref)) n.delete(ref); else n.add(ref); return n; })}
+              onApply={() => {
+                const refs = Array.from(lineSel);
+                for (const ref of refs) addBox("TEXT", { html: `<p>{linha:${ref}.${lineAttr}}</p>` });
+                setPickLine(false);
+                if (refs.length) toast(`${refs.length} campo(s) de linha inserido(s)`, "success");
+              }}
+              onCancel={() => setPickLine(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      {reportIssues.length > 0 && (
+        <div className="fixed bottom-3 right-3 z-40 w-72 max-h-64 overflow-y-auto rounded-lg border border-amber-300 bg-white shadow-lg">
+          <div className="flex items-center gap-1 border-b border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] font-semibold text-amber-800">
+            ⚠ {reportIssues.length} aviso(s) no layout
+          </div>
+          <ul className="space-y-1 p-1.5">
+            {reportIssues.slice(0, 25).map((it, i) => (
+              <li key={i} className="leading-tight">
+                <span className={(it.severity === "error" ? "text-red-600" : "text-amber-700") + " font-mono text-[10px]"}>{it.token}</span>
+                <span className="text-[10px] text-slate-400"> · {it.page}</span>
+                <div className="text-[10px] text-slate-600">{it.message}</div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* OCULTO: render completo (#budget-pdf-area) p/ impressao — reflete os boxes ao vivo */}
       <div aria-hidden style={{ position: "absolute", left: -99999, top: 0 }}>

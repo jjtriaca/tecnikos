@@ -6,11 +6,12 @@
 import { useRef, useState } from "react";
 import { REPORT_FIELD_CATALOG, CatalogField } from "./reportFieldCatalog";
 
-export default function ReportFieldLibrary({ onInsertText, onInsertBlock, onClose, sourceId }: {
+export default function ReportFieldLibrary({ onInsertText, onInsertBlock, onClose, sourceId, onPickLine }: {
   onInsertText: (token: string) => void;
   onInsertBlock: (blockType: string) => void;
   onClose?: () => void;
   sourceId?: string; // se vier, escopa o painel a UMA origem (a do layout) — esconde as outras
+  onPickLine?: () => void; // abre o picker de etapa/linha (LineRefPicker) — so faz sentido p/ obras
 }) {
   // Escopo: layout ligado a uma origem mostra SO os campos dela (evita inserir campo de outra origem).
   const sources = sourceId ? REPORT_FIELD_CATALOG.filter((s) => s.id === sourceId) : REPORT_FIELD_CATALOG;
@@ -62,6 +63,12 @@ export default function ReportFieldLibrary({ onInsertText, onInsertBlock, onClos
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar campo… (ex: cliente, total)"
           className="w-full rounded border border-slate-300 px-2 py-1 text-[11px]" />
       </div>
+      {onPickLine && (
+        <button type="button" onClick={onPickLine} title="Escolher uma linha do modelo de obra (etapa → linha) e inserir produto/qtd/valor"
+          className="m-1.5 flex items-center justify-center gap-1 rounded border border-violet-300 bg-violet-50 px-2 py-1.5 text-[11px] font-semibold text-violet-800 hover:bg-violet-100">
+          🔗 Campo de etapa/linha…
+        </button>
+      )}
       <div className="min-h-0 flex-1 overflow-y-auto p-1">
         {query ? (
           // Busca: lista achatada (origem › subgrupo) ao lado

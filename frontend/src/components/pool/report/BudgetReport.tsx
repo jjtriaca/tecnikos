@@ -251,7 +251,55 @@ function resolveAddressedToken(token: string, data: BudgetReportData): string | 
   return null;
 }
 
-/** Resolve {placeholders} (mesmas chaves do editor pool/print-layouts) + tokens enderecados. */
+/** Contexto de campos (ja FORMATADO) p/ o resolver generico por path: budget.* / client.* /
+ *  company.* / budget.pool.*. SO expoe o que ja esta no relatorio (seguro — nada do banco cru). */
+function buildFieldContext(data: BudgetReportData): Record<string, any> {
+  const d = data.dimensions || {};
+  return {
+    budget: {
+      code: data.code || "", title: data.title || "", date: data.budgetDate || "",
+      total: brl(data.totalCents), subtotal: brl(data.subtotalCents),
+      discount: brl(data.discountCents), taxes: brl(data.taxesCents),
+      validityDays: String(data.validityDays ?? ""), paymentTerms: data.paymentTerms || "",
+      termsConditions: data.termsConditions || "", equipmentWarranty: data.equipmentWarranty || "",
+      workWarranty: data.workWarranty || "",
+      pool: {
+        length: dim(d.length), width: dim(d.width), depth: dim(d.depth), maxDepth: dim(d.maxDepth),
+        area: dim(d.area), volume: dim(d.volume), perimeter: dim(d.perimeter),
+        lengthTotal: dim(d.comprimentoTotal), widthTotal: dim(d.larguraTotal), corners: dim(d.cantos),
+        perimeterExt: dim(d.perimetroExternoBorda), wallPerimeter: dim(d.perimetroParedesInternas),
+        wallFloorArea: dim(d.areaParedeEFundo), wallArea: dim(d.areaParedeM2),
+        radierArea: dim(d.radierM2), radierVolume: dim(d.radierM3), excavation: dim(d.escavacaoM3),
+      },
+    },
+    client: {
+      name: data.clientName || "", tradeName: data.clientTradeName || "", document: data.clientDocument || "",
+      phone: data.clientPhone || "", email: data.clientEmail || "", address: data.clientAddress || "",
+      neighborhood: data.clientNeighborhood || "", city: data.clientCity || "",
+      state: data.clientState || "", zip: data.clientZip || "",
+    },
+    company: {
+      name: data.company?.name || "", tradeName: data.company?.tradeName || "", cnpj: data.company?.cnpj || "",
+      ie: data.company?.ie || "", phone: data.company?.phone || "", email: data.company?.email || "",
+      address: data.company?.address || "", city: data.company?.city || "", ownerName: data.company?.ownerName || "",
+    },
+  };
+}
+
+/** Resolve token por PATH pontilhado ({budget.pool.area}, {client.city}). Anda no contexto;
+ *  retorna a string formatada, ou null se nao for path valido (deixa o token cru). */
+function resolveContextPath(token: string, data: BudgetReportData): string | null {
+  const inner = token.slice(1, -1);
+  if (!inner.includes(".") || inner.includes(":")) return null; // so paths a.b.c (nao linha:/etapa:)
+  let cur: any = buildFieldContext(data);
+  for (const part of inner.split(".")) {
+    if (cur && typeof cur === "object" && part in cur) cur = cur[part];
+    else return null;
+  }
+  return (cur == null || typeof cur === "object") ? null : String(cur);
+}
+
+/** Resolve {placeholders} (mesmas chaves do editor pool/print-layouts) + tokens enderecados + paths. */
 function resolvePlaceholders(html: string, data: BudgetReportData): string {
   const d = data.dimensions || {};
   const map: Record<string, string> = {
@@ -312,6 +360,8 @@ function resolvePlaceholders(html: string, data: BudgetReportData): string {
     if (m in map) return map[m];
     const addressed = resolveAddressedToken(m, data);
     if (addressed != null) return addressed;
+    const path = resolveContextPath(m, data);
+    if (path != null) return path;
     return m; // token desconhecido: deixa cru (nao quebra o texto)
   });
 }

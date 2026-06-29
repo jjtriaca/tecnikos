@@ -34,6 +34,8 @@ export default function PoolPrintLayoutsListPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState("");
   const [sourceType, setSourceType] = useState("POOL_BUDGET"); // origem do relatorio
+  const [templates, setTemplates] = useState<{ id: string; name: string; isDefault?: boolean }[]>([]);
+  const [templateId, setTemplateId] = useState(""); // (obras) modelo de obra do layout
   const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
@@ -50,11 +52,21 @@ export default function PoolPrintLayoutsListPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Modelos de obra (p/ ligar o layout a um modelo — escopa as linhas no editor).
+  useEffect(() => {
+    api.get<{ data: { id: string; name: string; isDefault?: boolean }[] }>("/pool-budget-templates?limit=100")
+      .then((r) => setTemplates(r.data || [])).catch(() => {});
+  }, []);
+
   async function create() {
     if (!name.trim()) return;
     setCreating(true);
     try {
-      const created: Layout = await api.post("/pool-print-layouts", { name: name.trim(), sourceType });
+      const created: Layout = await api.post("/pool-print-layouts", {
+        name: name.trim(),
+        sourceType,
+        templateId: sourceType === "POOL_BUDGET" && templateId ? templateId : undefined,
+      });
       toast("Layout criado", "success");
       router.push(`/pool/print-layouts/${created.id}`);
     } catch (err: any) {
@@ -136,6 +148,17 @@ export default function PoolPrintLayoutsListPage() {
               {ORIGIN_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             <p className="text-[11px] text-slate-500 mb-4">Define de qual documento o relatorio puxa os campos. So aparecem no editor os campos desta origem.</p>
+            {sourceType === "POOL_BUDGET" && (
+              <>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Modelo de obra (opcional)</label>
+                <select value={templateId} onChange={(e) => setTemplateId(e.target.value)}
+                  className="w-full rounded border border-slate-300 px-3 py-2 text-sm mb-1">
+                  <option value="">— Sem modelo fixo —</option>
+                  {templates.map((t) => <option key={t.id} value={t.id}>{t.name}{t.isDefault ? " (padrao)" : ""}</option>)}
+                </select>
+                <p className="text-[11px] text-slate-500 mb-4">Liga o layout a um modelo pra inserir campos de etapa/linha (produto, qtd, valor) pelas linhas reais do modelo.</p>
+              </>
+            )}
             <div className="flex justify-end gap-2">
               <button onClick={() => setShowAdd(false)}
                 className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
