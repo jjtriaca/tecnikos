@@ -342,17 +342,28 @@ export default function PoolPrintLayoutEditorPage() {
   }
   function addBox(kind: "TEXT" | "IMAGE" | "BLOCK" | "CARD", extra: Partial<Box>) {
     // Geometria em MILIMETROS (canto sup-esq = 0,0). A4 = 210x297mm (ou o tamanho da pagina).
-    const { w: PW, h: PH } = pageDims(layout?.branding);
+    // Em cab/rodape a "folha" e a FAIXA (largura da pagina x altura da faixa) — a caixa
+    // precisa nascer DENTRO dela, senao cai fora e nao da pra clicar.
+    const { w: PW, h: pageH } = pageDims(layout?.branding);
+    const isStrip = region !== "page";
+    const PH = isStrip ? (region === "header" ? (brand.headerHmm ?? 18) : (brand.footerHmm ?? 14)) : pageH;
     const base: Box = kind === "TEXT"
       ? { id: genBoxId(), type: "TEXT", x: 15, y: 15, w: 110, h: 20, z: maxZ() + 1, html: "<p>Novo texto</p>", style: { fontSize: 12 } }
       : kind === "IMAGE"
       ? { id: genBoxId(), type: "IMAGE", x: 20, y: 20, w: 80, h: 55, z: maxZ() + 1, url: "", fit: "cover" }
       : kind === "CARD"
       ? { id: genBoxId(), type: "CARD", x: 15, y: 15, w: 110, h: 60, z: maxZ() + 1, style: { bg: "#ffffff", borderColor: "#e2e8f0", borderWidth: 1, radius: 8 } }
-      : { id: genBoxId(), type: "BLOCK", x: 10, y: 15, w: Math.round(PW - 20), h: Math.round(PH - 30), z: maxZ() + 1, blockType: "PRODUCTS_BY_SECTION", config: {} };
+      : { id: genBoxId(), type: "BLOCK", x: 10, y: 15, w: Math.round(PW - 20), h: Math.round(pageH - 30), z: maxZ() + 1, blockType: "PRODUCTS_BY_SECTION", config: {} };
+    // Numa faixa, encolhe a caixa pra caber (altura da faixa) e ancora no topo-esquerda.
+    if (isStrip) {
+      base.x = 6; base.y = 2;
+      base.w = Math.min(base.w, Math.round(PW - 12));
+      base.h = Math.max(4, Math.min(base.h, Math.round(PH - 4)));
+    }
     // offset em cascata (mm) pra caixas novas NAO sobreporem exatamente (estilo PowerPoint)
-    const off = (boxes.length % 6) * 6;
-    base.x = Math.min(PW - base.w, (base.x || 0) + off); base.y = Math.min(PH - base.h, (base.y || 0) + off);
+    const off = (boxes.length % 6) * (isStrip ? 2 : 6);
+    base.x = Math.max(0, Math.min(PW - base.w, (base.x || 0) + off));
+    base.y = Math.max(0, Math.min(PH - base.h, (base.y || 0) + off));
     const nb = { ...base, ...extra } as Box;
     commitBoxes([...boxes, nb]); setSelBox(nb.id); setTab("Layout");
   }
