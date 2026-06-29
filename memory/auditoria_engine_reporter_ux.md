@@ -55,6 +55,9 @@
 - [x] **Link com máscara (botão):** Layout tab separa **🔗 URL (atrás)** (href, clicável só no read-only/PDF) de **🏷️ Rótulo (frente)** (html visível, plain). Rótulo só aparece quando href != null. normalizeHref: @→instagram, número→wa.me.
 - [x] **🚫 Limpar realce:** botão na aba Layout (TEXT) — `clearTextHighlight` remove `background-color/background` do html da caixa (autossalva). Corrige "fundo cinza atrás do {validityDays}" no rodapé SLS (era `<span style="background-color: rgb(116,114,114)">` — realce manual/colado, NÃO sistemático; editor insere token limpo `<p>{token}</p>`). Dado da prod NÃO foi alterado por SQL (classifier bloqueou writes) — usuário corrige pela UI.
 
+## ✅ Fix caixa no cabeçalho/rodapé fora da faixa (28/06, v1.14.77)
+- [x] **Inserir no cab/rodapé colocava a caixa FORA da faixa** (não clicável): `addBox` usava dims da página inteira (y:15, h:20mm) numa faixa de ~18mm → caixa cortada abaixo. Fix: `addBox` agora é region-aware — em cab/rodapé usa `PH = headerHmm/footerHmm`, ancora a caixa no topo-esq (x:6, y:2), encolhe `w`/`h` pra caber, cascade menor (2mm). Caixa já existente fora da faixa: selecionar pela lista 🗂️ Objetos → Layout → ajustar Y/A (não auto-movido).
+
 ## ✅ Inserir Link via pop-up (28/06, v1.14.76)
 - [x] **Inserir → Link** abre modal (`linkModal` state) com 2 campos: **URL/número/@perfil (atrás)** + **Texto visível (frente)**. Enter ou botão Inserir cria TEXT box com `href`=url e `html`=`<p style="text-align:center">texto</p>` (escapado). Texto vazio → usa a própria URL. Botão travado sem URL. Resolve "não consegui fazer ficar só o número".
 
