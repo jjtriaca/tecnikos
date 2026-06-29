@@ -81,11 +81,14 @@ pela metade) até a reforma inteira ficar pronta + typecheck/build, aí UM únic
   `cellRef` carregado em buildReportData + ReportItem. Catálogo: subgrupo "Etapas e linhas (avançado)" (tokens de
   exemplo — fallback manual). **CORREÇÃO (Juliano 29/06):** a escolha da linha NÃO é copia-e-edita; tem que REUSAR o
   `LineRefPicker` (accordion etapa→linha, já existe em `quotes/pool/[id]/page.tsx:2732`, criado no AutoSelect — REGRA #9).
-  Plano: EXTRAIR `LineRefPicker` (+ tipo `LineRefPickerLine`, deps `SECTION_LABEL`/`SECTION_ORDER`) pra componente
-  COMPARTILHADO (`components/pool/LineRefPicker.tsx`), importar no budget detail E no editor de relatório. No editor:
-  clicar "inserir campo de linha" → abre o picker (single-select) → escolhe a linha + o atributo (produto/qtd/valor/
-  unitário) → insere `{linha:Lx.atributo}`. **Fonte das linhas no editor:** itens do orçamento-exemplo carregado
-  (cellRef estável entre orçamentos do mesmo modelo); se houver modelo de obra ligado, usar o snapshot dele.
+  - ✅ FEITO (working tree): `LineRefPicker` extraído pra `components/pool/LineRefPicker.tsx` (+ modo `refKind:'ALL'`).
+    Editor: botão "🔗 Campo de etapa/linha…" no `ReportFieldLibrary` (prop `onPickLine`, só obras) → modal com seletor de
+    MODELO + atributo + o LineRefPicker alimentado pelas LINHAS REAIS do modelo (`GET /pool-budget-templates/:id` →
+    `itemsSnapshot` tem cellRef/poolSection/slotName/kind/qty) → insere `{linha:Lx.atributo}`. Criação do layout: select
+    de modelo (templateId). Editor: troca o modelo no próprio picker (`api.put` templateId). Frontend tsc verde.
+  - ⏳ DEDUP PENDENTE: a página `quotes/pool/[id]/page.tsx` ainda tem a CÓPIA LOCAL do LineRefPicker — migrar pra importar
+    o compartilhado (edit grande na página central, fazer com cuidado + typecheck). Labels custom de etapa no picker do
+    editor: passar `environmentParams` do template (defaults.customSections) — hoje mostra código cru p/ etapa custom.
 - **UX copiar-token (FEITO, working tree):** ReportFieldLibrary — `+` insere, clique no `{código}` copia/seleciona.
 - **Fase 3 — resolver por path FEITO (working tree); DMMF amplo DEFERIDO por segurança:**
   - ✅ Resolver genérico por PATH no BudgetReport.tsx: `buildFieldContext` (budget.*/client.*/company.*/budget.pool.*,
