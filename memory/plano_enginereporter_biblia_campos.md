@@ -146,6 +146,11 @@ HeatingSimulatorModal) → importar o compartilhado.
   removido o toggle duplo do onClick). `alignSel(left/hcenter/right/top/vcenter/bottom)` + `distributeSel(h/v)` (3+).
   Botões na barra Layout aparecem com 2+ selecionadas (distribuir com 3+). Contorno: primário ciano+alças, demais ciano-claro.
   Laço (marquee) ainda não — só shift-clique. selSet limpo nos resets de página/região/delete.
+  - **BUG corrigido (v1.14.91): "parou de selecionar"** — eu fizera o contorno do primário depender de `selSet.has(id)`,
+    o que sumia o realce. Voltei `selected={selBox === b.id}` (primário sempre realça); `multi` (selSet) só pros adicionais.
+  - **v1.14.92:** shift-clique selecionava TEXTO do navegador → `if (e.shiftKey) e.preventDefault()` no `begin`. E tirei o
+    efeito-colateral `setSelBox` de dentro do updater de `setSelSet`. (Automação não simula shiftKey no pointerdown, então
+    o acúmulo multi não foi verificável por robô — só com teclado real. Juliano vai confirmar.)
 
 ## Decisões de negócio (29/06 — Juliano respondeu "pode fazer todas")
 1. **Renomear "Template" → "Modelo de obra"** ✅ DECIDIDO (Juliano, 29/06).
