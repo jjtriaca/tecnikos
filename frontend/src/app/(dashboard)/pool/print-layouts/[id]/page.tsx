@@ -177,6 +177,9 @@ export default function PoolPrintLayoutEditorPage() {
   const [pageNoHeader, setPageNoHeader] = useState(false);
   const [pageNoFooter, setPageNoFooter] = useState(false);
   const pageHFRef = useRef({ noHeader: false, noFooter: false });
+  // Caixas vivas da PAGINA (em mm, ja migradas) — preservadas ao entrar/sair de cab/rodape
+  // pra NAO reler do editingPage.pageConfig (que fica % stale ate o save debounced gravar).
+  const pageBoxesRef = useRef<Box[]>([]);
 
   // Carrega os boxes + fundo ao abrir uma pagina canvas (volta pra regiao PAGINA, reseta historico).
   useEffect(() => {
@@ -191,7 +194,7 @@ export default function PoolPrintLayoutEditorPage() {
         const r1 = (v: number) => Math.round(v * 10) / 10;
         bs = bs.map((b) => ({ ...b, x: r1(b.x * W / 100), y: r1(b.y * H / 100), w: r1(b.w * W / 100), h: r1(b.h * H / 100) }));
       }
-      setBoxes(bs); setSelBox(null); setSaveState("idle");
+      setBoxes(bs); pageBoxesRef.current = bs; setSelBox(null); setSaveState("idle");
       const bg = { bg: pc.bg ?? null, bgType: pc.bgType || "solid", bgColor2: pc.bgColor2 };
       setPageBgCfg(bg); pageBgRef.current = bg;
       const nm = pc.name || ""; setPageName(nm); pageNameRef.current = nm;
@@ -199,7 +202,7 @@ export default function PoolPrintLayoutEditorPage() {
       setPageNoHeader(noHeader); setPageNoFooter(noFooter); pageHFRef.current = { noHeader, noFooter };
       histRef.current = { stack: [JSON.parse(JSON.stringify(bs))], idx: 0 };
       setHistInfo({ canUndo: false, canRedo: false });
-      if (needMigrate) scheduleSave(bs); // grava a migracao (com unit:"mm")
+      if (needMigrate) scheduleSave(bs, "page"); // grava a migracao (com unit:"mm")
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingPage?.id]);
@@ -217,8 +220,9 @@ export default function PoolPrintLayoutEditorPage() {
   // Entra numa regiao de edicao (pagina / cabecalho / rodape) carregando suas caixas.
   function enterRegion(r: "page" | "header" | "footer") {
     const brandNow = (layoutRef.current?.branding || {}) as any;
+    // Pagina: usa as caixas VIVAS (mm, ja migradas) do ref — NUNCA reler do pageConfig stale.
     const src = r === "page"
-      ? (((editingPage?.pageConfig as any)?.boxes) || [])
+      ? pageBoxesRef.current
       : (brandNow[r === "header" ? "headerBoxes" : "footerBoxes"] || []);
     let bs = JSON.parse(JSON.stringify(src)) as Box[];
     // MIGRACAO %→mm das faixas (uma vez): cab/rodape usam W (pagina) x altura da faixa (mm).
@@ -233,12 +237,13 @@ export default function PoolPrintLayoutEditorPage() {
     setRegion(r); setBoxes(bs); setSelBox(null); setSaveState("idle");
     histRef.current = { stack: [JSON.parse(JSON.stringify(bs))], idx: 0 };
     setHistInfo({ canUndo: false, canRedo: false });
-    if (migrate) setTimeout(() => scheduleSave(bs), 0); // persiste a migracao da faixa (region ja setada)
+    if (migrate) setTimeout(() => scheduleSave(bs, r), 0); // persiste a migracao da faixa
     setTab("Inserir");
   }
 
-  function scheduleSave(bs: Box[]) {
-    const r = region;
+  function scheduleSave(bs: Box[], regionOverride?: "page" | "header" | "footer") {
+    const r = regionOverride ?? region;
+    if (r === "page") pageBoxesRef.current = bs; // mantem o snapshot vivo da pagina (mm)
     setSaveState("saving");
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
