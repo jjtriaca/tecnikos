@@ -118,6 +118,17 @@ renderiza (navy), recolore. **Estilo 3 agora é montável** (ícone + valor {poo
 **Atrito que ainda fica:** sem alinhar/distribuir/grade — a faixa de 6 métricas ainda é posicionada à mão (mm). Próxima
 alavanca: ferramenta "distribuir/alinhar" OU um bloco "Características" data-driven (Estilo 3 como preset de 1 clique).
 
+### Montagem MANUAL da página 3 (29/06, no navegador) — feita + novos atritos
+Montei a faixa Estilo 3 na página "Itens" do layout SLS: 6 ícones (↔↕⊞↓💧📏) + 6 valores ({poolLength/Width/Area/Depth/
+Volume/Perimeter}, formatados 2 casas) posicionados em mm. FUNCIONA, mas a montagem manual confirmou os atritos (e revelou
+novos), reforçando que o caminho certo é o PRESET/distribuir:
+- **Posição X de 3 dígitos no campo Layout não pega** (digita 104/134 → vira 100); contornei arrastando (left_click_drag).
+- **Busca do painel é sensível a acento** ("perimetro" não acha "Perímetro"; "poolPerim" pelo token acha). Melhoria: normalizar acento na busca.
+- **Edição de texto in-place não é drivável por automação cega** (clique não foca o contentEditable; Ctrl+A pega a página).
+  Por isso os RÓTULOS (Comprimento/Área…) não entraram — fáceis pro Juliano (clica no valor, digita), inviáveis pro robô.
+- Insert de campo cai em X21/Y21 sobre o conteúdo (já conhecido).
+Conclusão reforçada: bloco "Características" data-driven (1 clique, já alinhado, com ícones+valor+rótulo) é a entrega certa.
+
 ## Decisões de negócio (29/06 — Juliano respondeu "pode fazer todas")
 1. **Renomear "Template" → "Modelo de obra"** ✅ DECIDIDO (Juliano, 29/06).
 2. **"Menor profundidade"** → default recomendado: menor profundidade entre TODAS as partes (determinístico).
