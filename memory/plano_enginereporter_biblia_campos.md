@@ -141,8 +141,11 @@ HeatingSimulatorModal) → importar o compartilhado.
 - **FEITO (v1.14.89): Guias inteligentes + snap.** `BoxFrame.begin` (move mode) faz snap nas bordas/centro das OUTRAS
   caixas e da página (limiar 1.5mm); props novas `others`/`onGuides`; `CanvasEditor` state `guides` + linhas magenta
   (#e11d8f, zIndex 50, não imprime). **Alt** arrastando = livre (sem snap).
-- ⏳ FALTA (parte 1): **multi-seleção + alinhar + distribuir** — reforma o modelo de seleção (hoje single `selBox` →
-  Set de ids; shift-clique/laço); botões alinhar (esq/centro/dir/topo/meio/base) + distribuir H/V. Invasivo.
+- **FEITO (v1.14.90): multi-seleção + alinhar + distribuir.** `selSet: Set<string>` no editor + `selectBox(id, additive)`
+  (shift-clique alterna). `CanvasEditor`/`BoxFrame` ganharam `selSet`/`multi` + `onSelect(id, additive)` (passa shiftKey;
+  removido o toggle duplo do onClick). `alignSel(left/hcenter/right/top/vcenter/bottom)` + `distributeSel(h/v)` (3+).
+  Botões na barra Layout aparecem com 2+ selecionadas (distribuir com 3+). Contorno: primário ciano+alças, demais ciano-claro.
+  Laço (marquee) ainda não — só shift-clique. selSet limpo nos resets de página/região/delete.
 
 ## Decisões de negócio (29/06 — Juliano respondeu "pode fazer todas")
 1. **Renomear "Template" → "Modelo de obra"** ✅ DECIDIDO (Juliano, 29/06).
