@@ -936,7 +936,7 @@ function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit =
     window.addEventListener("keydown", onKey);
   };
   return (
-    <div style={{ ...boxRectStyle(box, unit), cursor: editing ? "text" : "move", outline: selected ? "2px solid #06b6d4" : multi ? "2px solid #22d3ee" : undefined, outlineOffset: 0 }}
+    <div style={{ ...boxRectStyle(box, unit), cursor: editing ? "text" : "move", outline: (selected || multi) ? "2px solid #06b6d4" : undefined, outlineOffset: multi && !selected ? 1 : 0, boxShadow: (selected || multi) ? "0 0 0 2px rgba(255,255,255,0.9), 0 0 0 4px rgba(6,182,212,0.45)" : undefined }}
       onPointerDown={begin("move")}
       onClick={(e) => { e.stopPropagation(); }}
       onDoubleClick={(e) => { e.stopPropagation(); onStartEdit(); }}>
