@@ -132,6 +132,10 @@ export type BudgetReportData = {
   dimensions?: {
     length?: number; width?: number; depth?: number;
     area?: number; volume?: number; perimeter?: number;
+    maxDepth?: number; comprimentoTotal?: number; larguraTotal?: number;
+    cantos?: number; perimetroExternoBorda?: number; perimetroParedesInternas?: number;
+    areaParedeEFundo?: number; areaParedeM2?: number;
+    radierM2?: number; radierM3?: number; escavacaoM3?: number;
   } | null;
   subtotalCents?: number;
   discountCents?: number;
@@ -161,8 +165,10 @@ export type BudgetReportData = {
 const brl = (cents: number) =>
   `R$ ${((cents || 0) / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-const num = (v: number | undefined | null, casas = 2) =>
-  (Number(v) || 0).toLocaleString("pt-BR", { maximumFractionDigits: casas });
+const num = (v: number | undefined | null, casas = 2, min = 0) =>
+  (Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: min, maximumFractionDigits: Math.max(casas, min) });
+// Medida fisica (comprimento/area/volume): sempre 2 casas pra nao sair "7" pelado (vira "7,00").
+const dim = (v: number | undefined | null) => num(v, 2, 2);
 
 /** Itens com qty>0 (o "tem produto e qtd>0" = entra no relatorio). */
 function activeItems(items: ReportItem[]): ReportItem[] {
@@ -234,12 +240,23 @@ function resolvePlaceholders(html: string, data: BudgetReportData): string {
     "{termsConditions}": data.termsConditions || "",
     "{equipmentWarranty}": data.equipmentWarranty || "",
     "{workWarranty}": data.workWarranty || "",
-    "{poolLength}": num(d.length),
-    "{poolWidth}": num(d.width),
-    "{poolDepth}": num(d.depth),
-    "{poolArea}": num(d.area),
-    "{poolVolume}": num(d.volume),
-    "{poolPerimeter}": num(d.perimeter),
+    "{poolLength}": dim(d.length),
+    "{poolWidth}": dim(d.width),
+    "{poolDepth}": dim(d.depth),
+    "{poolArea}": dim(d.area),
+    "{poolVolume}": dim(d.volume),
+    "{poolPerimeter}": dim(d.perimeter),
+    "{poolMaxDepth}": dim(d.maxDepth),
+    "{poolLengthTotal}": dim(d.comprimentoTotal),
+    "{poolWidthTotal}": dim(d.larguraTotal),
+    "{poolCorners}": dim(d.cantos),
+    "{poolPerimeterExt}": dim(d.perimetroExternoBorda),
+    "{poolWallPerimeter}": dim(d.perimetroParedesInternas),
+    "{poolWallFloorArea}": dim(d.areaParedeEFundo),
+    "{poolWallArea}": dim(d.areaParedeM2),
+    "{poolRadierArea}": dim(d.radierM2),
+    "{poolRadierVolume}": dim(d.radierM3),
+    "{poolExcavation}": dim(d.escavacaoM3),
     "{validityDays}": String(data.validityDays ?? ""),
     "{solicitante}": (data.environmentParams as any)?.solicitante || data.clientName || "",
     "{climateCity}": (data.environmentParams as any)?.cidade || "",
