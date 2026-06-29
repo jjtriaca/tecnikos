@@ -201,6 +201,51 @@ export default function PoolPrintLayoutEditorPage() {
   const [region, setRegion] = useState<"page" | "header" | "footer">("page");
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [selBox, setSelBox] = useState<string | null>(null);
+  const [selSet, setSelSet] = useState<Set<string>>(new Set()); // multi-selecao (shift-clique)
+  // Seleciona caixa(s): additive (shift) = alterna no conjunto; senao = seleciona so ela.
+  function selectBox(id: string | null, additive?: boolean) {
+    if (!id) { setSelBox(null); setSelSet(new Set()); return; }
+    setTab("Layout");
+    if (additive) {
+      setSelSet((prev) => {
+        const n = new Set(prev);
+        if (n.has(id)) n.delete(id); else n.add(id);
+        setSelBox(n.has(id) ? id : (n.size ? Array.from(n)[n.size - 1] : null));
+        return n;
+      });
+    } else { setSelSet(new Set([id])); setSelBox(id); }
+  }
+  const rnd2 = (v: number) => Math.round(v * 100) / 100;
+  // Alinha as caixas selecionadas pela borda/centro da seleção (precisa de 2+).
+  function alignSel(kind: "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom") {
+    const bs = boxes.filter((b) => selSet.has(b.id));
+    if (bs.length < 2) return;
+    const minX = Math.min(...bs.map((b) => b.x)), maxX = Math.max(...bs.map((b) => b.x + b.w));
+    const minY = Math.min(...bs.map((b) => b.y)), maxY = Math.max(...bs.map((b) => b.y + b.h));
+    const cX = (minX + maxX) / 2, cY = (minY + maxY) / 2;
+    commitBoxes(boxes.map((b) => {
+      if (!selSet.has(b.id)) return b;
+      let { x, y } = b;
+      if (kind === "left") x = minX; else if (kind === "hcenter") x = cX - b.w / 2; else if (kind === "right") x = maxX - b.w;
+      else if (kind === "top") y = minY; else if (kind === "vcenter") y = cY - b.h / 2; else if (kind === "bottom") y = maxY - b.h;
+      return { ...b, x: rnd2(x), y: rnd2(y) };
+    }));
+  }
+  // Distribui as selecionadas com espacamento IGUAL (precisa de 3+).
+  function distributeSel(axis: "h" | "v") {
+    const bs = boxes.filter((b) => selSet.has(b.id));
+    if (bs.length < 3) return;
+    const sorted = [...bs].sort((a, b) => (axis === "h" ? a.x - b.x : a.y - b.y));
+    const startP = axis === "h" ? sorted[0].x : sorted[0].y;
+    const last = sorted[sorted.length - 1];
+    const endP = axis === "h" ? last.x + last.w : last.y + last.h;
+    const totalSize = sorted.reduce((s, b) => s + (axis === "h" ? b.w : b.h), 0);
+    const gap = (endP - startP - totalSize) / (sorted.length - 1);
+    const pos = new Map<string, number>();
+    let cur = startP;
+    for (const b of sorted) { pos.set(b.id, cur); cur += (axis === "h" ? b.w : b.h) + gap; }
+    commitBoxes(boxes.map((b) => pos.has(b.id) ? (axis === "h" ? { ...b, x: rnd2(pos.get(b.id)!) } : { ...b, y: rnd2(pos.get(b.id)!) }) : b));
+  }
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [histInfo, setHistInfo] = useState({ canUndo: false, canRedo: false });
   const histRef = useRef<{ stack: Box[][]; idx: number }>({ stack: [], idx: -1 });
@@ -237,7 +282,7 @@ export default function PoolPrintLayoutEditorPage() {
         const r1 = (v: number) => Math.round(v * 10) / 10;
         bs = bs.map((b) => ({ ...b, x: r1(b.x * W / 100), y: r1(b.y * H / 100), w: r1(b.w * W / 100), h: r1(b.h * H / 100) }));
       }
-      setBoxes(bs); pageBoxesRef.current = bs; setSelBox(null); setSaveState("idle");
+      setBoxes(bs); pageBoxesRef.current = bs; setSelBox(null); setSelSet(new Set()); setSaveState("idle");
       const bg = { bg: pc.bg ?? null, bgType: pc.bgType || "solid", bgColor2: pc.bgColor2 };
       setPageBgCfg(bg); pageBgRef.current = bg;
       const nm = pc.name || ""; setPageName(nm); pageNameRef.current = nm;
@@ -277,7 +322,7 @@ export default function PoolPrintLayoutEditorPage() {
       bs = bs.map((b) => ({ ...b, x: r1(b.x * W / 100), y: r1(b.y * stripH / 100), w: r1(b.w * W / 100), h: r1(b.h * stripH / 100) }));
       migrate = true;
     }
-    setRegion(r); setBoxes(bs); setSelBox(null); setSaveState("idle");
+    setRegion(r); setBoxes(bs); setSelBox(null); setSelSet(new Set()); setSaveState("idle");
     histRef.current = { stack: [JSON.parse(JSON.stringify(bs))], idx: 0 };
     setHistInfo({ canUndo: false, canRedo: false });
     if (migrate) setTimeout(() => scheduleSave(bs, r), 0); // persiste a migracao da faixa
@@ -396,13 +441,13 @@ export default function PoolPrintLayoutEditorPage() {
       const c = REPORT_ICONS.find((i) => i.name === nb.icon)?.color;
       if (c) nb.style = { ...(nb.style || {}), textColor: c };
     }
-    commitBoxes([...boxes, nb]); setSelBox(nb.id); setTab("Layout");
+    commitBoxes([...boxes, nb]); setSelBox(nb.id); setSelSet(new Set([nb.id])); setTab("Layout");
   }
   function duplicateSelBox() {
     if (!selectedBox) return;
     const { w: PW, h: PH } = pageDims(layout?.branding);
     const nb = { ...JSON.parse(JSON.stringify(selectedBox)), id: genBoxId(), x: Math.min(PW - selectedBox.w, selectedBox.x + 5), y: Math.min(PH - selectedBox.h, selectedBox.y + 5), z: maxZ() + 1 } as Box;
-    commitBoxes([...boxes, nb]); setSelBox(nb.id);
+    commitBoxes([...boxes, nb]); setSelBox(nb.id); setSelSet(new Set([nb.id]));
   }
   function patchSelBox(patch: Partial<Box>) {
     if (!selBox) return;
@@ -414,7 +459,7 @@ export default function PoolPrintLayoutEditorPage() {
   }
   function removeSelBox() {
     if (!selBox) return;
-    commitBoxes(boxes.filter((b) => b.id !== selBox)); setSelBox(null);
+    commitBoxes(boxes.filter((b) => b.id !== selBox && !selSet.has(b.id))); setSelBox(null); setSelSet(new Set());
   }
   function zOrder(dir: "front" | "back") {
     if (!selBox) return;
@@ -438,7 +483,7 @@ export default function PoolPrintLayoutEditorPage() {
     if (p.type === "DYNAMIC" && p.dynamicType) bs = [{ id: genBoxId(), type: "BLOCK", blockType: p.dynamicType, config: p.pageConfig || {}, x: 8, y: 8, w: Math.round(PW - 16), h: Math.round(PH - 16), z: 1 }];
     else if (p.type === "FIXED" && p.htmlContent) bs = [{ id: genBoxId(), type: "TEXT", html: p.htmlContent, x: 12, y: 12, w: Math.round(PW - 24), h: Math.round(PH - 40), z: 1 }];
     else if (Array.isArray(nodes) && nodes.length) bs = [{ id: genBoxId(), type: "TEXT", html: "<p>Página convertida — recrie os elementos como caixas (aba Inserir).</p>", x: 12, y: 12, w: Math.round(PW - 24), h: 30, z: 1 }];
-    setBoxes(bs); setSelBox(null);
+    setBoxes(bs); setSelBox(null); setSelSet(new Set());
     histRef.current = { stack: [JSON.parse(JSON.stringify(bs))], idx: 0 }; setHistInfo({ canUndo: false, canRedo: false });
     setEditingPage({ ...p, type: "FIXED", pageConfig: { canvas: true, unit: "mm", boxes: bs } } as Page);
     scheduleSave(bs);
@@ -908,6 +953,23 @@ export default function PoolPrintLayoutEditorPage() {
             <RibbonBtn icon="⬍" label="Centro V" onClick={() => patchSelBox({ y: r1((PH - sb.h) / 2) })} />
             <RibbonBtn icon="⤒" label="Frente" onClick={() => zOrder("front")} />
             <RibbonBtn icon="⤓" label="Tras" onClick={() => zOrder("back")} />
+            {selSet.size >= 2 ? (
+              <>
+                <span className="mx-1 self-center h-6 w-px bg-slate-200" />
+                <RibbonBtn icon="⊢" label="Alinh esq" onClick={() => alignSel("left")} />
+                <RibbonBtn icon="⊟" label="Alinh centro" onClick={() => alignSel("hcenter")} />
+                <RibbonBtn icon="⊣" label="Alinh dir" onClick={() => alignSel("right")} />
+                <RibbonBtn icon="⊤" label="Alinh topo" onClick={() => alignSel("top")} />
+                <RibbonBtn icon="⊞" label="Alinh meio" onClick={() => alignSel("vcenter")} />
+                <RibbonBtn icon="⊥" label="Alinh base" onClick={() => alignSel("bottom")} />
+                {selSet.size >= 3 ? (
+                  <>
+                    <RibbonBtn icon="⇿" label="Distrib H" onClick={() => distributeSel("h")} />
+                    <RibbonBtn icon="⇳" label="Distrib V" onClick={() => distributeSel("v")} />
+                  </>
+                ) : null}
+              </>
+            ) : null}
             <span className="mx-0.5 h-5 w-px bg-slate-300" />
             <label className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs" title="Cor de fundo da caixa">Fundo<input type="color" value={sbst.bg || "#ffffff"} onChange={(e) => patchSelStyle({ bg: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /><button type="button" onClick={() => patchSelStyle({ bg: null })} title="Sem fundo" className="text-slate-400 hover:text-slate-700">⌫</button></label>
             <label className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs" title="Cor do ícone / texto da caixa">Cor<input type="color" value={sbst.textColor || "#16365C"} onChange={(e) => patchSelStyle({ textColor: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
@@ -981,7 +1043,7 @@ export default function PoolPrintLayoutEditorPage() {
             ) : (
               <div className="max-h-44 overflow-y-auto border-t border-slate-100 p-1 space-y-0.5">
                 {[...boxes].sort((a, b) => (a.z || 0) - (b.z || 0)).map((b) => (
-                  <div key={b.id} onClick={() => { setSelBox(b.id); setTab("Layout"); }}
+                  <div key={b.id} onClick={(e) => selectBox(b.id, e.shiftKey)}
                     title="Clique pra selecionar · ✏️ renomeia · ⬆⬇ ordem"
                     className={`group flex items-center gap-1 rounded px-1 py-0.5 cursor-pointer text-[10px] ${selBox === b.id ? "bg-cyan-100 text-cyan-900 ring-1 ring-cyan-300" : "text-slate-700 hover:bg-slate-100"}`}>
                     <span className="w-3.5 shrink-0 text-center">{boxTypeIcon(b)}</span>
@@ -1180,15 +1242,15 @@ export default function PoolPrintLayoutEditorPage() {
             </div>
             <div className="flex-1 min-h-0">
               <CanvasEditor boxes={boxes} data={SAMPLE_BUDGET} branding={layout.branding} unit="mm"
-                selBox={selBox} pageW={pageDims(layout.branding).w} pageH={region === "header" ? (brand.headerHmm ?? 18) : (brand.footerHmm ?? 14)}
+                selBox={selBox} selSet={selSet} pageW={pageDims(layout.branding).w} pageH={region === "header" ? (brand.headerHmm ?? 18) : (brand.footerHmm ?? 14)}
                 pageBg="#ffffff"
-                onSelect={(idv) => { setSelBox(idv); if (idv) setTab("Layout"); }}
+                onSelect={selectBox}
                 onChange={onCanvasChange} onCommit={onCanvasCommit} onEditStart={() => setTab("Inicio")} />
             </div>
           </div>
         ) : editingPage && pageIsCanvas(editingPage) ? (
           <CanvasEditor boxes={boxes} data={SAMPLE_BUDGET} branding={layout.branding} unit="mm" hfUnit={(brand as any)?.hfUnit === "mm" ? "mm" : "%"}
-            selBox={selBox} pageW={pageDims(layout.branding).w} pageH={pageDims(layout.branding).h}
+            selBox={selBox} selSet={selSet} pageW={pageDims(layout.branding).w} pageH={pageDims(layout.branding).h}
             pageBg={pageBgCss}
             hfOverlay={{ headerBoxes: brand.headerBoxes, footerBoxes: brand.footerBoxes, headerHmm: brand.headerHmm, footerHmm: brand.footerHmm }}
             onSelect={(idv) => { setSelBox(idv); if (idv) setTab("Layout"); }}

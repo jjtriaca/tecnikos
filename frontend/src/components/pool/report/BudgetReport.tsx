@@ -865,17 +865,17 @@ function handleStyle(h: string): CSSProperties {
   base.cursor = cursors[h];
   return base;
 }
-function BoxFrame({ box, selected, editing, canvasRef, lockAspect, unit = "mm", pageW = 210, pageH = 297, others = [], onGuides, onSelect, onStartEdit, onChange, onCommit, children }: {
-  box: Box; selected: boolean; editing: boolean; canvasRef: React.RefObject<HTMLDivElement>; lockAspect?: boolean;
+function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit = "mm", pageW = 210, pageH = 297, others = [], onGuides, onSelect, onStartEdit, onChange, onCommit, children }: {
+  box: Box; selected: boolean; multi?: boolean; editing: boolean; canvasRef: React.RefObject<HTMLDivElement>; lockAspect?: boolean;
   unit?: "mm" | "%"; pageW?: number; pageH?: number; others?: Box[]; onGuides?: (g: { o: "v" | "h"; p: number }[]) => void;
-  onSelect: () => void; onStartEdit: () => void; onChange: (b: Box) => void; onCommit: () => void; children: React.ReactNode;
+  onSelect: (additive?: boolean) => void; onStartEdit: () => void; onChange: (b: Box) => void; onCommit: () => void; children: React.ReactNode;
 }) {
   const draggedRef = useRef(false);
   const begin = (mode: string) => (e: React.PointerEvent) => {
     if (editing) return;
     // SEM preventDefault aqui: senao o navegador suprime o dblclick (= nao da pra editar).
     e.stopPropagation();
-    onSelect();
+    onSelect(e.shiftKey);
     draggedRef.current = false;
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -935,9 +935,9 @@ function BoxFrame({ box, selected, editing, canvasRef, lockAspect, unit = "mm", 
     window.addEventListener("keydown", onKey);
   };
   return (
-    <div style={{ ...boxRectStyle(box, unit), cursor: editing ? "text" : "move", outline: selected ? "2px solid #06b6d4" : undefined, outlineOffset: 0 }}
+    <div style={{ ...boxRectStyle(box, unit), cursor: editing ? "text" : "move", outline: selected ? "2px solid #06b6d4" : multi ? "2px solid #22d3ee" : undefined, outlineOffset: 0 }}
       onPointerDown={begin("move")}
-      onClick={(e) => { e.stopPropagation(); if (draggedRef.current) return; onSelect(); }}
+      onClick={(e) => { e.stopPropagation(); }}
       onDoubleClick={(e) => { e.stopPropagation(); onStartEdit(); }}>
       {children}
       {selected && !editing ? HANDLES.map((h) => (<div key={h} style={handleStyle(h)} onPointerDown={begin(h)} />)) : null}
@@ -948,10 +948,10 @@ function BoxFrame({ box, selected, editing, canvasRef, lockAspect, unit = "mm", 
 // Editor de canvas (uma pagina) — usado no centro do editor. Renderiza a folha A4
 // (aspect-ratio) e os boxes interativos. onChange = update ao vivo; onCommit = passo
 // de historico (undo/redo) no fim do gesto. Edicao de texto inline via duplo-clique.
-export function CanvasEditor({ boxes, data, branding, selBox, pageW, pageH, pageBg, unit = "mm", hfUnit = "%", onSelect, onChange, onCommit, onEditStart, hfOverlay }: {
-  boxes: Box[]; data: BudgetReportData; branding?: ReportBranding | null; selBox: string | null;
+export function CanvasEditor({ boxes, data, branding, selBox, selSet, pageW, pageH, pageBg, unit = "mm", hfUnit = "%", onSelect, onChange, onCommit, onEditStart, hfOverlay }: {
+  boxes: Box[]; data: BudgetReportData; branding?: ReportBranding | null; selBox: string | null; selSet?: Set<string>;
   pageW?: number; pageH?: number; pageBg?: string; unit?: "mm" | "%"; hfUnit?: "mm" | "%";
-  onSelect: (id: string | null) => void; onChange: (b: Box) => void; onCommit: () => void; onEditStart?: (id: string) => void;
+  onSelect: (id: string | null, additive?: boolean) => void; onChange: (b: Box) => void; onCommit: () => void; onEditStart?: (id: string) => void;
   hfOverlay?: { headerBoxes?: Box[]; footerBoxes?: Box[]; headerHmm?: number; footerHmm?: number };
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -983,9 +983,9 @@ export function CanvasEditor({ boxes, data, branding, selBox, pageW, pageH, page
           </div>
         ) : null}
         {[...(boxes || [])].sort((a, b) => (a.z || 0) - (b.z || 0)).map((b) => (
-          <BoxFrame key={b.id} box={b} selected={selBox === b.id} editing={editingId === b.id} canvasRef={canvasRef} unit={unit || "mm"} pageW={W} pageH={H}
+          <BoxFrame key={b.id} box={b} selected={selBox === b.id && (!selSet || selSet.has(b.id))} multi={!!selSet && selSet.has(b.id) && b.id !== selBox} editing={editingId === b.id} canvasRef={canvasRef} unit={unit || "mm"} pageW={W} pageH={H}
             others={(boxes || []).filter((x) => x.id !== b.id)} onGuides={setGuides}
-            onSelect={() => onSelect(b.id)}
+            onSelect={(additive) => onSelect(b.id, additive)}
             onStartEdit={() => { if (b.type === "TEXT") { setEditingId(b.id); onEditStart?.(b.id); } }}
             onChange={onChange} onCommit={onCommit}>
             <BoxContent box={b} data={data} branding={branding} editingText={editingId === b.id} onEditText={(id, html) => onChange({ ...b, html })} onEditCommit={onCommit} editor />
