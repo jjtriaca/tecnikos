@@ -108,6 +108,16 @@ Pendências de limpeza/escopo abaixo seguem valendo (dedup do LineRefPicker na p
   cópia local segue lá — migrar com cuidado, é arquivo central sem preview); (2) providers de data-context das outras
   origens (Serviços/OS/Financeiro) p/ tokens resolverem com dado real; (3) labels de etapa custom no picker do editor.
 
+## Picker de ÍCONES (FEITO, deploy v1.14.86 — pedido do Juliano)
+Resolve o atrito #1 do dogfooding (Estilo 3 precisa de ícone). `components/pool/report/reportIcons.ts` = biblioteca
+de ~23 ícones inline SVG (contorno 24x24, stroke=currentColor — seguro no PDF via printViaClone). Tipo de caixa novo
+`ICON` (campo `box.icon`) renderizado no `BoxContent` (cor = `style.textColor` || branding.primaryColor; tamanho = caixa).
+Editor: botão "Ícone" no Inserir → modal grid (`iconPicker`) → `addBox("ICON",{icon})`; rótulo/ícone na hierarquia;
+controle **"Cor"** novo na aba Layout (`patchSelStyle({textColor})`, serve ícone E texto). Testado ao vivo: insere,
+renderiza (navy), recolore. **Estilo 3 agora é montável** (ícone + valor {pool*} + rótulo por métrica).
+**Atrito que ainda fica:** sem alinhar/distribuir/grade — a faixa de 6 métricas ainda é posicionada à mão (mm). Próxima
+alavanca: ferramenta "distribuir/alinhar" OU um bloco "Características" data-driven (Estilo 3 como preset de 1 clique).
+
 ## Decisões de negócio (29/06 — Juliano respondeu "pode fazer todas")
 1. **Renomear "Template" → "Modelo de obra"** ✅ DECIDIDO (Juliano, 29/06).
 2. **"Menor profundidade"** → default recomendado: menor profundidade entre TODAS as partes (determinístico).
