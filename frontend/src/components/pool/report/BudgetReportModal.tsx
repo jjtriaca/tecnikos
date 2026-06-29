@@ -61,6 +61,12 @@ function buildReportData(budget: any, sectionLabels: Record<string, string>): Bu
     totalCents: Number(it.totalCents) || 0,
     imageUrl: it.product?.imageUrl ?? it.service?.imageUrl ?? null,
     cellRef: it.cellRef ?? null,
+    // Campos do CADASTRO do produto/servico vinculado (Fase 1a blocos dinamicos)
+    productCode: it.product?.code ?? it.service?.code ?? null,
+    productDesc: it.product?.description ?? it.service?.name ?? null,
+    productUnit: it.product?.unit ?? it.service?.unit ?? null,
+    productSpecs: (it.product?.technicalSpecs ?? it.service?.technicalSpecs ?? null) as any,
+    hasProduct: !!(it.product || it.service),
   }));
   return {
     code: budget?.code ?? "",

@@ -109,8 +109,14 @@ export type ReportItem = {
   qty: number;
   unitPriceCents: number;
   totalCents: number;
-  imageUrl?: string | null; // produto/servico vinculado (vem do findOne)
+  imageUrl?: string | null; // produto/servico vinculado (vem do findOne) — usado em {linha:Lx.prodImagem}
   cellRef?: string | null;  // endereco estavel da linha (L1, L2, L130) — usado em {linha:Lx.campo}
+  // Campos do CADASTRO do produto/servico vinculado (Fase 1a blocos dinamicos) — {linha:Lx.prodCodigo|prodDescricao|prodUnidade|prodSpec:<key>}
+  productCode?: string | null;
+  productDesc?: string | null;       // descricao/nome do cadastro (pode diferir da descricao da linha)
+  productUnit?: string | null;
+  productSpecs?: Record<string, any> | null; // technicalSpecs (Json livre)
+  hasProduct?: boolean;              // tem produto/servico vinculado (pra condicao "tem produto")
 };
 
 export type BudgetReportData = {
@@ -221,12 +227,20 @@ function sectionLabel(data: BudgetReportData, section: string): string {
 function resolveAddressedToken(token: string, data: BudgetReportData): string | null {
   const inner = token.slice(1, -1); // tira { }
   const items = data.items || [];
-  let m = inner.match(/^linha:([A-Za-z]?\d+)\.([a-zA-Z]+)$/);
+  let m = inner.match(/^linha:([A-Za-z]?\d+)\.([a-zA-Z]+(?::[\w.-]+)?)$/);
   if (m) {
     const ref = m[1].toUpperCase();
-    const field = m[2].toLowerCase();
+    const raw = m[2];
+    const field = raw.toLowerCase();
     const it = items.find((x) => (x.cellRef || "").toUpperCase() === ref);
     if (!it) return "";
+    // Campo do cadastro do produto: {linha:Lx.prodSpec:vazaoM3h} — chave preserva o case original
+    if (field.startsWith("prodspec:")) {
+      const key = raw.slice(raw.indexOf(":") + 1);
+      const specs = (it.productSpecs || {}) as Record<string, any>;
+      const v = specs[key];
+      return v == null ? "" : (typeof v === "number" ? num(v) : String(v));
+    }
     switch (field) {
       case "produto": case "descricao": case "item": case "nome": return it.description || "";
       case "qtd": case "quantidade": case "qty": return num(it.qty);
@@ -234,6 +248,11 @@ function resolveAddressedToken(token: string, data: BudgetReportData): string | 
       case "unitario": case "preco": case "unit": return brl(it.unitPriceCents);
       case "papel": case "slot": return it.slotName || "";
       case "etapa": case "secao": return sectionLabel(data, it.poolSection);
+      // ── Campos do CADASTRO do produto/servico vinculado (Fase 1a) ──
+      case "prodimagem": case "prodimg": case "imagem": return it.imageUrl || "";
+      case "prodcodigo": case "codigo": return it.productCode || "";
+      case "proddescricao": case "proddesc": return it.productDesc || "";
+      case "produnidade": case "produnit": case "unidade": return it.productUnit || "";
       default: return "";
     }
   }
@@ -813,9 +832,11 @@ function BoxContent({ box, data, branding, editingText, onEditText, onEditCommit
     return wrapLink(<div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: valign, textAlign: (st.align as any) || undefined, whiteSpace: wrap }} dangerouslySetInnerHTML={{ __html: resolvePlaceholders(box.html || "", data) }} />);
   }
   if (box.type === "IMAGE") {
-    if (!box.url) return <div className="rp-empty" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>Imagem</div>;
+    // url pode ser ESTATICA ou um TOKEN ligado ao cadastro (ex: {linha:L130.prodImagem}) — resolve.
+    const src = box.url && box.url.includes("{") ? resolvePlaceholders(box.url, data).trim() : (box.url || "");
+    if (!src) return <div className="rp-empty" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: 9, color: "#94a3b8", textAlign: "center", padding: 4 }}>{box.url && box.url.includes("{") ? "Imagem do produto (sem imagem nesta linha)" : "Imagem"}</div>;
     // eslint-disable-next-line @next/next/no-img-element
-    return wrapLink(<img src={box.url} alt="" style={{ width: "100%", height: "100%", objectFit: (box.fit as any) || "cover", display: "block" }} />);
+    return wrapLink(<img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: (box.fit as any) || "cover", display: "block" }} />);
   }
   if ((box.type as string) === "ICON") {
     const ic = getReportIcon(box.icon);

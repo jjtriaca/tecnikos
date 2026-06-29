@@ -133,11 +133,11 @@ const SAMPLE_BUDGET: BudgetReportData = {
   sectionOrder: ["CONSTRUCAO", "FILTRO", "CASCATA", "ACIONAMENTOS"],
   sectionLabels: { CONSTRUCAO: "Construcao", FILTRO: "Filtragem", CASCATA: "Cascata", ACIONAMENTOS: "Acionamentos eletricos" },
   items: [
-    { poolSection: "CONSTRUCAO", description: "Kit piscina pre-moldada 7x3", qty: 1, unitPriceCents: 9800000, totalCents: 9800000 },
-    { poolSection: "CONSTRUCAO", description: "Mao de obra de instalacao", slotName: "Servico", qty: 1, unitPriceCents: 3200000, totalCents: 3200000 },
-    { poolSection: "FILTRO", description: "Conjunto Filtrante 1/2 cv", qty: 1, unitPriceCents: 1850000, totalCents: 1850000, imageUrl: sampleImg("Filtro", "#0e7490") },
-    { poolSection: "CASCATA", description: "Kit Cascata Inox Embutir 120cm", slotName: "Cascata", qty: 1, unitPriceCents: 1280000, totalCents: 1280000, imageUrl: sampleImg("Cascata 120cm", "#0369a1") },
-    { poolSection: "ACIONAMENTOS", description: "Quadro eletrico 24 polos", qty: 1, unitPriceCents: 505760, totalCents: 505760, imageUrl: sampleImg("Quadro", "#334155") },
+    { poolSection: "CONSTRUCAO", cellRef: "L1", description: "Kit piscina pre-moldada 7x3", qty: 1, unitPriceCents: 9800000, totalCents: 9800000, imageUrl: sampleImg("Piscina 7x3", "#0891b2"), hasProduct: true, productCode: "PIS-7X3", productDesc: "Kit Piscina Pre-moldada 7,00 x 3,00 m", productUnit: "kit", productSpecs: { material: "Concreto pre-moldado", garantiaAnos: 5 } },
+    { poolSection: "CONSTRUCAO", cellRef: "L2", description: "Mao de obra de instalacao", slotName: "Servico", qty: 1, unitPriceCents: 3200000, totalCents: 3200000, hasProduct: true, productCode: "SRV-INST", productDesc: "Mao de obra de instalacao completa", productUnit: "servico" },
+    { poolSection: "FILTRO", cellRef: "L3", description: "Conjunto Filtrante 1/2 cv", qty: 1, unitPriceCents: 1850000, totalCents: 1850000, imageUrl: sampleImg("Filtro", "#0e7490"), hasProduct: true, productCode: "FILT-050", productDesc: "Conjunto Filtrante V30 c/ Bomba 1/2 cv", productUnit: "kit", productSpecs: { vazaoM3h: 5.5, potenciaCv: 0.5 } },
+    { poolSection: "CASCATA", cellRef: "L4", description: "Kit Cascata Inox Embutir 120cm", slotName: "Cascata", qty: 1, unitPriceCents: 1280000, totalCents: 1280000, imageUrl: sampleImg("Cascata 120cm", "#0369a1"), hasProduct: true, productCode: "CASC-120", productDesc: "Kit Cascata Inox Embutir 120 cm + Bomba 1 cv", productUnit: "kit", productSpecs: { comprimentoCm: 120 } },
+    { poolSection: "ACIONAMENTOS", cellRef: "L5", description: "Quadro eletrico 24 polos", qty: 1, unitPriceCents: 505760, totalCents: 505760, imageUrl: sampleImg("Quadro", "#334155"), hasProduct: true, productCode: "QDR-24", productDesc: "Quadro eletrico 24 polos", productUnit: "pc" },
   ],
 };
 
@@ -1340,12 +1340,18 @@ export default function PoolPrintLayoutEditorPage() {
             </select>
             <label className="block text-[11px] font-medium text-slate-600 mb-1">O que inserir</label>
             <select value={lineAttr} onChange={(e) => setLineAttr(e.target.value)} className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm mb-3">
-              <option value="produto">Produto / descricao</option>
+              <option value="produto">Produto / descricao (da linha)</option>
               <option value="qtd">Quantidade</option>
               <option value="valor">Valor total</option>
               <option value="unitario">Preco unitario</option>
               <option value="papel">Item (papel)</option>
               <option value="etapa">Etapa</option>
+              <optgroup label="Cadastro do produto">
+                <option value="prodImagem">🖼️ Imagem do produto (cadastro)</option>
+                <option value="prodCodigo">Codigo do produto</option>
+                <option value="prodDescricao">Descricao do cadastro</option>
+                <option value="prodUnidade">Unidade</option>
+              </optgroup>
             </select>
             <LineRefPicker
               icon="📄" specKey={null} combine="sum" refKind="ALL"
@@ -1354,7 +1360,11 @@ export default function PoolPrintLayoutEditorPage() {
               onToggle={(ref) => setLineSel((p) => { const n = new Set(p); if (n.has(ref)) n.delete(ref); else n.add(ref); return n; })}
               onApply={() => {
                 const refs = Array.from(lineSel);
-                for (const ref of refs) addBox("TEXT", { html: `<p>{linha:${ref}.${lineAttr}}</p>` });
+                for (const ref of refs) {
+                  // Imagem do cadastro -> caixa IMAGE com url = token (resolve a imagem do produto da linha)
+                  if (lineAttr === "prodImagem") addBox("IMAGE", { url: `{linha:${ref}.prodImagem}`, fit: "contain" });
+                  else addBox("TEXT", { html: `<p>{linha:${ref}.${lineAttr}}</p>` });
+                }
                 setPickLine(false);
                 if (refs.length) toast(`${refs.length} campo(s) de linha inserido(s)`, "success");
               }}
