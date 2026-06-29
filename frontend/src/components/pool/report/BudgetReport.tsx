@@ -843,7 +843,7 @@ function normalizeHref(url: string): string {
 // Render READ-ONLY de uma pagina canvas (impressao / preview / miniatura).
 export function CanvasPage({ boxes, data, branding, unit = "%" }: { boxes: Box[]; data: BudgetReportData; branding?: ReportBranding | null; unit?: "mm" | "%" }) {
   return (
-    <div className="rp-canvas" style={{ position: "absolute", inset: 0 }}>
+    <div className="rp-canvas" style={{ position: "absolute", inset: 0, isolation: "isolate" }}>
       {[...(boxes || [])].sort((a, b) => (a.z || 0) - (b.z || 0)).map((b) => (
         <div key={b.id} style={boxRectStyle(b, unit)}><BoxContent box={b} data={data} branding={branding} /></div>
       ))}
@@ -974,7 +974,7 @@ export function CanvasEditor({ boxes, data, branding, selBox, selSet, pageW, pag
     <div style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: 16, background: "#475569", overflow: "auto" }}>
       <style dangerouslySetInnerHTML={{ __html: REPORT_CSS }} />
       <div ref={canvasRef}
-        style={{ position: "relative", width: `${W}mm`, height: `${H}mm`, background: pageBg || "#fff", boxShadow: "0 2px 18px rgba(0,0,0,.35)", overflow: "hidden", flexShrink: 0, color: "#0f172a", fontSize: "11px", lineHeight: 1.35 }}
+        style={{ position: "relative", isolation: "isolate", width: `${W}mm`, height: `${H}mm`, background: pageBg || "#fff", boxShadow: "0 2px 18px rgba(0,0,0,.35)", overflow: "hidden", flexShrink: 0, color: "#0f172a", fontSize: "11px", lineHeight: 1.35 }}
         onPointerDown={(e) => { if (e.target === canvasRef.current) { onSelect(null); setEditingId(null); } }}>
         {/* Guia das MARGENS (so no editor; nao imprime) — tracejado do recuo */}
         {((branding as any)?.pageMarginMm ?? 12) > 0 ? (

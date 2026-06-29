@@ -163,6 +163,12 @@ HeatingSimulatorModal) → importar o compartilhado.
     grupo (`groupMove` no BoxFrame → `onGroupStart` snapshot + `onGroupMove(dx,dy)` desloca o snapshot; commit limpa o ref).
     Padrão editor: clicar+arrastar membro do grupo move tudo e MANTÉM a seleção; clique-sem-arrastar colapsa pra caixa única
     (defer no `begin`: não chama `onSelect(false)` no pointerdown quando `groupMove`, só no pointerup se `!dragged`).
+  - **CARD ATRÁS SUMIA (v1.14.98):** "mandar pra trás" (`zOrder("back")`) põe `z = bot-1` = **-1**; `boxRectStyle` faz
+    `zIndex: b.z || 1` → a caixa fica com `z-index:-1`. O container do canvas era `position:relative` SEM stacking context
+    próprio → o `z-index:-1` resolvia num ancestral e a caixa ia parar ATRÁS do fundo branco da página (sumia). Diagnóstico
+    via fiber: nenhuma caixa opaca cobria; card vermelho ainda invisível ao fundo. FIX: `isolation: "isolate"` no container do
+    canvas do editor (linha ~977) E no `.rp-canvas` (impressão, linha ~846) — cria o contexto, o `z-index:-1` fica atrás dos
+    ícones mas na frente do fundo. Ícones de revestimento (mosaico + painel água) adicionados em `reportIcons.ts` (v1.14.97).
 
 ## Decisões de negócio (29/06 — Juliano respondeu "pode fazer todas")
 1. **Renomear "Template" → "Modelo de obra"** ✅ DECIDIDO (Juliano, 29/06).
