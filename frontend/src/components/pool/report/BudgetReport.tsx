@@ -865,9 +865,9 @@ function handleStyle(h: string): CSSProperties {
   base.cursor = cursors[h];
   return base;
 }
-function BoxFrame({ box, selected, editing, canvasRef, lockAspect, unit = "mm", pageW = 210, pageH = 297, onSelect, onStartEdit, onChange, onCommit, children }: {
+function BoxFrame({ box, selected, editing, canvasRef, lockAspect, unit = "mm", pageW = 210, pageH = 297, others = [], onGuides, onSelect, onStartEdit, onChange, onCommit, children }: {
   box: Box; selected: boolean; editing: boolean; canvasRef: React.RefObject<HTMLDivElement>; lockAspect?: boolean;
-  unit?: "mm" | "%"; pageW?: number; pageH?: number;
+  unit?: "mm" | "%"; pageW?: number; pageH?: number; others?: Box[]; onGuides?: (g: { o: "v" | "h"; p: number }[]) => void;
   onSelect: () => void; onStartEdit: () => void; onChange: (b: Box) => void; onCommit: () => void; children: React.ReactNode;
 }) {
   const draggedRef = useRef(false);
@@ -887,6 +887,7 @@ function BoxFrame({ box, selected, editing, canvasRef, lockAspect, unit = "mm", 
     const finish = (commit: boolean) => {
       window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); window.removeEventListener("keydown", onKey);
       document.body.style.userSelect = "";
+      onGuides?.([]);
       if (commit && dragging) onCommit();
     };
     const onMove = (ev: PointerEvent) => {
@@ -896,7 +897,28 @@ function BoxFrame({ box, selected, editing, canvasRef, lockAspect, unit = "mm", 
       const dux = (ddx / rect.width) * maxX;
       const duy = (ddy / rect.height) * maxY;
       let { x, y, w, h } = start.b;
-      if (mode === "move") { x = clampN(start.b.x + dux, 0, maxX - start.b.w); y = clampN(start.b.y + duy, 0, maxY - start.b.h); }
+      if (mode === "move") {
+        x = clampN(start.b.x + dux, 0, maxX - start.b.w);
+        y = clampN(start.b.y + duy, 0, maxY - start.b.h);
+        // ── Guias inteligentes + snap (estilo PowerPoint/Canva). Alt arrastando = livre. ──
+        if (!ev.altKey) {
+          const T = unit === "mm" ? 1.5 : 1.2; // limiar de encaixe
+          const bw = start.b.w, bh = start.b.h;
+          const myX = [{ e: x, off: 0 }, { e: x + bw / 2, off: bw / 2 }, { e: x + bw, off: bw }];
+          const myY = [{ e: y, off: 0 }, { e: y + bh / 2, off: bh / 2 }, { e: y + bh, off: bh }];
+          const tX: number[] = [0, maxX / 2, maxX]; // bordas + centro da pagina
+          const tY: number[] = [0, maxY / 2, maxY];
+          for (const o of others) { tX.push(o.x, o.x + o.w / 2, o.x + o.w); tY.push(o.y, o.y + o.h / 2, o.y + o.h); }
+          let bX: { d: number; nx: number; line: number } | null = null;
+          for (const m of myX) for (const t of tX) { const d = Math.abs(m.e - t); if (d <= T && (!bX || d < bX.d)) bX = { d, nx: t - m.off, line: t }; }
+          let bY: { d: number; ny: number; line: number } | null = null;
+          for (const m of myY) for (const t of tY) { const d = Math.abs(m.e - t); if (d <= T && (!bY || d < bY.d)) bY = { d, ny: t - m.off, line: t }; }
+          const g: { o: "v" | "h"; p: number }[] = [];
+          if (bX) { x = clampN(bX.nx, 0, maxX - bw); g.push({ o: "v", p: bX.line }); }
+          if (bY) { y = clampN(bY.ny, 0, maxY - bh); g.push({ o: "h", p: bY.line }); }
+          onGuides?.(g);
+        } else onGuides?.([]);
+      }
       else {
         if (mode.includes("e")) w = clampN(start.b.w + dux, minSz, maxX - start.b.x);
         if (mode.includes("s")) h = clampN(start.b.h + duy, minSz, maxY - start.b.y);
@@ -933,6 +955,7 @@ export function CanvasEditor({ boxes, data, branding, selBox, pageW, pageH, page
   hfOverlay?: { headerBoxes?: Box[]; footerBoxes?: Box[]; headerHmm?: number; footerHmm?: number };
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [guides, setGuides] = useState<{ o: "v" | "h"; p: number }[]>([]); // guias inteligentes (snap)
   const canvasRef = useRef<HTMLDivElement>(null);
   useEffect(() => { if (selBox !== editingId) setEditingId(null); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [selBox]);
   const W = pageW || 210, H = pageH || 297;
@@ -961,11 +984,18 @@ export function CanvasEditor({ boxes, data, branding, selBox, pageW, pageH, page
         ) : null}
         {[...(boxes || [])].sort((a, b) => (a.z || 0) - (b.z || 0)).map((b) => (
           <BoxFrame key={b.id} box={b} selected={selBox === b.id} editing={editingId === b.id} canvasRef={canvasRef} unit={unit || "mm"} pageW={W} pageH={H}
+            others={(boxes || []).filter((x) => x.id !== b.id)} onGuides={setGuides}
             onSelect={() => onSelect(b.id)}
             onStartEdit={() => { if (b.type === "TEXT") { setEditingId(b.id); onEditStart?.(b.id); } }}
             onChange={onChange} onCommit={onCommit}>
             <BoxContent box={b} data={data} branding={branding} editingText={editingId === b.id} onEditText={(id, html) => onChange({ ...b, html })} onEditCommit={onCommit} editor />
           </BoxFrame>
+        ))}
+        {/* Guias inteligentes (snap ao arrastar) — linha magenta; nao imprime */}
+        {guides.map((g, i) => g.o === "v" ? (
+          <div key={`g${i}`} style={{ position: "absolute", top: 0, bottom: 0, left: `${(g.p / W) * 100}%`, width: 1, background: "#e11d8f", pointerEvents: "none", zIndex: 50 }} />
+        ) : (
+          <div key={`g${i}`} style={{ position: "absolute", left: 0, right: 0, top: `${(g.p / H) * 100}%`, height: 1, background: "#e11d8f", pointerEvents: "none", zIndex: 50 }} />
         ))}
         {(!boxes || boxes.length === 0) ? <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontStyle: "italic" }}>Use a aba Inserir pra adicionar caixas (texto, imagem, bloco).</div> : null}
       </div>
