@@ -630,7 +630,8 @@ export function CompositionPreview({ nodes, data, selectedId, onSelectNode, onEd
 export type Box = {
   id: string;
   type: "TEXT" | "IMAGE" | "BLOCK" | "CARD";
-  x: number; y: number; w: number; h: number; // % da folha (0..100)
+  name?: string;                              // rotulo do objeto na hierarquia (camadas)
+  x: number; y: number; w: number; h: number; // mm a partir do canto sup-esq (unit:"mm")
   z?: number;
   html?: string;                              // TEXT (HTML cru com {placeholders})
   href?: string | null;                       // link clicavel da caixa toda (TEXT/IMAGE) — vira <a> no PDF

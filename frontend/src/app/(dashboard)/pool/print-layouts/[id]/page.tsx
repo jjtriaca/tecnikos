@@ -125,6 +125,25 @@ const SAMPLE_BUDGET: BudgetReportData = {
 };
 
 // Botao da faixa de opcoes (ribbon) — icone em cima, rotulo embaixo (estilo Office).
+// Lista unica de fontes — usada no <select> E na deteccao da fonte do trecho/caixa selecionada.
+const FONTS: { v: string; l: string }[] = [
+  { v: "Arial, Helvetica, sans-serif", l: "Arial" },
+  { v: "'Arial Black', Gadget, sans-serif", l: "Arial Black" },
+  { v: "'Helvetica Neue', Helvetica, sans-serif", l: "Helvetica" },
+  { v: "Verdana, Geneva, sans-serif", l: "Verdana" },
+  { v: "Tahoma, Geneva, sans-serif", l: "Tahoma" },
+  { v: "'Trebuchet MS', sans-serif", l: "Trebuchet MS" },
+  { v: "Calibri, sans-serif", l: "Calibri" },
+  { v: "'Segoe UI', sans-serif", l: "Segoe UI" },
+  { v: "Georgia, serif", l: "Georgia" },
+  { v: "'Times New Roman', Times, serif", l: "Times New Roman" },
+  { v: "Garamond, serif", l: "Garamond" },
+  { v: "'Palatino Linotype', Palatino, serif", l: "Palatino" },
+  { v: "Cambria, serif", l: "Cambria" },
+  { v: "'Courier New', monospace", l: "Courier New" },
+  { v: "'Roboto', sans-serif", l: "Roboto" },
+];
+const fontFirstToken = (s: string) => (s.split(",")[0] || "").replace(/['"]/g, "").trim().toLowerCase();
 function RibbonBtn({ icon, label, onClick, disabled }: { icon: string; label: string; onClick?: () => void; disabled?: boolean }) {
   return (
     <button type="button" onClick={onClick} disabled={disabled} title={label}
@@ -290,6 +309,28 @@ export default function PoolPrintLayoutEditorPage() {
   const onCanvasCommit = () => setBoxes((cur) => { pushHist(cur); scheduleSave(cur); return cur; });
 
   const maxZ = () => boxes.reduce((m, b) => Math.max(m, b.z || 0), 0);
+  // ── Hierarquia de objetos (camadas) ──
+  const [objNameEdit, setObjNameEdit] = useState<{ id: string; v: string } | null>(null);
+  const boxTypeIcon = (b: Box) => b.type === "TEXT" ? (b.href ? "🔗" : "🇹") : b.type === "IMAGE" ? "🖼️" : b.type === "BLOCK" ? "▦" : "🃏";
+  const boxAutoLabel = (b: Box) => {
+    if (b.type === "TEXT") { const t = (b.html || "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim(); return t ? (t.length > 26 ? t.slice(0, 26) + "…" : t) : "Texto vazio"; }
+    if (b.type === "IMAGE") return b.url ? "Imagem" : "Imagem (vazia)";
+    if (b.type === "BLOCK") return (DYNAMIC_LABEL as any)?.[b.blockType || ""] || b.blockType || "Bloco";
+    return "Card";
+  };
+  const boxLabel = (b: Box) => b.name || boxAutoLabel(b);
+  function renameBox(boxId: string, name: string) {
+    setObjNameEdit(null);
+    commitBoxes(boxes.map((b) => b.id === boxId ? { ...b, name: name.trim() || undefined } : b));
+  }
+  // Move a caixa 1 nivel na pilha (troca z com a vizinha imediata) — reordena a hierarquia.
+  function moveLayer(boxId: string, dir: "up" | "down") {
+    const ordered = [...boxes].sort((a, b) => (a.z || 0) - (b.z || 0));
+    const i = ordered.findIndex((b) => b.id === boxId); if (i < 0) return;
+    const j = dir === "up" ? i + 1 : i - 1; if (j < 0 || j >= ordered.length) return;
+    const zi = ordered[i].z || 0, zj = ordered[j].z || 0;
+    commitBoxes(boxes.map((b) => b.id === ordered[i].id ? { ...b, z: zj } : b.id === ordered[j].id ? { ...b, z: zi } : b));
+  }
   function addBox(kind: "TEXT" | "IMAGE" | "BLOCK" | "CARD", extra: Partial<Box>) {
     // Geometria em MILIMETROS (canto sup-esq = 0,0). A4 = 210x297mm (ou o tamanho da pagina).
     const { w: PW, h: PH } = pageDims(layout?.branding);
@@ -474,11 +515,10 @@ export default function PoolPrintLayoutEditorPage() {
       if (n && n.nodeType === 3) n = (n as Text).parentElement;
       if (n && (n as Element).nodeType === 1) {
         const cs = window.getComputedStyle(n as Element);
-        const fam = (cs.fontFamily || "").toLowerCase();
-        for (const v of ["Georgia, serif", "Arial, Helvetica, sans-serif", "'Times New Roman', serif", "'Trebuchet MS', sans-serif", "'Courier New', monospace"]) {
-          const first = v.split(",")[0].replace(/['"]/g, "").trim().toLowerCase();
-          if (fam.includes(first)) { fontName = v; break; }
-        }
+        const first = fontFirstToken(cs.fontFamily || "");
+        // Casa pelo PRIMEIRO token (igualdade) — reconhece TODAS as fontes da lista (antes so 5).
+        const hit = FONTS.find((f) => fontFirstToken(f.v) === first);
+        if (hit) fontName = hit.v;
         sizePt = String(Math.round((parseFloat(cs.fontSize) || 0) * 72 / 96));
         const m = (cs.color || "").match(/\d+/g);
         if (m && m.length >= 3) color = "#" + m.slice(0, 3).map((x) => Number(x).toString(16).padStart(2, "0")).join("");
@@ -673,22 +713,9 @@ export default function PoolPrintLayoutEditorPage() {
           <RibbonBtn icon="📑" label="Duplicar" onClick={() => toast("Duplicar: em breve", "info")} />
         </>)}
         {tab === "Inicio" && (<>
-          <select value={selFmt.fontName} onMouseDown={(e) => e.stopPropagation()} onChange={(e) => applyFontName(e.target.value)} className="rounded border border-slate-300 px-2 py-1 text-sm" title="Fonte (do trecho selecionado, ou da caixa toda se só selecionada)">
-            <option value="">Fonte</option>
-            <option value="Arial, Helvetica, sans-serif">Arial</option>
-            <option value="'Helvetica Neue', Helvetica, sans-serif">Helvetica</option>
-            <option value="Verdana, Geneva, sans-serif">Verdana</option>
-            <option value="Tahoma, Geneva, sans-serif">Tahoma</option>
-            <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
-            <option value="Calibri, sans-serif">Calibri</option>
-            <option value="'Segoe UI', sans-serif">Segoe UI</option>
-            <option value="Georgia, serif">Georgia</option>
-            <option value="'Times New Roman', Times, serif">Times New Roman</option>
-            <option value="Garamond, serif">Garamond</option>
-            <option value="'Palatino Linotype', Palatino, serif">Palatino</option>
-            <option value="Cambria, serif">Cambria</option>
-            <option value="'Courier New', monospace">Courier New</option>
-            <option value="'Roboto', sans-serif">Roboto</option>
+          <select value={selFmt.fontName || (selectedBox?.type === "TEXT" ? (selectedBox.style?.fontFamily || "") : "")} onMouseDown={(e) => e.stopPropagation()} onChange={(e) => applyFontName(e.target.value)} className="rounded border border-slate-300 px-2 py-1 text-sm" title="Fonte (do trecho selecionado, ou da caixa toda se só selecionada)">
+            <option value="" disabled hidden></option>
+            {FONTS.map((f) => <option key={f.v} value={f.v}>{f.l}</option>)}
           </select>
           {/* Tamanho (pt): setas nativas do campo; aplica NA HORA (na seleção se editando, senão na caixa toda) */}
           <label className="text-xs text-slate-600 flex items-center gap-1" title="Tamanho (pt) — do trecho selecionado, ou da caixa toda se só selecionada">
@@ -993,6 +1020,44 @@ export default function PoolPrintLayoutEditorPage() {
           ))}
         </div>
       )}
+
+      {/* HIERARQUIA DE OBJETOS (camadas) — texto/imagem/campo/card da regiao atual */}
+      {editingPage && pageIsCanvas(editingPage) ? (
+        <div className="rounded-xl border border-slate-200 bg-white p-2">
+          <div className="flex items-center justify-between px-1 pb-1.5">
+            <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              🗂️ Objetos {region !== "page" ? <span className="text-amber-600">· {region === "header" ? "cabeçalho" : "rodapé"}</span> : null}
+            </div>
+            <span className="text-[10px] text-slate-400">{boxes.length}</span>
+          </div>
+          {boxes.length === 0 ? (
+            <div className="px-1 py-3 text-center text-[11px] text-slate-400">Sem objetos. Use <b>Inserir</b> (texto, imagem, card, campos).</div>
+          ) : (
+            <div className="space-y-0.5">
+              {[...boxes].sort((a, b) => (b.z || 0) - (a.z || 0)).map((b) => (
+                <div key={b.id} onClick={() => { setSelBox(b.id); setTab("Layout"); }}
+                  title="Clique pra selecionar · ✏️ renomeia · ⬆⬇ ordem"
+                  className={`group flex items-center gap-1 rounded px-1.5 py-1 cursor-pointer text-[11px] ${selBox === b.id ? "bg-cyan-100 text-cyan-900 ring-1 ring-cyan-300" : "text-slate-700 hover:bg-slate-100"}`}>
+                  <span className="w-4 shrink-0 text-center">{boxTypeIcon(b)}</span>
+                  {objNameEdit?.id === b.id ? (
+                    <input autoFocus value={objNameEdit.v} onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => setObjNameEdit({ id: b.id, v: e.target.value })}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); renameBox(b.id, objNameEdit!.v); } else if (e.key === "Escape") setObjNameEdit(null); }}
+                      onBlur={() => renameBox(b.id, objNameEdit!.v)}
+                      placeholder={boxAutoLabel(b)} className="min-w-0 flex-1 rounded border border-cyan-300 px-1 py-0.5 text-[11px]" />
+                  ) : (
+                    <span className={`min-w-0 flex-1 truncate ${b.name ? "" : "italic text-slate-500"}`}>{boxLabel(b)}</span>
+                  )}
+                  <button onClick={(e) => { e.stopPropagation(); setObjNameEdit({ id: b.id, v: b.name || "" }); }} title="Renomear objeto" className="shrink-0 text-slate-300 hover:text-cyan-600 opacity-0 group-hover:opacity-100">✏️</button>
+                  <button onClick={(e) => { e.stopPropagation(); moveLayer(b.id, "up"); }} title="Trazer pra frente" className="shrink-0 text-slate-300 hover:text-cyan-600 opacity-0 group-hover:opacity-100">⬆</button>
+                  <button onClick={(e) => { e.stopPropagation(); moveLayer(b.id, "down"); }} title="Enviar pra trás" className="shrink-0 text-slate-300 hover:text-cyan-600 opacity-0 group-hover:opacity-100">⬇</button>
+                  <button onClick={(e) => { e.stopPropagation(); commitBoxes(boxes.filter((x) => x.id !== b.id)); if (selBox === b.id) setSelBox(null); }} title="Excluir objeto" className="shrink-0 text-slate-300 hover:text-red-600 opacity-0 group-hover:opacity-100">✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
       </div>{/* fim painel esquerdo (Paginas & estilo) */}
 
       {/* CENTRO: folha da pagina selecionada (canvas editavel, estilo PowerPoint) */}
