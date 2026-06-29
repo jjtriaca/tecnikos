@@ -129,6 +129,14 @@ novos), reforçando que o caminho certo é o PRESET/distribuir:
 - Insert de campo cai em X21/Y21 sobre o conteúdo (já conhecido).
 Conclusão reforçada: bloco "Características" data-driven (1 clique, já alinhado, com ícones+valor+rótulo) é a entrega certa.
 
+### BUG corrigido — campo numérico "0 que gruda" (v1.14.88)
+Juliano achou: nos campos numéricos do editor, quando o valor é 0 o backspace não apaga (vira 0 de novo na hora) — vários
+campos. Causa: `<input type="number" value={Number}>` controlado (Number("")=0). FIX (REGRA #9): extraí o `NumInput` que já
+existia em `quotes/pool/new` pra `components/ui/NumInput.tsx` (COMPARTILHADO — estado de texto local, campo VAZIO quando 0,
+sincroniza só sem foco) e troquei TODOS os `input type=number` do editor por ele (X/Y/L/A, Borda/Cantos/Padding/Opac,
+dims da página, Cab/Rod, fonte, entrelinha, colunas). Pendência: dedup das cópias locais de NumInput (quotes/pool/new +
+HeatingSimulatorModal) → importar o compartilhado.
+
 ## Decisões de negócio (29/06 — Juliano respondeu "pode fazer todas")
 1. **Renomear "Template" → "Modelo de obra"** ✅ DECIDIDO (Juliano, 29/06).
 2. **"Menor profundidade"** → default recomendado: menor profundidade entre TODAS as partes (determinístico).
