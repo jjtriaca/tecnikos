@@ -1249,7 +1249,7 @@ export default function PoolPrintLayoutEditorPage() {
             selBox={selBox} selSet={selSet} pageW={pageDims(layout.branding).w} pageH={pageDims(layout.branding).h}
             pageBg={pageBgCss}
             hfOverlay={{ headerBoxes: brand.headerBoxes, footerBoxes: brand.footerBoxes, headerHmm: brand.headerHmm, footerHmm: brand.footerHmm }}
-            onSelect={(idv) => { setSelBox(idv); if (idv) setTab("Layout"); }}
+            onSelect={selectBox}
             onChange={onCanvasChange} onCommit={onCanvasCommit} onEditStart={() => setTab("Inicio")} />
         ) : showAddPage ? (
           <div className="p-4">
