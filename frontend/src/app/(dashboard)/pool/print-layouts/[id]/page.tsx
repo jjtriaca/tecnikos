@@ -11,6 +11,7 @@ import CompositionEditor from "@/components/pool/report/CompositionEditor";
 import ReportFieldLibrary from "@/components/pool/report/ReportFieldLibrary";
 import { LineRefPicker, type LineRefPickerLine } from "@/components/pool/LineRefPicker";
 import { validateLayoutTokens } from "@/components/pool/report/reportValidate";
+import { REPORT_ICONS } from "@/components/pool/report/reportIcons";
 
 const genBoxId = () => "b" + Math.random().toString(36).slice(2, 9);
 
@@ -191,6 +192,7 @@ export default function PoolPrintLayoutEditorPage() {
   const [lineSel, setLineSel] = useState<Set<string>>(new Set());
   const [lineAttr, setLineAttr] = useState("produto");
   const [edTemplates, setEdTemplates] = useState<{ id: string; name: string; isDefault?: boolean }[]>([]);
+  const [iconPicker, setIconPicker] = useState(false); // modal de escolher icone
 
   // ── CANVAS (PowerPoint): caixas livres da pagina em edicao ──
   // `region` = o que se edita: a PAGINA, o CABECALHO ou o RODAPE. `boxes` segura as caixas
@@ -333,11 +335,12 @@ export default function PoolPrintLayoutEditorPage() {
   // ── Hierarquia de objetos (camadas) ──
   const [objNameEdit, setObjNameEdit] = useState<{ id: string; v: string } | null>(null);
   const [objPanelOpen, setObjPanelOpen] = useState(false); // minimizado por padrao
-  const boxTypeIcon = (b: Box) => b.type === "TEXT" ? (b.href ? "🔗" : "🇹") : b.type === "IMAGE" ? "🖼️" : b.type === "BLOCK" ? "▦" : "🃏";
+  const boxTypeIcon = (b: Box) => b.type === "TEXT" ? (b.href ? "🔗" : "🇹") : b.type === "IMAGE" ? "🖼️" : b.type === "BLOCK" ? "▦" : b.type === "ICON" ? "⭐" : "🃏";
   const boxAutoLabel = (b: Box) => {
     if (b.type === "TEXT") { const t = (b.html || "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim(); return t ? (t.length > 26 ? t.slice(0, 26) + "…" : t) : "Texto vazio"; }
     if (b.type === "IMAGE") return b.url ? "Imagem" : "Imagem (vazia)";
     if (b.type === "BLOCK") return (DYNAMIC_LABEL as any)?.[b.blockType || ""] || b.blockType || "Bloco";
+    if (b.type === "ICON") return REPORT_ICONS.find((i) => i.name === b.icon)?.label || "Ícone";
     return "Card";
   };
   const boxLabel = (b: Box) => b.name || boxAutoLabel(b);
@@ -360,7 +363,7 @@ export default function PoolPrintLayoutEditorPage() {
     const zi = ordered[i].z || 0, zj = ordered[j].z || 0;
     commitBoxes(boxes.map((b) => b.id === ordered[i].id ? { ...b, z: zj } : b.id === ordered[j].id ? { ...b, z: zi } : b));
   }
-  function addBox(kind: "TEXT" | "IMAGE" | "BLOCK" | "CARD", extra: Partial<Box>) {
+  function addBox(kind: "TEXT" | "IMAGE" | "BLOCK" | "CARD" | "ICON", extra: Partial<Box>) {
     // Geometria em MILIMETROS (canto sup-esq = 0,0). A4 = 210x297mm (ou o tamanho da pagina).
     // Em cab/rodape a "folha" e a FAIXA (largura da pagina x altura da faixa) — a caixa
     // precisa nascer DENTRO dela, senao cai fora e nao da pra clicar.
@@ -373,6 +376,8 @@ export default function PoolPrintLayoutEditorPage() {
       ? { id: genBoxId(), type: "IMAGE", x: 20, y: 20, w: 80, h: 55, z: maxZ() + 1, url: "", fit: "cover" }
       : kind === "CARD"
       ? { id: genBoxId(), type: "CARD", x: 15, y: 15, w: 110, h: 60, z: maxZ() + 1, style: { bg: "#ffffff", borderColor: "#e2e8f0", borderWidth: 1, radius: 8 } }
+      : kind === "ICON"
+      ? { id: genBoxId(), type: "ICON", x: 20, y: 20, w: 14, h: 14, z: maxZ() + 1, style: { textColor: (layout?.branding as any)?.primaryColor || "#16365C" } }
       : { id: genBoxId(), type: "BLOCK", x: 10, y: 15, w: Math.round(PW - 20), h: Math.round(pageH - 30), z: maxZ() + 1, blockType: "PRODUCTS_BY_SECTION", config: {} };
     // Numa faixa, encolhe a caixa pra caber (altura da faixa) e ancora no topo-esquerda.
     if (isStrip) {
@@ -869,6 +874,7 @@ export default function PoolPrintLayoutEditorPage() {
             <RibbonBtn icon="🃏" label="Novo card" onClick={() => addBox("CARD", {})} />
             <RibbonBtn icon="🇹" label="Texto" onClick={() => addBox("TEXT", {})} />
             <RibbonBtn icon="🖼️" label="Imagem" onClick={() => addBox("IMAGE", {})} />
+            <RibbonBtn icon="⭐" label="Ícone" onClick={() => setIconPicker(true)} />
             <RibbonBtn icon="🔗" label="Link" onClick={() => setLinkModal({ url: "", text: "" })} />
             <span className="mx-0.5 h-5 w-px bg-slate-300" />
             <RibbonBtn icon="📚" label="Campos & blocos" onClick={() => setTab("Campos")} />
@@ -898,6 +904,7 @@ export default function PoolPrintLayoutEditorPage() {
             <RibbonBtn icon="⤓" label="Tras" onClick={() => zOrder("back")} />
             <span className="mx-0.5 h-5 w-px bg-slate-300" />
             <label className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs" title="Cor de fundo da caixa">Fundo<input type="color" value={sbst.bg || "#ffffff"} onChange={(e) => patchSelStyle({ bg: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /><button type="button" onClick={() => patchSelStyle({ bg: null })} title="Sem fundo" className="text-slate-400 hover:text-slate-700">⌫</button></label>
+            <label className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs" title="Cor do ícone / texto da caixa">Cor<input type="color" value={sbst.textColor || "#16365C"} onChange={(e) => patchSelStyle({ textColor: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
             <label className="text-xs text-slate-600 flex items-center gap-1" title="Borda (px)">Borda<input type="number" min={0} value={sbst.borderWidth ?? 0} onChange={(e) => patchSelStyle({ borderWidth: Number(e.target.value) || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" /><input type="color" value={sbst.borderColor || "#e2e8f0"} onChange={(e) => patchSelStyle({ borderColor: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
             <label className="text-xs text-slate-600 flex items-center gap-1" title="Cantos (px)">Cantos<input type="number" min={0} value={sbst.radius ?? 0} onChange={(e) => patchSelStyle({ radius: Number(e.target.value) || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
             <label className="text-xs text-slate-600 flex items-center gap-1" title="Espacamento interno (px)">Padding<input type="number" min={0} value={sbst.padding ?? 0} onChange={(e) => patchSelStyle({ padding: Number(e.target.value) || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
@@ -1252,6 +1259,28 @@ export default function PoolPrintLayoutEditorPage() {
               }}
               onCancel={() => setPickLine(false)}
             />
+          </div>
+        </div>
+      )}
+
+      {iconPicker && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setIconPicker(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-slate-900 mb-1">Inserir ícone</h3>
+            <p className="text-[11px] text-slate-500 mb-3">Clique num ícone pra inserir na folha. Depois ajuste a cor (aba Início) e o tamanho (aba Layout).</p>
+            <div className="grid grid-cols-6 gap-2 max-h-72 overflow-y-auto">
+              {REPORT_ICONS.map((ic) => (
+                <button key={ic.name} type="button" title={ic.label}
+                  onClick={() => { addBox("ICON", { icon: ic.name }); setIconPicker(false); }}
+                  className="flex flex-col items-center gap-1 rounded border border-slate-200 p-2 hover:border-cyan-400 hover:bg-cyan-50">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#16365C" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: ic.svg }} />
+                  <span className="text-[8px] text-slate-500 truncate w-full text-center">{ic.label}</span>
+                </button>
+              ))}
+            </div>
+            <div className="flex justify-end mt-3">
+              <button type="button" onClick={() => setIconPicker(false)} className="rounded-lg border border-slate-300 px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50">Fechar</button>
+            </div>
           </div>
         </div>
       )}

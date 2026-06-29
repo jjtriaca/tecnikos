@@ -18,6 +18,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { BombaDatasheetBlock, SolarDatasheetBlock } from "./HeatingDatasheets";
+import { getReportIcon } from "./reportIcons";
 
 // ── Tipos (espelham Page/Layout do editor) ──────────────────────────────────
 export type ReportPage = {
@@ -746,13 +747,14 @@ export function CompositionPreview({ nodes, data, selectedId, onSelectNode, onEd
 // absolutamente posicionado em % da folha (mesmo valor na tela e na impressao A4).
 export type Box = {
   id: string;
-  type: "TEXT" | "IMAGE" | "BLOCK" | "CARD";
+  type: "TEXT" | "IMAGE" | "BLOCK" | "CARD" | "ICON";
   name?: string;                              // rotulo do objeto na hierarquia (camadas)
   x: number; y: number; w: number; h: number; // mm a partir do canto sup-esq (unit:"mm")
   z?: number;
   html?: string;                              // TEXT (HTML cru com {placeholders})
   href?: string | null;                       // link clicavel da caixa toda (TEXT/IMAGE) — vira <a> no PDF
   url?: string; fit?: "cover" | "contain" | "fill"; // IMAGE
+  icon?: string;                              // ICON (nome na biblioteca reportIcons; cor = style.textColor)
   blockType?: string; config?: any;           // BLOCK (PRODUCTS_BY_SECTION, COVER, ...)
   style?: {
     bg?: string | null; borderColor?: string | null; borderWidth?: number | null;
@@ -814,6 +816,16 @@ function BoxContent({ box, data, branding, editingText, onEditText, onEditCommit
     if (!box.url) return <div className="rp-empty" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>Imagem</div>;
     // eslint-disable-next-line @next/next/no-img-element
     return wrapLink(<img src={box.url} alt="" style={{ width: "100%", height: "100%", objectFit: (box.fit as any) || "cover", display: "block" }} />);
+  }
+  if ((box.type as string) === "ICON") {
+    const ic = getReportIcon(box.icon);
+    const color = st.textColor || (branding as any)?.primaryColor || "#16365C";
+    if (!ic) return <div className="rp-empty" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>Ícone</div>;
+    return wrapLink(
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
+        style={{ width: "100%", height: "100%", color, display: "block" }}
+        dangerouslySetInnerHTML={{ __html: ic.svg }} />,
+    );
   }
   return <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>{renderBlockByType(box.blockType, data, box.config, branding)}</div>;
 }
