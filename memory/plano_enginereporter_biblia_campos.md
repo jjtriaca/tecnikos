@@ -156,6 +156,13 @@ HeatingSimulatorModal) → importar o compartilhado.
     diferente e escapou. Corrigido pra `onSelect={selectBox}`. **Verificado via React fiber** (li o `selSet` real no estado):
     acumula 2 e 3 itens; botões Alinhar (≥2) e Distribuir (≥3) aparecem; "Alinh esq" moveu a caixa de fato; undo restaura.
     LIÇÃO: replace_all por string exata pode deixar duplicata com formatação diferente — conferir TODAS as ocorrências com grep depois.
+  - **v1.14.94:** contorno do `multi` era ciano-claro `#22d3ee` — visível em texto (fundo branco) mas SUMIA no fundo teal dos
+    ícones. Unificado: todos selecionados usam `#06b6d4` + anel `boxShadow` branco→ciano (aparece em qualquer fundo).
+  - **MOVER O GRUPO (v1.14.95/96):** com 2+ selecionadas dá pra mover TODAS juntas. (a) **Setas do teclado** (`nudgeSelection`,
+    1mm; Shift=10mm) — preciso, "subir/descer todos"; clamp rígido (grupo não deforma na borda). (b) **Arrastar** um membro do
+    grupo (`groupMove` no BoxFrame → `onGroupStart` snapshot + `onGroupMove(dx,dy)` desloca o snapshot; commit limpa o ref).
+    Padrão editor: clicar+arrastar membro do grupo move tudo e MANTÉM a seleção; clique-sem-arrastar colapsa pra caixa única
+    (defer no `begin`: não chama `onSelect(false)` no pointerdown quando `groupMove`, só no pointerup se `!dragged`).
 
 ## Decisões de negócio (29/06 — Juliano respondeu "pode fazer todas")
 1. **Renomear "Template" → "Modelo de obra"** ✅ DECIDIDO (Juliano, 29/06).
