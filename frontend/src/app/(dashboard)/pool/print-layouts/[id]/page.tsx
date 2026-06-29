@@ -1378,6 +1378,18 @@ export default function PoolPrintLayoutEditorPage() {
                 <option value="prodUnidade">Unidade</option>
               </optgroup>
             </select>
+            <button type="button"
+              onClick={() => {
+                if (lineAttr === "prodImagem") addBox("IMAGE", { url: `{linha:ATUAL.prodImagem}`, fit: "contain" });
+                else if (lineAttr === "etapa") addBox("TEXT", { html: `<p>{etapa:ATUAL.nome}</p>` });
+                else addBox("TEXT", { html: `<p>{linha:ATUAL.${lineAttr}}</p>` });
+                setPickLine(false);
+                toast("Campo ATUAL inserido (pro item da banda)", "success");
+              }}
+              className="w-full mb-3 rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800 hover:bg-blue-100">
+              🔁 Inserir como <b>ATUAL</b> (item corrente da banda) — sem escolher linha
+            </button>
+            <p className="text-[10px] text-slate-400 mb-1">— ou escolha uma linha específica do modelo abaixo —</p>
             <LineRefPicker
               icon="📄" specKey={null} combine="sum" refKind="ALL"
               lines={tplLines}
