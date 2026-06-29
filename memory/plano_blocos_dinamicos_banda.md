@@ -62,6 +62,21 @@ automático). Quer "a melhor maneira" (tipo Crystal/Jasper/VBA), não a mais fá
   PENDENTE verificar com print real de overflow (band×N alta); preview do template mostra 1ª linha (Fase #1 v1.15.06).
 - **Fase 4 — Fallback/variações:** banda com variações por prioridade (1ª condição que bate).
 
+## PARADA 29/06 19:11 — RETOMAR AQUI (amanhã)
+- **Prod = v1.15.08.** Tudo até aqui DEPLOYADO e funcionando: motor banda+paginação PROVADO no print real
+  (5 produtos repetiram, 3 páginas no PDF "Imprimir exemplo"). Botão "🔁 Inserir ATUAL" no modal de campos (v1.15.08).
+- **HÁ EDIÇÕES LOCAIS NÃO DEPLOYADAS** (working tree sujo, NÃO commitadas, NÃO pushadas — prod NÃO tem):
+  1. `BudgetReport.tsx` resolveAddressedToken etapa: adicionados `{etapa:X.itens}` (lista de produtos da etapa, HTML `<br>`)
+     e `{etapa:X.imagem}` (imagem do 1º produto da etapa).
+  2. `print-layouts/[id]/page.tsx`: optgroup novo "Etapa agrupada" no select do modal (etapaNome/etapaItens/etapaImagem/etapaTotal)
+     + handler do botão ATUAL pra inserir esses. **Validar/typecheck/deploy ANTES de seguir** (o deploy foi interrompido).
+- **FEEDBACK do Juliano:** a banda atual (1 nome por linha) "tomou um rumo que não é o PDF". O PDF é AGRUPADO POR ETAPA:
+  título "TIPO DE CONSTRUÇÃO" + produtos listados embaixo + parágrafo descritivo (estático) + imagem à direita, em COLUNAS.
+- **PRÓXIMO PASSO (objetivo: 100% idêntico ao PDF):** com os tokens `{etapa:ATUAL.itens/imagem/nome/total}`, montar a banda
+  **POR ETAPA** (não por linha): caixa título (negrito, esq) + caixa lista `{etapa:ATUAL.itens}` + caixa parágrafo (texto estático
+  "Na SLS...") + caixa imagem `{etapa:ATUAL.imagem}` (dir) + separador. Selecionar todas → 🔁 Repetir → **Por etapa**. Estilizar
+  (colunas, bordas) igual o PDF. Há 1 banda de teste "por linha" (Kit piscina…) na página 3 pra trocar/apagar.
+
 ## Gotchas
 - Print é `printViaClone` (A4 fixo). Paginação automática (Fase 3) é o maior lift — medir altura real e quebrar.
 - NÃO recriar bloco automático paralelo. Banda é composição de caixas ligadas, não um render hardcoded.
