@@ -207,12 +207,8 @@ export default function PoolPrintLayoutEditorPage() {
     if (!id) { setSelBox(null); setSelSet(new Set()); return; }
     setTab("Layout");
     if (additive) {
-      setSelSet((prev) => {
-        const n = new Set(prev);
-        if (n.has(id)) n.delete(id); else n.add(id);
-        setSelBox(n.has(id) ? id : (n.size ? Array.from(n)[n.size - 1] : null));
-        return n;
-      });
+      setSelSet((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+      setSelBox(id);
     } else { setSelSet(new Set([id])); setSelBox(id); }
   }
   const rnd2 = (v: number) => Math.round(v * 100) / 100;

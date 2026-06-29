@@ -875,6 +875,7 @@ function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit =
     if (editing) return;
     // SEM preventDefault aqui: senao o navegador suprime o dblclick (= nao da pra editar).
     e.stopPropagation();
+    if (e.shiftKey) e.preventDefault(); // shift = multi-selecao: impede o navegador de selecionar TEXTO
     onSelect(e.shiftKey);
     draggedRef.current = false;
     const rect = canvasRef.current?.getBoundingClientRect();
