@@ -34,7 +34,7 @@ export default function ReportFieldLibrary({ onInsertText, onInsertBlock, onClos
   const Row = ({ f }: { f: CatalogField }) => {
     const isBlock = f.kind === "block";
     return (
-      <div className="group flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[11px] text-slate-700 hover:bg-cyan-50">
+      <div className="group flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[11px] text-slate-700 hover:bg-cyan-50" title={`${f.label}${f.token ? `  ${f.token}` : ""}`}>
         <span className="w-4 shrink-0 text-center">{f.icon || (isBlock ? "🧩" : "🔤")}</span>
         {isBlock ? (
           <span className="shrink-0 font-mono text-[10px] text-cyan-700">▦</span>

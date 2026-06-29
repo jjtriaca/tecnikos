@@ -936,7 +936,13 @@ function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit =
       }
       onChange({ ...start.b, x: round2(x), y: round2(y), w: round2(w), h: round2(h) });
     };
-    const onUp = () => { if (groupMove && !startShift && !draggedRef.current) onSelect(false); finish(true); };
+    const onUp = () => {
+      if (groupMove && !startShift && !draggedRef.current) onSelect(false);
+      // 2o clique numa caixa de TEXTO JA selecionada (sem arrastar) = editar — resolve "card pequeno"
+      // onde as alcas cobrem o corpo e o duplo-clique nao dispara.
+      else if (selected && !startShift && !draggedRef.current && !editing && box.type === "TEXT") onStartEdit();
+      finish(true);
+    };
     const onKey = (ev: KeyboardEvent) => { if (ev.key === "Escape") { if (mode === "move" && groupMove && onGroupMove) onGroupMove(0, 0); else onChange({ ...start.b }); draggedRef.current = false; finish(false); } };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
