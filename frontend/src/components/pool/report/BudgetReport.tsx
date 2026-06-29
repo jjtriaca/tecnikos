@@ -819,7 +819,7 @@ function BoxContent({ box, data, branding, editingText, onEditText, onEditCommit
   }
   if ((box.type as string) === "ICON") {
     const ic = getReportIcon(box.icon);
-    const color = st.textColor || (branding as any)?.primaryColor || "#16365C";
+    const color = st.textColor || ic?.color || (branding as any)?.primaryColor || "#16365C";
     if (!ic) return <div className="rp-empty" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>Ícone</div>;
     return wrapLink(
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"

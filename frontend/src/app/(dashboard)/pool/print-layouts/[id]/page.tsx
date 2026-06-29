@@ -377,7 +377,7 @@ export default function PoolPrintLayoutEditorPage() {
       : kind === "CARD"
       ? { id: genBoxId(), type: "CARD", x: 15, y: 15, w: 110, h: 60, z: maxZ() + 1, style: { bg: "#ffffff", borderColor: "#e2e8f0", borderWidth: 1, radius: 8 } }
       : kind === "ICON"
-      ? { id: genBoxId(), type: "ICON", x: 20, y: 20, w: 14, h: 14, z: maxZ() + 1, style: { textColor: (layout?.branding as any)?.primaryColor || "#16365C" } }
+      ? { id: genBoxId(), type: "ICON", x: 20, y: 20, w: 14, h: 14, z: maxZ() + 1, style: {} }
       : { id: genBoxId(), type: "BLOCK", x: 10, y: 15, w: Math.round(PW - 20), h: Math.round(pageH - 30), z: maxZ() + 1, blockType: "PRODUCTS_BY_SECTION", config: {} };
     // Numa faixa, encolhe a caixa pra caber (altura da faixa) e ancora no topo-esquerda.
     if (isStrip) {
@@ -390,6 +390,11 @@ export default function PoolPrintLayoutEditorPage() {
     base.x = Math.max(0, Math.min(PW - base.w, (base.x || 0) + off));
     base.y = Math.max(0, Math.min(PH - base.h, (base.y || 0) + off));
     const nb = { ...base, ...extra } as Box;
+    // Icone ja nasce com a COR propria (colorido por padrao); o controle "Cor" sobrescreve.
+    if (nb.type === "ICON" && !nb.style?.textColor) {
+      const c = REPORT_ICONS.find((i) => i.name === nb.icon)?.color;
+      if (c) nb.style = { ...(nb.style || {}), textColor: c };
+    }
     commitBoxes([...boxes, nb]); setSelBox(nb.id); setTab("Layout");
   }
   function duplicateSelBox() {
@@ -1273,7 +1278,7 @@ export default function PoolPrintLayoutEditorPage() {
                 <button key={ic.name} type="button" title={ic.label}
                   onClick={() => { addBox("ICON", { icon: ic.name }); setIconPicker(false); }}
                   className="flex flex-col items-center gap-1 rounded border border-slate-200 p-2 hover:border-cyan-400 hover:bg-cyan-50">
-                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#16365C" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: ic.svg }} />
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke={ic.color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" dangerouslySetInnerHTML={{ __html: ic.svg }} />
                   <span className="text-[8px] text-slate-500 truncate w-full text-center">{ic.label}</span>
                 </button>
               ))}
