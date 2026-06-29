@@ -169,7 +169,14 @@ HeatingSimulatorModal) → importar o compartilhado.
     via fiber: nenhuma caixa opaca cobria; card vermelho ainda invisível ao fundo. FIX: `isolation: "isolate"` no container do
     canvas do editor (linha ~977) E no `.rp-canvas` (impressão, linha ~846) — cria o contexto, o `z-index:-1` fica atrás dos
     ícones mas na frente do fundo. Ícones de revestimento (mosaico + painel água) adicionados em `reportIcons.ts` (v1.14.97).
-
+  - **TOOLTIP + EDITAR 2º CLIQUE (v1.14.99):** lista de campos (`ReportFieldLibrary`) ganhou `title` na linha (revela
+    descrição truncada no hover). Editar texto em caixa pequena: o 1º clique mostra as alças que cobrem o corpo e o
+    duplo-clique não dispara → no `onUp` do `begin`, clique numa caixa de TEXTO já selecionada (sem arrastar) entra em edição.
+  - **RELATÓRIO PUXA DO ORÇAMENTO (v1.15.00):** `{poolWallFloorArea}` (e medidas estendidas) vinham 0,00 só no PREVIEW do
+    editor — `SAMPLE_BUDGET.dimensions` não tinha os campos. Cadeia REAL está íntegra e SEM mistura: orçamento salva tudo em
+    `budget.poolDimensions` (quotes/pool/new ~L381-408) → `buildReportData` lê `budget.poolDimensions` (BudgetReportModal:53)
+    → `data.dimensions` → cada token `{poolX}` mapeia 1 campo via `dim(d.campo)` (BudgetReport ~L337-353). Sem fallback que
+    misture origens. Fix: completei `SAMPLE_BUDGET.dimensions` com as estendidas (areaParedeEFundo 64.3, etc.).
 ## Decisões de negócio (29/06 — Juliano respondeu "pode fazer todas")
 1. **Renomear "Template" → "Modelo de obra"** ✅ DECIDIDO (Juliano, 29/06).
 2. **"Menor profundidade"** → default recomendado: menor profundidade entre TODAS as partes (determinístico).
