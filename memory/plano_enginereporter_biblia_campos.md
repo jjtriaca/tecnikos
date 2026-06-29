@@ -149,8 +149,13 @@ HeatingSimulatorModal) → importar o compartilhado.
   - **BUG corrigido (v1.14.91): "parou de selecionar"** — eu fizera o contorno do primário depender de `selSet.has(id)`,
     o que sumia o realce. Voltei `selected={selBox === b.id}` (primário sempre realça); `multi` (selSet) só pros adicionais.
   - **v1.14.92:** shift-clique selecionava TEXTO do navegador → `if (e.shiftKey) e.preventDefault()` no `begin`. E tirei o
-    efeito-colateral `setSelBox` de dentro do updater de `setSelSet`. (Automação não simula shiftKey no pointerdown, então
-    o acúmulo multi não foi verificável por robô — só com teclado real. Juliano vai confirmar.)
+    efeito-colateral `setSelBox` de dentro do updater de `setSelSet`.
+  - **CAUSA RAIZ (v1.14.93): "não seleciona segurando o shift".** O CanvasEditor da PÁGINA (linha ~1252) tinha ficado com o
+    handler ANTIGO `onSelect={(idv)=>{ setSelBox(idv); ... }}` — só setava `selBox`, NUNCA tocava no `selSet` e IGNORAVA o
+    `additive` (shift). Meu replace_all anterior só pegou o canvas do CABEÇALHO (linha 1243); o da página tinha formatação
+    diferente e escapou. Corrigido pra `onSelect={selectBox}`. **Verificado via React fiber** (li o `selSet` real no estado):
+    acumula 2 e 3 itens; botões Alinhar (≥2) e Distribuir (≥3) aparecem; "Alinh esq" moveu a caixa de fato; undo restaura.
+    LIÇÃO: replace_all por string exata pode deixar duplicata com formatação diferente — conferir TODAS as ocorrências com grep depois.
 
 ## Decisões de negócio (29/06 — Juliano respondeu "pode fazer todas")
 1. **Renomear "Template" → "Modelo de obra"** ✅ DECIDIDO (Juliano, 29/06).
