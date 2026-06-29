@@ -99,7 +99,13 @@ pela metade) até a reforma inteira ficar pronta + typecheck/build, aí UM únic
     um modelo específico = só com blacklist explícita, sob demanda.
   - ⏳ FALTA: providers de data-context das outras origens (Serviços→OS→Financeiro) p/ tokens resolverem com dado real
     quando o layout for daquela origem; catálogo auto-listar os paths do contexto (opcional).
-- **Fase 5 — FALTA:** alertas/validação (origem/template incompatível, lista em caixa de texto, célula inexistente, vazio).
+- **Fase 5 — FEITA (working tree):** `components/pool/report/reportValidate.ts` (`validateLayoutTokens`) varre todo o
+  HTML do layout (FIXED/caixas/nós/cab/rodapé) e classifica tokens: linha inexistente no modelo (erro), campo de outra
+  origem (aviso), campo desconhecido (aviso). Editor: `useMemo reportIssues` + painel fixo bottom-right "⚠ N avisos".
+  Frontend tsc verde. (Falta opcional: alerta de "lista em caixa de texto" — bloco no lugar errado.)
+- **Pendências de limpeza/escopo (não bloqueiam deploy):** (1) DEDUP do LineRefPicker na página `quotes/pool/[id]` (a
+  cópia local segue lá — migrar com cuidado, é arquivo central sem preview); (2) providers de data-context das outras
+  origens (Serviços/OS/Financeiro) p/ tokens resolverem com dado real; (3) labels de etapa custom no picker do editor.
 
 ## Decisões de negócio (29/06 — Juliano respondeu "pode fazer todas")
 1. **Renomear "Template" → "Modelo de obra"** ✅ DECIDIDO (Juliano, 29/06).
