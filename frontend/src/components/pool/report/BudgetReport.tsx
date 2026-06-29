@@ -214,6 +214,40 @@ function pageShows(page: ReportPage, data: BudgetReportData): boolean {
   return requires.every((r) => presentes.has(r));
 }
 
+/** Avalia a condicao de visibilidade da CAIXA (Fase 1b blocos dinamicos). Sem showIf => sempre mostra.
+ *  Alvo = linha (cellRef) OU etapa (poolSection) OU todas. op = presenca de produto / comparacao de qtd. */
+export function boxShows(box: Box, data: BudgetReportData): boolean {
+  const c = box.showIf;
+  if (!c || !c.op) return true;
+  const items = data.items || [];
+  let targets: ReportItem[];
+  if (c.cellRef) targets = items.filter((x) => (x.cellRef || "").toUpperCase() === (c.cellRef || "").toUpperCase());
+  else if (c.etapa) targets = items.filter((x) => (x.poolSection || "").toUpperCase() === (c.etapa || "").toUpperCase());
+  else targets = items;
+  const hasProd = targets.some((t) => t.hasProduct || (t.qty || 0) > 0);
+  const qty = targets.reduce((s, t) => s + (t.qty || 0), 0);
+  const v = c.value ?? 0;
+  switch (c.op) {
+    case "hasProduct": return hasProd;
+    case "noProduct": return !hasProd;
+    case "qtyGt": return qty > v;
+    case "qtyGte": return qty >= v;
+    case "qtyEq": return qty === v;
+    case "qtyLte": return qty <= v;
+    case "qtyLt": return qty < v;
+    default: return true;
+  }
+}
+
+/** Resumo legivel da condicao (selo/tooltip no editor). */
+function condSummary(c?: Box["showIf"]): string {
+  if (!c) return "";
+  const alvo = c.cellRef ? `linha ${c.cellRef}` : c.etapa ? `etapa ${c.etapa}` : "qualquer linha";
+  const v = c.value ?? 0;
+  const ops: Record<string, string> = { hasProduct: "tem produto", noProduct: "sem produto", qtyGt: `qtd > ${v}`, qtyGte: `qtd ≥ ${v}`, qtyEq: `qtd = ${v}`, qtyLte: `qtd ≤ ${v}`, qtyLt: `qtd < ${v}` };
+  return `Mostrar só se ${alvo}: ${ops[c.op] || c.op}`;
+}
+
 /** Rotulo da etapa (poolSection) — usa sectionLabels do orcamento, senao o proprio codigo. */
 function sectionLabel(data: BudgetReportData, section: string): string {
   const labels = (data.sectionLabels || {}) as Record<string, string>;
@@ -775,6 +809,14 @@ export type Box = {
   url?: string; fit?: "cover" | "contain" | "fill"; // IMAGE
   icon?: string;                              // ICON (nome na biblioteca reportIcons; cor = style.textColor)
   blockType?: string; config?: any;           // BLOCK (PRODUCTS_BY_SECTION, COVER, ...)
+  // Condicao de visibilidade (Fase 1b blocos dinamicos) — caixa so aparece se a regra bater no orcamento.
+  // Alvo: cellRef (linha Lx) OU etapa (poolSection). op compara presenca de produto / quantidade.
+  showIf?: {
+    cellRef?: string | null;
+    etapa?: string | null;
+    op: "hasProduct" | "noProduct" | "qtyGt" | "qtyGte" | "qtyEq" | "qtyLte" | "qtyLt";
+    value?: number | null;
+  } | null;
   style?: {
     bg?: string | null; borderColor?: string | null; borderWidth?: number | null;
     radius?: number | null; padding?: number | null; textColor?: string | null;
@@ -865,7 +907,7 @@ function normalizeHref(url: string): string {
 export function CanvasPage({ boxes, data, branding, unit = "%" }: { boxes: Box[]; data: BudgetReportData; branding?: ReportBranding | null; unit?: "mm" | "%" }) {
   return (
     <div className="rp-canvas" style={{ position: "absolute", inset: 0, isolation: "isolate" }}>
-      {[...(boxes || [])].sort((a, b) => (a.z || 0) - (b.z || 0)).map((b) => (
+      {[...(boxes || [])].sort((a, b) => (a.z || 0) - (b.z || 0)).filter((b) => boxShows(b, data)).map((b) => (
         <div key={b.id} style={boxRectStyle(b, unit)}><BoxContent box={b} data={data} branding={branding} /></div>
       ))}
     </div>
@@ -886,11 +928,12 @@ function handleStyle(h: string): CSSProperties {
   base.cursor = cursors[h];
   return base;
 }
-function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit = "mm", pageW = 210, pageH = 297, others = [], onGuides, onSelect, onStartEdit, onChange, onCommit, groupMove, onGroupStart, onGroupMove, children }: {
+function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit = "mm", pageW = 210, pageH = 297, others = [], onGuides, onSelect, onStartEdit, onChange, onCommit, groupMove, onGroupStart, onGroupMove, hasCond, condHidden, children }: {
   box: Box; selected: boolean; multi?: boolean; editing: boolean; canvasRef: React.RefObject<HTMLDivElement>; lockAspect?: boolean;
   unit?: "mm" | "%"; pageW?: number; pageH?: number; others?: Box[]; onGuides?: (g: { o: "v" | "h"; p: number }[]) => void;
   onSelect: (additive?: boolean) => void; onStartEdit: () => void; onChange: (b: Box) => void; onCommit: () => void;
-  groupMove?: boolean; onGroupStart?: () => void; onGroupMove?: (dx: number, dy: number) => void; children: React.ReactNode;
+  groupMove?: boolean; onGroupStart?: () => void; onGroupMove?: (dx: number, dy: number) => void;
+  hasCond?: boolean; condHidden?: boolean; children: React.ReactNode;
 }) {
   const draggedRef = useRef(false);
   const begin = (mode: string) => (e: React.PointerEvent) => {
@@ -970,11 +1013,14 @@ function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit =
     window.addEventListener("keydown", onKey);
   };
   return (
-    <div style={{ ...boxRectStyle(box, unit), cursor: editing ? "text" : "move", outline: (selected || multi) ? "2px solid #06b6d4" : undefined, outlineOffset: multi && !selected ? 1 : 0, boxShadow: (selected || multi) ? "0 0 0 2px rgba(255,255,255,0.9), 0 0 0 4px rgba(6,182,212,0.45)" : undefined }}
+    <div style={{ ...boxRectStyle(box, unit), cursor: editing ? "text" : "move", opacity: condHidden ? 0.32 : undefined, outline: (selected || multi) ? "2px solid #06b6d4" : (hasCond ? "1.5px dashed #f59e0b" : undefined), outlineOffset: multi && !selected ? 1 : 0, boxShadow: (selected || multi) ? "0 0 0 2px rgba(255,255,255,0.9), 0 0 0 4px rgba(6,182,212,0.45)" : undefined }}
       onPointerDown={begin("move")}
       onClick={(e) => { e.stopPropagation(); }}
       onDoubleClick={(e) => { e.stopPropagation(); onStartEdit(); }}>
       {children}
+      {hasCond ? (
+        <div title={condSummary(box.showIf)} style={{ position: "absolute", top: -7, left: -7, zIndex: 40, background: condHidden ? "#b45309" : "#f59e0b", color: "#fff", borderRadius: 9, fontSize: 9, lineHeight: "15px", height: 15, padding: "0 4px", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,.3)", pointerEvents: "none", whiteSpace: "nowrap" }}>⚡{condHidden ? " oculto" : ""}</div>
+      ) : null}
       {selected && !editing ? HANDLES.map((h) => (<div key={h} style={handleStyle(h)} onPointerDown={begin(h)} />)) : null}
     </div>
   );
@@ -1020,6 +1066,7 @@ export function CanvasEditor({ boxes, data, branding, selBox, selSet, pageW, pag
         ) : null}
         {[...(boxes || [])].sort((a, b) => (a.z || 0) - (b.z || 0)).map((b) => (
           <BoxFrame key={b.id} box={b} selected={selBox === b.id} multi={!!selSet && selSet.has(b.id) && b.id !== selBox} editing={editingId === b.id} canvasRef={canvasRef} unit={unit || "mm"} pageW={W} pageH={H}
+            hasCond={!!b.showIf} condHidden={!!b.showIf && !boxShows(b, data)}
             others={(boxes || []).filter((x) => x.id !== b.id)} onGuides={setGuides}
             groupMove={!!selSet && selSet.has(b.id) && selSet.size > 1} onGroupStart={onGroupStart} onGroupMove={onGroupMove}
             onSelect={(additive) => onSelect(b.id, additive)}

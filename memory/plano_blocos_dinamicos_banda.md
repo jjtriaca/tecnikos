@@ -43,8 +43,11 @@ automático). Quer "a melhor maneira" (tipo Crystal/Jasper/VBA), não a mais fá
 - **Fase 1a — Campos do cadastro do produto** (COMEÇAR AQUI): buildReportData leva product/service fields por item; resolver
   ganha sub-campos `{linha:Lx.prodImagem|prodCodigo|prodDescricao|prodUnidade|prodSpec:<key>}`; IMAGE box aceita TOKEN como url
   (imagem dinâmica do produto); catálogo ganha grupo "Produto (cadastro)".
-- **Fase 1b — Condição por caixa/banda:** UI (reusa LineRefPicker) pra setar `showIf = [{campo,op,valor}]`; renderer pula caixa
-  cuja condição falha (impressão) e esmaece com selo (editor). Operadores: tem/não-tem/>/>=/=/<=/<.
+- **Fase 1b — Condição por caixa ✓ (v1.15.03):** `Box.showIf = {cellRef?|etapa?, op, value?}` (JSON no box, salva/carrega sem
+  migration). `boxShows(box,data)` avalia: alvo = linha(cellRef) OU etapa OU todas; op = hasProduct/noProduct/qtyGt/Gte/Eq/Lte/Lt.
+  `CanvasPage` (impressão) FILTRA `.filter(boxShows)`; `CanvasEditor` esmaece (opacity .32) + contorno tracejado âmbar + selo ⚡
+  (`condSummary` no tooltip). UI: botão "⚡ Condicao" na barra Layout (após Tras) → modal (inputs linha/etapa + select op + valor).
+  PENDENTE refino: trocar inputs de texto da linha/etapa pelo LineRefPicker (Juliano pediu o mini-modal).
 - **Fase 2 — Banda repetidora:** marca um GRUPO como banda + liga à coleção (etapas|linhas); motor clona a banda por item
   (contexto ATUAL), empilha verticalmente.
 - **Fase 3 — Paginação automática:** medir altura, fluir pra páginas novas; cab/rodapé repetem; "continua…".

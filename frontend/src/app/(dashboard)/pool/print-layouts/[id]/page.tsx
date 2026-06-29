@@ -203,6 +203,9 @@ export default function PoolPrintLayoutEditorPage() {
   const [region, setRegion] = useState<"page" | "header" | "footer">("page");
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [selBox, setSelBox] = useState<string | null>(null);
+  // Condicao de visibilidade da caixa (Fase 1b blocos dinamicos)
+  const [condModal, setCondModal] = useState(false);
+  const [condDraft, setCondDraft] = useState<NonNullable<Box["showIf"]>>({ op: "hasProduct", cellRef: null, etapa: null, value: null });
   const [selSet, setSelSet] = useState<Set<string>>(new Set()); // multi-selecao (shift-clique)
   // Seleciona caixa(s): additive (shift) = alterna no conjunto; senao = seleciona so ela.
   function selectBox(id: string | null, additive?: boolean) {
@@ -986,6 +989,7 @@ export default function PoolPrintLayoutEditorPage() {
             <RibbonBtn icon="⬍" label="Centro V" onClick={() => patchSelBox({ y: r1((PH - sb.h) / 2) })} />
             <RibbonBtn icon="⤒" label="Frente" onClick={() => zOrder("front")} />
             <RibbonBtn icon="⤓" label="Tras" onClick={() => zOrder("back")} />
+            <RibbonBtn icon="⚡" label={sb.showIf ? "Condicao ✓" : "Condicao"} onClick={() => { setCondDraft(sb.showIf ? { ...sb.showIf } : { op: "hasProduct", cellRef: null, etapa: null, value: null }); setCondModal(true); }} />
             {selSet.size >= 2 ? (
               <>
                 <span className="mx-1 self-center h-6 w-px bg-slate-200" />
@@ -1370,6 +1374,51 @@ export default function PoolPrintLayoutEditorPage() {
               }}
               onCancel={() => setPickLine(false)}
             />
+          </div>
+        </div>
+      )}
+
+      {condModal && selectedBox && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setCondModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-slate-900 mb-1">⚡ Condição de visibilidade</h3>
+            <p className="text-[11px] text-slate-500 mb-3">A caixa só aparece na impressão se a regra bater no orçamento. No editor ela fica esmaecida com o selo ⚡ quando não bate (pra você continuar montando).</p>
+            <label className="block text-[11px] font-medium text-slate-600 mb-1">Onde olhar (preencha UM)</label>
+            <div className="flex gap-2 mb-1">
+              <input type="text" value={condDraft.cellRef || ""} placeholder="Linha (ex: L130)"
+                onChange={(e) => { const v = e.target.value.trim().toUpperCase(); setCondDraft((d) => ({ ...d, cellRef: v || null, etapa: v ? null : d.etapa })); }}
+                className="w-1/2 rounded border border-slate-300 px-2 py-1.5 text-sm" />
+              <input type="text" value={condDraft.etapa || ""} placeholder="Etapa (ex: CASCATA)"
+                onChange={(e) => { const v = e.target.value.trim().toUpperCase(); setCondDraft((d) => ({ ...d, etapa: v || null, cellRef: v ? null : d.cellRef })); }}
+                className="w-1/2 rounded border border-slate-300 px-2 py-1.5 text-sm" />
+            </div>
+            <p className="text-[10px] text-slate-400 mb-3">Linha específica OU etapa. Vazio = olha o orçamento todo.</p>
+            <label className="block text-[11px] font-medium text-slate-600 mb-1">Mostrar quando</label>
+            <div className="flex gap-2 mb-2">
+              <select value={condDraft.op} onChange={(e) => setCondDraft((d) => ({ ...d, op: e.target.value as NonNullable<Box["showIf"]>["op"] }))}
+                className="flex-1 rounded border border-slate-300 px-2 py-1.5 text-sm">
+                <option value="hasProduct">Tem produto</option>
+                <option value="noProduct">Não tem produto</option>
+                <option value="qtyGt">Quantidade &gt;</option>
+                <option value="qtyGte">Quantidade ≥</option>
+                <option value="qtyEq">Quantidade =</option>
+                <option value="qtyLte">Quantidade ≤</option>
+                <option value="qtyLt">Quantidade &lt;</option>
+              </select>
+              {condDraft.op.startsWith("qty") ? (
+                <input type="number" value={condDraft.value ?? 0} onChange={(e) => setCondDraft((d) => ({ ...d, value: Number(e.target.value) }))}
+                  className="w-20 rounded border border-slate-300 px-2 py-1.5 text-sm" />
+              ) : null}
+            </div>
+            <div className="flex items-center justify-between mt-4">
+              <button type="button" onClick={() => { patchSelBox({ showIf: null }); setCondModal(false); toast("Condição removida", "success"); }}
+                className="text-[12px] text-rose-600 hover:underline">Limpar condição</button>
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setCondModal(false)} className="rounded border border-slate-300 px-3 py-1.5 text-sm">Cancelar</button>
+                <button type="button" onClick={() => { patchSelBox({ showIf: { ...condDraft } }); setCondModal(false); toast("Condição aplicada", "success"); }}
+                  className="rounded bg-cyan-600 px-3 py-1.5 text-sm font-medium text-white">Salvar</button>
+              </div>
+            </div>
           </div>
         </div>
       )}
