@@ -300,12 +300,13 @@ function sectionLabel(data: BudgetReportData, section: string): string {
 function resolveAddressedToken(token: string, data: BudgetReportData): string | null {
   const inner = token.slice(1, -1); // tira { }
   const items = data.items || [];
-  let m = inner.match(/^linha:([A-Za-z]?\d+)\.([a-zA-Z]+(?::[\w.-]+)?)$/);
+  let m = inner.match(/^linha:([A-Za-z]?\d+|ATUAL)\.([a-zA-Z]+(?::[\w.-]+)?)$/i);
   if (m) {
     const ref = m[1].toUpperCase();
     const raw = m[2];
     const field = raw.toLowerCase();
-    const it = items.find((x) => (x.cellRef || "").toUpperCase() === ref);
+    // ATUAL = item corrente da banda; no editor (sem expansao) cai no 1o item, pra mostrar um exemplo real.
+    const it = ref === "ATUAL" ? items.find((x) => x.cellRef) : items.find((x) => (x.cellRef || "").toUpperCase() === ref);
     if (!it) return "";
     // Campo do cadastro do produto: {linha:Lx.prodSpec:vazaoM3h} — chave preserva o case original
     if (field.startsWith("prodspec:")) {
@@ -331,8 +332,10 @@ function resolveAddressedToken(token: string, data: BudgetReportData): string | 
   }
   m = inner.match(/^etapa:([A-Za-z0-9_-]+)\.([a-zA-Z]+)$/);
   if (m) {
-    const sec = m[1].toUpperCase();
+    let sec = m[1].toUpperCase();
     const field = m[2].toLowerCase();
+    // ATUAL = etapa corrente da banda; no editor cai na 1a etapa (exemplo real).
+    if (sec === "ATUAL") sec = (activeItems(items)[0]?.poolSection || "").toUpperCase();
     const list = items.filter((x) => (x.poolSection || "").toUpperCase() === sec);
     switch (field) {
       case "total": case "valor": return brl(list.reduce((s, x) => s + (x.totalCents || 0), 0));
