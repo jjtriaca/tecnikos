@@ -48,8 +48,12 @@ automático). Quer "a melhor maneira" (tipo Crystal/Jasper/VBA), não a mais fá
   `CanvasPage` (impressão) FILTRA `.filter(boxShows)`; `CanvasEditor` esmaece (opacity .32) + contorno tracejado âmbar + selo ⚡
   (`condSummary` no tooltip). UI: botão "⚡ Condicao" na barra Layout (após Tras) → modal (inputs linha/etapa + select op + valor).
   PENDENTE refino: trocar inputs de texto da linha/etapa pelo LineRefPicker (Juliano pediu o mini-modal).
-- **Fase 2 — Banda repetidora:** marca um GRUPO como banda + liga à coleção (etapas|linhas); motor clona a banda por item
-  (contexto ATUAL), empilha verticalmente.
+- **Fase 2 — Banda repetidora ✓ (v1.15.04):** `Box.band = {id, source:"linhas"|"etapas"}` (caixas com mesmo band.id = banda).
+  `bandCollection(source,data)` = refs (cellRefs OU codigos de etapa). `expandBandsForPrint(boxes,data)` clona a banda por item,
+  offset Y = i*altura, e troca `ATUAL`→ref no html/url (`applyBandRef`). CanvasPage (impressão) usa expand; CanvasEditor mostra
+  SÓ o template + selo 🔁 ×N (não expande, pra editar). UI: botão "🔁 Repetir" na barra Layout → modal (Por linha / Por etapa /
+  Remover banda). Token ATUAL: `{linha:ATUAL.produto}`, `{linha:ATUAL.prodImagem}`, `{etapa:ATUAL.nome}`.
+  PENDENTE: preview do template no editor resolve ATUAL→"" (mostra vazio); listar N itens dentro de banda-por-etapa (nested).
 - **Fase 3 — Paginação automática:** medir altura, fluir pra páginas novas; cab/rodapé repetem; "continua…".
 - **Fase 4 — Fallback/variações:** banda com variações por prioridade (1ª condição que bate).
 

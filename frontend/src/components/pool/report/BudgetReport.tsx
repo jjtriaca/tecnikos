@@ -248,6 +248,45 @@ function condSummary(c?: Box["showIf"]): string {
   return `Mostrar só se ${alvo}: ${ops[c.op] || c.op}`;
 }
 
+/** Coleção sobre a qual a banda repete: lista de REFs (cellRef das linhas OU codigos de etapa). */
+function bandCollection(source: "linhas" | "etapas", data: BudgetReportData): string[] {
+  const items = activeItems(data.items || []);
+  if (source === "linhas") return items.filter((it) => it.cellRef).map((it) => (it.cellRef || "").toUpperCase());
+  const seen = new Set<string>(); const out: string[] = [];
+  for (const it of items) { const s = (it.poolSection || "").toUpperCase(); if (s && !seen.has(s)) { seen.add(s); out.push(s); } }
+  return out;
+}
+
+/** Substitui o ref ATUAL no conteudo de uma caixa da banda pelo ref do item corrente. */
+function applyBandRef(s: string | undefined, ref: string): string | undefined {
+  return s ? s.replace(/ATUAL/g, ref) : s;
+}
+
+/** Expande as BANDAS (Fase 2) para IMPRESSAO: cada banda vira N copias (1 por item da colecao),
+ *  empilhadas em Y (offset = i * altura da banda), com ATUAL trocado pelo ref do item. */
+function expandBandsForPrint(boxes: Box[], data: BudgetReportData): Box[] {
+  const bandMap = new Map<string, Box[]>();
+  const normal: Box[] = [];
+  for (const b of boxes) {
+    if (b.band?.id) { const arr = bandMap.get(b.band.id) || []; arr.push(b); bandMap.set(b.band.id, arr); }
+    else normal.push(b);
+  }
+  const out: Box[] = [...normal];
+  for (const bboxes of bandMap.values()) {
+    const source = bboxes[0].band!.source;
+    const top = Math.min(...bboxes.map((b) => b.y));
+    const height = Math.max(...bboxes.map((b) => b.y + b.h)) - top;
+    const refs = bandCollection(source, data);
+    refs.forEach((ref, i) => {
+      for (const b of bboxes) {
+        out.push({ ...b, id: `${b.id}__b${i}`, y: b.y + i * height, band: null,
+          html: applyBandRef(b.html, ref), url: applyBandRef(b.url, ref) });
+      }
+    });
+  }
+  return out;
+}
+
 /** Rotulo da etapa (poolSection) — usa sectionLabels do orcamento, senao o proprio codigo. */
 function sectionLabel(data: BudgetReportData, section: string): string {
   const labels = (data.sectionLabels || {}) as Record<string, string>;
@@ -817,6 +856,10 @@ export type Box = {
     op: "hasProduct" | "noProduct" | "qtyGt" | "qtyGte" | "qtyEq" | "qtyLte" | "qtyLt";
     value?: number | null;
   } | null;
+  // BANDA REPETIDORA (Fase 2 blocos dinamicos) — caixas com o MESMO band.id sao a linha-modelo.
+  // source: repete a banda por LINHA (cada item com cellRef) ou por ETAPA (cada poolSection).
+  // No conteudo, o token ATUAL vira o ref do item corrente: {linha:ATUAL.produto}, {etapa:ATUAL.nome}.
+  band?: { id: string; source: "linhas" | "etapas" } | null;
   style?: {
     bg?: string | null; borderColor?: string | null; borderWidth?: number | null;
     radius?: number | null; padding?: number | null; textColor?: string | null;
@@ -907,7 +950,7 @@ function normalizeHref(url: string): string {
 export function CanvasPage({ boxes, data, branding, unit = "%" }: { boxes: Box[]; data: BudgetReportData; branding?: ReportBranding | null; unit?: "mm" | "%" }) {
   return (
     <div className="rp-canvas" style={{ position: "absolute", inset: 0, isolation: "isolate" }}>
-      {[...(boxes || [])].sort((a, b) => (a.z || 0) - (b.z || 0)).filter((b) => boxShows(b, data)).map((b) => (
+      {expandBandsForPrint([...(boxes || [])], data).sort((a, b) => (a.z || 0) - (b.z || 0)).filter((b) => boxShows(b, data)).map((b) => (
         <div key={b.id} style={boxRectStyle(b, unit)}><BoxContent box={b} data={data} branding={branding} /></div>
       ))}
     </div>
@@ -928,12 +971,12 @@ function handleStyle(h: string): CSSProperties {
   base.cursor = cursors[h];
   return base;
 }
-function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit = "mm", pageW = 210, pageH = 297, others = [], onGuides, onSelect, onStartEdit, onChange, onCommit, groupMove, onGroupStart, onGroupMove, hasCond, condHidden, children }: {
+function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit = "mm", pageW = 210, pageH = 297, others = [], onGuides, onSelect, onStartEdit, onChange, onCommit, groupMove, onGroupStart, onGroupMove, hasCond, condHidden, bandLabel, children }: {
   box: Box; selected: boolean; multi?: boolean; editing: boolean; canvasRef: React.RefObject<HTMLDivElement>; lockAspect?: boolean;
   unit?: "mm" | "%"; pageW?: number; pageH?: number; others?: Box[]; onGuides?: (g: { o: "v" | "h"; p: number }[]) => void;
   onSelect: (additive?: boolean) => void; onStartEdit: () => void; onChange: (b: Box) => void; onCommit: () => void;
   groupMove?: boolean; onGroupStart?: () => void; onGroupMove?: (dx: number, dy: number) => void;
-  hasCond?: boolean; condHidden?: boolean; children: React.ReactNode;
+  hasCond?: boolean; condHidden?: boolean; bandLabel?: string; children: React.ReactNode;
 }) {
   const draggedRef = useRef(false);
   const begin = (mode: string) => (e: React.PointerEvent) => {
@@ -1021,6 +1064,9 @@ function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit =
       {hasCond ? (
         <div title={condSummary(box.showIf)} style={{ position: "absolute", top: -7, left: -7, zIndex: 40, background: condHidden ? "#b45309" : "#f59e0b", color: "#fff", borderRadius: 9, fontSize: 9, lineHeight: "15px", height: 15, padding: "0 4px", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,.3)", pointerEvents: "none", whiteSpace: "nowrap" }}>⚡{condHidden ? " oculto" : ""}</div>
       ) : null}
+      {bandLabel ? (
+        <div title="Banda repetidora — esta linha-modelo se repete por item no orçamento (na impressão). Aqui no editor você vê só o modelo." style={{ position: "absolute", top: -7, right: -7, zIndex: 40, background: "#2563eb", color: "#fff", borderRadius: 9, fontSize: 9, lineHeight: "15px", height: 15, padding: "0 4px", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,.3)", pointerEvents: "none", whiteSpace: "nowrap" }}>{bandLabel}</div>
+      ) : null}
       {selected && !editing ? HANDLES.map((h) => (<div key={h} style={handleStyle(h)} onPointerDown={begin(h)} />)) : null}
     </div>
   );
@@ -1067,6 +1113,7 @@ export function CanvasEditor({ boxes, data, branding, selBox, selSet, pageW, pag
         {[...(boxes || [])].sort((a, b) => (a.z || 0) - (b.z || 0)).map((b) => (
           <BoxFrame key={b.id} box={b} selected={selBox === b.id} multi={!!selSet && selSet.has(b.id) && b.id !== selBox} editing={editingId === b.id} canvasRef={canvasRef} unit={unit || "mm"} pageW={W} pageH={H}
             hasCond={!!b.showIf} condHidden={!!b.showIf && !boxShows(b, data)}
+            bandLabel={b.band ? (b.band.source === "linhas" ? `🔁 ×${bandCollection("linhas", data).length} (linha)` : `🔁 ×${bandCollection("etapas", data).length} (etapa)`) : undefined}
             others={(boxes || []).filter((x) => x.id !== b.id)} onGuides={setGuides}
             groupMove={!!selSet && selSet.has(b.id) && selSet.size > 1} onGroupStart={onGroupStart} onGroupMove={onGroupMove}
             onSelect={(additive) => onSelect(b.id, additive)}

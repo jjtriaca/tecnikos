@@ -206,6 +206,8 @@ export default function PoolPrintLayoutEditorPage() {
   // Condicao de visibilidade da caixa (Fase 1b blocos dinamicos)
   const [condModal, setCondModal] = useState(false);
   const [condDraft, setCondDraft] = useState<NonNullable<Box["showIf"]>>({ op: "hasProduct", cellRef: null, etapa: null, value: null });
+  // Banda repetidora (Fase 2 blocos dinamicos)
+  const [bandModal, setBandModal] = useState(false);
   const [selSet, setSelSet] = useState<Set<string>>(new Set()); // multi-selecao (shift-clique)
   // Seleciona caixa(s): additive (shift) = alterna no conjunto; senao = seleciona so ela.
   function selectBox(id: string | null, additive?: boolean) {
@@ -485,6 +487,24 @@ export default function PoolPrintLayoutEditorPage() {
   function patchSelStyle(patch: Record<string, any>) {
     if (!selBox) return;
     commitBoxes(boxes.map((b) => b.id === selBox ? { ...b, style: { ...(b.style || {}), ...patch } } : b));
+  }
+  // Banda repetidora: marca as caixas selecionadas como uma linha-modelo que repete por linha/etapa.
+  function makeBand(source: "linhas" | "etapas") {
+    const ids = selSet.size ? selSet : (selBox ? new Set([selBox]) : new Set<string>());
+    if (!ids.size) return;
+    // reusa o band.id existente de alguma caixa selecionada, senao cria um novo
+    const existing = boxes.find((b) => ids.has(b.id) && b.band?.id)?.band?.id;
+    const id = existing || genBoxId();
+    commitBoxes(boxes.map((b) => ids.has(b.id) ? { ...b, band: { id, source } } : b));
+    setBandModal(false);
+    toast(`Banda criada (${ids.size} caixa(s), repete por ${source === "linhas" ? "linha" : "etapa"})`, "success");
+  }
+  function clearBand() {
+    const ids = selSet.size ? selSet : (selBox ? new Set([selBox]) : new Set<string>());
+    if (!ids.size) return;
+    commitBoxes(boxes.map((b) => ids.has(b.id) ? { ...b, band: null } : b));
+    setBandModal(false);
+    toast("Banda removida", "success");
   }
   function removeSelBox() {
     if (!selBox) return;
@@ -990,6 +1010,7 @@ export default function PoolPrintLayoutEditorPage() {
             <RibbonBtn icon="⤒" label="Frente" onClick={() => zOrder("front")} />
             <RibbonBtn icon="⤓" label="Tras" onClick={() => zOrder("back")} />
             <RibbonBtn icon="⚡" label={sb.showIf ? "Condicao ✓" : "Condicao"} onClick={() => { setCondDraft(sb.showIf ? { ...sb.showIf } : { op: "hasProduct", cellRef: null, etapa: null, value: null }); setCondModal(true); }} />
+            <RibbonBtn icon="🔁" label={sb.band ? "Banda ✓" : "Repetir"} onClick={() => setBandModal(true)} />
             {selSet.size >= 2 ? (
               <>
                 <span className="mx-1 self-center h-6 w-px bg-slate-200" />
@@ -1418,6 +1439,24 @@ export default function PoolPrintLayoutEditorPage() {
                 <button type="button" onClick={() => { patchSelBox({ showIf: { ...condDraft } }); setCondModal(false); toast("Condição aplicada", "success"); }}
                   className="rounded bg-cyan-600 px-3 py-1.5 text-sm font-medium text-white">Salvar</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {bandModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setBandModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-slate-900 mb-1">🔁 Banda repetidora</h3>
+            <p className="text-[11px] text-slate-500 mb-3">As caixa(s) selecionada(s) viram uma <b>linha-modelo</b> que se repete por item do orçamento na impressão (e quebra de página vem na próxima fase). No conteúdo, use o token <code className="bg-slate-100 px-1 rounded">ATUAL</code> pro item corrente: <code className="bg-slate-100 px-1 rounded">{"{linha:ATUAL.produto}"}</code>, <code className="bg-slate-100 px-1 rounded">{"{linha:ATUAL.prodImagem}"}</code>, <code className="bg-slate-100 px-1 rounded">{"{etapa:ATUAL.nome}"}</code>.</p>
+            <p className="text-[11px] text-slate-600 mb-2">{(selSet.size || (selBox ? 1 : 0))} caixa(s) selecionada(s). Repetir por:</p>
+            <div className="flex gap-2 mb-3">
+              <button type="button" onClick={() => makeBand("linhas")} className="flex-1 rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-3 text-sm font-medium text-cyan-800 hover:bg-cyan-100">📄 Por linha<br /><span className="text-[10px] font-normal text-slate-500">1 cópia por produto (L1, L3…)</span></button>
+              <button type="button" onClick={() => makeBand("etapas")} className="flex-1 rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-3 text-sm font-medium text-cyan-800 hover:bg-cyan-100">🗂️ Por etapa<br /><span className="text-[10px] font-normal text-slate-500">1 cópia por etapa (Cascata…)</span></button>
+            </div>
+            <div className="flex items-center justify-between">
+              <button type="button" onClick={clearBand} className="text-[12px] text-rose-600 hover:underline">Remover banda</button>
+              <button type="button" onClick={() => setBandModal(false)} className="rounded border border-slate-300 px-3 py-1.5 text-sm">Fechar</button>
             </div>
           </div>
         </div>
