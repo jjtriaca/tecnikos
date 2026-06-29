@@ -656,11 +656,12 @@ export function pageDims(branding?: ReportBranding | null): { w: number; h: numb
   return { w, h };
 }
 
-function boxRectStyle(b: Box): CSSProperties {
+function boxRectStyle(b: Box, unit: "mm" | "%" = "%"): CSSProperties {
   const st = b.style || {};
+  const u = unit === "mm" ? "mm" : "%";
   return {
     position: "absolute", boxSizing: "border-box",
-    left: `${b.x}%`, top: `${b.y}%`, width: `${b.w}%`, height: `${b.h}%`,
+    left: `${b.x}${u}`, top: `${b.y}${u}`, width: `${b.w}${u}`, height: `${b.h}${u}`,
     zIndex: b.z || 1,
     background: st.bg || undefined,
     border: st.borderWidth ? `${st.borderWidth}px solid ${st.borderColor || "#e2e8f0"}` : undefined,
@@ -677,10 +678,12 @@ function boxRectStyle(b: Box): CSSProperties {
 }
 
 // Conteudo interno de um Box (compartilhado entre render de impressao e editor).
-function BoxContent({ box, data, branding, editingText, onEditText, onEditCommit }: { box: Box; data: BudgetReportData; branding?: ReportBranding | null; editingText?: boolean; onEditText?: (id: string, html: string) => void; onEditCommit?: () => void }) {
+function BoxContent({ box, data, branding, editingText, onEditText, onEditCommit, editor }: { box: Box; data: BudgetReportData; branding?: ReportBranding | null; editingText?: boolean; onEditText?: (id: string, html: string) => void; onEditCommit?: () => void; editor?: boolean }) {
   const st = box.style || {};
+  // No EDITOR o link NAO e clicavel (pointer-events:none) p/ permitir selecionar/arrastar/duplo-clique.
+  // So vira link de verdade no read-only (impressao/preview).
   const wrapLink = (inner: ReactNode) => (box.href && !editingText)
-    ? <a href={normalizeHref(box.href)} target="_blank" rel="noopener" style={{ display: "block", width: "100%", height: "100%", color: "inherit", textDecoration: "none" }}>{inner}</a>
+    ? <a href={normalizeHref(box.href)} target="_blank" rel="noopener" style={{ display: "block", width: "100%", height: "100%", color: "inherit", textDecoration: "none", pointerEvents: editor ? "none" : undefined }}>{inner}</a>
     : inner;
   if ((box.type as string) === "CARD") return null; // card = retangulo (bg/borda via boxRectStyle); conteudo vem de outras caixas
   if (box.type === "TEXT") {
@@ -708,11 +711,11 @@ function normalizeHref(url: string): string {
 }
 
 // Render READ-ONLY de uma pagina canvas (impressao / preview / miniatura).
-export function CanvasPage({ boxes, data, branding }: { boxes: Box[]; data: BudgetReportData; branding?: ReportBranding | null }) {
+export function CanvasPage({ boxes, data, branding, unit = "%" }: { boxes: Box[]; data: BudgetReportData; branding?: ReportBranding | null; unit?: "mm" | "%" }) {
   return (
     <div className="rp-canvas" style={{ position: "absolute", inset: 0 }}>
       {[...(boxes || [])].sort((a, b) => (a.z || 0) - (b.z || 0)).map((b) => (
-        <div key={b.id} style={boxRectStyle(b)}><BoxContent box={b} data={data} branding={branding} /></div>
+        <div key={b.id} style={boxRectStyle(b, unit)}><BoxContent box={b} data={data} branding={branding} /></div>
       ))}
     </div>
   );
@@ -732,8 +735,9 @@ function handleStyle(h: string): CSSProperties {
   base.cursor = cursors[h];
   return base;
 }
-function BoxFrame({ box, selected, editing, canvasRef, lockAspect, onSelect, onStartEdit, onChange, onCommit, children }: {
+function BoxFrame({ box, selected, editing, canvasRef, lockAspect, unit = "mm", pageW = 210, pageH = 297, onSelect, onStartEdit, onChange, onCommit, children }: {
   box: Box; selected: boolean; editing: boolean; canvasRef: React.RefObject<HTMLDivElement>; lockAspect?: boolean;
+  unit?: "mm" | "%"; pageW?: number; pageH?: number;
   onSelect: () => void; onStartEdit: () => void; onChange: (b: Box) => void; onCommit: () => void; children: React.ReactNode;
 }) {
   const draggedRef = useRef(false);
@@ -747,34 +751,39 @@ function BoxFrame({ box, selected, editing, canvasRef, lockAspect, onSelect, onS
     if (!rect) return;
     const start = { sx: e.clientX, sy: e.clientY, b: { ...box } };
     const ratio = box.h ? box.w / box.h : 1;
+    // dominio: mm (0..pageW/H) ou % (0..100). Converte px do gesto p/ a unidade.
+    const maxX = unit === "mm" ? pageW : 100, maxY = unit === "mm" ? pageH : 100, minSz = unit === "mm" ? 5 : 3;
     let dragging = false;
+    const finish = (commit: boolean) => {
+      window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); window.removeEventListener("keydown", onKey);
+      document.body.style.userSelect = "";
+      if (commit && dragging) onCommit();
+    };
     const onMove = (ev: PointerEvent) => {
       const ddx = ev.clientX - start.sx, ddy = ev.clientY - start.sy;
       if (!dragging && Math.abs(ddx) + Math.abs(ddy) < 4) return; // threshold: clique nao move
       if (!dragging) { dragging = true; draggedRef.current = true; document.body.style.userSelect = "none"; }
-      const dxp = (ddx / rect.width) * 100;
-      const dyp = (ddy / rect.height) * 100;
+      const dux = (ddx / rect.width) * maxX;
+      const duy = (ddy / rect.height) * maxY;
       let { x, y, w, h } = start.b;
-      if (mode === "move") { x = clampN(start.b.x + dxp, 0, 100 - start.b.w); y = clampN(start.b.y + dyp, 0, 100 - start.b.h); }
+      if (mode === "move") { x = clampN(start.b.x + dux, 0, maxX - start.b.w); y = clampN(start.b.y + duy, 0, maxY - start.b.h); }
       else {
-        if (mode.includes("e")) w = clampN(start.b.w + dxp, 3, 100 - start.b.x);
-        if (mode.includes("s")) h = clampN(start.b.h + dyp, 3, 100 - start.b.y);
-        if (mode.includes("w")) { const nw = clampN(start.b.w - dxp, 3, start.b.x + start.b.w); x = start.b.x + (start.b.w - nw); w = nw; }
-        if (mode.includes("n")) { const nh = clampN(start.b.h - dyp, 3, start.b.y + start.b.h); y = start.b.y + (start.b.h - nh); h = nh; }
+        if (mode.includes("e")) w = clampN(start.b.w + dux, minSz, maxX - start.b.x);
+        if (mode.includes("s")) h = clampN(start.b.h + duy, minSz, maxY - start.b.y);
+        if (mode.includes("w")) { const nw = clampN(start.b.w - dux, minSz, start.b.x + start.b.w); x = start.b.x + (start.b.w - nw); w = nw; }
+        if (mode.includes("n")) { const nh = clampN(start.b.h - duy, minSz, start.b.y + start.b.h); y = start.b.y + (start.b.h - nh); h = nh; }
         if (lockAspect && ratio && (mode === "se" || mode === "ne" || mode === "sw" || mode === "nw")) h = w / ratio;
       }
       onChange({ ...start.b, x: round2(x), y: round2(y), w: round2(w), h: round2(h) });
     };
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp);
-      document.body.style.userSelect = "";
-      if (dragging) onCommit();
-    };
+    const onUp = () => finish(true);
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === "Escape") { onChange({ ...start.b }); draggedRef.current = false; finish(false); } };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("keydown", onKey);
   };
   return (
-    <div style={{ ...boxRectStyle(box), cursor: editing ? "text" : "move", outline: selected ? "2px solid #06b6d4" : undefined, outlineOffset: 0 }}
+    <div style={{ ...boxRectStyle(box, unit), cursor: editing ? "text" : "move", outline: selected ? "2px solid #06b6d4" : undefined, outlineOffset: 0 }}
       onPointerDown={begin("move")}
       onClick={(e) => { e.stopPropagation(); if (draggedRef.current) return; onSelect(); }}
       onDoubleClick={(e) => { e.stopPropagation(); onStartEdit(); }}>
@@ -787,9 +796,9 @@ function BoxFrame({ box, selected, editing, canvasRef, lockAspect, onSelect, onS
 // Editor de canvas (uma pagina) — usado no centro do editor. Renderiza a folha A4
 // (aspect-ratio) e os boxes interativos. onChange = update ao vivo; onCommit = passo
 // de historico (undo/redo) no fim do gesto. Edicao de texto inline via duplo-clique.
-export function CanvasEditor({ boxes, data, branding, selBox, pageW, pageH, pageBg, onSelect, onChange, onCommit, onEditStart, hfOverlay }: {
+export function CanvasEditor({ boxes, data, branding, selBox, pageW, pageH, pageBg, unit = "mm", hfUnit = "%", onSelect, onChange, onCommit, onEditStart, hfOverlay }: {
   boxes: Box[]; data: BudgetReportData; branding?: ReportBranding | null; selBox: string | null;
-  pageW?: number; pageH?: number; pageBg?: string;
+  pageW?: number; pageH?: number; pageBg?: string; unit?: "mm" | "%"; hfUnit?: "mm" | "%";
   onSelect: (id: string | null) => void; onChange: (b: Box) => void; onCommit: () => void; onEditStart?: (id: string) => void;
   hfOverlay?: { headerBoxes?: Box[]; footerBoxes?: Box[]; headerHmm?: number; footerHmm?: number };
 }) {
@@ -812,20 +821,20 @@ export function CanvasEditor({ boxes, data, branding, selBox, pageW, pageH, page
         {/* Cabecalho/Rodape como SOBREPOSICAO esmaecida (contexto; nao editavel aqui) */}
         {hfOverlay?.headerBoxes && hfOverlay.headerBoxes.length ? (
           <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: `${hfOverlay.headerHmm ?? 18}mm`, overflow: "hidden", opacity: 0.55, pointerEvents: "none", borderBottom: "1px dashed #cbd5e1" }}>
-            <CanvasPage boxes={hfOverlay.headerBoxes} data={data} branding={branding} />
+            <CanvasPage boxes={hfOverlay.headerBoxes} data={data} branding={branding} unit={hfUnit || "%"} />
           </div>
         ) : null}
         {hfOverlay?.footerBoxes && hfOverlay.footerBoxes.length ? (
           <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: `${hfOverlay.footerHmm ?? 14}mm`, overflow: "hidden", opacity: 0.55, pointerEvents: "none", borderTop: "1px dashed #cbd5e1" }}>
-            <CanvasPage boxes={hfOverlay.footerBoxes} data={data} branding={branding} />
+            <CanvasPage boxes={hfOverlay.footerBoxes} data={data} branding={branding} unit={hfUnit || "%"} />
           </div>
         ) : null}
         {[...(boxes || [])].sort((a, b) => (a.z || 0) - (b.z || 0)).map((b) => (
-          <BoxFrame key={b.id} box={b} selected={selBox === b.id} editing={editingId === b.id} canvasRef={canvasRef}
+          <BoxFrame key={b.id} box={b} selected={selBox === b.id} editing={editingId === b.id} canvasRef={canvasRef} unit={unit || "mm"} pageW={W} pageH={H}
             onSelect={() => onSelect(b.id)}
             onStartEdit={() => { if (b.type === "TEXT") { setEditingId(b.id); onEditStart?.(b.id); } }}
             onChange={onChange} onCommit={onCommit}>
-            <BoxContent box={b} data={data} branding={branding} editingText={editingId === b.id} onEditText={(id, html) => onChange({ ...b, html })} onEditCommit={onCommit} />
+            <BoxContent box={b} data={data} branding={branding} editingText={editingId === b.id} onEditText={(id, html) => onChange({ ...b, html })} onEditCommit={onCommit} editor />
           </BoxFrame>
         ))}
         {(!boxes || boxes.length === 0) ? <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8", fontStyle: "italic" }}>Use a aba Inserir pra adicionar caixas (texto, imagem, bloco).</div> : null}
@@ -986,16 +995,16 @@ export default function BudgetReport({ data, layout, editable, selectedPageId, o
                   style={{ ...pageStyle, background: cbg, padding: 0, position: "relative", width: `${cW}mm`, height: `${cH}mm`, minHeight: `${cH}mm`, overflow: "hidden",
                     ...(editable ? { cursor: "pointer", outline: selectedPageId === page.id ? "3px solid #06b6d4" : undefined, outlineOffset: "3px" } : {}) }}
                   onClick={editable && onSelectPage ? () => onSelectPage(page.id) : undefined}>
-                  <CanvasPage boxes={(page.pageConfig as any).boxes || []} data={data} branding={branding} />
-                  {/* Cabecalho/Rodape (faixas de caixas) — repetem em toda pagina (exceto se noHF) */}
-                  {!(page.pageConfig as any)?.noHF && Array.isArray((branding as any)?.headerBoxes) && (branding as any).headerBoxes.length ? (
+                  <CanvasPage boxes={(page.pageConfig as any).boxes || []} data={data} branding={branding} unit={pc?.unit === "mm" ? "mm" : "%"} />
+                  {/* Cabecalho/Rodape (faixas de caixas) — INDEPENDENTES por pagina (noHeader/noFooter; noHF legado esconde os 2) */}
+                  {!(pc?.noHF || pc?.noHeader) && Array.isArray((branding as any)?.headerBoxes) && (branding as any).headerBoxes.length ? (
                     <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: `${(branding as any)?.headerHmm ?? 18}mm`, overflow: "hidden" }}>
-                      <CanvasPage boxes={(branding as any).headerBoxes} data={data} branding={branding} />
+                      <CanvasPage boxes={(branding as any).headerBoxes} data={data} branding={branding} unit={(branding as any)?.hfUnit === "mm" ? "mm" : "%"} />
                     </div>
                   ) : null}
-                  {!(page.pageConfig as any)?.noHF && Array.isArray((branding as any)?.footerBoxes) && (branding as any).footerBoxes.length ? (
+                  {!(pc?.noHF || pc?.noFooter) && Array.isArray((branding as any)?.footerBoxes) && (branding as any).footerBoxes.length ? (
                     <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: `${(branding as any)?.footerHmm ?? 14}mm`, overflow: "hidden" }}>
-                      <CanvasPage boxes={(branding as any).footerBoxes} data={data} branding={branding} />
+                      <CanvasPage boxes={(branding as any).footerBoxes} data={data} branding={branding} unit={(branding as any)?.hfUnit === "mm" ? "mm" : "%"} />
                     </div>
                   ) : null}
                 </div>

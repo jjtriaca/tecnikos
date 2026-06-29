@@ -31,6 +31,12 @@
 - [x] G9 alinhamento vertical (cima/meio/baixo) na Início (style.valign).
 - [x] G10 link saiu da Início → "Link" no Inserir (caixa TEXT com href) + campo "🔗 link" no Layout (TEXT/IMAGE, box.href → vira <a> clicável no PDF). selLink/linkInput removidos.
 
+## 🧪 DOGFOODING rodada 4 (28/06, v1.14.71) — ACUMULANDO (NÃO corrigir ainda)
+- [ ] **G11** Ferramentas do ribbon **menores**, com o **nome em cima** (compacto) — sobra muito espaço/altura hoje.
+- [ ] **G14** Durante arraste/resize, **ESC cancela** e volta a caixa pra onde/como estava (sem gravar). BoxFrame: escutar Escape no gesto → reverter pro `start.b`, remover listeners, NÃO onCommit.
+- [ ] **G13 (BUG)** Caixa de **Link**: no EDITOR o `<a>` está ativo → mãozinha, clicar NAVEGA e não dá pra duplo-clicar/editar; e o default `exemplo.com` cai em site aleatório. Fix: no editor o link = **pointer-events:none** (BoxContent recebe flag editorMode; só CanvasEditor passa); só clicável no read-only (impressão/preview). Default **href vazio** (preenche no Layout).
+- [ ] **G12** **Cabeçalho e rodapé INDEPENDENTES**: opção separada por página — mostrar **cabeçalho em todas / só nesta** e **rodapé em todas / só nesta**, independentes (hoje `noHF` esconde os DOIS juntos). Trocar por `noHeader`/`noFooter` (ou escopo all|single por faixa). CERTIFICAR que funciona (testar).
+
 ## 🧪 DOGFOODING rodada 3 (28/06, v1.14.69) — implementado em v1.14.71
 - [ ] **G1** Clicar (1 clique) numa caixa já vai pra aba **Início** — deveria ir pra **Layout** no clique simples e só ir pra **Início** no **duplo-clique** (edição). Fix: `onSelect` → setTab("Layout") sempre; só `onEditStart` (duplo-clique) → setTab("Inicio"). (page.tsx CanvasEditor onSelect)
 - [ ] **G8** Ao selecionar texto/caixa, o **campo de tamanho deve mostrar o tamanho atual** da fonte (detectar). Hoje fica valor padrão/desatualizado. Vale p/ trecho (reflectSel px→pt) e p/ caixa só selecionada (style.fontSize).

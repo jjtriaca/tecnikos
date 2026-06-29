@@ -127,10 +127,10 @@ const SAMPLE_BUDGET: BudgetReportData = {
 // Botao da faixa de opcoes (ribbon) — icone em cima, rotulo embaixo (estilo Office).
 function RibbonBtn({ icon, label, onClick, disabled }: { icon: string; label: string; onClick?: () => void; disabled?: boolean }) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled}
-      className="flex flex-col items-center justify-center gap-0.5 rounded px-2 py-1 min-w-[56px] text-slate-700 hover:bg-cyan-50 disabled:opacity-40 disabled:cursor-not-allowed">
-      <span className="text-lg leading-none">{icon}</span>
-      <span className="text-[10px] leading-tight text-center">{label}</span>
+    <button type="button" onClick={onClick} disabled={disabled} title={label}
+      className="flex flex-col items-center justify-center gap-0.5 rounded px-1.5 py-0.5 min-w-[44px] text-slate-700 hover:bg-cyan-50 disabled:opacity-40 disabled:cursor-not-allowed">
+      <span className="text-sm leading-none">{icon}</span>
+      <span className="text-[9px] leading-tight text-center">{label}</span>
     </button>
   );
 }
@@ -173,23 +173,33 @@ export default function PoolPrintLayoutEditorPage() {
   const [pageName, setPageName] = useState<string>("");
   const pageNameRef = useRef("");
   const [nameEdit, setNameEdit] = useState<{ id: string; v: string } | null>(null);
-  // Cabeçalho/rodapé nesta página? (pageConfig.noHF) — default mostra.
-  const [pageNoHF, setPageNoHF] = useState(false);
-  const pageNoHFRef = useRef(false);
+  // Cabeçalho/rodapé nesta página? INDEPENDENTES (pageConfig.noHeader / noFooter) — default mostra.
+  const [pageNoHeader, setPageNoHeader] = useState(false);
+  const [pageNoFooter, setPageNoFooter] = useState(false);
+  const pageHFRef = useRef({ noHeader: false, noFooter: false });
 
   // Carrega os boxes + fundo ao abrir uma pagina canvas (volta pra regiao PAGINA, reseta historico).
   useEffect(() => {
     setRegion("page");
     if (editingPage && pageIsCanvas(editingPage)) {
       const pc = (editingPage.pageConfig as any) || {};
-      const bs = (pc.boxes || []) as Box[];
+      let bs = (pc.boxes || []) as Box[];
+      // MIGRACAO de % -> mm (uma vez por pagina): converte usando o tamanho da pagina e persiste unit:"mm".
+      const needMigrate = pc.unit !== "mm" && bs.length > 0;
+      if (needMigrate) {
+        const { w: W, h: H } = pageDims(layout?.branding);
+        const r1 = (v: number) => Math.round(v * 10) / 10;
+        bs = bs.map((b) => ({ ...b, x: r1(b.x * W / 100), y: r1(b.y * H / 100), w: r1(b.w * W / 100), h: r1(b.h * H / 100) }));
+      }
       setBoxes(bs); setSelBox(null); setSaveState("idle");
       const bg = { bg: pc.bg ?? null, bgType: pc.bgType || "solid", bgColor2: pc.bgColor2 };
       setPageBgCfg(bg); pageBgRef.current = bg;
       const nm = pc.name || ""; setPageName(nm); pageNameRef.current = nm;
-      const nohf = !!pc.noHF; setPageNoHF(nohf); pageNoHFRef.current = nohf;
+      const noHeader = !!(pc.noHeader || pc.noHF), noFooter = !!(pc.noFooter || pc.noHF);
+      setPageNoHeader(noHeader); setPageNoFooter(noFooter); pageHFRef.current = { noHeader, noFooter };
       histRef.current = { stack: [JSON.parse(JSON.stringify(bs))], idx: 0 };
       setHistInfo({ canUndo: false, canRedo: false });
+      if (needMigrate) scheduleSave(bs); // grava a migracao (com unit:"mm")
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingPage?.id]);
@@ -210,10 +220,20 @@ export default function PoolPrintLayoutEditorPage() {
     const src = r === "page"
       ? (((editingPage?.pageConfig as any)?.boxes) || [])
       : (brandNow[r === "header" ? "headerBoxes" : "footerBoxes"] || []);
-    const bs = JSON.parse(JSON.stringify(src)) as Box[];
+    let bs = JSON.parse(JSON.stringify(src)) as Box[];
+    // MIGRACAO %→mm das faixas (uma vez): cab/rodape usam W (pagina) x altura da faixa (mm).
+    let migrate = false;
+    if (r !== "page" && brandNow.hfUnit !== "mm" && bs.length) {
+      const { w: W } = pageDims(layout?.branding);
+      const stripH = r === "header" ? (brandNow.headerHmm ?? 18) : (brandNow.footerHmm ?? 14);
+      const r1 = (v: number) => Math.round(v * 10) / 10;
+      bs = bs.map((b) => ({ ...b, x: r1(b.x * W / 100), y: r1(b.y * stripH / 100), w: r1(b.w * W / 100), h: r1(b.h * stripH / 100) }));
+      migrate = true;
+    }
     setRegion(r); setBoxes(bs); setSelBox(null); setSaveState("idle");
     histRef.current = { stack: [JSON.parse(JSON.stringify(bs))], idx: 0 };
     setHistInfo({ canUndo: false, canRedo: false });
+    if (migrate) setTimeout(() => scheduleSave(bs), 0); // persiste a migracao da faixa (region ja setada)
     setTab("Inserir");
   }
 
@@ -227,12 +247,12 @@ export default function PoolPrintLayoutEditorPage() {
           if (!editingPage) return;
           const pageId = editingPage.id;
           const bgc = pageBgRef.current;
-          const pageConfig = { canvas: true, boxes: bs, bg: bgc.bg ?? null, bgType: bgc.bgType || "solid", bgColor2: bgc.bgColor2 ?? null, name: pageNameRef.current || null, noHF: pageNoHFRef.current || undefined };
+          const pageConfig = { canvas: true, unit: "mm", boxes: bs, bg: bgc.bg ?? null, bgType: bgc.bgType || "solid", bgColor2: bgc.bgColor2 ?? null, name: pageNameRef.current || null, noHeader: pageHFRef.current.noHeader || undefined, noFooter: pageHFRef.current.noFooter || undefined };
           await api.put(`/pool-print-layouts/pages/${pageId}`, { type: "FIXED", htmlContent: null, dynamicType: null, pageConfig });
           setLayout((prev) => prev ? { ...prev, pages: prev.pages.map((p) => p.id === pageId ? { ...p, type: "FIXED", pageConfig } : p) } : prev);
         } else {
           const key = r === "header" ? "headerBoxes" : "footerBoxes";
-          const nextBrand = { ...((layoutRef.current?.branding || {}) as any), [key]: bs };
+          const nextBrand = { ...((layoutRef.current?.branding || {}) as any), [key]: bs, hfUnit: "mm" };
           await api.put(`/pool-print-layouts/${id}`, { branding: nextBrand });
           setLayout((prev) => prev ? { ...prev, branding: nextBrand } : prev);
         }
@@ -266,22 +286,25 @@ export default function PoolPrintLayoutEditorPage() {
 
   const maxZ = () => boxes.reduce((m, b) => Math.max(m, b.z || 0), 0);
   function addBox(kind: "TEXT" | "IMAGE" | "BLOCK" | "CARD", extra: Partial<Box>) {
+    // Geometria em MILIMETROS (canto sup-esq = 0,0). A4 = 210x297mm (ou o tamanho da pagina).
+    const { w: PW, h: PH } = pageDims(layout?.branding);
     const base: Box = kind === "TEXT"
-      ? { id: genBoxId(), type: "TEXT", x: 12, y: 12, w: 55, h: 12, z: maxZ() + 1, html: "<p>Novo texto</p>", style: { fontSize: 12 } }
+      ? { id: genBoxId(), type: "TEXT", x: 15, y: 15, w: 110, h: 20, z: maxZ() + 1, html: "<p>Novo texto</p>", style: { fontSize: 12 } }
       : kind === "IMAGE"
-      ? { id: genBoxId(), type: "IMAGE", x: 20, y: 20, w: 40, h: 28, z: maxZ() + 1, url: "", fit: "cover" }
+      ? { id: genBoxId(), type: "IMAGE", x: 20, y: 20, w: 80, h: 55, z: maxZ() + 1, url: "", fit: "cover" }
       : kind === "CARD"
-      ? { id: genBoxId(), type: "CARD", x: 8, y: 8, w: 55, h: 30, z: maxZ() + 1, style: { bg: "#ffffff", borderColor: "#e2e8f0", borderWidth: 1, radius: 8 } }
-      : { id: genBoxId(), type: "BLOCK", x: 5, y: 8, w: 90, h: 80, z: maxZ() + 1, blockType: "PRODUCTS_BY_SECTION", config: {} };
-    // offset em cascata pra caixas novas NAO sobreporem exatamente (estilo PowerPoint)
-    const off = (boxes.length % 6) * 3;
-    base.x = Math.min(85, (base.x || 0) + off); base.y = Math.min(85, (base.y || 0) + off);
+      ? { id: genBoxId(), type: "CARD", x: 15, y: 15, w: 110, h: 60, z: maxZ() + 1, style: { bg: "#ffffff", borderColor: "#e2e8f0", borderWidth: 1, radius: 8 } }
+      : { id: genBoxId(), type: "BLOCK", x: 10, y: 15, w: Math.round(PW - 20), h: Math.round(PH - 30), z: maxZ() + 1, blockType: "PRODUCTS_BY_SECTION", config: {} };
+    // offset em cascata (mm) pra caixas novas NAO sobreporem exatamente (estilo PowerPoint)
+    const off = (boxes.length % 6) * 6;
+    base.x = Math.min(PW - base.w, (base.x || 0) + off); base.y = Math.min(PH - base.h, (base.y || 0) + off);
     const nb = { ...base, ...extra } as Box;
     commitBoxes([...boxes, nb]); setSelBox(nb.id); setTab("Layout");
   }
   function duplicateSelBox() {
     if (!selectedBox) return;
-    const nb = { ...JSON.parse(JSON.stringify(selectedBox)), id: genBoxId(), x: Math.min(88, selectedBox.x + 3), y: Math.min(88, selectedBox.y + 3), z: maxZ() + 1 } as Box;
+    const { w: PW, h: PH } = pageDims(layout?.branding);
+    const nb = { ...JSON.parse(JSON.stringify(selectedBox)), id: genBoxId(), x: Math.min(PW - selectedBox.w, selectedBox.x + 5), y: Math.min(PH - selectedBox.h, selectedBox.y + 5), z: maxZ() + 1 } as Box;
     commitBoxes([...boxes, nb]); setSelBox(nb.id);
   }
   function patchSelBox(patch: Partial<Box>) {
@@ -303,7 +326,7 @@ export default function PoolPrintLayoutEditorPage() {
   }
   async function newCanvasPage() {
     try {
-      await api.post(`/pool-print-layouts/${id}/pages`, { type: "FIXED", htmlContent: null, dynamicType: null, pageConfig: { canvas: true, boxes: [] }, pageBreak: true, isActive: true });
+      await api.post(`/pool-print-layouts/${id}/pages`, { type: "FIXED", htmlContent: null, dynamicType: null, pageConfig: { canvas: true, unit: "mm", boxes: [] }, pageBreak: true, isActive: true });
       const data = await api.get<Layout>(`/pool-print-layouts/${id}`);
       setLayout(data); setName(data.name); setIsDefault(data.isDefault);
       const last = data.pages[data.pages.length - 1];
@@ -313,13 +336,14 @@ export default function PoolPrintLayoutEditorPage() {
   function convertToCanvas() {
     if (!editingPage) return;
     const p = editingPage; let bs: Box[] = [];
+    const { w: PW, h: PH } = pageDims(layout?.branding);
     const nodes = (p.pageConfig as any)?.nodes;
-    if (p.type === "DYNAMIC" && p.dynamicType) bs = [{ id: genBoxId(), type: "BLOCK", blockType: p.dynamicType, config: p.pageConfig || {}, x: 4, y: 4, w: 92, h: 92, z: 1 }];
-    else if (p.type === "FIXED" && p.htmlContent) bs = [{ id: genBoxId(), type: "TEXT", html: p.htmlContent, x: 6, y: 6, w: 88, h: 80, z: 1 }];
-    else if (Array.isArray(nodes) && nodes.length) bs = [{ id: genBoxId(), type: "TEXT", html: "<p>Página convertida — recrie os elementos como caixas (aba Inserir).</p>", x: 6, y: 6, w: 88, h: 16, z: 1 }];
+    if (p.type === "DYNAMIC" && p.dynamicType) bs = [{ id: genBoxId(), type: "BLOCK", blockType: p.dynamicType, config: p.pageConfig || {}, x: 8, y: 8, w: Math.round(PW - 16), h: Math.round(PH - 16), z: 1 }];
+    else if (p.type === "FIXED" && p.htmlContent) bs = [{ id: genBoxId(), type: "TEXT", html: p.htmlContent, x: 12, y: 12, w: Math.round(PW - 24), h: Math.round(PH - 40), z: 1 }];
+    else if (Array.isArray(nodes) && nodes.length) bs = [{ id: genBoxId(), type: "TEXT", html: "<p>Página convertida — recrie os elementos como caixas (aba Inserir).</p>", x: 12, y: 12, w: Math.round(PW - 24), h: 30, z: 1 }];
     setBoxes(bs); setSelBox(null);
     histRef.current = { stack: [JSON.parse(JSON.stringify(bs))], idx: 0 }; setHistInfo({ canUndo: false, canRedo: false });
-    setEditingPage({ ...p, type: "FIXED", pageConfig: { canvas: true, boxes: bs } } as Page);
+    setEditingPage({ ...p, type: "FIXED", pageConfig: { canvas: true, unit: "mm", boxes: bs } } as Page);
     scheduleSave(bs);
   }
   async function renamePage(pageId: string, name: string) {
@@ -426,7 +450,6 @@ export default function PoolPrintLayoutEditorPage() {
   // Campo de tamanho DIGITÁVEL (reflete a seleção, mas aceita qualquer valor digitado).
   const [sizeInput, setSizeInput] = useState("");
   useEffect(() => { setSizeInput(selFmt.sizePt || ""); }, [selFmt.sizePt]);
-  // Campo de LINK (aba Inicio): digita a URL/numero/@ e aplica na selecao.
   const ribFmtBtn = (active: boolean) =>
     `h-7 w-7 rounded text-sm font-bold ${active ? "bg-cyan-600 text-white" : "bg-white text-slate-700 border border-slate-300"} hover:bg-cyan-50`;
 
@@ -637,7 +660,7 @@ export default function PoolPrintLayoutEditorPage() {
       </div>
 
       {/* FAIXA DE OPCOES — cada ferramenta na aba certa (estilo Office) */}
-      <div className="flex items-center gap-2 px-4 py-1.5 bg-white border-b border-slate-200 overflow-x-auto shrink-0" style={{ minHeight: 56 }}>
+      <div className="flex items-center gap-1.5 px-3 py-1 bg-white border-b border-slate-200 overflow-x-auto shrink-0" style={{ minHeight: 44 }}>
         {tab === "Arquivo" && (<>
           <RibbonBtn icon="✏️" label="Renomear" onClick={() => setEditingMeta(true)} />
           <RibbonBtn icon="💾" label="Salvar estilo" onClick={saveBranding} />
@@ -723,7 +746,7 @@ export default function PoolPrintLayoutEditorPage() {
             <RibbonBtn icon="🃏" label="Novo card" onClick={() => addBox("CARD", {})} />
             <RibbonBtn icon="🇹" label="Texto" onClick={() => addBox("TEXT", {})} />
             <RibbonBtn icon="🖼️" label="Imagem" onClick={() => addBox("IMAGE", {})} />
-            <RibbonBtn icon="🔗" label="Link" onClick={() => addBox("TEXT", { html: "<p>Clique aqui</p>", href: "https://exemplo.com", style: { fontSize: 12, textColor: "#1d4ed8" } })} />
+            <RibbonBtn icon="🔗" label="Link" onClick={() => addBox("TEXT", { html: "<p>Clique aqui</p>", href: "", style: { fontSize: 12, textColor: "#1d4ed8" } })} />
             <span className="mx-0.5 h-5 w-px bg-slate-300" />
             <RibbonBtn icon="📚" label="Campos & blocos" onClick={() => setTab("Campos")} />
             <span className="text-[10px] text-slate-400 ml-1">Campos/blocos do sistema na aba &quot;Campos&quot; · arraste na folha pra mover · alças pra redimensionar.</span>
@@ -736,15 +759,18 @@ export default function PoolPrintLayoutEditorPage() {
         )}
         {tab === "Layout" && (selectedBox ? (() => {
           const sb = selectedBox; const sbst: any = sb.style || {};
+          const { w: PW, h: PH } = pageDims(layout?.branding);
+          const r1 = (v: number) => Math.round(v * 10) / 10;
+          const clampN = (v: number, max: number) => Math.max(0, Math.min(max, isNaN(v) ? 0 : v));
           return (<>
             <span className="text-[10px] uppercase tracking-wide text-slate-400">Caixa:</span>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Posicao horizontal (% da folha)">X<input type="number" value={Math.round(sb.x)} onChange={(e) => patchSelBox({ x: Number(e.target.value) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />%</label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Posicao vertical (% da folha)">Y<input type="number" value={Math.round(sb.y)} onChange={(e) => patchSelBox({ y: Number(e.target.value) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />%</label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Largura (% da folha)">L<input type="number" value={Math.round(sb.w)} onChange={(e) => patchSelBox({ w: Number(e.target.value) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />%</label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura (% da folha)">A<input type="number" value={Math.round(sb.h)} onChange={(e) => patchSelBox({ h: Number(e.target.value) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />%</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Posição horizontal (mm a partir da esquerda; 0 = canto)">X<input type="number" step={0.5} value={r1(sb.x)} onChange={(e) => patchSelBox({ x: clampN(Number(e.target.value), PW - sb.w) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Posição vertical (mm a partir do topo; 0 = canto)">Y<input type="number" step={0.5} value={r1(sb.y)} onChange={(e) => patchSelBox({ y: clampN(Number(e.target.value), PH - sb.h) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Largura (mm)">L<input type="number" step={0.5} value={r1(sb.w)} onChange={(e) => patchSelBox({ w: clampN(Number(e.target.value), PW - sb.x) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura (mm)">A<input type="number" step={0.5} value={r1(sb.h)} onChange={(e) => patchSelBox({ h: clampN(Number(e.target.value), PH - sb.y) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
             <span className="mx-0.5 h-5 w-px bg-slate-300" />
-            <RibbonBtn icon="⬄" label="Centro H" onClick={() => patchSelBox({ x: Math.round((100 - sb.w) / 2) })} />
-            <RibbonBtn icon="⬍" label="Centro V" onClick={() => patchSelBox({ y: Math.round((100 - sb.h) / 2) })} />
+            <RibbonBtn icon="⬄" label="Centro H" onClick={() => patchSelBox({ x: r1((PW - sb.w) / 2) })} />
+            <RibbonBtn icon="⬍" label="Centro V" onClick={() => patchSelBox({ y: r1((PH - sb.h) / 2) })} />
             <RibbonBtn icon="⤒" label="Frente" onClick={() => zOrder("front")} />
             <RibbonBtn icon="⤓" label="Tras" onClick={() => zOrder("back")} />
             <span className="mx-0.5 h-5 w-px bg-slate-300" />
@@ -784,10 +810,13 @@ export default function PoolPrintLayoutEditorPage() {
           <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura do cabeçalho (mm)">Cab.<input type="number" min={0} max={80} value={brand.headerHmm ?? 18} onChange={(e) => setBranding({ headerHmm: e.target.value ? Number(e.target.value) : null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
           <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura do rodapé (mm)">Rod.<input type="number" min={0} max={80} value={brand.footerHmm ?? 14} onChange={(e) => setBranding({ footerHmm: e.target.value ? Number(e.target.value) : null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
           <RibbonBtn icon="💾" label="Salvar" onClick={saveBranding} />
-          {editingPage && pageIsCanvas(editingPage) ? (
-            <label className="text-xs text-slate-600 flex items-center gap-1 ml-1" title="Mostrar cabeçalho/rodapé NESTA página"><input type="checkbox" checked={!pageNoHF} onChange={(e) => { const nohf = !e.target.checked; setPageNoHF(nohf); pageNoHFRef.current = nohf; scheduleSave(boxes); }} />Mostrar nesta página</label>
-          ) : null}
-          <span className="text-[10px] text-slate-400 ml-1">Edite como uma página: vá em <b>Inserir</b> (texto, imagem, campos) — aparece nas páginas (desmarque pra esconder numa).</span>
+          {editingPage && pageIsCanvas(editingPage) ? (<>
+            <span className="mx-1 h-6 w-px bg-slate-300" />
+            <span className="text-[10px] uppercase tracking-wide text-slate-400">Nesta página:</span>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Mostrar o CABEÇALHO nesta página"><input type="checkbox" checked={!pageNoHeader} onChange={(e) => { const v = !e.target.checked; setPageNoHeader(v); pageHFRef.current = { ...pageHFRef.current, noHeader: v }; scheduleSave(boxes); }} />Cabeçalho</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Mostrar o RODAPÉ nesta página"><input type="checkbox" checked={!pageNoFooter} onChange={(e) => { const v = !e.target.checked; setPageNoFooter(v); pageHFRef.current = { ...pageHFRef.current, noFooter: v }; scheduleSave(boxes); }} />Rodapé</label>
+          </>) : null}
+          <span className="text-[10px] text-slate-400 ml-1">Edite como uma página: vá em <b>Inserir</b> (texto, imagem, campos). Marque/desmarque <b>Cabeçalho</b> e <b>Rodapé</b> por página — independentes (em todas ou só numa).</span>
         </>)}
       </div>
 
@@ -970,7 +999,7 @@ export default function PoolPrintLayoutEditorPage() {
               <button type="button" onClick={() => enterRegion("page")} className="ml-auto rounded bg-amber-600 px-2 py-0.5 font-semibold text-white hover:bg-amber-700">↩ Voltar à página</button>
             </div>
             <div className="flex-1 min-h-0">
-              <CanvasEditor boxes={boxes} data={SAMPLE_BUDGET} branding={layout.branding}
+              <CanvasEditor boxes={boxes} data={SAMPLE_BUDGET} branding={layout.branding} unit="mm"
                 selBox={selBox} pageW={pageDims(layout.branding).w} pageH={region === "header" ? (brand.headerHmm ?? 18) : (brand.footerHmm ?? 14)}
                 pageBg="#ffffff"
                 onSelect={(idv) => { setSelBox(idv); if (idv) setTab("Layout"); }}
@@ -978,7 +1007,7 @@ export default function PoolPrintLayoutEditorPage() {
             </div>
           </div>
         ) : editingPage && pageIsCanvas(editingPage) ? (
-          <CanvasEditor boxes={boxes} data={SAMPLE_BUDGET} branding={layout.branding}
+          <CanvasEditor boxes={boxes} data={SAMPLE_BUDGET} branding={layout.branding} unit="mm" hfUnit={(brand as any)?.hfUnit === "mm" ? "mm" : "%"}
             selBox={selBox} pageW={pageDims(layout.branding).w} pageH={pageDims(layout.branding).h}
             pageBg={pageBgCss}
             hfOverlay={{ headerBoxes: brand.headerBoxes, footerBoxes: brand.footerBoxes, headerHmm: brand.headerHmm, footerHmm: brand.footerHmm }}
@@ -1021,7 +1050,7 @@ export default function PoolPrintLayoutEditorPage() {
 
       {/* OCULTO: render completo (#budget-pdf-area) p/ impressao — reflete os boxes ao vivo */}
       <div aria-hidden style={{ position: "absolute", left: -99999, top: 0 }}>
-        <BudgetReport data={SAMPLE_BUDGET} layout={{ branding: layout.branding, pages: layout.pages.map((p) => editingPage && p.id === editingPage.id && pageIsCanvas(editingPage) ? { ...p, type: "FIXED", pageConfig: { ...((p.pageConfig as any) || {}), canvas: true, boxes, bg: pageBgCfg.bg ?? null, bgType: pageBgCfg.bgType || "solid", bgColor2: pageBgCfg.bgColor2 ?? null, name: pageName || null, noHF: pageNoHF || undefined } } : p) }} />
+        <BudgetReport data={SAMPLE_BUDGET} layout={{ branding: layout.branding, pages: layout.pages.map((p) => editingPage && p.id === editingPage.id && pageIsCanvas(editingPage) ? { ...p, type: "FIXED", pageConfig: { ...((p.pageConfig as any) || {}), canvas: true, unit: "mm", boxes, bg: pageBgCfg.bg ?? null, bgType: pageBgCfg.bgType || "solid", bgColor2: pageBgCfg.bgColor2 ?? null, name: pageName || null, noHeader: pageNoHeader || undefined, noFooter: pageNoFooter || undefined } } : p) }} />
       </div>
 
       </div>{/* fim 3 paineis */}
