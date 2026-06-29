@@ -87,8 +87,15 @@ pela metade) até a reforma inteira ficar pronta + typecheck/build, aí UM únic
   unitário) → insere `{linha:Lx.atributo}`. **Fonte das linhas no editor:** itens do orçamento-exemplo carregado
   (cellRef estável entre orçamentos do mesmo modelo); se houver modelo de obra ligado, usar o snapshot dele.
 - **UX copiar-token (FEITO, working tree):** ReportFieldLibrary — `+` insere, clique no `{código}` copia/seleciona.
-- **Fase 3 — FALTA:** auto-semear DMMF (backend endpoint + curadoria/blacklist) + path resolver genérico + providers
-  das outras origens (Serviços→OS→Financeiro).
+- **Fase 3 — resolver por path FEITO (working tree); DMMF amplo DEFERIDO por segurança:**
+  - ✅ Resolver genérico por PATH no BudgetReport.tsx: `buildFieldContext` (budget.*/client.*/company.*/budget.pool.*,
+    valores JÁ formatados) + `resolveContextPath` (anda no path pontilhado) + ligado na cadeia. Aditivo, tokens flat
+    seguem como alias. Frontend tsc verde.
+  - **DECISÃO de segurança (Claude, conservadora):** NÃO auto-expor o banco inteiro via DMMF (risco: senha/token/id
+    interno/cross-tenant). "Qualquer campo" = grafo do DOCUMENTO da origem (já é o que entra no relatório). Ampliar pra
+    um modelo específico = só com blacklist explícita, sob demanda.
+  - ⏳ FALTA: providers de data-context das outras origens (Serviços→OS→Financeiro) p/ tokens resolverem com dado real
+    quando o layout for daquela origem; catálogo auto-listar os paths do contexto (opcional).
 - **Fase 5 — FALTA:** alertas/validação (origem/template incompatível, lista em caixa de texto, célula inexistente, vazio).
 
 ## Decisões de negócio (29/06 — Juliano respondeu "pode fazer todas")
