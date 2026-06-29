@@ -12,6 +12,7 @@ import ReportFieldLibrary from "@/components/pool/report/ReportFieldLibrary";
 import { LineRefPicker, type LineRefPickerLine } from "@/components/pool/LineRefPicker";
 import { validateLayoutTokens } from "@/components/pool/report/reportValidate";
 import { REPORT_ICONS } from "@/components/pool/report/reportIcons";
+import NumInput from "@/components/ui/NumInput";
 
 const genBoxId = () => "b" + Math.random().toString(36).slice(2, 9);
 
@@ -841,7 +842,7 @@ export default function PoolPrintLayoutEditorPage() {
           {selectedBox?.type === "TEXT" ? (<>
             <label className="text-xs text-slate-600 flex items-center gap-1 ml-1" title="Quebra automática de linha na caixa de texto"><input type="checkbox" checked={!((selectedBox.style as any)?.noWrap)} onChange={(e) => patchSelStyle({ noWrap: !e.target.checked })} />Quebra linha</label>
             <label className="text-xs text-slate-600 flex items-center gap-1" title="Espaçamento entre linhas (entrelinha)">Entrelinha
-              <input type="number" min={0.8} max={3} step={0.1} value={(selectedBox.style as any)?.lineHeight ?? ""} placeholder="auto" onChange={(e) => patchSelStyle({ lineHeight: e.target.value ? Number(e.target.value) : null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
+              <NumInput value={(selectedBox.style as any)?.lineHeight ?? 0} placeholder="auto" onChange={(v) => patchSelStyle({ lineHeight: v || null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
           </>) : null}
           {/* ── grupo PAGINA (tamanho/orientacao/fundo) ── */}
           <span className="mx-1 h-6 w-px bg-slate-300" />
@@ -850,9 +851,9 @@ export default function PoolPrintLayoutEditorPage() {
               <option value="portrait">Retrato</option><option value="landscape">Paisagem</option>
             </select>
           </label>
-          <label className="text-xs text-slate-600 flex items-center gap-1" title="Largura da página (mm)">L<input type="number" min={50} value={pageDims(layout.branding).w} onChange={(e) => setBranding({ pageWidthMm: Number(e.target.value) || null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
-          <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura da página (mm) — diminua p/ folha mais baixa">A<input type="number" min={50} value={pageDims(layout.branding).h} onChange={(e) => setBranding({ pageHeightMm: Number(e.target.value) || null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
-          <label className="text-xs text-slate-600 flex items-center gap-1" title="Margem (guia tracejada no editor; só referência)">Margem<input type="number" min={0} max={40} value={brand.pageMarginMm ?? 12} onChange={(e) => setBranding({ pageMarginMm: e.target.value === "" ? null : Number(e.target.value) })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Largura da página (mm)">L<NumInput value={pageDims(layout.branding).w} onChange={(v) => setBranding({ pageWidthMm: v || null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura da página (mm) — diminua p/ folha mais baixa">A<NumInput value={pageDims(layout.branding).h} onChange={(v) => setBranding({ pageHeightMm: v || null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Margem (guia tracejada no editor; só referência)">Margem<NumInput value={brand.pageMarginMm ?? 12} onChange={(v) => setBranding({ pageMarginMm: v || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
           <label className="text-xs text-slate-600 flex items-center gap-1" title="Fundo SÓ desta página">Fundo
             <select value={pageBgCfg.bgType || "solid"} onChange={(e) => setPageBg({ bgType: e.target.value })} className="rounded border border-slate-300 px-1 py-1 text-sm"><option value="solid">Sólido</option><option value="gradient">Gradiente</option></select>
             <input type="color" value={pageBgCfg.bg || "#ffffff"} onChange={(e) => setPageBg({ bg: e.target.value })} className="h-6 w-6 cursor-pointer rounded border border-slate-300 p-0" />
@@ -898,10 +899,10 @@ export default function PoolPrintLayoutEditorPage() {
           const clampN = (v: number, max: number) => Math.max(0, Math.min(max, isNaN(v) ? 0 : v));
           return (<>
             <span className="text-[10px] uppercase tracking-wide text-slate-400">Caixa:</span>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Posição horizontal (mm a partir da esquerda; 0 = canto)">X<input type="number" step={0.5} value={r1(sb.x)} onChange={(e) => patchSelBox({ x: clampN(Number(e.target.value), PW - sb.w) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Posição vertical (mm a partir do topo; 0 = canto)">Y<input type="number" step={0.5} value={r1(sb.y)} onChange={(e) => patchSelBox({ y: clampN(Number(e.target.value), PH - sb.h) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Largura (mm)">L<input type="number" step={0.5} value={r1(sb.w)} onChange={(e) => patchSelBox({ w: clampN(Number(e.target.value), PW - sb.x) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura (mm)">A<input type="number" step={0.5} value={r1(sb.h)} onChange={(e) => patchSelBox({ h: clampN(Number(e.target.value), PH - sb.y) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Posição horizontal (mm a partir da esquerda; 0 = canto)">X<NumInput value={r1(sb.x)} onChange={(v) => patchSelBox({ x: clampN(v, PW - sb.w) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Posição vertical (mm a partir do topo; 0 = canto)">Y<NumInput value={r1(sb.y)} onChange={(v) => patchSelBox({ y: clampN(v, PH - sb.h) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Largura (mm)">L<NumInput value={r1(sb.w)} onChange={(v) => patchSelBox({ w: clampN(v, PW - sb.x) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura (mm)">A<NumInput value={r1(sb.h)} onChange={(v) => patchSelBox({ h: clampN(v, PH - sb.y) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
             <span className="mx-0.5 h-5 w-px bg-slate-300" />
             <RibbonBtn icon="⬄" label="Centro H" onClick={() => patchSelBox({ x: r1((PW - sb.w) / 2) })} />
             <RibbonBtn icon="⬍" label="Centro V" onClick={() => patchSelBox({ y: r1((PH - sb.h) / 2) })} />
@@ -910,11 +911,11 @@ export default function PoolPrintLayoutEditorPage() {
             <span className="mx-0.5 h-5 w-px bg-slate-300" />
             <label className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs" title="Cor de fundo da caixa">Fundo<input type="color" value={sbst.bg || "#ffffff"} onChange={(e) => patchSelStyle({ bg: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /><button type="button" onClick={() => patchSelStyle({ bg: null })} title="Sem fundo" className="text-slate-400 hover:text-slate-700">⌫</button></label>
             <label className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs" title="Cor do ícone / texto da caixa">Cor<input type="color" value={sbst.textColor || "#16365C"} onChange={(e) => patchSelStyle({ textColor: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Borda (px)">Borda<input type="number" min={0} value={sbst.borderWidth ?? 0} onChange={(e) => patchSelStyle({ borderWidth: Number(e.target.value) || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" /><input type="color" value={sbst.borderColor || "#e2e8f0"} onChange={(e) => patchSelStyle({ borderColor: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Cantos (px)">Cantos<input type="number" min={0} value={sbst.radius ?? 0} onChange={(e) => patchSelStyle({ radius: Number(e.target.value) || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Espacamento interno (px)">Padding<input type="number" min={0} value={sbst.padding ?? 0} onChange={(e) => patchSelStyle({ padding: Number(e.target.value) || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Borda (px)">Borda<NumInput value={sbst.borderWidth ?? 0} onChange={(v) => patchSelStyle({ borderWidth: v || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" /><input type="color" value={sbst.borderColor || "#e2e8f0"} onChange={(e) => patchSelStyle({ borderColor: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Cantos (px)">Cantos<NumInput value={sbst.radius ?? 0} onChange={(v) => patchSelStyle({ radius: v || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Espacamento interno (px)">Padding<NumInput value={sbst.padding ?? 0} onChange={(v) => patchSelStyle({ padding: v || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
             <label className="text-xs text-slate-600 flex items-center gap-1" title="Sombra"><input type="checkbox" checked={!!sbst.shadow} onChange={(e) => patchSelStyle({ shadow: e.target.checked })} />Sombra</label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Opacidade (0-1)">Opac.<input type="number" min={0} max={1} step={0.1} value={sbst.opacity ?? 1} onChange={(e) => patchSelStyle({ opacity: Number(e.target.value) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Opacidade (0-1)">Opac.<NumInput value={sbst.opacity ?? 1} onChange={(v) => patchSelStyle({ opacity: v })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
             {sb.type === "TEXT" ? (
               <label className="text-xs text-slate-600 flex items-center gap-1" title="Alinhamento vertical do texto">V-align
                 <select value={sbst.valign || "top"} onChange={(e) => patchSelStyle({ valign: e.target.value })} className="rounded border border-slate-300 px-1 py-1 text-sm"><option value="top">Topo</option><option value="center">Centro</option><option value="bottom">Base</option></select>
@@ -946,8 +947,8 @@ export default function PoolPrintLayoutEditorPage() {
           <RibbonBtn icon="🔻" label="Rodapé" onClick={() => enterRegion("footer")} />
           {region !== "page" ? <RibbonBtn icon="↩️" label="Voltar à página" onClick={() => enterRegion("page")} /> : null}
           <span className="mx-1 h-6 w-px bg-slate-300" />
-          <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura do cabeçalho (mm)">Cab.<input type="number" min={0} max={80} value={brand.headerHmm ?? 18} onChange={(e) => setBranding({ headerHmm: e.target.value ? Number(e.target.value) : null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
-          <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura do rodapé (mm)">Rod.<input type="number" min={0} max={80} value={brand.footerHmm ?? 14} onChange={(e) => setBranding({ footerHmm: e.target.value ? Number(e.target.value) : null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura do cabeçalho (mm)">Cab.<NumInput value={brand.headerHmm ?? 18} onChange={(v) => setBranding({ headerHmm: v || null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura do rodapé (mm)">Rod.<NumInput value={brand.footerHmm ?? 14} onChange={(v) => setBranding({ footerHmm: v || null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
           <RibbonBtn icon="💾" label="Salvar" onClick={saveBranding} />
           {editingPage && pageIsCanvas(editingPage) ? (<>
             <span className="mx-1 h-6 w-px bg-slate-300" />
@@ -1027,8 +1028,7 @@ export default function PoolPrintLayoutEditorPage() {
               </select>
             </label>
             <label className="block text-xs text-slate-600">Tamanho da fonte (pt)
-              <input type="number" min={7} max={18} value={brand.fontSizePt ?? ""}
-                onChange={(e) => setBranding({ fontSizePt: e.target.value ? Number(e.target.value) : null })}
+              <NumInput value={brand.fontSizePt ?? 0} onChange={(v) => setBranding({ fontSizePt: v || null })}
                 placeholder="auto" className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" />
             </label>
           </div>
@@ -1070,8 +1070,7 @@ export default function PoolPrintLayoutEditorPage() {
               </select>
             </label>
             <label className="block text-xs text-slate-600">Margem da pagina (mm)
-              <input type="number" min={0} max={30} value={brand.pageMarginMm ?? 12}
-                onChange={(e) => setBranding({ pageMarginMm: e.target.value === "" ? null : Number(e.target.value) })}
+              <NumInput value={brand.pageMarginMm ?? 12} onChange={(v) => setBranding({ pageMarginMm: v || null })}
                 className="mt-0.5 w-full rounded border border-slate-300 px-2 py-1 text-sm" />
             </label>
           </div>
@@ -1485,7 +1484,7 @@ function PageEditor({ editing, onClose, onSubmit, onUploadImage, inline }: {
                 </label>
               ) : dynamicType === "PHOTOS_GALLERY" ? (
                 <label className="block text-sm text-slate-700">Colunas da galeria
-                  <input type="number" min={1} max={6} value={pcGet("columns", 3)} onChange={(e) => pcSet("columns", Math.max(1, Math.min(6, Number(e.target.value) || 3)))}
+                  <NumInput value={pcGet("columns", 3)} onChange={(v) => pcSet("columns", Math.max(1, Math.min(6, v || 3)))}
                     className="ml-2 w-20 rounded border border-slate-300 px-2 py-1 text-sm" />
                 </label>
               ) : null}
