@@ -55,6 +55,9 @@
 - [x] **Link com máscara (botão):** Layout tab separa **🔗 URL (atrás)** (href, clicável só no read-only/PDF) de **🏷️ Rótulo (frente)** (html visível, plain). Rótulo só aparece quando href != null. normalizeHref: @→instagram, número→wa.me.
 - [x] **🚫 Limpar realce:** botão na aba Layout (TEXT) — `clearTextHighlight` remove `background-color/background` do html da caixa (autossalva). Corrige "fundo cinza atrás do {validityDays}" no rodapé SLS (era `<span style="background-color: rgb(116,114,114)">` — realce manual/colado, NÃO sistemático; editor insere token limpo `<p>{token}</p>`). Dado da prod NÃO foi alterado por SQL (classifier bloqueou writes) — usuário corrige pela UI.
 
+## ✅ Inserir Link via pop-up (28/06, v1.14.76)
+- [x] **Inserir → Link** abre modal (`linkModal` state) com 2 campos: **URL/número/@perfil (atrás)** + **Texto visível (frente)**. Enter ou botão Inserir cria TEXT box com `href`=url e `html`=`<p style="text-align:center">texto</p>` (escapado). Texto vazio → usa a própria URL. Botão travado sem URL. Resolve "não consegui fazer ficar só o número".
+
 ## 🧪 DOGFOODING rodada 3 (28/06, v1.14.69) — implementado em v1.14.71
 - [ ] **G1** Clicar (1 clique) numa caixa já vai pra aba **Início** — deveria ir pra **Layout** no clique simples e só ir pra **Início** no **duplo-clique** (edição). Fix: `onSelect` → setTab("Layout") sempre; só `onEditStart` (duplo-clique) → setTab("Inicio"). (page.tsx CanvasEditor onSelect)
 - [ ] **G8** Ao selecionar texto/caixa, o **campo de tamanho deve mostrar o tamanho atual** da fonte (detectar). Hoje fica valor padrão/desatualizado. Vale p/ trecho (reflectSel px→pt) e p/ caixa só selecionada (style.fontSize).
