@@ -38,6 +38,12 @@
 - [x] **G13** Caixa de Link: no editor `<a>` = pointer-events:none (BoxContent recebe `editor`; só CanvasEditor passa) → seleciona/arrasta/duplo-clica; clicável só no read-only (impressão). Default href VAZIO. normalizeHref no render.
 - [x] **G14** ESC cancela arraste/resize: BoxFrame escuta keydown Escape → reverte pro `start.b`, remove listeners, sem onCommit.
 
+## 🐛 FIX G15 (28/06, v1.14.73) — cards da página tortos/sumindo ao editar cab/rodapé
+- **Sintoma:** editar Cabeçalho/Rodapé → ao voltar, cards da Capa ficavam tortos e depois sumiam.
+- **Causa:** `enterRegion("page")` relia `editingPage.pageConfig.boxes` que ficava em **%** (o state editingPage NÃO era atualizado após a migração lazy %→mm, só `layout.pages` via setLayout). Esses % eram interpretados como mm → cards minúsculos/tortos; o autosave seguinte gravava o lixo → sumiam ("depois sumiu" = corrupção persistida).
+- **Fix:** `pageBoxesRef` guarda o snapshot VIVO da página (mm, já migrado); `enterRegion("page")` restaura dele, nunca do pageConfig stale. `scheduleSave(bs, regionOverride)` evita gravar na faixa errada por `region` stale na migração (load effect e enterRegion passam a região explícita).
+- ⚠️ **Dados já corrompidos:** páginas que sofreram o bug ANTES do fix podem ter boxes gravados com valores errados (unit:"mm" + números de %). A migração não recupera (já está "mm"). Reposicionar manualmente OU restaurar.
+
 ## 🧪 DOGFOODING rodada 3 (28/06, v1.14.69) — implementado em v1.14.71
 - [ ] **G1** Clicar (1 clique) numa caixa já vai pra aba **Início** — deveria ir pra **Layout** no clique simples e só ir pra **Início** no **duplo-clique** (edição). Fix: `onSelect` → setTab("Layout") sempre; só `onEditStart` (duplo-clique) → setTab("Inicio"). (page.tsx CanvasEditor onSelect)
 - [ ] **G8** Ao selecionar texto/caixa, o **campo de tamanho deve mostrar o tamanho atual** da fonte (detectar). Hoje fica valor padrão/desatualizado. Vale p/ trecho (reflectSel px→pt) e p/ caixa só selecionada (style.fontSize).
