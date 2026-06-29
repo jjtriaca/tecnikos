@@ -54,20 +54,35 @@ O template estreita o universo de etapas/linhas endereçáveis → menos ruído 
 5. **Picker de etapa/linha** (classe 3) quando há template.
 6. **UI bíblia:** árvore escopada à origem/template; grupos minimizados; busca com sinônimos; virtualização (1000s);
    favoritos/recentes; chips de tipo (texto/moeda/data/lista/bloco/célula).
+   - **Copiar token vs inserir (decisão Juliano 29/06):** clicar no **`+`** = INSERE a caixa de campo na folha
+     (comportamento atual). Clicar no **endereço/`{token}`** = deixa o código **selecionável e copia pro clipboard**
+     (NÃO insere), pra colar dentro de um bloco de texto. Hoje a `Row` inteira (ReportFieldLibrary.tsx) é um
+     `<button>` que insere — separar: token = copiar/selecionar; `+` = inserir. Mostrar feedback "copiado".
 7. **Alertas/validação:** (a) origem/template incompatível, (b) campo-lista numa caixa de texto (deveria ser bloco),
    (c) célula etapa/linha inexistente no template, (d) token vazio pro doc-exemplo. Painel lateral com severidade + "ir até".
 
 ## Fases (rollout incremental — nada quebra graças a sourceType default + alias)
-- **Fase 0 (FEITO, deploy v1.14.78):** formatação 2 casas (`dim()`: 7→7,00) + expor medidas de obra no catálogo
-  (maxDepth, comprimento/largura total, perímetros, áreas parede/fundo, radier, escavação). MinDepth ficou de fora.
-- **Fase 1:** `sourceType` no layout + wizard origem(+template); escopar painel; **renomear "Template"**.
-- **Fase 2:** FieldMeta + resolver por path + alias (migrar PoolBudget).
-- **Fase 3:** auto-semear DMMF + curadoria; providers das outras origens.
-- **Fase 4:** célula endereçada etapa/linha (picker + resolver).
-- **Fase 5:** alertas/validação.
+**EXECUÇÃO:** Juliano pediu "tudo de uma vez, deploy só no fim" (29/06). Código fica no working tree (NÃO commitar
+pela metade) até a reforma inteira ficar pronta + typecheck/build, aí UM único deploy.
 
-## Decisões de negócio pendentes (pro Juliano)
-1. Novo nome de "Template" (sugestões: "Modelo de orçamento", "Modelo da obra", "Tipo de projeto").
-2. "Menor profundidade" — como derivar (ficou pendente; só maxDepth foi exposto).
-3. Endereçar linha por `cellRef` (L1,L2 estável) ou por `slotName` (papel)?
-4. Ordem das próximas origens depois de Piscina: Serviços / OS / Financeiro?
+- **Fase 0 (FEITO, deploy v1.14.78):** formatação 2 casas (`dim()`: 7→7,00) + medidas de obra no catálogo. MinDepth fora.
+- **Fase 1 — parcial (working tree, sem deploy):**
+  - ✅ Renomear "Template" → "Modelo de obra" (`quotes/pool/new/page.tsx`: label l528, toast l362).
+  - ⏳ `sourceType` no layout + wizard origem(+template) + escopar painel. (FALTA — backend+front.)
+- **Fase 2 — parcial (working tree):** regex do resolver ampliada (`/\{[a-zA-Z][\w.:-]*\}/`) + fallback. Path
+  genérico/alias completo FALTA (vem junto da Fase 3/DMMF).
+- **Fase 4 — FEITO (working tree):** célula endereçada etapa/linha. `resolveAddressedToken` em BudgetReport.tsx:
+  `{linha:Lx.produto|descricao|qtd|valor|unitario|papel|etapa}` e `{etapa:SECTION.total|linhas|nome}`. `cellRef`
+  carregado em buildReportData + ReportItem. Catálogo: subgrupo "Etapas e linhas (avançado)". Picker visual FALTA.
+- **UX copiar-token (FEITO, working tree):** ReportFieldLibrary — `+` insere, clique no `{código}` copia/seleciona.
+- **Fase 3 — FALTA:** auto-semear DMMF (backend endpoint + curadoria/blacklist) + path resolver genérico + providers
+  das outras origens (Serviços→OS→Financeiro).
+- **Fase 5 — FALTA:** alertas/validação (origem/template incompatível, lista em caixa de texto, célula inexistente, vazio).
+
+## Decisões de negócio (29/06 — Juliano respondeu "pode fazer todas")
+1. **Renomear "Template" → "Modelo de obra"** ✅ DECIDIDO (Juliano, 29/06).
+2. **"Menor profundidade"** → default recomendado: menor profundidade entre TODAS as partes (determinístico).
+   Refinar depois se precisar ignorar degraus. (Claude decide — pode fazer todas.)
+3. **Endereçar linha** → `cellRef` (L1,L2 estável, já usado em fórmulas) como chave; `slotName` só como rótulo
+   amigável no picker. (Claude decide.)
+4. **Ordem das próximas origens** → Serviços (Quote) → OS → Financeiro. (Claude decide.)
