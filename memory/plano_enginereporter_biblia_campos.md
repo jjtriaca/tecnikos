@@ -62,8 +62,9 @@ O template estreita o universo de etapas/linhas endereçáveis → menos ruído 
    (c) célula etapa/linha inexistente no template, (d) token vazio pro doc-exemplo. Painel lateral com severidade + "ir até".
 
 ## Fases (rollout incremental — nada quebra graças a sourceType default + alias)
-**EXECUÇÃO:** Juliano pediu "tudo de uma vez, deploy só no fim" (29/06). Código fica no working tree (NÃO commitar
-pela metade) até a reforma inteira ficar pronta + typecheck/build, aí UM único deploy.
+**EXECUÇÃO:** Juliano pediu "tudo de uma vez" (29/06). TUDO DEPLOYADO em **v1.14.85** (Fases 0–5 + picker etapa/linha +
+copiar-token + rename + path resolver + alertas). Houve incidente de deploy (sobrecarga) — ver [[incident-deploy-multiplo-sobrecarga]].
+Pendências de limpeza/escopo abaixo seguem valendo (dedup do LineRefPicker na página central; providers das outras origens).
 
 - **Fase 0 (FEITO, deploy v1.14.78):** formatação 2 casas (`dim()`: 7→7,00) + medidas de obra no catálogo. MinDepth fora.
 - **Fase 1 — FEITA ponta a ponta (working tree, sem deploy):**
