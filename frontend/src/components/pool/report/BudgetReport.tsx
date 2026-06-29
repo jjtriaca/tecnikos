@@ -983,7 +983,7 @@ export function CanvasEditor({ boxes, data, branding, selBox, selSet, pageW, pag
           </div>
         ) : null}
         {[...(boxes || [])].sort((a, b) => (a.z || 0) - (b.z || 0)).map((b) => (
-          <BoxFrame key={b.id} box={b} selected={selBox === b.id && (!selSet || selSet.has(b.id))} multi={!!selSet && selSet.has(b.id) && b.id !== selBox} editing={editingId === b.id} canvasRef={canvasRef} unit={unit || "mm"} pageW={W} pageH={H}
+          <BoxFrame key={b.id} box={b} selected={selBox === b.id} multi={!!selSet && selSet.has(b.id) && b.id !== selBox} editing={editingId === b.id} canvasRef={canvasRef} unit={unit || "mm"} pageW={W} pageH={H}
             others={(boxes || []).filter((x) => x.id !== b.id)} onGuides={setGuides}
             onSelect={(additive) => onSelect(b.id, additive)}
             onStartEdit={() => { if (b.type === "TEXT") { setEditingId(b.id); onEditStart?.(b.id); } }}
