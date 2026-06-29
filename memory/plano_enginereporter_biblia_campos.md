@@ -71,9 +71,16 @@ pela metade) até a reforma inteira ficar pronta + typecheck/build, aí UM únic
   - ⏳ `sourceType` no layout + wizard origem(+template) + escopar painel. (FALTA — backend+front.)
 - **Fase 2 — parcial (working tree):** regex do resolver ampliada (`/\{[a-zA-Z][\w.:-]*\}/`) + fallback. Path
   genérico/alias completo FALTA (vem junto da Fase 3/DMMF).
-- **Fase 4 — FEITO (working tree):** célula endereçada etapa/linha. `resolveAddressedToken` em BudgetReport.tsx:
-  `{linha:Lx.produto|descricao|qtd|valor|unitario|papel|etapa}` e `{etapa:SECTION.total|linhas|nome}`. `cellRef`
-  carregado em buildReportData + ReportItem. Catálogo: subgrupo "Etapas e linhas (avançado)". Picker visual FALTA.
+- **Fase 4 — motor FEITO (working tree), PICKER a fazer:** célula endereçada etapa/linha. `resolveAddressedToken`
+  em BudgetReport.tsx: `{linha:Lx.produto|descricao|qtd|valor|unitario|papel|etapa}` e `{etapa:SECTION.total|linhas|nome}`.
+  `cellRef` carregado em buildReportData + ReportItem. Catálogo: subgrupo "Etapas e linhas (avançado)" (tokens de
+  exemplo — fallback manual). **CORREÇÃO (Juliano 29/06):** a escolha da linha NÃO é copia-e-edita; tem que REUSAR o
+  `LineRefPicker` (accordion etapa→linha, já existe em `quotes/pool/[id]/page.tsx:2732`, criado no AutoSelect — REGRA #9).
+  Plano: EXTRAIR `LineRefPicker` (+ tipo `LineRefPickerLine`, deps `SECTION_LABEL`/`SECTION_ORDER`) pra componente
+  COMPARTILHADO (`components/pool/LineRefPicker.tsx`), importar no budget detail E no editor de relatório. No editor:
+  clicar "inserir campo de linha" → abre o picker (single-select) → escolhe a linha + o atributo (produto/qtd/valor/
+  unitário) → insere `{linha:Lx.atributo}`. **Fonte das linhas no editor:** itens do orçamento-exemplo carregado
+  (cellRef estável entre orçamentos do mesmo modelo); se houver modelo de obra ligado, usar o snapshot dele.
 - **UX copiar-token (FEITO, working tree):** ReportFieldLibrary — `+` insere, clique no `{código}` copia/seleciona.
 - **Fase 3 — FALTA:** auto-semear DMMF (backend endpoint + curadoria/blacklist) + path resolver genérico + providers
   das outras origens (Serviços→OS→Financeiro).
