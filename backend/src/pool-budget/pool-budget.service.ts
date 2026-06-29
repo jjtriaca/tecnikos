@@ -103,6 +103,30 @@ export class PoolBudgetService {
     }
   }
 
+  // ── Padrões da proposta por tenant (Company.systemConfig.pool) ──
+  // Mesmo lugar de solarRules/pipeDefaults. Hoje: defaultValidityDays (validade em dias).
+  async getProposalDefaults(companyId: string): Promise<{ defaultValidityDays: number }> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    const cfg = (company?.systemConfig as any) || {};
+    const days = cfg?.pool?.defaultValidityDays;
+    return { defaultValidityDays: typeof days === 'number' && days >= 1 ? days : 30 };
+  }
+
+  async saveDefaultValidityDays(companyId: string, days: number): Promise<{ defaultValidityDays: number }> {
+    const d = Math.max(1, Math.round(Number(days) || 0));
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { systemConfig: true },
+    });
+    const cfg = (company?.systemConfig as any) || {};
+    const next = { ...cfg, pool: { ...(cfg.pool || {}), defaultValidityDays: d } };
+    await this.prisma.company.update({ where: { id: companyId }, data: { systemConfig: next } });
+    return { defaultValidityDays: d };
+  }
+
   async create(
     dto: CreatePoolBudgetDto,
     companyId: string,
@@ -157,6 +181,9 @@ export class PoolBudgetService {
 
     // Se template tem defaults (snapshot v1.10.43+), aplica como base. DTO sobrescreve.
     const tDefaults = (template?.defaults as Record<string, any>) || {};
+    // Default de validade do tenant (systemConfig.pool.defaultValidityDays) — usado quando
+    // nem o DTO nem o template informam. Fallback final 30.
+    const tenantValidity = (await this.getProposalDefaults(companyId)).defaultValidityDays;
     // Restaura NOMES das etapas custom (labels) + ESCONDIDAS (hidden) gravados no template
     // dentro do environmentParams do novo orcamento. Sem isso o header da etapa mostra a
     // CHAVE crua (CUSTOM_<slug>_<rand>) em vez do nome amigavel. Templates salvos ANTES
@@ -194,7 +221,7 @@ export class PoolBudgetService {
         termsConditions: dto.termsConditions,
         poolDimensions: enrichedDims as unknown as Prisma.InputJsonValue,
         environmentParams: envParams as Prisma.InputJsonValue | undefined,
-        validityDays: dto.validityDays ?? tDefaults.validityDays ?? 30,
+        validityDays: dto.validityDays ?? tDefaults.validityDays ?? tenantValidity ?? 30,
         discountCents: dto.discountCents,
         discountPercent: dto.discountPercent ?? tDefaults.discountPercent ?? null,
         taxesPercent: dto.taxesPercent ?? tDefaults.taxesPercent ?? null,

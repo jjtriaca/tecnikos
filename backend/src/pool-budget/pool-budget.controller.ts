@@ -482,6 +482,20 @@ export class PoolBudgetController {
     return this.heatingBudget.saveDefaultEnvironmentParams(user.companyId, body?.defaultEnvironmentParams ?? {});
   }
 
+  @ApiOperation({ summary: 'Retorna padrões da proposta do tenant (ex.: validade em dias)' })
+  @Get('settings/proposal-defaults')
+  getProposalDefaults(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.getProposalDefaults(user.companyId);
+  }
+
+  @ApiOperation({ summary: 'Salva a validade padrão do tenant (novos orçamentos herdam)' })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Put('settings/validity')
+  saveDefaultValidity(@Body() body: { defaultValidityDays: number }, @CurrentUser() user: AuthenticatedUser) {
+    return this.service.saveDefaultValidityDays(user.companyId, body?.defaultValidityDays);
+  }
+
   @ApiOperation({ summary: 'Cria orçamento de piscina (auto-aplica template se enviado)' })
   @RequireVerification()
   @Roles(UserRole.ADMIN, UserRole.DESPACHO)

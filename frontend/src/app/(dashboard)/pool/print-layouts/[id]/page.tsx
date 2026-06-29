@@ -311,6 +311,7 @@ export default function PoolPrintLayoutEditorPage() {
   const maxZ = () => boxes.reduce((m, b) => Math.max(m, b.z || 0), 0);
   // ── Hierarquia de objetos (camadas) ──
   const [objNameEdit, setObjNameEdit] = useState<{ id: string; v: string } | null>(null);
+  const [objPanelOpen, setObjPanelOpen] = useState(false); // minimizado por padrao
   const boxTypeIcon = (b: Box) => b.type === "TEXT" ? (b.href ? "🔗" : "🇹") : b.type === "IMAGE" ? "🖼️" : b.type === "BLOCK" ? "▦" : "🃏";
   const boxAutoLabel = (b: Box) => {
     if (b.type === "TEXT") { const t = (b.html || "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim(); return t ? (t.length > 26 ? t.slice(0, 26) + "…" : t) : "Texto vazio"; }
@@ -319,15 +320,22 @@ export default function PoolPrintLayoutEditorPage() {
     return "Card";
   };
   const boxLabel = (b: Box) => b.name || boxAutoLabel(b);
+  // Remove realce (background-color) de dentro do HTML da caixa de texto — limpa o "fundo atrás" do texto.
+  function clearTextHighlight() {
+    if (!selectedBox || selectedBox.type !== "TEXT" || !selectedBox.html) return;
+    const cleaned = selectedBox.html.replace(/background(-color)?\s*:\s*[^;"']+;?/gi, "");
+    if (cleaned !== selectedBox.html) patchSelBox({ html: cleaned });
+  }
   function renameBox(boxId: string, name: string) {
     setObjNameEdit(null);
     commitBoxes(boxes.map((b) => b.id === boxId ? { ...b, name: name.trim() || undefined } : b));
   }
-  // Move a caixa 1 nivel na pilha (troca z com a vizinha imediata) — reordena a hierarquia.
+  // Move a caixa 1 posicao na LISTA (troca z com a vizinha visual). Lista em ordem de insercao
+  // (z crescente): topo = mais antiga / atras, fim = mais nova / frente.
   function moveLayer(boxId: string, dir: "up" | "down") {
-    const ordered = [...boxes].sort((a, b) => (a.z || 0) - (b.z || 0));
+    const ordered = [...boxes].sort((a, b) => (a.z || 0) - (b.z || 0)); // = ordem exibida
     const i = ordered.findIndex((b) => b.id === boxId); if (i < 0) return;
-    const j = dir === "up" ? i + 1 : i - 1; if (j < 0 || j >= ordered.length) return;
+    const j = dir === "up" ? i - 1 : i + 1; if (j < 0 || j >= ordered.length) return;
     const zi = ordered[i].z || 0, zj = ordered[j].z || 0;
     commitBoxes(boxes.map((b) => b.id === ordered[i].id ? { ...b, z: zj } : b.id === ordered[j].id ? { ...b, z: zi } : b));
   }
@@ -824,8 +832,12 @@ export default function PoolPrintLayoutEditorPage() {
               </label>
             </>) : null}
             {sb.type === "TEXT" || sb.type === "IMAGE" ? (
-              <label className="text-xs text-slate-600 flex items-center gap-1" title="Link clicável da caixa (URL, nº WhatsApp ou @ Instagram). Vazio = sem link.">🔗<input value={sb.href || ""} placeholder="link/número/@" onChange={(e) => patchSelBox({ href: e.target.value || null })} className="w-32 rounded border border-slate-300 px-1 py-1 text-xs" /></label>
+              <label className="text-xs text-slate-600 flex items-center gap-1" title="URL que fica ATRÁS (clicável no PDF). Aceita link, nº de WhatsApp ou @ do Instagram. Vazio = sem link.">🔗 URL (atrás)<input value={sb.href || ""} placeholder="link / número / @perfil" onChange={(e) => patchSelBox({ href: e.target.value || null })} className="w-36 rounded border border-slate-300 px-1 py-1 text-xs" /></label>
             ) : null}
+            {sb.type === "TEXT" && (sb.href != null) ? (
+              <label className="text-xs text-slate-600 flex items-center gap-1" title="Texto que aparece na FRENTE (a máscara do link). Ex.: @julianotriaca, (66) 99986-1234, Fale no WhatsApp.">🏷️ Rótulo (frente)<input value={(sb.html || "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim()} placeholder="@julianotriaca / número / texto" onChange={(e) => { const t = e.target.value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); patchSelBox({ html: `<p style="text-align:center">${t}</p>` }); }} className="w-40 rounded border border-slate-300 px-1 py-1 text-xs" /></label>
+            ) : null}
+            {sb.type === "TEXT" ? <RibbonBtn icon="🚫" label="Limpar realce" onClick={clearTextHighlight} /> : null}
             <span className="mx-0.5 h-5 w-px bg-slate-300" />
             <RibbonBtn icon="📑" label="Duplicar" onClick={duplicateSelBox} />
             <RibbonBtn icon="🗑️" label="Excluir" onClick={removeSelBox} />
@@ -855,8 +867,50 @@ export default function PoolPrintLayoutEditorPage() {
       {/* 3 PAINEIS — topo (titulo+abas+faixa) fica FIXO; aqui embaixo: paginas | folha | editor */}
       <div className="flex flex-1 min-h-0">
       {/* ESQUERDA: Paginas + estilo */}
-      <div className="w-[340px] shrink-0 border-r border-slate-200 bg-slate-50 overflow-y-auto p-3 space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="w-[340px] shrink-0 border-r border-slate-200 bg-slate-50 overflow-y-auto p-3 space-y-2">
+
+      {/* HIERARQUIA DE OBJETOS (camadas) — minimizada por padrao, no topo */}
+      {editingPage && pageIsCanvas(editingPage) ? (
+        <div className="rounded-lg border border-slate-200 bg-white">
+          <button type="button" onClick={() => setObjPanelOpen((v) => !v)}
+            className="flex w-full items-center gap-1 px-2 py-1 text-left hover:bg-slate-50 rounded-lg">
+            <span className="w-3 shrink-0 text-center text-[10px] text-slate-500">{objPanelOpen ? "▾" : "▸"}</span>
+            <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">🗂️ Objetos</span>
+            {region !== "page" ? <span className="text-[9px] text-amber-600">· {region === "header" ? "cab." : "rod."}</span> : null}
+            <span className="ml-auto text-[9px] text-slate-400">{boxes.length}</span>
+          </button>
+          {objPanelOpen ? (
+            boxes.length === 0 ? (
+              <div className="px-2 py-2 text-center text-[10px] text-slate-400">Sem objetos. Use <b>Inserir</b>.</div>
+            ) : (
+              <div className="max-h-44 overflow-y-auto border-t border-slate-100 p-1 space-y-0.5">
+                {[...boxes].sort((a, b) => (a.z || 0) - (b.z || 0)).map((b) => (
+                  <div key={b.id} onClick={() => { setSelBox(b.id); setTab("Layout"); }}
+                    title="Clique pra selecionar · ✏️ renomeia · ⬆⬇ ordem"
+                    className={`group flex items-center gap-1 rounded px-1 py-0.5 cursor-pointer text-[10px] ${selBox === b.id ? "bg-cyan-100 text-cyan-900 ring-1 ring-cyan-300" : "text-slate-700 hover:bg-slate-100"}`}>
+                    <span className="w-3.5 shrink-0 text-center">{boxTypeIcon(b)}</span>
+                    {objNameEdit?.id === b.id ? (
+                      <input autoFocus value={objNameEdit.v} onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => setObjNameEdit({ id: b.id, v: e.target.value })}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); renameBox(b.id, objNameEdit!.v); } else if (e.key === "Escape") setObjNameEdit(null); }}
+                        onBlur={() => renameBox(b.id, objNameEdit!.v)}
+                        placeholder={boxAutoLabel(b)} className="min-w-0 flex-1 rounded border border-cyan-300 px-1 py-0 text-[10px]" />
+                    ) : (
+                      <span className={`min-w-0 flex-1 truncate ${b.name ? "" : "italic text-slate-500"}`}>{boxLabel(b)}</span>
+                    )}
+                    <button onClick={(e) => { e.stopPropagation(); setObjNameEdit({ id: b.id, v: b.name || "" }); }} title="Renomear objeto" className="shrink-0 text-slate-300 hover:text-cyan-600 opacity-0 group-hover:opacity-100">✏️</button>
+                    <button onClick={(e) => { e.stopPropagation(); moveLayer(b.id, "up"); }} title="Subir na lista" className="shrink-0 text-slate-300 hover:text-cyan-600 opacity-0 group-hover:opacity-100">⬆</button>
+                    <button onClick={(e) => { e.stopPropagation(); moveLayer(b.id, "down"); }} title="Descer na lista" className="shrink-0 text-slate-300 hover:text-cyan-600 opacity-0 group-hover:opacity-100">⬇</button>
+                    <button onClick={(e) => { e.stopPropagation(); commitBoxes(boxes.filter((x) => x.id !== b.id)); if (selBox === b.id) setSelBox(null); }} title="Excluir objeto" className="shrink-0 text-slate-300 hover:text-red-600 opacity-0 group-hover:opacity-100">✕</button>
+                  </div>
+                ))}
+              </div>
+            )
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="flex items-center justify-between pt-1">
         <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Paginas</div>
         <button onClick={newCanvasPage} className="rounded bg-cyan-600 px-2 py-1 text-xs font-medium text-white hover:bg-cyan-700">+ Pagina</button>
       </div>
@@ -1020,44 +1074,6 @@ export default function PoolPrintLayoutEditorPage() {
           ))}
         </div>
       )}
-
-      {/* HIERARQUIA DE OBJETOS (camadas) — texto/imagem/campo/card da regiao atual */}
-      {editingPage && pageIsCanvas(editingPage) ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-2">
-          <div className="flex items-center justify-between px-1 pb-1.5">
-            <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-              🗂️ Objetos {region !== "page" ? <span className="text-amber-600">· {region === "header" ? "cabeçalho" : "rodapé"}</span> : null}
-            </div>
-            <span className="text-[10px] text-slate-400">{boxes.length}</span>
-          </div>
-          {boxes.length === 0 ? (
-            <div className="px-1 py-3 text-center text-[11px] text-slate-400">Sem objetos. Use <b>Inserir</b> (texto, imagem, card, campos).</div>
-          ) : (
-            <div className="space-y-0.5">
-              {[...boxes].sort((a, b) => (b.z || 0) - (a.z || 0)).map((b) => (
-                <div key={b.id} onClick={() => { setSelBox(b.id); setTab("Layout"); }}
-                  title="Clique pra selecionar · ✏️ renomeia · ⬆⬇ ordem"
-                  className={`group flex items-center gap-1 rounded px-1.5 py-1 cursor-pointer text-[11px] ${selBox === b.id ? "bg-cyan-100 text-cyan-900 ring-1 ring-cyan-300" : "text-slate-700 hover:bg-slate-100"}`}>
-                  <span className="w-4 shrink-0 text-center">{boxTypeIcon(b)}</span>
-                  {objNameEdit?.id === b.id ? (
-                    <input autoFocus value={objNameEdit.v} onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => setObjNameEdit({ id: b.id, v: e.target.value })}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); renameBox(b.id, objNameEdit!.v); } else if (e.key === "Escape") setObjNameEdit(null); }}
-                      onBlur={() => renameBox(b.id, objNameEdit!.v)}
-                      placeholder={boxAutoLabel(b)} className="min-w-0 flex-1 rounded border border-cyan-300 px-1 py-0.5 text-[11px]" />
-                  ) : (
-                    <span className={`min-w-0 flex-1 truncate ${b.name ? "" : "italic text-slate-500"}`}>{boxLabel(b)}</span>
-                  )}
-                  <button onClick={(e) => { e.stopPropagation(); setObjNameEdit({ id: b.id, v: b.name || "" }); }} title="Renomear objeto" className="shrink-0 text-slate-300 hover:text-cyan-600 opacity-0 group-hover:opacity-100">✏️</button>
-                  <button onClick={(e) => { e.stopPropagation(); moveLayer(b.id, "up"); }} title="Trazer pra frente" className="shrink-0 text-slate-300 hover:text-cyan-600 opacity-0 group-hover:opacity-100">⬆</button>
-                  <button onClick={(e) => { e.stopPropagation(); moveLayer(b.id, "down"); }} title="Enviar pra trás" className="shrink-0 text-slate-300 hover:text-cyan-600 opacity-0 group-hover:opacity-100">⬇</button>
-                  <button onClick={(e) => { e.stopPropagation(); commitBoxes(boxes.filter((x) => x.id !== b.id)); if (selBox === b.id) setSelBox(null); }} title="Excluir objeto" className="shrink-0 text-slate-300 hover:text-red-600 opacity-0 group-hover:opacity-100">✕</button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : null}
       </div>{/* fim painel esquerdo (Paginas & estilo) */}
 
       {/* CENTRO: folha da pagina selecionada (canvas editavel, estilo PowerPoint) */}

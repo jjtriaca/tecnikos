@@ -2229,9 +2229,12 @@ function BudgetSummaryBlock({ budget, locked, paymentTerms, onUpdate, onManagePa
   onUpdate: (patch: Record<string, any>) => void;
   onManagePaymentTerms?: () => void;
 }) {
+  const { toast } = useToast();
   const [taxesPct, setTaxesPct] = useState<string>(budget.taxesPercent?.toString().replace(".", ",") ?? "");
   const [discPct, setDiscPct] = useState<string>(budget.discountPercent?.toString().replace(".", ",") ?? "");
   const [startDate, setStartDate] = useState<string>(budget.startDate ? budget.startDate.slice(0, 10) : "");
+  const [validity, setValidity] = useState<string>(budget.validityDays != null ? String(budget.validityDays) : "");
+  const [savingValidityDefault, setSavingValidityDefault] = useState(false);
   const [eqWarranty, setEqWarranty] = useState<string>(budget.equipmentWarranty ?? "");
   const [workWarranty, setWorkWarranty] = useState<string>(budget.workWarranty ?? "");
   // texto livre legado — mantido pra exibir orcamentos antigos no modo locked, nao mais editavel
@@ -2261,6 +2264,24 @@ function BudgetSummaryBlock({ budget, locked, paymentTerms, onUpdate, onManagePa
   }
   function commitText(field: string, value: string, current: string | null) {
     if (value !== (current ?? "")) onUpdate({ [field]: value || undefined });
+  }
+  function commitValidity() {
+    const n = parseInt(validity.replace(/\D/g, ""), 10);
+    const v = isNaN(n) || n < 1 ? undefined : n;
+    if ((v ?? null) !== (budget.validityDays ?? null)) onUpdate({ validityDays: v });
+  }
+  async function saveValidityDefault() {
+    const n = parseInt(validity.replace(/\D/g, ""), 10);
+    if (isNaN(n) || n < 1) { toast("Informe uma validade válida (dias)", "error"); return; }
+    setSavingValidityDefault(true);
+    try {
+      await api.put("/pool-budgets/settings/validity", { defaultValidityDays: n });
+      toast(`Validade padrão salva: ${n} dias (novos orçamentos herdam)`, "success");
+    } catch (err: any) {
+      toast(err?.payload?.message || "Erro ao salvar padrão", "error");
+    } finally {
+      setSavingValidityDefault(false);
+    }
   }
 
   const inputCls = "w-full rounded border border-slate-200 bg-white px-2 py-1 text-sm focus:border-cyan-500 outline-none";
@@ -2350,6 +2371,25 @@ function BudgetSummaryBlock({ budget, locked, paymentTerms, onUpdate, onManagePa
               </div>
               <div className="text-[10px] text-slate-600 mt-0.5">Calculado por items com unit h/dia (8h por dia)</div>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Validade da proposta (dias)</label>
+            {locked ? (
+              <div className={lockedValueCls}>{budget.validityDays != null ? `${budget.validityDays} dias` : "—"}</div>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <input type="text" inputMode="numeric" value={validity}
+                  onChange={(e) => setValidity(e.target.value.replace(/\D/g, ""))} onBlur={commitValidity}
+                  placeholder="30" className={inputCls + " max-w-[120px]"} />
+                <span className="text-xs text-slate-500">dias</span>
+                <button type="button" onClick={saveValidityDefault} disabled={savingValidityDefault}
+                  title="Salvar esta validade como PADRÃO do tenant (novos orçamentos já vêm com ela)"
+                  className="ml-auto inline-flex items-center gap-1 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50">
+                  {savingValidityDefault ? "…" : "⭐ Salvar padrão"}
+                </button>
+              </div>
+            )}
           </div>
 
           <div>

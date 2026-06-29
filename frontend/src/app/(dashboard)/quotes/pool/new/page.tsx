@@ -192,6 +192,14 @@ export default function NewPoolBudgetPage() {
       .catch(() => { /* silent */ });
   }, [isEditMode]);
 
+  // Validade padrão do tenant (systemConfig.pool.defaultValidityDays) — pré-preenche em orçamento novo.
+  useEffect(() => {
+    if (isEditMode) return;
+    api.get<{ defaultValidityDays: number }>("/pool-budgets/settings/proposal-defaults")
+      .then((r) => { if (r?.defaultValidityDays) setForm((f) => ({ ...f, validityDays: r.defaultValidityDays })); })
+      .catch(() => { /* silent */ });
+  }, [isEditMode]);
+
   useEffect(() => {
     Promise.all([
       api.get<{ data: Template[] }>("/pool-budget-templates?limit=100").catch(() => ({ data: [] as Template[] })),
