@@ -1406,14 +1406,16 @@ export default function PoolPrintLayoutEditorPage() {
             <p className="text-[11px] text-slate-500 mb-3">A caixa só aparece na impressão se a regra bater no orçamento. No editor ela fica esmaecida com o selo ⚡ quando não bate (pra você continuar montando).</p>
             <label className="block text-[11px] font-medium text-slate-600 mb-1">Onde olhar (preencha UM)</label>
             <div className="flex gap-2 mb-1">
-              <input type="text" value={condDraft.cellRef || ""} placeholder="Linha (ex: L130)"
+              <input type="text" list="condLinesDL" value={condDraft.cellRef || ""} placeholder="Linha (ex: L130)"
                 onChange={(e) => { const v = e.target.value.trim().toUpperCase(); setCondDraft((d) => ({ ...d, cellRef: v || null, etapa: v ? null : d.etapa })); }}
                 className="w-1/2 rounded border border-slate-300 px-2 py-1.5 text-sm" />
-              <input type="text" value={condDraft.etapa || ""} placeholder="Etapa (ex: CASCATA)"
+              <input type="text" list="condEtapasDL" value={condDraft.etapa || ""} placeholder="Etapa (ex: CASCATA)"
                 onChange={(e) => { const v = e.target.value.trim().toUpperCase(); setCondDraft((d) => ({ ...d, etapa: v || null, cellRef: v ? null : d.cellRef })); }}
                 className="w-1/2 rounded border border-slate-300 px-2 py-1.5 text-sm" />
+              <datalist id="condLinesDL">{tplLines.map((l) => <option key={l.cellRef} value={l.cellRef}>{`${l.cellRef} — ${l.description}`}</option>)}</datalist>
+              <datalist id="condEtapasDL">{Array.from(new Set(tplLines.map((l) => (l.poolSection || "").toUpperCase()).filter(Boolean))).map((s) => <option key={s} value={s} />)}</datalist>
             </div>
-            <p className="text-[10px] text-slate-400 mb-3">Linha específica OU etapa. Vazio = olha o orçamento todo.</p>
+            <p className="text-[10px] text-slate-400 mb-3">{tplLines.length ? "Dica: clique no campo pra escolher uma linha/etapa do modelo." : "Linha específica OU etapa. Vazio = olha o orçamento todo."}</p>
             <label className="block text-[11px] font-medium text-slate-600 mb-1">Mostrar quando</label>
             <div className="flex gap-2 mb-2">
               <select value={condDraft.op} onChange={(e) => setCondDraft((d) => ({ ...d, op: e.target.value as NonNullable<Box["showIf"]>["op"] }))}
