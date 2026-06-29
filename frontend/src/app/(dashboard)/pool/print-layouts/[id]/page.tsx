@@ -170,6 +170,7 @@ export default function PoolPrintLayoutEditorPage() {
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   // Confirmacao de remocao de pagina via MODAL proprio (substitui window.confirm nativo).
   const [pendingDelete, setPendingDelete] = useState<{ id: string; n: number } | null>(null);
+  const [linkModal, setLinkModal] = useState<{ url: string; text: string } | null>(null);
 
   // ── CANVAS (PowerPoint): caixas livres da pagina em edicao ──
   // `region` = o que se edita: a PAGINA, o CABECALHO ou o RODAPE. `boxes` segura as caixas
@@ -786,7 +787,7 @@ export default function PoolPrintLayoutEditorPage() {
             <RibbonBtn icon="🃏" label="Novo card" onClick={() => addBox("CARD", {})} />
             <RibbonBtn icon="🇹" label="Texto" onClick={() => addBox("TEXT", {})} />
             <RibbonBtn icon="🖼️" label="Imagem" onClick={() => addBox("IMAGE", {})} />
-            <RibbonBtn icon="🔗" label="Link" onClick={() => addBox("TEXT", { html: "<p>Clique aqui</p>", href: "", style: { fontSize: 12, textColor: "#1d4ed8" } })} />
+            <RibbonBtn icon="🔗" label="Link" onClick={() => setLinkModal({ url: "", text: "" })} />
             <span className="mx-0.5 h-5 w-px bg-slate-300" />
             <RibbonBtn icon="📚" label="Campos & blocos" onClick={() => setTab("Campos")} />
             <span className="text-[10px] text-slate-400 ml-1">Campos/blocos do sistema na aba &quot;Campos&quot; · arraste na folha pra mover · alças pra redimensionar.</span>
@@ -1142,6 +1143,32 @@ export default function PoolPrintLayoutEditorPage() {
       </div>{/* fim 3 paineis */}
 
       {/* Modal de confirmacao de remocao (substitui window.confirm nativo) */}
+      {linkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setLinkModal(null)}>
+          <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="text-base font-semibold text-slate-900">Inserir link</div>
+            <p className="mt-1 text-xs text-slate-500">A URL fica atrás (clicável no PDF). Na frente aparece só o texto.</p>
+            <label className="mt-3 block text-xs font-medium text-slate-600">URL / número / @perfil (atrás)
+              <input autoFocus value={linkModal.url} onChange={(e) => setLinkModal({ ...linkModal, url: e.target.value })}
+                placeholder="https://… , 5566999861230 ou @julianotriaca"
+                className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+            </label>
+            <label className="mt-3 block text-xs font-medium text-slate-600">Texto visível (frente)
+              <input value={linkModal.text} onChange={(e) => setLinkModal({ ...linkModal, text: e.target.value })}
+                placeholder="(66) 99986-1230 , @julianotriaca , Fale no WhatsApp"
+                onKeyDown={(e) => { if (e.key === "Enter" && linkModal.url.trim()) { const t = (linkModal.text.trim() || linkModal.url.trim()).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); addBox("TEXT", { html: `<p style="text-align:center">${t}</p>`, href: linkModal.url.trim(), style: { fontSize: 12, textColor: "#1d4ed8" } }); setLinkModal(null); } }}
+                className="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-sm" />
+            </label>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setLinkModal(null)}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">Cancelar</button>
+              <button type="button" disabled={!linkModal.url.trim()}
+                onClick={() => { const t = (linkModal.text.trim() || linkModal.url.trim()).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); addBox("TEXT", { html: `<p style="text-align:center">${t}</p>`, href: linkModal.url.trim(), style: { fontSize: 12, textColor: "#1d4ed8" } }); setLinkModal(null); }}
+                className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed">Inserir</button>
+            </div>
+          </div>
+        </div>
+      )}
       {pendingDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setPendingDelete(null)}>
           <div className="w-full max-w-sm rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
