@@ -865,10 +865,11 @@ function handleStyle(h: string): CSSProperties {
   base.cursor = cursors[h];
   return base;
 }
-function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit = "mm", pageW = 210, pageH = 297, others = [], onGuides, onSelect, onStartEdit, onChange, onCommit, children }: {
+function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit = "mm", pageW = 210, pageH = 297, others = [], onGuides, onSelect, onStartEdit, onChange, onCommit, groupMove, onGroupStart, onGroupMove, children }: {
   box: Box; selected: boolean; multi?: boolean; editing: boolean; canvasRef: React.RefObject<HTMLDivElement>; lockAspect?: boolean;
   unit?: "mm" | "%"; pageW?: number; pageH?: number; others?: Box[]; onGuides?: (g: { o: "v" | "h"; p: number }[]) => void;
-  onSelect: (additive?: boolean) => void; onStartEdit: () => void; onChange: (b: Box) => void; onCommit: () => void; children: React.ReactNode;
+  onSelect: (additive?: boolean) => void; onStartEdit: () => void; onChange: (b: Box) => void; onCommit: () => void;
+  groupMove?: boolean; onGroupStart?: () => void; onGroupMove?: (dx: number, dy: number) => void; children: React.ReactNode;
 }) {
   const draggedRef = useRef(false);
   const begin = (mode: string) => (e: React.PointerEvent) => {
@@ -876,7 +877,11 @@ function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit =
     // SEM preventDefault aqui: senao o navegador suprime o dblclick (= nao da pra editar).
     e.stopPropagation();
     if (e.shiftKey) e.preventDefault(); // shift = multi-selecao: impede o navegador de selecionar TEXTO
-    onSelect(e.shiftKey);
+    const startShift = e.shiftKey;
+    // Caixa que JA esta no grupo (multi) + sem shift: NAO colapsa a selecao agora — mantem o grupo pra arrastar junto.
+    // Se for so um clique (sem arrastar), colapsa pra caixa unica no pointerup.
+    if (startShift) onSelect(true);
+    else if (!groupMove) onSelect(false);
     draggedRef.current = false;
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -894,10 +899,12 @@ function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit =
     const onMove = (ev: PointerEvent) => {
       const ddx = ev.clientX - start.sx, ddy = ev.clientY - start.sy;
       if (!dragging && Math.abs(ddx) + Math.abs(ddy) < 4) return; // threshold: clique nao move
-      if (!dragging) { dragging = true; draggedRef.current = true; document.body.style.userSelect = "none"; }
+      if (!dragging) { dragging = true; draggedRef.current = true; document.body.style.userSelect = "none"; if (mode === "move" && groupMove) onGroupStart?.(); }
       const dux = (ddx / rect.width) * maxX;
       const duy = (ddy / rect.height) * maxY;
       let { x, y, w, h } = start.b;
+      // ── Mover o GRUPO inteiro (multi-selecao): desloca todas as caixas selecionadas pelo mesmo delta. ──
+      if (mode === "move" && groupMove && onGroupMove) { onGuides?.([]); onGroupMove(round2(dux), round2(duy)); return; }
       if (mode === "move") {
         x = clampN(start.b.x + dux, 0, maxX - start.b.w);
         y = clampN(start.b.y + duy, 0, maxY - start.b.h);
@@ -929,8 +936,8 @@ function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit =
       }
       onChange({ ...start.b, x: round2(x), y: round2(y), w: round2(w), h: round2(h) });
     };
-    const onUp = () => finish(true);
-    const onKey = (ev: KeyboardEvent) => { if (ev.key === "Escape") { onChange({ ...start.b }); draggedRef.current = false; finish(false); } };
+    const onUp = () => { if (groupMove && !startShift && !draggedRef.current) onSelect(false); finish(true); };
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === "Escape") { if (mode === "move" && groupMove && onGroupMove) onGroupMove(0, 0); else onChange({ ...start.b }); draggedRef.current = false; finish(false); } };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
     window.addEventListener("keydown", onKey);
@@ -949,10 +956,11 @@ function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit =
 // Editor de canvas (uma pagina) — usado no centro do editor. Renderiza a folha A4
 // (aspect-ratio) e os boxes interativos. onChange = update ao vivo; onCommit = passo
 // de historico (undo/redo) no fim do gesto. Edicao de texto inline via duplo-clique.
-export function CanvasEditor({ boxes, data, branding, selBox, selSet, pageW, pageH, pageBg, unit = "mm", hfUnit = "%", onSelect, onChange, onCommit, onEditStart, hfOverlay }: {
+export function CanvasEditor({ boxes, data, branding, selBox, selSet, pageW, pageH, pageBg, unit = "mm", hfUnit = "%", onSelect, onChange, onCommit, onEditStart, onGroupStart, onGroupMove, hfOverlay }: {
   boxes: Box[]; data: BudgetReportData; branding?: ReportBranding | null; selBox: string | null; selSet?: Set<string>;
   pageW?: number; pageH?: number; pageBg?: string; unit?: "mm" | "%"; hfUnit?: "mm" | "%";
   onSelect: (id: string | null, additive?: boolean) => void; onChange: (b: Box) => void; onCommit: () => void; onEditStart?: (id: string) => void;
+  onGroupStart?: () => void; onGroupMove?: (dx: number, dy: number) => void;
   hfOverlay?: { headerBoxes?: Box[]; footerBoxes?: Box[]; headerHmm?: number; footerHmm?: number };
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -986,6 +994,7 @@ export function CanvasEditor({ boxes, data, branding, selBox, selSet, pageW, pag
         {[...(boxes || [])].sort((a, b) => (a.z || 0) - (b.z || 0)).map((b) => (
           <BoxFrame key={b.id} box={b} selected={selBox === b.id} multi={!!selSet && selSet.has(b.id) && b.id !== selBox} editing={editingId === b.id} canvasRef={canvasRef} unit={unit || "mm"} pageW={W} pageH={H}
             others={(boxes || []).filter((x) => x.id !== b.id)} onGuides={setGuides}
+            groupMove={!!selSet && selSet.has(b.id) && selSet.size > 1} onGroupStart={onGroupStart} onGroupMove={onGroupMove}
             onSelect={(additive) => onSelect(b.id, additive)}
             onStartEdit={() => { if (b.type === "TEXT") { setEditingId(b.id); onEditStart?.(b.id); } }}
             onChange={onChange} onCommit={onCommit}>

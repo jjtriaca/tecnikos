@@ -371,7 +371,35 @@ export default function PoolPrintLayoutEditorPage() {
   // Drag/resize/digitação ao vivo: atualiza + AUTOSAVE (debounce). Commit (1 passo de histórico)
   // no fim do gesto (pointerup) e no blur do texto.
   const onCanvasChange = (b: Box) => setBoxes((cur) => { const next = cur.map((x) => x.id === b.id ? b : x); scheduleSave(next); return next; });
-  const onCanvasCommit = () => setBoxes((cur) => { pushHist(cur); scheduleSave(cur); return cur; });
+  const onCanvasCommit = () => setBoxes((cur) => { pushHist(cur); scheduleSave(cur); groupSnapRef.current = null; return cur; });
+  // Mover o GRUPO (multi-selecao) arrastando: snapshot ao iniciar, desloca TODAS as selecionadas pelo mesmo delta (rigido, preso a pagina).
+  const groupSnapRef = useRef<Box[] | null>(null);
+  const onCanvasGroupStart = () => setBoxes((cur) => { groupSnapRef.current = cur.map((b) => ({ ...b })); return cur; });
+  const onCanvasGroupMove = (dx: number, dy: number) => {
+    const snap = groupSnapRef.current; if (!snap || !selSet.size) return;
+    const { w: PW, h: PH } = pageDims(layout?.branding);
+    const sel = snap.filter((b) => selSet.has(b.id)); if (!sel.length) return;
+    const minX = Math.min(...sel.map((b) => b.x)), maxR = Math.max(...sel.map((b) => b.x + b.w));
+    const minY = Math.min(...sel.map((b) => b.y)), maxB = Math.max(...sel.map((b) => b.y + b.h));
+    let ddx = dx; if (minX + ddx < 0) ddx = -minX; if (maxR + ddx > PW) ddx = PW - maxR;
+    let ddy = dy; if (minY + ddy < 0) ddy = -minY; if (maxB + ddy > PH) ddy = PH - maxB;
+    const next = snap.map((b) => selSet.has(b.id) ? { ...b, x: rnd2(b.x + ddx), y: rnd2(b.y + ddy) } : b);
+    setBoxes(next); scheduleSave(next);
+  };
+  // Setas do teclado: move a selecao (grupo ou caixa unica) com precisao. Shift = passo maior.
+  function nudgeSelection(dx: number, dy: number) {
+    const ids = selSet.size ? selSet : (selBox ? new Set([selBox]) : new Set<string>());
+    if (!ids.size) return;
+    const sel = boxes.filter((b) => ids.has(b.id)); if (!sel.length) return;
+    const { w: PW, h: PH } = pageDims(layout?.branding);
+    const minX = Math.min(...sel.map((b) => b.x)), maxR = Math.max(...sel.map((b) => b.x + b.w));
+    const minY = Math.min(...sel.map((b) => b.y)), maxB = Math.max(...sel.map((b) => b.y + b.h));
+    let ddx = dx; if (minX + ddx < 0) ddx = -minX; if (maxR + ddx > PW) ddx = PW - maxR;
+    let ddy = dy; if (minY + ddy < 0) ddy = -minY; if (maxB + ddy > PH) ddy = PH - maxB;
+    if (!ddx && !ddy) return;
+    const next = boxes.map((b) => ids.has(b.id) ? { ...b, x: rnd2(b.x + ddx), y: rnd2(b.y + ddy) } : b);
+    commitBoxes(next);
+  }
 
   const maxZ = () => boxes.reduce((m, b) => Math.max(m, b.z || 0), 0);
   // ── Hierarquia de objetos (camadas) ──
@@ -512,11 +540,18 @@ export default function PoolPrintLayoutEditorPage() {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey) { e.preventDefault(); undo(); }
       else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z"))) { e.preventDefault(); redo(); }
       else if ((e.key === "Delete" || e.key === "Backspace") && selBox && !inField) { e.preventDefault(); removeSelBox(); }
+      else if (!inField && (selSet.size || selBox) && /^Arrow(Up|Down|Left|Right)$/.test(e.key)) {
+        e.preventDefault();
+        const step = e.shiftKey ? 10 : 1; // mm; Shift = passo grosso
+        const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
+        const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
+        nudgeSelection(dx, dy);
+      }
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editingPage, selBox, boxes]);
+  }, [editingPage, selBox, selSet, boxes]);
 
   const load = useCallback(async () => {
     try {
@@ -1241,6 +1276,7 @@ export default function PoolPrintLayoutEditorPage() {
                 selBox={selBox} selSet={selSet} pageW={pageDims(layout.branding).w} pageH={region === "header" ? (brand.headerHmm ?? 18) : (brand.footerHmm ?? 14)}
                 pageBg="#ffffff"
                 onSelect={selectBox}
+                onGroupStart={onCanvasGroupStart} onGroupMove={onCanvasGroupMove}
                 onChange={onCanvasChange} onCommit={onCanvasCommit} onEditStart={() => setTab("Inicio")} />
             </div>
           </div>
@@ -1250,6 +1286,7 @@ export default function PoolPrintLayoutEditorPage() {
             pageBg={pageBgCss}
             hfOverlay={{ headerBoxes: brand.headerBoxes, footerBoxes: brand.footerBoxes, headerHmm: brand.headerHmm, footerHmm: brand.footerHmm }}
             onSelect={selectBox}
+            onGroupStart={onCanvasGroupStart} onGroupMove={onCanvasGroupMove}
             onChange={onCanvasChange} onCommit={onCanvasCommit} onEditStart={() => setTab("Inicio")} />
         ) : showAddPage ? (
           <div className="p-4">
