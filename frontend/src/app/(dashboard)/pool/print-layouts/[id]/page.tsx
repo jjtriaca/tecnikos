@@ -272,7 +272,7 @@ export default function PoolPrintLayoutEditorPage() {
   // Nº de exigências de uma condição (pro rótulo "Exigências (N)").
   const condCount = (c: CondRule | CondGroup | null | undefined): number => { const cur = c as any; if (!cur) return 0; if (Array.isArray(cur.rules)) return cur.rules.length; return cur.op ? 1 : 0; };
   // ── LISTA DINAMICA (tabela): fonte (etapa/filtros) + colunas configuráveis + estilo por coluna ──
-  const DEFAULT_LIST: ListConfig = { etapa: null, kind: null, skipEmpty: true, maxRows: null, showHeader: true, zebra: true, border: true, headerBg: "#1e3a8a", headerColor: "#ffffff", columns: [{ field: "produto", widthPct: 60, align: "left" }, { field: "qtd", widthPct: 20, align: "right" }, { field: "unidade", widthPct: 20, align: "center" }] };
+  const DEFAULT_LIST: ListConfig = { etapa: null, kind: null, lines: null, skipEmpty: true, maxRows: null, showHeader: true, zebra: true, border: true, headerBg: "#1e3a8a", headerColor: "#ffffff", columns: [{ field: "produto", widthPct: 60, align: "left" }, { field: "qtd", widthPct: 20, align: "right" }, { field: "unidade", widthPct: 20, align: "center" }] };
   const NEW_COL: ListColumn = { field: "produto", header: null, widthPct: null, align: "left", fontPt: null, color: null, bg: null };
   const [listModal, setListModal] = useState(false);
   const [listDraft, setListDraft] = useState<ListConfig>(DEFAULT_LIST);
@@ -1917,7 +1917,7 @@ export default function PoolPrintLayoutEditorPage() {
             {/* FONTE */}
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 mb-3">
               <div className="text-[11px] font-semibold text-slate-600 mb-1">Fonte das linhas</div>
-              <div className="flex flex-wrap items-center gap-2 text-xs">
+              <div className="flex flex-wrap items-center gap-2 text-xs mb-2">
                 <label className="flex items-center gap-1">Etapa
                   <select value={listDraft.etapa || ""} onChange={(e) => setListDraft((d) => ({ ...d, etapa: e.target.value || null }))} className="rounded border border-slate-300 px-2 py-1 text-sm min-w-[140px]">
                     <option value="">— Todas as etapas —</option>
@@ -1932,38 +1932,86 @@ export default function PoolPrintLayoutEditorPage() {
                 <label className="flex items-center gap-1">Máx. linhas<NumInput value={listDraft.maxRows ?? 0} placeholder="todas" onChange={(v) => setListDraft((d) => ({ ...d, maxRows: v || null }))} className="w-16 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
                 <label className="flex items-center gap-1" title="Pula linhas Sem Produto / vazias"><input type="checkbox" checked={listDraft.skipEmpty !== false} onChange={(e) => setListDraft((d) => ({ ...d, skipEmpty: e.target.checked }))} />Pular vazias</label>
               </div>
+              {/* Linhas: TODAS ou específicas (respeita só as marcadas) */}
+              <label className="flex items-center gap-1 text-xs mb-1"><input type="checkbox" checked={!listDraft.lines} onChange={(e) => setListDraft((d) => ({ ...d, lines: e.target.checked ? null : [] }))} /><b>Todas as linhas</b> da etapa/tipo</label>
+              {listDraft.lines ? (() => {
+                const src = tplLines.filter((l) => (!listDraft.etapa || l.poolSection === listDraft.etapa) && (!listDraft.kind || (l.kind || "PRODUCT") === listDraft.kind));
+                return (
+                  <div className="rounded border border-slate-200 bg-white p-1 max-h-36 overflow-y-auto text-xs">
+                    {src.length === 0 ? <div className="px-1 py-2 italic text-slate-400">Nenhuma linha na etapa/tipo escolhidos.</div> : src.map((l) => {
+                      const checked = (listDraft.lines || []).includes(l.cellRef);
+                      return (
+                        <label key={l.cellRef} className="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-50 cursor-pointer">
+                          <input type="checkbox" checked={checked} onChange={() => setListDraft((d) => ({ ...d, lines: checked ? (d.lines || []).filter((r) => r !== l.cellRef) : [...(d.lines || []), l.cellRef] }))} />
+                          <span className="font-mono text-[10px] text-teal-700 w-9 shrink-0">{l.cellRef}</span>
+                          <span className="truncate">{l.description || l.slotName || ""}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                );
+              })() : null}
             </div>
-            {/* COLUNAS */}
+            {/* COLUNAS — cada coluna é um CARD com os campos rotulados (vertical, mais intuitivo) */}
             <div className="text-[11px] font-semibold text-slate-600 mb-1">Colunas</div>
-            <div className="space-y-2">
+            <div className="grid gap-2 sm:grid-cols-2">
               {listDraft.columns.map((c, i) => (
-                <div key={i} className="rounded-lg border border-slate-200 bg-white p-2">
-                  <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <span className="font-bold text-teal-700 w-4 shrink-0">{i + 1}</span>
-                    <label className="flex items-center gap-1">Campo
-                      <select value={c.field} onChange={(e) => setListCol(i, { field: e.target.value })} className="rounded border border-slate-300 px-2 py-1 text-sm">
-                        <option value="produto">Produto/descrição</option>
-                        <option value="qtd">Quantidade</option>
-                        <option value="unidade">Unidade</option>
-                        <option value="valor">Valor total</option>
-                        <option value="unitario">Valor unitário</option>
-                        <option value="papel">Item (papel)</option>
-                        <option value="prodCodigo">Código</option>
-                      </select>
-                    </label>
-                    <input type="text" value={c.header ?? ""} placeholder={LIST_FIELD_LABEL[c.field] || "cabeçalho"} onChange={(e) => setListCol(i, { header: e.target.value || null })} className="w-28 rounded border border-slate-300 px-2 py-1 text-sm" title="Cabeçalho (vazio = padrão)" />
-                    <label className="flex items-center gap-1" title="Largura %">L<NumInput value={c.widthPct ?? 0} placeholder="auto" onChange={(v) => setListCol(i, { widthPct: v || null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />%</label>
-                    <select value={c.align || "left"} onChange={(e) => setListCol(i, { align: e.target.value as any })} className="rounded border border-slate-300 px-1 py-1 text-sm" title="Alinhamento">
-                      <option value="left">⯇</option><option value="center">≡</option><option value="right">⯈</option>
-                    </select>
-                    <label className="flex items-center gap-1" title="Fonte (pt)">pt<NumInput value={c.fontPt ?? 0} placeholder="auto" onChange={(v) => setListCol(i, { fontPt: v || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
-                    <label className="flex items-center gap-1" title="Cor do texto">A<input type="color" value={c.color || "#0f172a"} onChange={(e) => setListCol(i, { color: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /><button type="button" onClick={() => setListCol(i, { color: null })} className="text-slate-400 hover:text-slate-700">⌫</button></label>
-                    <label className="flex items-center gap-1" title="Fundo da célula">Fundo<input type="color" value={c.bg || "#ffffff"} onChange={(e) => setListCol(i, { bg: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /><button type="button" onClick={() => setListCol(i, { bg: null })} className="text-slate-400 hover:text-slate-700">⌫</button></label>
-                    <span className="flex items-center gap-0.5 ml-auto">
+                <div key={i} className="rounded-lg border border-slate-200 bg-white p-2.5">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-teal-700">Coluna {i + 1}</span>
+                    <span className="flex items-center gap-1.5 text-sm">
                       <button type="button" onClick={() => moveListCol(i, -1)} disabled={i === 0} className="text-slate-500 hover:text-slate-800 disabled:opacity-30" title="Mover ←">←</button>
                       <button type="button" onClick={() => moveListCol(i, 1)} disabled={i === listDraft.columns.length - 1} className="text-slate-500 hover:text-slate-800 disabled:opacity-30" title="Mover →">→</button>
                       <button type="button" onClick={() => removeListCol(i)} disabled={listDraft.columns.length <= 1} className="text-rose-500 hover:text-rose-700 disabled:opacity-30" title="Remover coluna">🗑</button>
                     </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11px]">
+                    <label className="col-span-2 flex flex-col gap-0.5 text-slate-600">Vem de
+                      <select value={c.field.startsWith("prodspec:") ? "__spec__" : c.field} onChange={(e) => setListCol(i, { field: e.target.value === "__spec__" ? "prodspec:" : e.target.value })} className="rounded border border-slate-300 px-2 py-1 text-sm">
+                        <optgroup label="Da linha do orçamento">
+                          <option value="produto">Descrição</option>
+                          <option value="qtd">Quantidade</option>
+                          <option value="unidade">Unidade</option>
+                          <option value="valor">Valor total</option>
+                          <option value="unitario">Valor unitário</option>
+                          <option value="papel">Item (papel)</option>
+                        </optgroup>
+                        <optgroup label="Do cadastro do produto">
+                          <option value="prodCodigo">Código</option>
+                          <option value="prodDescricao">Descrição do cadastro</option>
+                        </optgroup>
+                        <optgroup label="Especificação técnica">
+                          <option value="__spec__">Especificação (chave)…</option>
+                        </optgroup>
+                      </select>
+                    </label>
+                    {c.field.startsWith("prodspec:") ? (
+                      <label className="col-span-2 flex flex-col gap-0.5 text-slate-600">Chave da especificação
+                        <input type="text" value={c.field.slice("prodspec:".length)} onChange={(e) => setListCol(i, { field: `prodspec:${e.target.value}` })} placeholder="ex: vazaoM3h" className="rounded border border-amber-300 px-2 py-1 text-sm" />
+                      </label>
+                    ) : null}
+                    <label className="col-span-2 flex flex-col gap-0.5 text-slate-600">Cabeçalho
+                      <input type="text" value={c.header ?? ""} placeholder={`padrão: ${LIST_FIELD_LABEL[c.field] || c.field}`} onChange={(e) => setListCol(i, { header: e.target.value || null })} className="rounded border border-slate-300 px-2 py-1 text-sm" />
+                    </label>
+                    <label className="flex flex-col gap-0.5 text-slate-600">Largura (%)
+                      <NumInput value={c.widthPct ?? 0} placeholder="auto" onChange={(v) => setListCol(i, { widthPct: v || null })} className="rounded border border-slate-300 px-2 py-1 text-sm" />
+                    </label>
+                    <label className="flex flex-col gap-0.5 text-slate-600">Alinhar
+                      <select value={c.align || "left"} onChange={(e) => setListCol(i, { align: e.target.value as any })} className="rounded border border-slate-300 px-2 py-1 text-sm">
+                        <option value="left">Esquerda</option><option value="center">Centro</option><option value="right">Direita</option>
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-0.5 text-slate-600">Fonte (pt)
+                      <NumInput value={c.fontPt ?? 0} placeholder="auto" onChange={(v) => setListCol(i, { fontPt: v || null })} className="rounded border border-slate-300 px-2 py-1 text-sm" />
+                    </label>
+                    <div className="flex items-end gap-3">
+                      <label className="flex flex-col gap-0.5 text-slate-600">Cor texto
+                        <span className="flex items-center gap-1"><input type="color" value={c.color || "#0f172a"} onChange={(e) => setListCol(i, { color: e.target.value })} className="h-6 w-7 cursor-pointer rounded border border-slate-300 p-0" /><button type="button" onClick={() => setListCol(i, { color: null })} title="Sem cor" className="text-slate-400 hover:text-slate-700">⌫</button></span>
+                      </label>
+                      <label className="flex flex-col gap-0.5 text-slate-600">Fundo
+                        <span className="flex items-center gap-1"><input type="color" value={c.bg || "#ffffff"} onChange={(e) => setListCol(i, { bg: e.target.value })} className="h-6 w-7 cursor-pointer rounded border border-slate-300 p-0" /><button type="button" onClick={() => setListCol(i, { bg: null })} title="Sem fundo" className="text-slate-400 hover:text-slate-700">⌫</button></span>
+                      </label>
+                    </div>
                   </div>
                 </div>
               ))}

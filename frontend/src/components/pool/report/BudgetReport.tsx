@@ -323,6 +323,7 @@ export function renderDynamicList(box: Box, data: BudgetReportData): ReactNode {
   let rows = items.filter((it) => it.cellRef);
   if (cfg.etapa) rows = rows.filter((it) => (it.poolSection || "").toUpperCase() === cfg.etapa!.toUpperCase());
   if (cfg.kind) rows = rows.filter((it) => (it.kind || "PRODUCT") === cfg.kind);
+  if (cfg.lines && cfg.lines.length) { const sel = new Set(cfg.lines.map((r) => (r || "").toUpperCase())); rows = rows.filter((it) => sel.has((it.cellRef || "").toUpperCase())); }
   if (cfg.skipEmpty !== false) rows = rows.filter((it) => !isEmptyLineDesc(it.description));
   if (cfg.maxRows && cfg.maxRows > 0) rows = rows.slice(0, cfg.maxRows);
   const cols = cfg.columns && cfg.columns.length ? cfg.columns : [{ field: "produto" }];
@@ -1048,6 +1049,7 @@ export type ListColumn = { field: string; header?: string | null; widthPct?: num
 export type ListConfig = {
   etapa?: string | null;              // fonte: linhas desta etapa (vazio = todas as linhas)
   kind?: "PRODUCT" | "SERVICE" | null; // filtro por tipo
+  lines?: string[] | null;            // cellRefs específicos; null/ausente = TODAS as linhas da etapa/tipo
   skipEmpty?: boolean;                // pula "Sem Produto"/vazio (default true)
   maxRows?: number | null;
   columns: ListColumn[];
