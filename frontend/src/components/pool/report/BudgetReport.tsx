@@ -338,7 +338,7 @@ export function renderDynamicList(box: Box, data: BudgetReportData): ReactNode {
     <table style={{ width: tableW, borderCollapse: "collapse", tableLayout: "fixed" }}>
       {cfg.showHeader !== false ? (
         <thead><tr>{cols.map((c, ci) => (
-          <th key={ci} style={{ width: colW(c), textAlign: (c.align as any) || "left", background: cfg.headerBg || undefined, color: cfg.headerColor || undefined, fontSize: cfg.headerFontPt ? `${cfg.headerFontPt}pt` : undefined, padding: "2px 5px", border: bd, fontWeight: 700, overflow: "hidden" }}>
+          <th key={ci} style={{ width: colW(c), textAlign: (c.align as any) || "left", background: cfg.headerBg || undefined, color: cfg.headerColor || undefined, padding: "2px 5px", border: bd, fontWeight: 700, overflow: "hidden" }}>
             {c.header ?? LIST_FIELD_LABEL[c.field] ?? c.field}
           </th>
         ))}</tr></thead>
@@ -349,7 +349,7 @@ export function renderDynamicList(box: Box, data: BudgetReportData): ReactNode {
         ) : rows.map((it, ri) => (
           <tr key={ri} style={{ height: cfg.rowHeightMm ? `${cfg.rowHeightMm}mm` : undefined, background: cfg.zebra && ri % 2 ? "rgba(100,116,139,.08)" : undefined }}>
             {cols.map((c, ci) => (
-              <td key={ci} style={{ width: colW(c), textAlign: (c.align as any) || "left", color: c.color || undefined, background: c.bg || undefined, fontSize: c.fontPt ? `${c.fontPt}pt` : undefined, padding: "2px 5px", border: bd, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+              <td key={ci} style={{ width: colW(c), textAlign: (c.align as any) || "left", background: c.bg || undefined, padding: "2px 5px", border: bd, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
                 {cellVal(it, c.field)}
               </td>
             ))}
@@ -1369,7 +1369,7 @@ export function CanvasEditor({ boxes, data, branding, selBox, selSet, pageW, pag
             others={(boxes || []).filter((x) => x.id !== b.id)} onGuides={setGuides}
             groupMove={!!selSet && selSet.has(b.id) && selSet.size > 1} onGroupStart={onGroupStart} onGroupMove={onGroupMove}
             onSelect={(additive) => onSelect(b.id, additive)}
-            onStartEdit={() => { if (b.type === "TEXT") { setEditingId(b.id); onEditStart?.(b.id); } }}
+            onStartEdit={() => { if (b.type === "TEXT") { setEditingId(b.id); onEditStart?.(b.id); } else if (b.type === "LIST") { onEditStart?.(b.id); } }}
             onChange={onChange} onCommit={onCommit}>
             <BoxContent box={b} data={data} branding={branding} editingText={editingId === b.id} onEditText={(id, html) => onChange({ ...b, html })} onEditCommit={onCommit} editor />
           </BoxFrame>

@@ -1356,6 +1356,16 @@ export default function PoolPrintLayoutEditorPage() {
             {!isDyn && !(sb.type === "TEXT" && Array.isArray(sb.txtRules)) ? <RibbonBtn icon="⚡" label={sb.showIf ? "Condicao ✓" : "Condicao"} onClick={() => openCondFor({ kind: "showIf" }, sb.showIf)} /> : null}
             {!isDyn ? <RibbonBtn icon="🔁" label={sb.band ? "Banda ✓" : "Repetir"} onClick={() => setBandModal(true)} /> : null}
             {sb.parentId ? <RibbonBtn icon="🔓" label="Soltar do grupo" onClick={() => patchSelBox({ parentId: null })} /> : null}
+            {/* Caixa solta (sem grupo) + existe grupo dinamico na pagina = botao pra COLOCAR no grupo.
+                Escolhe o grupo cujo retangulo contem o centro da caixa; senao o primeiro. Assim ela passa
+                a acompanhar o grupo ao mover/excluir (parentId), resolvendo "a lista nao acompanhou o grupo". */}
+            {!sb.parentId && sb.type !== "CARD" ? (() => {
+              const groups = boxes.filter((b) => b.id !== sb.id && b.type === "CARD" && (!!b.dynamic || boxes.some((c) => c.parentId === b.id)));
+              if (!groups.length) return null;
+              const cx = sb.x + sb.w / 2, cy = sb.y + sb.h / 2;
+              const target = groups.find((g) => cx >= g.x && cx <= g.x + g.w && cy >= g.y && cy <= g.y + g.h) || groups[0];
+              return <RibbonBtn icon="📥" label="Colocar no grupo" onClick={() => patchSelBox({ parentId: target.id })} />;
+            })() : null}
             {selSet.size >= 2 ? (
               <>
                 <span className="mx-1 self-center h-6 w-px bg-slate-200" />
@@ -1970,7 +1980,7 @@ export default function PoolPrintLayoutEditorPage() {
               })() : null}
             </div>
             {/* COLUNAS — cada coluna é um CARD com os campos rotulados (vertical, mais intuitivo) */}
-            <div className="text-[11px] font-semibold text-slate-600 mb-1">Colunas</div>
+            <div className="text-[11px] font-semibold text-slate-600 mb-1">Colunas <span className="font-normal text-slate-400">— fonte, tamanho e cor do texto vêm da barra <b>Início</b> (selecione a lista ou dê duplo-clique nela). Aqui ficam só estrutura, alinhamento e cor de fundo.</span></div>
             <div className="grid gap-2 sm:grid-cols-2">
               {listDraft.columns.map((c, i) => (
                 <div key={i} className="rounded-lg border border-slate-200 bg-white p-2.5">
@@ -2018,13 +2028,7 @@ export default function PoolPrintLayoutEditorPage() {
                         <option value="left">Esquerda</option><option value="center">Centro</option><option value="right">Direita</option>
                       </select>
                     </label>
-                    <label className="flex flex-col gap-0.5 text-slate-600">Fonte (pt)
-                      <NumInput value={c.fontPt ?? 0} placeholder="auto" onChange={(v) => setListCol(i, { fontPt: v || null })} className="rounded border border-slate-300 px-2 py-1 text-sm" />
-                    </label>
                     <div className="flex items-end gap-3">
-                      <label className="flex flex-col gap-0.5 text-slate-600">Cor texto
-                        <span className="flex items-center gap-1"><input type="color" value={c.color || "#0f172a"} onChange={(e) => setListCol(i, { color: e.target.value })} className="h-6 w-7 cursor-pointer rounded border border-slate-300 p-0" /><button type="button" onClick={() => setListCol(i, { color: null })} title="Sem cor" className="text-slate-400 hover:text-slate-700">⌫</button></span>
-                      </label>
                       <label className="flex flex-col gap-0.5 text-slate-600">Fundo
                         <span className="flex items-center gap-1"><input type="color" value={c.bg || "#ffffff"} onChange={(e) => setListCol(i, { bg: e.target.value })} className="h-6 w-7 cursor-pointer rounded border border-slate-300 p-0" /><button type="button" onClick={() => setListCol(i, { bg: null })} title="Sem fundo" className="text-slate-400 hover:text-slate-700">⌫</button></span>
                       </label>
