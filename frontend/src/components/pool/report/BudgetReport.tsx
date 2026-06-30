@@ -918,6 +918,9 @@ export type Box = {
   // "possui" os filhos: mover/excluir o card move/exclui os filhos junto, e a CONDICAO (showIf)
   // do card vale pro grupo todo (se o card nao aparece, os filhos tambem nao). So 1 nivel.
   parentId?: string | null;
+  // dynamic=true marca um CARD como CONTAINER dinamico (objeto proprio na aba Inserir, v1.15.11):
+  // SO cards dinamicos "adotam" o que e inserido com eles selecionados. Card normal = retangulo.
+  dynamic?: boolean;
   style?: {
     bg?: string | null; borderColor?: string | null; borderWidth?: number | null;
     radius?: number | null; padding?: number | null; textColor?: string | null;
@@ -1029,12 +1032,12 @@ function handleStyle(h: string): CSSProperties {
   base.cursor = cursors[h];
   return base;
 }
-function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit = "mm", pageW = 210, pageH = 297, others = [], onGuides, onSelect, onStartEdit, onChange, onCommit, groupMove, onGroupStart, onGroupMove, hasCond, condHidden, bandLabel, children }: {
+function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit = "mm", pageW = 210, pageH = 297, others = [], onGuides, onSelect, onStartEdit, onChange, onCommit, groupMove, onGroupStart, onGroupMove, hasCond, condHidden, bandLabel, dynLabel, children }: {
   box: Box; selected: boolean; multi?: boolean; editing: boolean; canvasRef: React.RefObject<HTMLDivElement>; lockAspect?: boolean;
   unit?: "mm" | "%"; pageW?: number; pageH?: number; others?: Box[]; onGuides?: (g: { o: "v" | "h"; p: number }[]) => void;
   onSelect: (additive?: boolean) => void; onStartEdit: () => void; onChange: (b: Box) => void; onCommit: () => void;
   groupMove?: boolean; onGroupStart?: () => void; onGroupMove?: (dx: number, dy: number) => void;
-  hasCond?: boolean; condHidden?: boolean; bandLabel?: string; children: React.ReactNode;
+  hasCond?: boolean; condHidden?: boolean; bandLabel?: string; dynLabel?: string; children: React.ReactNode;
 }) {
   const draggedRef = useRef(false);
   const begin = (mode: string) => (e: React.PointerEvent) => {
@@ -1114,7 +1117,7 @@ function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit =
     window.addEventListener("keydown", onKey);
   };
   return (
-    <div style={{ ...boxRectStyle(box, unit), cursor: editing ? "text" : "move", opacity: condHidden ? 0.32 : undefined, outline: (selected || multi) ? "2px solid #06b6d4" : (hasCond ? "1.5px dashed #f59e0b" : undefined), outlineOffset: multi && !selected ? 1 : 0, boxShadow: (selected || multi) ? "0 0 0 2px rgba(255,255,255,0.9), 0 0 0 4px rgba(6,182,212,0.45)" : undefined }}
+    <div style={{ ...boxRectStyle(box, unit), cursor: editing ? "text" : "move", opacity: condHidden ? 0.32 : undefined, outline: (selected || multi) ? "2px solid #06b6d4" : (hasCond ? "1.5px dashed #f59e0b" : (dynLabel ? "1.5px dashed #8b5cf6" : undefined)), outlineOffset: multi && !selected ? 1 : 0, boxShadow: (selected || multi) ? "0 0 0 2px rgba(255,255,255,0.9), 0 0 0 4px rgba(6,182,212,0.45)" : undefined }}
       onPointerDown={begin("move")}
       onClick={(e) => { e.stopPropagation(); }}
       onDoubleClick={(e) => { e.stopPropagation(); onStartEdit(); }}>
@@ -1124,6 +1127,9 @@ function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit =
       ) : null}
       {bandLabel ? (
         <div title="Banda repetidora — esta linha-modelo se repete por item no orçamento (na impressão). Aqui no editor você vê só o modelo." style={{ position: "absolute", top: -7, right: -7, zIndex: 40, background: "#2563eb", color: "#fff", borderRadius: 9, fontSize: 9, lineHeight: "15px", height: 15, padding: "0 4px", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,.3)", pointerEvents: "none", whiteSpace: "nowrap" }}>{bandLabel}</div>
+      ) : null}
+      {dynLabel ? (
+        <div title="Grupo dinâmico — o que você inserir com ele selecionado entra DENTRO; mover/excluir leva os campos junto; as Exigências (⚡) valem pro grupo inteiro." style={{ position: "absolute", bottom: -7, left: -7, zIndex: 40, background: "#8b5cf6", color: "#fff", borderRadius: 9, fontSize: 9, lineHeight: "15px", height: 15, padding: "0 4px", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,.3)", pointerEvents: "none", whiteSpace: "nowrap" }}>{dynLabel}</div>
       ) : null}
       {selected && !editing ? HANDLES.map((h) => (<div key={h} style={handleStyle(h)} onPointerDown={begin(h)} />)) : null}
     </div>
@@ -1172,6 +1178,7 @@ export function CanvasEditor({ boxes, data, branding, selBox, selSet, pageW, pag
           <BoxFrame key={b.id} box={b} selected={selBox === b.id} multi={!!selSet && selSet.has(b.id) && b.id !== selBox} editing={editingId === b.id} canvasRef={canvasRef} unit={unit || "mm"} pageW={W} pageH={H}
             hasCond={!!b.showIf || (!!b.parentId && !!(boxes || []).find((p) => p.id === b.parentId)?.showIf)} condHidden={!boxShowsCascade(b, boxes || [], data)}
             bandLabel={b.band ? (b.band.source === "linhas" ? `🔁 ×${bandCollection("linhas", data).length} (linha)` : `🔁 ×${bandCollection("etapas", data).length} (etapa)`) : undefined}
+            dynLabel={b.type === "CARD" && (b.dynamic || (boxes || []).some((c) => c.parentId === b.id)) ? "🪄 grupo dinâmico" : undefined}
             others={(boxes || []).filter((x) => x.id !== b.id)} onGuides={setGuides}
             groupMove={!!selSet && selSet.has(b.id) && selSet.size > 1} onGroupStart={onGroupStart} onGroupMove={onGroupMove}
             onSelect={(additive) => onSelect(b.id, additive)}

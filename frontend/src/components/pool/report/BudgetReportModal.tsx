@@ -49,7 +49,7 @@ function computeInstallments(pt: any, totalCents: number): { label: string; dueL
   return out;
 }
 
-function buildReportData(budget: any, sectionLabels: Record<string, string>): BudgetReportData {
+export function buildReportData(budget: any, sectionLabels: Record<string, string>): BudgetReportData {
   const d = (budget?.poolDimensions ?? {}) as any;
   const items = (budget?.items ?? []).map((it: any) => ({
     poolSection: it.poolSection,

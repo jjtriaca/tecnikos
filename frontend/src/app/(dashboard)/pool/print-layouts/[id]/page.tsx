@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, getAccessToken } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
-import BudgetReport, { BudgetReportData, ReportItem, ReportNode, CompositionPreview, CanvasEditor, Box, pageDims } from "@/components/pool/report/BudgetReport";
+import BudgetReport, { BudgetReportData, ReportNode, CompositionPreview, CanvasEditor, Box, pageDims } from "@/components/pool/report/BudgetReport";
+import { buildReportData } from "@/components/pool/report/BudgetReportModal";
 import { printViaClone } from "@/lib/printViaClone";
 import CompositionEditor from "@/components/pool/report/CompositionEditor";
 import ReportFieldLibrary from "@/components/pool/report/ReportFieldLibrary";
@@ -141,6 +142,13 @@ const SAMPLE_BUDGET: BudgetReportData = {
   ],
 };
 
+// Estado EM BRANCO do preview (nenhum orcamento escolhido) — campos vazios / zero. O operador
+// escolhe um orcamento real na busca do cabecalho pra ver o relatorio com dados de verdade.
+const BLANK_DATA: BudgetReportData = {
+  code: "", title: "", items: [], totalCents: 0, subtotalCents: 0, discountCents: 0, taxesCents: 0,
+  sectionOrder: [], sectionLabels: { ...SECTION_LABEL }, dimensions: {}, installments: [],
+};
+
 // Botao da faixa de opcoes (ribbon) — icone em cima, rotulo embaixo (estilo Office).
 // Lista unica de fontes — usada no <select> E na deteccao da fonte do trecho/caixa selecionada.
 const FONTS: { v: string; l: string }[] = [
@@ -195,9 +203,12 @@ export default function PoolPrintLayoutEditorPage() {
   // lidos de tpl.defaults pra o picker mostrar o nome certo na ordem certa (nao a CHAVE crua).
   const [tplCustomSections, setTplCustomSections] = useState<{ labels?: Record<string, string>; hidden?: string[] } | null>(null);
   const [tplSectionOrder, setTplSectionOrder] = useState<string[]>([]);
-  // Linhas do modelo no formato do relatorio — alimentam o PREVIEW (resolve {linha:Lx.*} contra o
-  // PROPRIO modelo, nao um orcamento falso). Sem isso L5 do picker != L5 que aparece impresso.
-  const [tplItems, setTplItems] = useState<ReportItem[]>([]);
+  // PREVIEW POR ORCAMENTO REAL — o operador escolhe um orcamento na busca do cabecalho e o preview
+  // renderiza com os dados DELE (mesmo buildReportData do PDF). Sem orcamento = tudo em branco/zero.
+  const [previewBudget, setPreviewBudget] = useState<any | null>(null);
+  const [budgetQuery, setBudgetQuery] = useState("");
+  const [budgetResults, setBudgetResults] = useState<{ id: string; code?: string | null; clientName?: string | null }[]>([]);
+  const [budgetPickerOpen, setBudgetPickerOpen] = useState(false);
   const [pickLine, setPickLine] = useState(false);
   const [lineSel, setLineSel] = useState<Set<string>>(new Set());
   const [etapaSel, setEtapaSel] = useState<Set<string>>(new Set()); // selecao quando "O que inserir" e nivel-etapa
@@ -489,9 +500,9 @@ export default function PoolPrintLayoutEditorPage() {
       const c = REPORT_ICONS.find((i) => i.name === nb.icon)?.color;
       if (c) nb.style = { ...(nb.style || {}), textColor: c };
     }
-    // CARD DINAMICO: se um CARD esta selecionado, a caixa nova nasce DENTRO dele (vinculada via
-    // parentId) e posicionada nos limites do card. Card nao pode virar filho de outro card (1 nivel).
-    const parentCard = (!isStrip && nb.type !== "CARD" && selBox) ? boxes.find((b) => b.id === selBox && b.type === "CARD") : undefined;
+    // CARD DINAMICO: se um CARD DINAMICO esta selecionado, a caixa nova nasce DENTRO dele (parentId)
+    // posicionada nos limites do card. Card normal NAO adota; card nao vira filho de card (1 nivel).
+    const parentCard = (!isStrip && nb.type !== "CARD" && selBox) ? boxes.find((b) => b.id === selBox && b.type === "CARD" && (b.dynamic || boxes.some((c) => c.parentId === b.id))) : undefined;
     if (parentCard) {
       const pad = 3;
       nb.w = Math.min(nb.w, Math.max(8, parentCard.w - pad * 2));
@@ -631,6 +642,41 @@ export default function PoolPrintLayoutEditorPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // ── PREVIEW POR ORCAMENTO REAL — busca + persistencia do ultimo escolhido (localStorage por layout) ──
+  const previewKey = `rp-preview-budget:${id}`;
+  // Ao abrir, recarrega o ultimo orcamento escolhido.
+  useEffect(() => {
+    let saved: string | null = null;
+    try { saved = localStorage.getItem(previewKey); } catch { /* sem localStorage */ }
+    if (!saved) return;
+    let cancel = false;
+    api.get<any>(`/pool-budgets/${saved}`).then((b) => { if (!cancel) setPreviewBudget(b); })
+      .catch(() => { try { localStorage.removeItem(previewKey); } catch { /* ignore */ } });
+    return () => { cancel = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+  // Busca de orcamentos (debounce) enquanto digita / ao abrir a busca (lista recentes com q vazio).
+  useEffect(() => {
+    if (!budgetPickerOpen) return;
+    const q = budgetQuery.trim();
+    const t = setTimeout(() => {
+      api.get<{ data: { id: string; code?: string; clientPartner?: { name?: string } }[] }>(`/pool-budgets?limit=8${q ? `&search=${encodeURIComponent(q)}` : ""}`)
+        .then((r) => setBudgetResults((r.data || []).map((b) => ({ id: b.id, code: b.code, clientName: b.clientPartner?.name ?? null }))))
+        .catch(() => setBudgetResults([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [budgetQuery, budgetPickerOpen]);
+  // Escolhe um orcamento -> busca completo (com itens/produto) -> vira o preview + salva o ultimo.
+  const pickPreviewBudget = async (bid: string) => {
+    try {
+      const full = await api.get<any>(`/pool-budgets/${bid}`);
+      setPreviewBudget(full);
+      try { localStorage.setItem(previewKey, bid); } catch { /* ignore */ }
+      setBudgetPickerOpen(false); setBudgetQuery("");
+    } catch (e: any) { toast(e?.payload?.message || "Erro ao carregar orçamento", "error"); }
+  };
+  const clearPreviewBudget = () => { setPreviewBudget(null); try { localStorage.removeItem(previewKey); } catch { /* ignore */ } };
+
   // Modelos de obra (p/ escolher/trocar o modelo do layout no picker de etapa/linha).
   useEffect(() => {
     api.get<{ data: { id: string; name: string; isDefault?: boolean }[] }>("/pool-budget-templates?limit=100")
@@ -646,7 +692,7 @@ export default function PoolPrintLayoutEditorPage() {
   // Carrega as linhas do modelo de obra (itemsSnapshot) p/ alimentar o picker de etapa/linha.
   useEffect(() => {
     const tid = layout?.templateId;
-    if (!tid) { setTplLines([]); setTplCustomSections(null); setTplSectionOrder([]); setTplItems([]); return; }
+    if (!tid) { setTplLines([]); setTplCustomSections(null); setTplSectionOrder([]); return; }
     let cancel = false;
     (async () => {
       try {
@@ -664,33 +710,12 @@ export default function PoolPrintLayoutEditorPage() {
             specs: null,
             qty: Number(it.qty) || 0,
           }));
-        // Linhas do modelo no formato do relatorio (pro preview resolver {linha:Lx.*} contra o modelo).
-        const items: ReportItem[] = snap
-          .filter((it: any) => it?.cellRef)
-          .map((it: any) => {
-            const qty = Number(it.qty) || 0;
-            const unit = Number(it.unitPriceCents) || 0;
-            const desc = String(it.description ?? "");
-            return {
-              poolSection: it.poolSection ?? "OUTROS",
-              kind: it.kind ?? "PRODUCT",
-              description: desc,
-              slotName: it.slotName ?? null,
-              qty,
-              unitPriceCents: unit,
-              totalCents: Math.round(qty * unit),
-              cellRef: String(it.cellRef),
-              productUnit: it.unit ?? null,
-              productDesc: desc,
-              hasProduct: !!desc.trim() && desc.trim().toLowerCase() !== "sem produto",
-            } as ReportItem;
-          });
-        // Rotulos/ordem das etapas vem de tpl.defaults (gravado pelo "Salvar modelo", v1.13.46+).
+        // Rotulos/ordem das etapas vem de tpl.defaults (gravado pelo "Salvar modelo", v1.13.46+) — usados pelo PICKER.
         const def = (tpl?.defaults ?? {}) as Record<string, any>;
         const cs = (def.customSections ?? null) as { labels?: Record<string, string>; hidden?: string[] } | null;
         const order = Array.isArray(def.sectionOrder) ? (def.sectionOrder as string[]) : [];
-        if (!cancel) { setTplLines(lines); setTplCustomSections(cs); setTplSectionOrder(order); setTplItems(items); }
-      } catch { if (!cancel) { setTplLines([]); setTplCustomSections(null); setTplSectionOrder([]); setTplItems([]); } }
+        if (!cancel) { setTplLines(lines); setTplCustomSections(cs); setTplSectionOrder(order); }
+      } catch { if (!cancel) { setTplLines([]); setTplCustomSections(null); setTplSectionOrder([]); } }
     })();
     return () => { cancel = true; };
   }, [layout?.templateId]);
@@ -717,20 +742,10 @@ export default function PoolPrintLayoutEditorPage() {
   // PROPRIO modelo (cellRef, etapa, nomes/ordem reais) em vez do SAMPLE_BUDGET fixo — assim o que
   // o operador escolhe no picker (ex: L5 = Parede pre-moldada) e exatamente o que aparece impresso.
   const previewData = useMemo<BudgetReportData>(() => {
-    if (!layout?.templateId || tplItems.length === 0) return SAMPLE_BUDGET;
-    const subtotal = tplItems.reduce((s, it) => s + (it.totalCents || 0), 0);
-    return {
-      ...SAMPLE_BUDGET,
-      title: edTemplates.find((t) => t.id === layout.templateId)?.name ?? SAMPLE_BUDGET.title,
-      items: tplItems,
-      sectionOrder: tplSectionOrder.length > 0 ? tplSectionOrder : SAMPLE_BUDGET.sectionOrder,
-      sectionLabels: { ...SECTION_LABEL, ...(tplCustomSections?.labels ?? {}) },
-      subtotalCents: subtotal,
-      discountCents: 0,
-      taxesCents: 0,
-      totalCents: subtotal,
-    };
-  }, [layout?.templateId, tplItems, tplSectionOrder, tplCustomSections, edTemplates]);
+    if (!previewBudget) return BLANK_DATA;
+    const labels = { ...SECTION_LABEL, ...(((previewBudget.environmentParams as any)?.customSections?.labels) ?? {}) };
+    return buildReportData(previewBudget, labels);
+  }, [previewBudget]);
 
   // Fase 5 — alertas: tokens do layout que nao vao resolver (outra origem / linha inexistente / desconhecido).
   const reportIssues = useMemo(
@@ -985,6 +1000,39 @@ export default function PoolPrintLayoutEditorPage() {
             <button onClick={() => setEditingMeta(true)} className="text-xs text-cyan-600 hover:text-cyan-800">Editar nome</button>
           </div>
         )}
+        {/* Preview por orcamento REAL — escolhe qual orcamento alimenta o preview (mesmo motor do PDF).
+            Vazio = tudo em branco/zero. O ultimo escolhido fica salvo (localStorage por layout). */}
+        <div className="relative ml-4">
+          {previewBudget ? (
+            <div className="flex items-center gap-1 rounded-md border border-cyan-300 bg-cyan-50 px-2 py-1 text-xs text-cyan-800">
+              <span className="font-semibold whitespace-nowrap">👁 {previewBudget.code || "orçamento"}</span>
+              {previewBudget.clientPartner?.name ? <span className="text-cyan-600 max-w-[140px] truncate">— {previewBudget.clientPartner.name}</span> : null}
+              <button type="button" onClick={() => { setBudgetPickerOpen(true); setBudgetQuery(""); }} className="ml-1 text-cyan-700 hover:text-cyan-900 underline">trocar</button>
+              <button type="button" onClick={clearPreviewBudget} title="Ver em branco" className="text-cyan-500 hover:text-rose-600">✕</button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => { setBudgetPickerOpen(true); setBudgetQuery(""); }} className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 whitespace-nowrap">🔎 Ver orçamento no preview</button>
+          )}
+          {budgetPickerOpen ? (<>
+            <div className="fixed inset-0 z-[68]" onClick={() => setBudgetPickerOpen(false)} />
+            <div className="absolute left-0 top-full z-[69] mt-1 w-72 rounded-lg border border-slate-200 bg-white p-2 shadow-xl">
+              <input autoFocus value={budgetQuery} onChange={(e) => setBudgetQuery(e.target.value)} placeholder="Buscar por código ou cliente…" className="w-full rounded border border-slate-300 px-2 py-1 text-sm" />
+              <div className="mt-1 max-h-64 overflow-y-auto">
+                {budgetResults.length === 0 ? (
+                  <div className="px-2 py-3 text-[11px] italic text-slate-400">Nenhum orçamento — digite pra buscar.</div>
+                ) : budgetResults.map((b) => (
+                  <button key={b.id} type="button" onClick={() => pickPreviewBudget(b.id)} className="block w-full rounded px-2 py-1.5 text-left text-xs hover:bg-cyan-50">
+                    <span className="font-semibold text-slate-800">{b.code || "—"}</span>{b.clientName ? <span className="text-slate-500"> — {b.clientName}</span> : null}
+                  </button>
+                ))}
+              </div>
+              <div className="mt-1 flex items-center justify-between border-t border-slate-100 pt-1">
+                <button type="button" onClick={() => { clearPreviewBudget(); setBudgetPickerOpen(false); }} className="text-[11px] text-slate-500 hover:text-slate-800">Ver em branco</button>
+                <button type="button" onClick={() => setBudgetPickerOpen(false)} className="text-[11px] text-slate-500 hover:text-slate-800">Fechar</button>
+              </div>
+            </div>
+          </>) : null}
+        </div>
         <div className="ml-auto flex items-center gap-2">
           {editingPage && pageIsCanvas(editingPage) ? (<>
             <button type="button" onClick={undo} disabled={!histInfo.canUndo} title="Voltar (Ctrl+Z)"
@@ -1080,7 +1128,8 @@ export default function PoolPrintLayoutEditorPage() {
           <RibbonBtn icon="➕" label="Nova pagina" onClick={newCanvasPage} />
           <span className="mx-0.5 h-5 w-px bg-slate-300" />
           {editingPage && pageIsCanvas(editingPage) ? (<>
-            <RibbonBtn icon="🃏" label="Novo card" onClick={() => addBox("CARD", {})} />
+            <RibbonBtn icon="🃏" label="Card" onClick={() => addBox("CARD", {})} />
+            <RibbonBtn icon="🪄" label="Grupo dinâmico" onClick={() => addBox("CARD", { dynamic: true })} />
             <RibbonBtn icon="🇹" label="Texto" onClick={() => addBox("TEXT", {})} />
             <RibbonBtn icon="🖼️" label="Imagem" onClick={() => addBox("IMAGE", {})} />
             <RibbonBtn icon="⭐" label="Ícone" onClick={() => setIconPicker(true)} />
@@ -1100,8 +1149,28 @@ export default function PoolPrintLayoutEditorPage() {
           const { w: PW, h: PH } = pageDims(layout?.branding);
           const r1 = (v: number) => Math.round(v * 10) / 10;
           const clampN = (v: number, max: number) => Math.max(0, Math.min(max, isNaN(v) ? 0 : v));
+          // GRUPO DINAMICO: card com dynamic=true (ou legado v1.15.10 = card que ja tem filhos).
+          // Tem ferramentas PROPRIAS (exigencias + conteudo).
+          const isDyn = sb.type === "CARD" && (!!sb.dynamic || boxes.some((b) => b.parentId === sb.id));
+          const kids = isDyn ? boxes.filter((b) => b.parentId === sb.id) : [];
+          const openCond = () => { setCondDraft(sb.showIf ? { ...sb.showIf } : { op: "hasProduct", cellRef: null, etapa: null, value: null }); setCondModal(true); };
+          const condText = (c: Box["showIf"]) => {
+            if (!c || !c.op) return "aparece SEMPRE";
+            const alvo = c.cellRef ? `linha ${c.cellRef}` : c.etapa ? `etapa ${c.etapa}` : "o orçamento";
+            const ops: Record<string, string> = { hasProduct: "tem produto", noProduct: "não tem produto", qtyGt: `qtd > ${c.value ?? 0}`, qtyGte: `qtd ≥ ${c.value ?? 0}`, qtyEq: `qtd = ${c.value ?? 0}`, qtyLte: `qtd ≤ ${c.value ?? 0}`, qtyLt: `qtd < ${c.value ?? 0}` };
+            return `aparece se ${alvo} ${ops[c.op] || c.op}`;
+          };
           return (<>
-            <span className="text-[10px] uppercase tracking-wide text-slate-400">Caixa:</span>
+            {/* ── Ferramentas PRÓPRIAS do GRUPO DINÂMICO (só quando ele está selecionado) ── */}
+            {isDyn ? (<>
+              <span className="self-center rounded bg-violet-600 px-2 py-0.5 text-[11px] font-bold text-white" title="Grupo dinâmico: o que você inserir com ele selecionado entra DENTRO; mover/excluir leva os campos junto; as Exigências valem pro grupo inteiro.">🪄 Grupo dinâmico</span>
+              <RibbonBtn icon="⚡" label={sb.showIf ? "Exigências ✓" : "Exigências"} onClick={openCond} />
+              <span className="self-center max-w-[230px] truncate text-[11px] italic text-slate-500" title={condText(sb.showIf)}>{condText(sb.showIf)}</span>
+              {sb.showIf ? <RibbonBtn icon="🚫" label="Sempre aparece" onClick={() => patchSelBox({ showIf: null })} /> : null}
+              <RibbonBtn icon="📦" label={`Conteúdo (${kids.length})`} disabled={kids.length === 0} onClick={() => { const ids = kids.map((k) => k.id); setSelBox(ids[0]); setSelSet(new Set(ids)); }} />
+              <span className="mx-1 self-center h-6 w-px bg-violet-300" />
+            </>) : null}
+            <span className="text-[10px] uppercase tracking-wide text-slate-400">{isDyn ? "Grupo:" : "Caixa:"}</span>
             <label className="text-xs text-slate-600 flex items-center gap-1" title="Posição horizontal (mm a partir da esquerda; 0 = canto)">X<NumInput value={r1(sb.x)} onChange={(v) => patchSelBox({ x: clampN(v, PW - sb.w) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
             <label className="text-xs text-slate-600 flex items-center gap-1" title="Posição vertical (mm a partir do topo; 0 = canto)">Y<NumInput value={r1(sb.y)} onChange={(v) => patchSelBox({ y: clampN(v, PH - sb.h) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
             <label className="text-xs text-slate-600 flex items-center gap-1" title="Largura (mm)">L<NumInput value={r1(sb.w)} onChange={(v) => patchSelBox({ w: clampN(v, PW - sb.x) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
@@ -1111,11 +1180,10 @@ export default function PoolPrintLayoutEditorPage() {
             <RibbonBtn icon="⬍" label="Centro V" onClick={() => patchSelBox({ y: r1((PH - sb.h) / 2) })} />
             <RibbonBtn icon="⤒" label="Frente" onClick={() => zOrder("front")} />
             <RibbonBtn icon="⤓" label="Tras" onClick={() => zOrder("back")} />
-            <RibbonBtn icon="⚡" label={sb.showIf ? "Condicao ✓" : "Condicao"} onClick={() => { setCondDraft(sb.showIf ? { ...sb.showIf } : { op: "hasProduct", cellRef: null, etapa: null, value: null }); setCondModal(true); }} />
-            <RibbonBtn icon="🔁" label={sb.band ? "Banda ✓" : "Repetir"} onClick={() => setBandModal(true)} />
-            {/* Card dinamico: selo quando um CARD esta selecionado + botao pra SOLTAR um campo do card */}
-            {sb.type === "CARD" ? <span className="self-center rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700" title="Card dinâmico: o que você inserir com ele selecionado entra DENTRO; mover/excluir o card leva os campos junto; a Condição (⚡) vale pro card inteiro.">🃏 card dinâmico</span> : null}
-            {sb.parentId ? <RibbonBtn icon="🔓" label="Soltar do card" onClick={() => patchSelBox({ parentId: null })} /> : null}
+            {/* Condição/Repetir genéricos NÃO aparecem no grupo dinâmico (ele usa "Exigências"; repetir = multiplicador, futuro) */}
+            {!isDyn ? <RibbonBtn icon="⚡" label={sb.showIf ? "Condicao ✓" : "Condicao"} onClick={openCond} /> : null}
+            {!isDyn ? <RibbonBtn icon="🔁" label={sb.band ? "Banda ✓" : "Repetir"} onClick={() => setBandModal(true)} /> : null}
+            {sb.parentId ? <RibbonBtn icon="🔓" label="Soltar do grupo" onClick={() => patchSelBox({ parentId: null })} /> : null}
             {selSet.size >= 2 ? (
               <>
                 <span className="mx-1 self-center h-6 w-px bg-slate-200" />
