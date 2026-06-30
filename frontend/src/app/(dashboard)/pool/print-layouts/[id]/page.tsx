@@ -196,19 +196,33 @@ export default function PoolPrintLayoutEditorPage() {
   // Confirmacao de remocao de pagina via MODAL proprio (substitui window.confirm nativo).
   const [pendingDelete, setPendingDelete] = useState<{ id: string; n: number } | null>(null);
   const [linkModal, setLinkModal] = useState<{ url: string; text: string } | null>(null);
-  // Picker de etapa/linha (reusa o LineRefPicker do AutoSelect) — alimentado pelas linhas do
-  // modelo de obra (templateId) ligado ao layout. Insere {linha:Lx.atributo} no relatorio.
-  const [tplLines, setTplLines] = useState<LineRefPickerLine[]>([]);
-  // Rotulos amigaveis das etapas (renomeadas + custom) e a ordem salva no modelo de obra —
-  // lidos de tpl.defaults pra o picker mostrar o nome certo na ordem certa (nao a CHAVE crua).
-  const [tplCustomSections, setTplCustomSections] = useState<{ labels?: Record<string, string>; hidden?: string[] } | null>(null);
-  const [tplSectionOrder, setTplSectionOrder] = useState<string[]>([]);
+  // Linhas/etapas do MODELO de obra (templateId) — usadas no picker quando NÃO há orçamento escolhido.
+  const [modelLines, setModelLines] = useState<LineRefPickerLine[]>([]);
+  const [modelCustomSections, setModelCustomSections] = useState<{ labels?: Record<string, string>; hidden?: string[] } | null>(null);
+  const [modelSectionOrder, setModelSectionOrder] = useState<string[]>([]);
   // PREVIEW POR ORCAMENTO REAL — o operador escolhe um orcamento na busca do cabecalho e o preview
   // renderiza com os dados DELE (mesmo buildReportData do PDF). Sem orcamento = tudo em branco/zero.
   const [previewBudget, setPreviewBudget] = useState<any | null>(null);
   const [budgetQuery, setBudgetQuery] = useState("");
   const [budgetResults, setBudgetResults] = useState<{ id: string; code?: string | null; clientName?: string | null }[]>([]);
   const [budgetPickerOpen, setBudgetPickerOpen] = useState(false);
+  // FONTE do picker = o ORÇAMENTO escolhido (linhas/etapas reais; o que se escolhe = o que resolve no
+  // preview/impressão). Sem orçamento, cai no MODELO. Resolve o descompasso "L5 do modelo ≠ L5 do orçamento".
+  const tplLines = useMemo<LineRefPickerLine[]>(() => {
+    if (!previewBudget) return modelLines;
+    return ((previewBudget.items ?? []) as any[]).filter((it) => it?.cellRef).map((it) => ({
+      cellRef: String(it.cellRef),
+      slotName: it.slotName ?? null,
+      description: it.description ?? "",
+      poolSection: it.poolSection ?? null,
+      kind: it.kind ?? "PRODUCT",
+      linked: !!(it.product || it.service),
+      specs: null,
+      qty: Number(it.qty) || 0,
+    }));
+  }, [previewBudget, modelLines]);
+  const tplCustomSections = useMemo(() => previewBudget ? (((previewBudget.environmentParams as any)?.customSections ?? null) as { labels?: Record<string, string>; hidden?: string[] } | null) : modelCustomSections, [previewBudget, modelCustomSections]);
+  const tplSectionOrder = useMemo<string[]>(() => previewBudget ? ((previewBudget.sectionOrder as string[]) ?? []) : modelSectionOrder, [previewBudget, modelSectionOrder]);
   const [pickLine, setPickLine] = useState(false);
   const [lineSel, setLineSel] = useState<Set<string>>(new Set());
   const [etapaSel, setEtapaSel] = useState<Set<string>>(new Set()); // selecao quando "O que inserir" e nivel-etapa
@@ -230,6 +244,13 @@ export default function PoolPrintLayoutEditorPage() {
   const setCondRule = (i: number, patch: Partial<CondRule>) => setCondDraft((d) => ({ ...d, rules: d.rules.map((r, j) => (j === i ? { ...r, ...patch } : r)) }));
   const addCondRule = () => setCondDraft((d) => ({ ...d, rules: [...d.rules, { ...NEW_RULE }] }));
   const removeCondRule = (i: number) => setCondDraft((d) => ({ ...d, rules: d.rules.filter((_, j) => j !== i) }));
+  // IMAGEM DINAMICA — lista ORDENADA de candidatos (linha + condição); 1ª que bate (e tem imagem) manda.
+  const [imgModal, setImgModal] = useState(false);
+  const [imgDraft, setImgDraft] = useState<CondRule[]>([]);
+  const setImgRule = (i: number, patch: Partial<CondRule>) => setImgDraft((d) => d.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const addImgRule = () => setImgDraft((d) => [...d, { ...NEW_RULE }]);
+  const removeImgRule = (i: number) => setImgDraft((d) => d.filter((_, j) => j !== i));
+  const moveImgRule = (i: number, dir: -1 | 1) => setImgDraft((d) => { const j = i + dir; if (j < 0 || j >= d.length) return d; const n = [...d]; [n[i], n[j]] = [n[j], n[i]]; return n; });
   // Banda repetidora (Fase 2 blocos dinamicos)
   const [bandModal, setBandModal] = useState(false);
   const [selSet, setSelSet] = useState<Set<string>>(new Set()); // multi-selecao (shift-clique)
@@ -445,13 +466,15 @@ export default function PoolPrintLayoutEditorPage() {
   // ── Hierarquia de objetos (camadas) ──
   const [objNameEdit, setObjNameEdit] = useState<{ id: string; v: string } | null>(null);
   const [objPanelOpen, setObjPanelOpen] = useState(false); // minimizado por padrao
-  const boxTypeIcon = (b: Box) => b.type === "TEXT" ? (b.href ? "🔗" : "🇹") : b.type === "IMAGE" ? "🖼️" : b.type === "BLOCK" ? "▦" : b.type === "ICON" ? "⭐" : "🃏";
+  // Card que e GRUPO DINAMICO: flag dynamic OU ja tem filhos (legado v1.15.10).
+  const isDynCard = (b: Box) => b.type === "CARD" && (!!b.dynamic || boxes.some((c) => c.parentId === b.id));
+  const boxTypeIcon = (b: Box) => b.type === "TEXT" ? (b.href ? "🔗" : "🇹") : b.type === "IMAGE" ? "🖼️" : b.type === "BLOCK" ? "▦" : b.type === "ICON" ? "⭐" : isDynCard(b) ? "🪄" : "🃏";
   const boxAutoLabel = (b: Box) => {
     if (b.type === "TEXT") { const t = (b.html || "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim(); return t ? (t.length > 26 ? t.slice(0, 26) + "…" : t) : "Texto vazio"; }
-    if (b.type === "IMAGE") return b.url ? "Imagem" : "Imagem (vazia)";
+    if (b.type === "IMAGE") return Array.isArray(b.imgRules) ? `Imagem dinâmica (${b.imgRules.length})` : (b.url ? "Imagem" : "Imagem (vazia)");
     if (b.type === "BLOCK") return (DYNAMIC_LABEL as any)?.[b.blockType || ""] || b.blockType || "Bloco";
     if (b.type === "ICON") return REPORT_ICONS.find((i) => i.name === b.icon)?.label || "Ícone";
-    return "Card";
+    return isDynCard(b) ? "Grupo dinâmico" : "Card";
   };
   const boxLabel = (b: Box) => b.name || boxAutoLabel(b);
   // Remove realce (background-color) de dentro do HTML da caixa de texto — limpa o "fundo atrás" do texto.
@@ -697,7 +720,7 @@ export default function PoolPrintLayoutEditorPage() {
   // Carrega as linhas do modelo de obra (itemsSnapshot) p/ alimentar o picker de etapa/linha.
   useEffect(() => {
     const tid = layout?.templateId;
-    if (!tid) { setTplLines([]); setTplCustomSections(null); setTplSectionOrder([]); return; }
+    if (!tid) { setModelLines([]); setModelCustomSections(null); setModelSectionOrder([]); return; }
     let cancel = false;
     (async () => {
       try {
@@ -719,8 +742,8 @@ export default function PoolPrintLayoutEditorPage() {
         const def = (tpl?.defaults ?? {}) as Record<string, any>;
         const cs = (def.customSections ?? null) as { labels?: Record<string, string>; hidden?: string[] } | null;
         const order = Array.isArray(def.sectionOrder) ? (def.sectionOrder as string[]) : [];
-        if (!cancel) { setTplLines(lines); setTplCustomSections(cs); setTplSectionOrder(order); }
-      } catch { if (!cancel) { setTplLines([]); setTplCustomSections(null); setTplSectionOrder([]); } }
+        if (!cancel) { setModelLines(lines); setModelCustomSections(cs); setModelSectionOrder(order); }
+      } catch { if (!cancel) { setModelLines([]); setModelCustomSections(null); setModelSectionOrder([]); } }
     })();
     return () => { cancel = true; };
   }, [layout?.templateId]);
@@ -742,6 +765,50 @@ export default function PoolPrintLayoutEditorPage() {
       return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
     });
   }, [tplLines, tplSectionOrder]);
+
+  // ── Linha-de-regra COMPARTILHADA (condição de visibilidade E imagem dinâmica) ──
+  // Tipo(kind) + Etapa(escopo) + Linha(filtrada por etapa+kind) + Operador + Valor. Mexeu aqui,
+  // muda nos dois modais. `onChange` recebe o patch parcial da regra.
+  const ruleCore = (r: CondRule, onChange: (p: Partial<CondRule>) => void, lineLabel?: string) => (<>
+    <select value={r.kind || ""} onChange={(e) => onChange({ kind: (e.target.value || null) as any, cellRef: null })}
+      title="Filtrar linhas por tipo" className="rounded border border-slate-300 px-2 py-1.5 text-sm">
+      <option value="">Tudo</option>
+      <option value="PRODUCT">Produtos</option>
+      <option value="SERVICE">Serviços</option>
+    </select>
+    <select value={r.etapa || ""} onChange={(e) => { const v = e.target.value || null; const keep = !!r.cellRef && tplLines.find((l) => l.cellRef === r.cellRef)?.poolSection === v; onChange({ etapa: v, cellRef: keep ? r.cellRef : null }); }}
+      className="rounded border border-slate-300 px-2 py-1.5 text-sm min-w-[120px] flex-1">
+      <option value="">— Etapa —</option>
+      {tplSections.map((s) => <option key={s} value={s}>{sectionLabelFor(s).toUpperCase()}</option>)}
+    </select>
+    <select value={r.cellRef || ""} onChange={(e) => { const v = e.target.value || null; const ln = v ? tplLines.find((l) => l.cellRef === v) : null; onChange({ cellRef: v, etapa: ln?.poolSection ?? r.etapa ?? null }); }}
+      className="rounded border border-slate-300 px-2 py-1.5 text-sm min-w-[150px] flex-1">
+      <option value="">{lineLabel || (r.etapa ? "— etapa toda —" : "— linha (opcional) —")}</option>
+      {tplLines.filter((l) => (!r.etapa || l.poolSection === r.etapa) && (!r.kind || (l.kind || "PRODUCT") === r.kind)).map((l) => (
+        <option key={l.cellRef} value={l.cellRef}>{`${l.cellRef} — ${l.description || (l.slotName || "")}`}</option>
+      ))}
+    </select>
+    <select value={r.op} onChange={(e) => onChange({ op: e.target.value as CondOp })} className="rounded border border-slate-300 px-2 py-1.5 text-sm">
+      <option value="hasProduct">tem produto</option>
+      <option value="noProduct">não tem produto</option>
+      <option value="qtyGt">qtd &gt;</option>
+      <option value="qtyGte">qtd ≥</option>
+      <option value="qtyEq">qtd =</option>
+      <option value="qtyNeq">qtd ≠</option>
+      <option value="qtyLte">qtd ≤</option>
+      <option value="qtyLt">qtd &lt;</option>
+      <option value="valGt">valor &gt;</option>
+      <option value="valGte">valor ≥</option>
+      <option value="valEq">valor =</option>
+      <option value="valNeq">valor ≠</option>
+      <option value="valLte">valor ≤</option>
+      <option value="valLt">valor &lt;</option>
+    </select>
+    {r.op.startsWith("qty") || r.op.startsWith("val") ? (
+      <input type="number" value={r.value ?? 0} onChange={(e) => onChange({ value: Number(e.target.value) })}
+        title={r.op.startsWith("val") ? "Valor em R$" : "Quantidade"} className="w-20 rounded border border-slate-300 px-2 py-1.5 text-sm" />
+    ) : null}
+  </>);
 
   // Dados do PREVIEW: quando ha modelo de obra ligado, resolve os tokens contra as linhas do
   // PROPRIO modelo (cellRef, etapa, nomes/ordem reais) em vez do SAMPLE_BUDGET fixo — assim o que
@@ -1137,6 +1204,7 @@ export default function PoolPrintLayoutEditorPage() {
             <RibbonBtn icon="🪄" label="Grupo dinâmico" onClick={() => addBox("CARD", { dynamic: true })} />
             <RibbonBtn icon="🇹" label="Texto" onClick={() => addBox("TEXT", {})} />
             <RibbonBtn icon="🖼️" label="Imagem" onClick={() => addBox("IMAGE", {})} />
+            <RibbonBtn icon="🖼️" label="Imagem dinâmica" onClick={() => addBox("IMAGE", { imgRules: [] })} />
             <RibbonBtn icon="⭐" label="Ícone" onClick={() => setIconPicker(true)} />
             <RibbonBtn icon="🔗" label="Link" onClick={() => setLinkModal({ url: "", text: "" })} />
             <span className="mx-0.5 h-5 w-px bg-slate-300" />
@@ -1161,17 +1229,26 @@ export default function PoolPrintLayoutEditorPage() {
           // Abre o modal carregando a condição atual: grupo (E/OU), regra única legada, ou 1 regra nova.
           const openCond = () => {
             const cur = sb.showIf as any;
+            // Infere a etapa de cada regra a partir da linha (poolSection) quando só veio cellRef — assim
+            // o select de Etapa já mostra o escopo e o filtro de linhas funciona ao reabrir.
+            const fill = (r: any): CondRule => {
+              const out: CondRule = { op: r.op || "hasProduct", cellRef: r.cellRef ?? null, etapa: r.etapa ?? null, value: r.value ?? null };
+              if (out.cellRef && !out.etapa) out.etapa = tplLines.find((l) => l.cellRef === out.cellRef)?.poolSection ?? null;
+              return out;
+            };
             let draft: CondGroup;
-            if (cur && Array.isArray(cur.rules)) draft = { match: cur.match === "any" ? "any" : "all", rules: cur.rules.length ? cur.rules.map((r: any) => ({ ...r })) : [{ ...NEW_RULE }] };
-            else if (cur && cur.op) draft = { match: "all", rules: [{ ...cur }] };
+            if (cur && Array.isArray(cur.rules)) draft = { match: cur.match === "any" ? "any" : "all", rules: cur.rules.length ? cur.rules.map(fill) : [{ ...NEW_RULE }] };
+            else if (cur && cur.op) draft = { match: "all", rules: [fill(cur)] };
             else draft = { match: "all", rules: [{ ...NEW_RULE }] };
             setCondDraft(draft); setCondModal(true);
           };
           const ruleTxt = (r: CondRule) => {
             const alvo = r.cellRef ? `linha ${r.cellRef}` : r.etapa ? `etapa ${sectionLabelFor(r.etapa).toUpperCase()}` : "o orçamento";
-            const ops: Record<string, string> = { hasProduct: "tem produto", noProduct: "não tem produto", qtyGt: `qtd > ${r.value ?? 0}`, qtyGte: `qtd ≥ ${r.value ?? 0}`, qtyEq: `qtd = ${r.value ?? 0}`, qtyLte: `qtd ≤ ${r.value ?? 0}`, qtyLt: `qtd < ${r.value ?? 0}` };
+            const vv = r.value ?? 0;
+            const ops: Record<string, string> = { hasProduct: "tem produto", noProduct: "não tem produto", qtyGt: `qtd > ${vv}`, qtyGte: `qtd ≥ ${vv}`, qtyEq: `qtd = ${vv}`, qtyNeq: `qtd ≠ ${vv}`, qtyLte: `qtd ≤ ${vv}`, qtyLt: `qtd < ${vv}`, valGt: `valor > ${vv}`, valGte: `valor ≥ ${vv}`, valEq: `valor = ${vv}`, valNeq: `valor ≠ ${vv}`, valLte: `valor ≤ ${vv}`, valLt: `valor < ${vv}` };
             return `${alvo} ${ops[r.op] || r.op}`;
           };
+          const openImg = () => { setImgDraft((sb.imgRules ?? []).map((r) => ({ ...r }))); setImgModal(true); };
           const condText = (c: Box["showIf"]) => {
             if (!c) return "aparece SEMPRE";
             if ("rules" in c && Array.isArray(c.rules)) { if (!c.rules.length) return "aparece SEMPRE"; return `aparece se ${c.rules.map(ruleTxt).join(c.match === "any" ? " OU " : " E ")}`; }
@@ -1187,6 +1264,12 @@ export default function PoolPrintLayoutEditorPage() {
               {sb.showIf ? <RibbonBtn icon="🚫" label="Sempre aparece" onClick={() => patchSelBox({ showIf: null })} /> : null}
               <RibbonBtn icon="📦" label={`Conteúdo (${kids.length})`} disabled={kids.length === 0} onClick={() => { const ids = kids.map((k) => k.id); setSelBox(ids[0]); setSelSet(new Set(ids)); }} />
               <span className="mx-1 self-center h-6 w-px bg-violet-300" />
+            </>) : null}
+            {/* ── Ferramentas PRÓPRIAS da IMAGEM DINÂMICA ── */}
+            {sb.type === "IMAGE" && Array.isArray(sb.imgRules) ? (<>
+              <span className="self-center rounded bg-fuchsia-600 px-2 py-0.5 text-[11px] font-bold text-white" title="Imagem dinâmica: usa a imagem da 1ª linha-candidata (em ordem) que bater a condição e tiver imagem.">🖼️ Imagem dinâmica</span>
+              <RibbonBtn icon="🎯" label={`Candidatos (${sb.imgRules.length})`} onClick={openImg} />
+              <span className="mx-1 self-center h-6 w-px bg-fuchsia-300" />
             </>) : null}
             <span className="text-[10px] uppercase tracking-wide text-slate-400">{isDyn ? "Grupo:" : "Caixa:"}</span>
             <label className="text-xs text-slate-600 flex items-center gap-1" title="Posição horizontal (mm a partir da esquerda; 0 = canto)">X<NumInput key={`${sb.id}-x`} value={r1(sb.x)} onChange={(v) => patchSelBox({ x: clampN(v, PW - sb.w) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
@@ -1686,29 +1769,7 @@ export default function PoolPrintLayoutEditorPage() {
               {condDraft.rules.map((r, i) => (
                 <div key={i} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    {/* alvo: ETAPA (select nome amigável) OU LINHA (datalist) — preencha um; vazio = orçamento todo */}
-                    <select value={r.etapa || ""} onChange={(e) => { const v = e.target.value || null; setCondRule(i, { etapa: v, cellRef: v ? null : r.cellRef }); }}
-                      className="rounded border border-slate-300 px-2 py-1.5 text-sm min-w-[130px] flex-1">
-                      <option value="">— Etapa —</option>
-                      {tplSections.map((s) => <option key={s} value={s}>{sectionLabelFor(s).toUpperCase()}</option>)}
-                    </select>
-                    <input type="text" list="condLinesDL" value={r.cellRef || ""} placeholder="ou Linha (L130)"
-                      onChange={(e) => { const v = e.target.value.trim().toUpperCase(); setCondRule(i, { cellRef: v || null, etapa: v ? null : r.etapa }); }}
-                      className="w-28 rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                    <select value={r.op} onChange={(e) => setCondRule(i, { op: e.target.value as CondOp })}
-                      className="rounded border border-slate-300 px-2 py-1.5 text-sm">
-                      <option value="hasProduct">tem produto</option>
-                      <option value="noProduct">não tem produto</option>
-                      <option value="qtyGt">qtd &gt;</option>
-                      <option value="qtyGte">qtd ≥</option>
-                      <option value="qtyEq">qtd =</option>
-                      <option value="qtyLte">qtd ≤</option>
-                      <option value="qtyLt">qtd &lt;</option>
-                    </select>
-                    {r.op.startsWith("qty") ? (
-                      <input type="number" value={r.value ?? 0} onChange={(e) => setCondRule(i, { value: Number(e.target.value) })}
-                        className="w-16 rounded border border-slate-300 px-2 py-1.5 text-sm" />
-                    ) : null}
+                    {ruleCore(r, (p) => setCondRule(i, p))}
                     {condDraft.rules.length > 1 ? (
                       <button type="button" onClick={() => removeCondRule(i)} title="Remover esta condição" className="text-rose-500 hover:text-rose-700">🗑</button>
                     ) : null}
@@ -1716,9 +1777,8 @@ export default function PoolPrintLayoutEditorPage() {
                 </div>
               ))}
             </div>
-            <datalist id="condLinesDL">{tplLines.map((l) => <option key={l.cellRef} value={l.cellRef}>{`${l.cellRef} — ${l.description}`}</option>)}</datalist>
             <button type="button" onClick={addCondRule} className="mt-2 rounded-md border border-dashed border-cyan-300 px-3 py-1.5 text-xs font-medium text-cyan-700 hover:bg-cyan-50">+ Adicionar condição</button>
-            <p className="text-[10px] text-slate-400 mt-1">Em cada condição: escolha uma ETAPA ou uma LINHA (deixe os dois vazios = olha o orçamento todo).</p>
+            <p className="text-[10px] text-slate-400 mt-1">Escolha a ETAPA (escopo) — e, se quiser, uma LINHA dentro dela (filtrada). Sem etapa nem linha = olha o orçamento todo.</p>
             <div className="flex items-center justify-between mt-4">
               <button type="button" onClick={() => { patchSelBox({ showIf: null }); setCondModal(false); toast("Condição removida", "success"); }}
                 className="text-[12px] text-rose-600 hover:underline">Limpar condição</button>
@@ -1727,6 +1787,40 @@ export default function PoolPrintLayoutEditorPage() {
                 <button type="button" onClick={() => { patchSelBox({ showIf: { match: condDraft.match, rules: condDraft.rules } }); setCondModal(false); toast("Condição aplicada", "success"); }}
                   className="rounded bg-cyan-600 px-3 py-1.5 text-sm font-medium text-white">Salvar</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Editor da IMAGEM DINÂMICA — candidatos ORDENADOS (linha + condição); 1º que bate manda ── */}
+      {imgModal && selectedBox && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setImgModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-slate-900 mb-1">🖼️ Imagem dinâmica</h3>
+            <p className="text-[11px] text-slate-500 mb-3">Na impressão usa a imagem do produto da <b>primeira linha-candidata (de cima pra baixo)</b> cuja condição bater e que tiver imagem. Use ↑↓ pra ordenar a prioridade.</p>
+            <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+              {imgDraft.length === 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-[11px] italic text-slate-400">Nenhum candidato ainda. Adicione a 1ª linha.</div>
+              ) : imgDraft.map((r, i) => (
+                <div key={i} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[10px] font-bold text-fuchsia-700 w-4 shrink-0">{i + 1}º</span>
+                    {ruleCore(r, (p) => setImgRule(i, p), "— Linha (imagem) —")}
+                    <span className="flex items-center gap-0.5 ml-auto">
+                      <button type="button" onClick={() => moveImgRule(i, -1)} disabled={i === 0} title="Subir prioridade" className="text-slate-500 hover:text-slate-800 disabled:opacity-30">↑</button>
+                      <button type="button" onClick={() => moveImgRule(i, 1)} disabled={i === imgDraft.length - 1} title="Descer prioridade" className="text-slate-500 hover:text-slate-800 disabled:opacity-30">↓</button>
+                      <button type="button" onClick={() => removeImgRule(i)} title="Remover candidato" className="text-rose-500 hover:text-rose-700">🗑</button>
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={addImgRule} className="mt-2 rounded-md border border-dashed border-fuchsia-300 px-3 py-1.5 text-xs font-medium text-fuchsia-700 hover:bg-fuchsia-50">+ Adicionar linha-candidata</button>
+            <p className="text-[10px] text-slate-400 mt-1">A imagem vem da LINHA escolhida em cada candidato. Se a condição bater mas a linha não tiver imagem, tenta o próximo.</p>
+            <div className="flex items-center justify-end gap-2 mt-4">
+              <button type="button" onClick={() => setImgModal(false)} className="rounded border border-slate-300 px-3 py-1.5 text-sm">Cancelar</button>
+              <button type="button" onClick={() => { patchSelBox({ imgRules: imgDraft }); setImgModal(false); toast("Imagem dinâmica salva", "success"); }}
+                className="rounded bg-fuchsia-600 px-3 py-1.5 text-sm font-medium text-white">Salvar</button>
             </div>
           </div>
         </div>

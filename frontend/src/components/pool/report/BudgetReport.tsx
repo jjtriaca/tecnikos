@@ -224,6 +224,7 @@ function evalCondRule(c: CondRule, items: ReportItem[]): boolean {
   else targets = items;
   const hasProd = targets.some((t) => t.hasProduct || (t.qty || 0) > 0);
   const qty = targets.reduce((s, t) => s + (t.qty || 0), 0);
+  const total = targets.reduce((s, t) => s + (t.totalCents || 0), 0) / 100; // valor total em R$
   const v = c.value ?? 0;
   switch (c.op) {
     case "hasProduct": return hasProd;
@@ -231,10 +232,31 @@ function evalCondRule(c: CondRule, items: ReportItem[]): boolean {
     case "qtyGt": return qty > v;
     case "qtyGte": return qty >= v;
     case "qtyEq": return qty === v;
+    case "qtyNeq": return qty !== v;
     case "qtyLte": return qty <= v;
     case "qtyLt": return qty < v;
+    case "valGt": return total > v;
+    case "valGte": return total >= v;
+    case "valEq": return total === v;
+    case "valNeq": return total !== v;
+    case "valLte": return total <= v;
+    case "valLt": return total < v;
     default: return true;
   }
+}
+
+/** IMAGEM DINAMICA: 1º candidato (em ordem) cuja condição bate E cuja linha tem imagem → essa imagem. */
+export function resolveDynamicImage(box: Box, data: BudgetReportData): string {
+  const rules = box.imgRules;
+  if (!rules || !rules.length) return "";
+  const items = data.items || [];
+  for (const r of rules) {
+    if (!r.cellRef) continue;
+    if (!evalCondRule(r, items)) continue;
+    const it = items.find((x) => (x.cellRef || "").toUpperCase() === (r.cellRef || "").toUpperCase());
+    if (it?.imageUrl) return it.imageUrl; // condição bateu e tem imagem → usa; senão tenta o próximo
+  }
+  return "";
 }
 
 export function boxShows(box: Box, data: BudgetReportData): boolean {
@@ -267,7 +289,7 @@ export function boxShowsCascade(box: Box, pool: Box[], data: BudgetReportData): 
 function ruleText(c: CondRule): string {
   const alvo = c.cellRef ? `linha ${c.cellRef}` : c.etapa ? `etapa ${c.etapa}` : "o orçamento";
   const v = c.value ?? 0;
-  const ops: Record<string, string> = { hasProduct: "tem produto", noProduct: "sem produto", qtyGt: `qtd > ${v}`, qtyGte: `qtd ≥ ${v}`, qtyEq: `qtd = ${v}`, qtyLte: `qtd ≤ ${v}`, qtyLt: `qtd < ${v}` };
+  const ops: Record<string, string> = { hasProduct: "tem produto", noProduct: "sem produto", qtyGt: `qtd > ${v}`, qtyGte: `qtd ≥ ${v}`, qtyEq: `qtd = ${v}`, qtyNeq: `qtd ≠ ${v}`, qtyLte: `qtd ≤ ${v}`, qtyLt: `qtd < ${v}`, valGt: `valor > ${v}`, valGte: `valor ≥ ${v}`, valEq: `valor = ${v}`, valNeq: `valor ≠ ${v}`, valLte: `valor ≤ ${v}`, valLt: `valor < ${v}` };
   return `${alvo} ${ops[c.op] || c.op}`;
 }
 
@@ -920,8 +942,9 @@ export function CompositionPreview({ nodes, data, selectedId, onSelectNode, onEd
 // Condição de visibilidade — uma REGRA aponta um alvo (linha cellRef OU etapa poolSection, ou o
 // orçamento todo) e um operador. v1.15.13: showIf pode ser 1 regra (legado) OU um GRUPO de regras
 // combinadas por E (all) / OU (any). boxShows aceita as duas formas (compat com layouts antigos).
-export type CondOp = "hasProduct" | "noProduct" | "qtyGt" | "qtyGte" | "qtyEq" | "qtyLte" | "qtyLt";
-export type CondRule = { cellRef?: string | null; etapa?: string | null; op: CondOp; value?: number | null };
+export type CondOp = "hasProduct" | "noProduct" | "qtyGt" | "qtyGte" | "qtyEq" | "qtyNeq" | "qtyLte" | "qtyLt" | "valGt" | "valGte" | "valEq" | "valNeq" | "valLte" | "valLt";
+// kind = filtro de UI (produto/serviço) pra estreitar o select de linha; NÃO entra na avaliação.
+export type CondRule = { cellRef?: string | null; etapa?: string | null; op: CondOp; value?: number | null; kind?: "PRODUCT" | "SERVICE" | null };
 export type CondGroup = { match: "all" | "any"; rules: CondRule[] };
 
 export type Box = {
@@ -933,6 +956,9 @@ export type Box = {
   html?: string;                              // TEXT (HTML cru com {placeholders})
   href?: string | null;                       // link clicavel da caixa toda (TEXT/IMAGE) — vira <a> no PDF
   url?: string; fit?: "cover" | "contain" | "fill"; // IMAGE
+  // IMAGEM DINAMICA (v1.15.14) — lista ORDENADA de candidatos (linha + condição). Na impressão usa a
+  // imagem do produto da PRIMEIRA linha cuja condição bate E que tenha imagem. Presença do array = imagem dinâmica.
+  imgRules?: CondRule[];
   icon?: string;                              // ICON (nome na biblioteca reportIcons; cor = style.textColor)
   blockType?: string; config?: any;           // BLOCK (PRODUCTS_BY_SECTION, COVER, ...)
   // Condicao de visibilidade (Fase 1b blocos dinamicos) — caixa so aparece se a regra bater no orcamento.
@@ -1006,9 +1032,10 @@ function BoxContent({ box, data, branding, editingText, onEditText, onEditCommit
     return wrapLink(<div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: valign, textAlign: (st.align as any) || undefined, whiteSpace: wrap }} dangerouslySetInnerHTML={{ __html: resolvePlaceholders(box.html || "", data) }} />);
   }
   if (box.type === "IMAGE") {
-    // url pode ser ESTATICA ou um TOKEN ligado ao cadastro (ex: {linha:L130.prodImagem}) — resolve.
-    const src = box.url && box.url.includes("{") ? resolvePlaceholders(box.url, data).trim() : (box.url || "");
-    if (!src) return <div className="rp-empty" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: 9, color: "#94a3b8", textAlign: "center", padding: 4 }}>{box.url && box.url.includes("{") ? "Imagem do produto (sem imagem nesta linha)" : "Imagem"}</div>;
+    const isDyn = Array.isArray(box.imgRules);
+    // Dinâmica: 1ª linha-candidata que bate a condição e tem imagem. Senão: url ESTATICA ou TOKEN do cadastro.
+    const src = isDyn ? resolveDynamicImage(box, data) : (box.url && box.url.includes("{") ? resolvePlaceholders(box.url, data).trim() : (box.url || ""));
+    if (!src) return <div className="rp-empty" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: 9, color: "#94a3b8", textAlign: "center", padding: 4 }}>{isDyn ? "Imagem dinâmica (nenhuma linha bateu / sem imagem)" : (box.url && box.url.includes("{") ? "Imagem do produto (sem imagem nesta linha)" : "Imagem")}</div>;
     // eslint-disable-next-line @next/next/no-img-element
     return wrapLink(<img src={src} alt="" style={{ width: "100%", height: "100%", objectFit: (box.fit as any) || "cover", display: "block" }} />);
   }
