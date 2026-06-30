@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, getAccessToken } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
-import BudgetReport, { BudgetReportData, ReportNode, CompositionPreview, CanvasEditor, Box, pageDims } from "@/components/pool/report/BudgetReport";
+import BudgetReport, { BudgetReportData, ReportNode, CompositionPreview, CanvasEditor, Box, pageDims, type CondRule, type CondGroup, type CondOp } from "@/components/pool/report/BudgetReport";
 import { buildReportData } from "@/components/pool/report/BudgetReportModal";
 import { printViaClone } from "@/lib/printViaClone";
 import CompositionEditor from "@/components/pool/report/CompositionEditor";
@@ -224,7 +224,12 @@ export default function PoolPrintLayoutEditorPage() {
   const [selBox, setSelBox] = useState<string | null>(null);
   // Condicao de visibilidade da caixa (Fase 1b blocos dinamicos)
   const [condModal, setCondModal] = useState(false);
-  const [condDraft, setCondDraft] = useState<NonNullable<Box["showIf"]>>({ op: "hasProduct", cellRef: null, etapa: null, value: null });
+  // Condição agora é um GRUPO de regras combinadas (E/OU). Cada regra: alvo (etapa/linha) + operador.
+  const NEW_RULE: CondRule = { op: "hasProduct", cellRef: null, etapa: null, value: null };
+  const [condDraft, setCondDraft] = useState<CondGroup>({ match: "all", rules: [{ ...NEW_RULE }] });
+  const setCondRule = (i: number, patch: Partial<CondRule>) => setCondDraft((d) => ({ ...d, rules: d.rules.map((r, j) => (j === i ? { ...r, ...patch } : r)) }));
+  const addCondRule = () => setCondDraft((d) => ({ ...d, rules: [...d.rules, { ...NEW_RULE }] }));
+  const removeCondRule = (i: number) => setCondDraft((d) => ({ ...d, rules: d.rules.filter((_, j) => j !== i) }));
   // Banda repetidora (Fase 2 blocos dinamicos)
   const [bandModal, setBandModal] = useState(false);
   const [selSet, setSelSet] = useState<Set<string>>(new Set()); // multi-selecao (shift-clique)
@@ -1153,12 +1158,25 @@ export default function PoolPrintLayoutEditorPage() {
           // Tem ferramentas PROPRIAS (exigencias + conteudo).
           const isDyn = sb.type === "CARD" && (!!sb.dynamic || boxes.some((b) => b.parentId === sb.id));
           const kids = isDyn ? boxes.filter((b) => b.parentId === sb.id) : [];
-          const openCond = () => { setCondDraft(sb.showIf ? { ...sb.showIf } : { op: "hasProduct", cellRef: null, etapa: null, value: null }); setCondModal(true); };
+          // Abre o modal carregando a condição atual: grupo (E/OU), regra única legada, ou 1 regra nova.
+          const openCond = () => {
+            const cur = sb.showIf as any;
+            let draft: CondGroup;
+            if (cur && Array.isArray(cur.rules)) draft = { match: cur.match === "any" ? "any" : "all", rules: cur.rules.length ? cur.rules.map((r: any) => ({ ...r })) : [{ ...NEW_RULE }] };
+            else if (cur && cur.op) draft = { match: "all", rules: [{ ...cur }] };
+            else draft = { match: "all", rules: [{ ...NEW_RULE }] };
+            setCondDraft(draft); setCondModal(true);
+          };
+          const ruleTxt = (r: CondRule) => {
+            const alvo = r.cellRef ? `linha ${r.cellRef}` : r.etapa ? `etapa ${sectionLabelFor(r.etapa).toUpperCase()}` : "o orçamento";
+            const ops: Record<string, string> = { hasProduct: "tem produto", noProduct: "não tem produto", qtyGt: `qtd > ${r.value ?? 0}`, qtyGte: `qtd ≥ ${r.value ?? 0}`, qtyEq: `qtd = ${r.value ?? 0}`, qtyLte: `qtd ≤ ${r.value ?? 0}`, qtyLt: `qtd < ${r.value ?? 0}` };
+            return `${alvo} ${ops[r.op] || r.op}`;
+          };
           const condText = (c: Box["showIf"]) => {
-            if (!c || !c.op) return "aparece SEMPRE";
-            const alvo = c.cellRef ? `linha ${c.cellRef}` : c.etapa ? `etapa ${c.etapa}` : "o orçamento";
-            const ops: Record<string, string> = { hasProduct: "tem produto", noProduct: "não tem produto", qtyGt: `qtd > ${c.value ?? 0}`, qtyGte: `qtd ≥ ${c.value ?? 0}`, qtyEq: `qtd = ${c.value ?? 0}`, qtyLte: `qtd ≤ ${c.value ?? 0}`, qtyLt: `qtd < ${c.value ?? 0}` };
-            return `aparece se ${alvo} ${ops[c.op] || c.op}`;
+            if (!c) return "aparece SEMPRE";
+            if ("rules" in c && Array.isArray(c.rules)) { if (!c.rules.length) return "aparece SEMPRE"; return `aparece se ${c.rules.map(ruleTxt).join(c.match === "any" ? " OU " : " E ")}`; }
+            if (!("op" in c) || !c.op) return "aparece SEMPRE";
+            return `aparece se ${ruleTxt(c as CondRule)}`;
           };
           return (<>
             {/* ── Ferramentas PRÓPRIAS do GRUPO DINÂMICO (só quando ele está selecionado) ── */}
@@ -1653,42 +1671,60 @@ export default function PoolPrintLayoutEditorPage() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setCondModal(false)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-4" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-semibold text-slate-900 mb-1">⚡ Condição de visibilidade</h3>
-            <p className="text-[11px] text-slate-500 mb-3">A caixa só aparece na impressão se a regra bater no orçamento. No editor ela fica esmaecida com o selo ⚡ quando não bate (pra você continuar montando).</p>
-            <label className="block text-[11px] font-medium text-slate-600 mb-1">Onde olhar (preencha UM)</label>
-            <div className="flex gap-2 mb-1">
-              <input type="text" list="condLinesDL" value={condDraft.cellRef || ""} placeholder="Linha (ex: L130)"
-                onChange={(e) => { const v = e.target.value.trim().toUpperCase(); setCondDraft((d) => ({ ...d, cellRef: v || null, etapa: v ? null : d.etapa })); }}
-                className="w-1/2 rounded border border-slate-300 px-2 py-1.5 text-sm" />
-              <input type="text" list="condEtapasDL" value={condDraft.etapa || ""} placeholder="Etapa (ex: CASCATA)"
-                onChange={(e) => { const v = e.target.value.trim().toUpperCase(); setCondDraft((d) => ({ ...d, etapa: v || null, cellRef: v ? null : d.cellRef })); }}
-                className="w-1/2 rounded border border-slate-300 px-2 py-1.5 text-sm" />
-              <datalist id="condLinesDL">{tplLines.map((l) => <option key={l.cellRef} value={l.cellRef}>{`${l.cellRef} — ${l.description}`}</option>)}</datalist>
-              <datalist id="condEtapasDL">{Array.from(new Set(tplLines.map((l) => (l.poolSection || "").toUpperCase()).filter(Boolean))).map((s) => <option key={s} value={s} />)}</datalist>
+            <p className="text-[11px] text-slate-500 mb-3">A caixa só aparece na impressão se as regras baterem no orçamento. No editor ela fica esmaecida com o selo ⚡ quando não bate (pra você continuar montando). Você pode juntar várias condições.</p>
+            {/* Combinar (E/OU) — só faz sentido com 2+ regras */}
+            {condDraft.rules.length > 1 ? (
+              <div className="mb-2 flex items-center gap-2 text-[11px]">
+                <span className="text-slate-600">Tem que bater:</span>
+                <button type="button" onClick={() => setCondDraft((d) => ({ ...d, match: "all" }))}
+                  className={`rounded px-2 py-0.5 ${condDraft.match !== "any" ? "bg-cyan-600 text-white font-semibold" : "bg-slate-100 text-slate-600"}`}>TODAS (E)</button>
+                <button type="button" onClick={() => setCondDraft((d) => ({ ...d, match: "any" }))}
+                  className={`rounded px-2 py-0.5 ${condDraft.match === "any" ? "bg-cyan-600 text-white font-semibold" : "bg-slate-100 text-slate-600"}`}>QUALQUER (OU)</button>
+              </div>
+            ) : null}
+            <div className="space-y-2 max-h-[46vh] overflow-y-auto">
+              {condDraft.rules.map((r, i) => (
+                <div key={i} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* alvo: ETAPA (select nome amigável) OU LINHA (datalist) — preencha um; vazio = orçamento todo */}
+                    <select value={r.etapa || ""} onChange={(e) => { const v = e.target.value || null; setCondRule(i, { etapa: v, cellRef: v ? null : r.cellRef }); }}
+                      className="rounded border border-slate-300 px-2 py-1.5 text-sm min-w-[130px] flex-1">
+                      <option value="">— Etapa —</option>
+                      {tplSections.map((s) => <option key={s} value={s}>{sectionLabelFor(s).toUpperCase()}</option>)}
+                    </select>
+                    <input type="text" list="condLinesDL" value={r.cellRef || ""} placeholder="ou Linha (L130)"
+                      onChange={(e) => { const v = e.target.value.trim().toUpperCase(); setCondRule(i, { cellRef: v || null, etapa: v ? null : r.etapa }); }}
+                      className="w-28 rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                    <select value={r.op} onChange={(e) => setCondRule(i, { op: e.target.value as CondOp })}
+                      className="rounded border border-slate-300 px-2 py-1.5 text-sm">
+                      <option value="hasProduct">tem produto</option>
+                      <option value="noProduct">não tem produto</option>
+                      <option value="qtyGt">qtd &gt;</option>
+                      <option value="qtyGte">qtd ≥</option>
+                      <option value="qtyEq">qtd =</option>
+                      <option value="qtyLte">qtd ≤</option>
+                      <option value="qtyLt">qtd &lt;</option>
+                    </select>
+                    {r.op.startsWith("qty") ? (
+                      <input type="number" value={r.value ?? 0} onChange={(e) => setCondRule(i, { value: Number(e.target.value) })}
+                        className="w-16 rounded border border-slate-300 px-2 py-1.5 text-sm" />
+                    ) : null}
+                    {condDraft.rules.length > 1 ? (
+                      <button type="button" onClick={() => removeCondRule(i)} title="Remover esta condição" className="text-rose-500 hover:text-rose-700">🗑</button>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
             </div>
-            <p className="text-[10px] text-slate-400 mb-3">{tplLines.length ? "Dica: clique no campo pra escolher uma linha/etapa do modelo." : "Linha específica OU etapa. Vazio = olha o orçamento todo."}</p>
-            <label className="block text-[11px] font-medium text-slate-600 mb-1">Mostrar quando</label>
-            <div className="flex gap-2 mb-2">
-              <select value={condDraft.op} onChange={(e) => setCondDraft((d) => ({ ...d, op: e.target.value as NonNullable<Box["showIf"]>["op"] }))}
-                className="flex-1 rounded border border-slate-300 px-2 py-1.5 text-sm">
-                <option value="hasProduct">Tem produto</option>
-                <option value="noProduct">Não tem produto</option>
-                <option value="qtyGt">Quantidade &gt;</option>
-                <option value="qtyGte">Quantidade ≥</option>
-                <option value="qtyEq">Quantidade =</option>
-                <option value="qtyLte">Quantidade ≤</option>
-                <option value="qtyLt">Quantidade &lt;</option>
-              </select>
-              {condDraft.op.startsWith("qty") ? (
-                <input type="number" value={condDraft.value ?? 0} onChange={(e) => setCondDraft((d) => ({ ...d, value: Number(e.target.value) }))}
-                  className="w-20 rounded border border-slate-300 px-2 py-1.5 text-sm" />
-              ) : null}
-            </div>
+            <datalist id="condLinesDL">{tplLines.map((l) => <option key={l.cellRef} value={l.cellRef}>{`${l.cellRef} — ${l.description}`}</option>)}</datalist>
+            <button type="button" onClick={addCondRule} className="mt-2 rounded-md border border-dashed border-cyan-300 px-3 py-1.5 text-xs font-medium text-cyan-700 hover:bg-cyan-50">+ Adicionar condição</button>
+            <p className="text-[10px] text-slate-400 mt-1">Em cada condição: escolha uma ETAPA ou uma LINHA (deixe os dois vazios = olha o orçamento todo).</p>
             <div className="flex items-center justify-between mt-4">
               <button type="button" onClick={() => { patchSelBox({ showIf: null }); setCondModal(false); toast("Condição removida", "success"); }}
                 className="text-[12px] text-rose-600 hover:underline">Limpar condição</button>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setCondModal(false)} className="rounded border border-slate-300 px-3 py-1.5 text-sm">Cancelar</button>
-                <button type="button" onClick={() => { patchSelBox({ showIf: { ...condDraft } }); setCondModal(false); toast("Condição aplicada", "success"); }}
+                <button type="button" onClick={() => { patchSelBox({ showIf: { match: condDraft.match, rules: condDraft.rules } }); setCondModal(false); toast("Condição aplicada", "success"); }}
                   className="rounded bg-cyan-600 px-3 py-1.5 text-sm font-medium text-white">Salvar</button>
               </div>
             </div>

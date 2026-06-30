@@ -216,10 +216,8 @@ function pageShows(page: ReportPage, data: BudgetReportData): boolean {
 
 /** Avalia a condicao de visibilidade da CAIXA (Fase 1b blocos dinamicos). Sem showIf => sempre mostra.
  *  Alvo = linha (cellRef) OU etapa (poolSection) OU todas. op = presenca de produto / comparacao de qtd. */
-export function boxShows(box: Box, data: BudgetReportData): boolean {
-  const c = box.showIf;
-  if (!c || !c.op) return true;
-  const items = data.items || [];
+/** Avalia UMA regra contra os itens do orçamento. */
+function evalCondRule(c: CondRule, items: ReportItem[]): boolean {
   let targets: ReportItem[];
   if (c.cellRef) targets = items.filter((x) => (x.cellRef || "").toUpperCase() === (c.cellRef || "").toUpperCase());
   else if (c.etapa) targets = items.filter((x) => (x.poolSection || "").toUpperCase() === (c.etapa || "").toUpperCase());
@@ -239,6 +237,20 @@ export function boxShows(box: Box, data: BudgetReportData): boolean {
   }
 }
 
+export function boxShows(box: Box, data: BudgetReportData): boolean {
+  const c = box.showIf;
+  if (!c) return true;
+  const items = data.items || [];
+  // GRUPO de regras combinadas (E/OU)
+  if ("rules" in c && Array.isArray(c.rules)) {
+    if (!c.rules.length) return true;
+    return c.match === "any" ? c.rules.some((r) => evalCondRule(r, items)) : c.rules.every((r) => evalCondRule(r, items));
+  }
+  // Regra única (legado)
+  if (!("op" in c) || !c.op) return true;
+  return evalCondRule(c as CondRule, items);
+}
+
 /** Visibilidade EM CASCATA (card dinamico): a caixa aparece se a SUA condicao bate E se o card
  *  dono (parentId) tambem aparece. Sem parentId = so a propria condicao. `pool` = lista onde
  *  procurar o card pai (boxes da pagina/faixa). */
@@ -251,13 +263,24 @@ export function boxShowsCascade(box: Box, pool: Box[], data: BudgetReportData): 
   return true;
 }
 
-/** Resumo legivel da condicao (selo/tooltip no editor). */
-function condSummary(c?: Box["showIf"]): string {
-  if (!c) return "";
-  const alvo = c.cellRef ? `linha ${c.cellRef}` : c.etapa ? `etapa ${c.etapa}` : "qualquer linha";
+/** Texto curto de UMA regra (sem prefixo). */
+function ruleText(c: CondRule): string {
+  const alvo = c.cellRef ? `linha ${c.cellRef}` : c.etapa ? `etapa ${c.etapa}` : "o orçamento";
   const v = c.value ?? 0;
   const ops: Record<string, string> = { hasProduct: "tem produto", noProduct: "sem produto", qtyGt: `qtd > ${v}`, qtyGte: `qtd ≥ ${v}`, qtyEq: `qtd = ${v}`, qtyLte: `qtd ≤ ${v}`, qtyLt: `qtd < ${v}` };
-  return `Mostrar só se ${alvo}: ${ops[c.op] || c.op}`;
+  return `${alvo} ${ops[c.op] || c.op}`;
+}
+
+/** Resumo legivel da condicao (selo/tooltip no editor) — regra única ou grupo E/OU. */
+function condSummary(c?: Box["showIf"]): string {
+  if (!c) return "";
+  if ("rules" in c && Array.isArray(c.rules)) {
+    if (!c.rules.length) return "";
+    const join = c.match === "any" ? " OU " : " E ";
+    return `Mostrar só se ${c.rules.map(ruleText).join(join)}`;
+  }
+  if (!("op" in c) || !c.op) return "";
+  return `Mostrar só se ${ruleText(c as CondRule)}`;
 }
 
 /** Coleção sobre a qual a banda repete: lista de REFs (cellRef das linhas OU codigos de etapa). */
@@ -332,10 +355,13 @@ function paginateCanvasBoxes(boxes: Box[], data: BudgetReportData, pageH: number
   return out;
 }
 
-/** Rotulo da etapa (poolSection) — usa sectionLabels do orcamento, senao o proprio codigo. */
+/** Rotulo da etapa (poolSection) — usa sectionLabels do orcamento, senao o proprio codigo.
+ *  Sempre em CAIXA ALTA: e a convencao do sistema (cabecalho de etapa do orcamento e o picker
+ *  mostram uppercase), entao o nome resolvido na impressao tambem fica consistente. */
 function sectionLabel(data: BudgetReportData, section: string): string {
   const labels = (data.sectionLabels || {}) as Record<string, string>;
-  return labels[section] || labels[(section || "").toUpperCase()] || section || "";
+  const raw = labels[section] || labels[(section || "").toUpperCase()] || section || "";
+  return raw.toUpperCase();
 }
 
 /** Resolve tokens ENDERECADOS de etapa/linha:
@@ -891,6 +917,13 @@ export function CompositionPreview({ nodes, data, selectedId, onSelectNode, onEd
 // ── CANVAS (estilo PowerPoint): caixas livres x,y,w,h em % da folha A4 ────────
 // Uma pagina "canvas" guarda pageConfig = { canvas:true, boxes:Box[] }. Cada Box e
 // absolutamente posicionado em % da folha (mesmo valor na tela e na impressao A4).
+// Condição de visibilidade — uma REGRA aponta um alvo (linha cellRef OU etapa poolSection, ou o
+// orçamento todo) e um operador. v1.15.13: showIf pode ser 1 regra (legado) OU um GRUPO de regras
+// combinadas por E (all) / OU (any). boxShows aceita as duas formas (compat com layouts antigos).
+export type CondOp = "hasProduct" | "noProduct" | "qtyGt" | "qtyGte" | "qtyEq" | "qtyLte" | "qtyLt";
+export type CondRule = { cellRef?: string | null; etapa?: string | null; op: CondOp; value?: number | null };
+export type CondGroup = { match: "all" | "any"; rules: CondRule[] };
+
 export type Box = {
   id: string;
   type: "TEXT" | "IMAGE" | "BLOCK" | "CARD" | "ICON";
@@ -903,13 +936,8 @@ export type Box = {
   icon?: string;                              // ICON (nome na biblioteca reportIcons; cor = style.textColor)
   blockType?: string; config?: any;           // BLOCK (PRODUCTS_BY_SECTION, COVER, ...)
   // Condicao de visibilidade (Fase 1b blocos dinamicos) — caixa so aparece se a regra bater no orcamento.
-  // Alvo: cellRef (linha Lx) OU etapa (poolSection). op compara presenca de produto / quantidade.
-  showIf?: {
-    cellRef?: string | null;
-    etapa?: string | null;
-    op: "hasProduct" | "noProduct" | "qtyGt" | "qtyGte" | "qtyEq" | "qtyLte" | "qtyLt";
-    value?: number | null;
-  } | null;
+  // 1 regra (legado) OU grupo de regras combinadas (E/OU). Ver CondRule/CondGroup acima.
+  showIf?: CondRule | CondGroup | null;
   // BANDA REPETIDORA (Fase 2 blocos dinamicos) — caixas com o MESMO band.id sao a linha-modelo.
   // source: repete a banda por LINHA (cada item com cellRef) ou por ETAPA (cada poolSection).
   // No conteudo, o token ATUAL vira o ref do item corrente: {linha:ATUAL.produto}, {etapa:ATUAL.nome}.
