@@ -1150,12 +1150,8 @@ function BoxContent({ box, data, branding, editingText, onEditText, onEditCommit
   if (box.type === "TEXT") {
     const wrap = (st as any).noWrap ? "nowrap" : "normal";
     const valign = st.valign === "center" ? "center" : st.valign === "bottom" ? "flex-end" : "flex-start";
-    // TEXTO DINAMICO: você digita o texto e a exigência; 1º candidato que bate → seu texto. Read-only (não edita inline).
-    if (Array.isArray(box.txtRules)) {
-      const txt = resolveDynamicText(box, data);
-      if (!txt) return <div className="rp-empty" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: 9, color: "#94a3b8", textAlign: "center", padding: 4 }}>Texto dinâmico (nenhuma exigência bateu)</div>;
-      return wrapLink(<div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: valign, textAlign: (st.align as any) || undefined, whiteSpace: (st as any).noWrap ? "nowrap" : "pre-wrap" }}>{txt}</div>);
-    }
+    // TEXTO DINAMICO = texto NORMAL (editável inline, ferramentas de texto) cuja visibilidade é controlada
+    // pela CONDIÇÃO (showIf). Sem branch read-only: edita igual a qualquer texto; some na impressão se a condição não bater.
     if (editingText && onEditText) return <div style={{ width: "100%", height: "100%", whiteSpace: wrap, overflow: "hidden" }}><InlineEditable key={box.id} html={box.html || ""} onChange={(h) => onEditText(box.id, h)} onCommit={onEditCommit} /></div>;
     return wrapLink(<div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: valign, textAlign: (st.align as any) || undefined, whiteSpace: wrap }} dangerouslySetInnerHTML={{ __html: resolvePlaceholders(box.html || "", data) }} />);
   }

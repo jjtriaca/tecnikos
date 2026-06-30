@@ -513,7 +513,7 @@ export default function PoolPrintLayoutEditorPage() {
   const isDynCard = (b: Box) => b.type === "CARD" && (!!b.dynamic || boxes.some((c) => c.parentId === b.id));
   const boxTypeIcon = (b: Box) => b.type === "TEXT" ? (Array.isArray(b.txtRules) ? "🔤" : b.href ? "🔗" : "🇹") : b.type === "IMAGE" ? "🖼️" : b.type === "LIST" ? "📋" : b.type === "BLOCK" ? "▦" : b.type === "ICON" ? "⭐" : isDynCard(b) ? "🪄" : "🃏";
   const boxAutoLabel = (b: Box) => {
-    if (b.type === "TEXT") { if (Array.isArray(b.txtRules)) return `Texto dinâmico (${b.txtRules.length})`; const t = (b.html || "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim(); return t ? (t.length > 26 ? t.slice(0, 26) + "…" : t) : "Texto vazio"; }
+    if (b.type === "TEXT") { const t = (b.html || "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim(); const base = t ? (t.length > 26 ? t.slice(0, 26) + "…" : t) : (Array.isArray(b.txtRules) ? "Texto dinâmico" : "Texto vazio"); return Array.isArray(b.txtRules) ? `${base}${b.showIf ? " ⚡" : ""}` : base; }
     if (b.type === "IMAGE") return Array.isArray(b.imgRules) ? `Imagem dinâmica (${b.imgRules.length})` : (b.url ? "Imagem" : "Imagem (vazia)");
     if (b.type === "LIST") return `Lista dinâmica (${b.listCfg?.columns?.length || 0} col)`;
     if (b.type === "BLOCK") return (DYNAMIC_LABEL as any)?.[b.blockType || ""] || b.blockType || "Bloco";
@@ -1332,10 +1332,12 @@ export default function PoolPrintLayoutEditorPage() {
               <RibbonBtn icon="⚙️" label="Configurar lista" onClick={openList} />
               <span className="mx-1 self-center h-6 w-px bg-teal-300" />
             </>) : null}
-            {/* ── TEXTO DINÂMICO — candidatos + campo a mostrar ── */}
+            {/* ── TEXTO DINÂMICO — texto normal (edita inline) + condição (MESMO modal dos dinâmicos) ── */}
             {sb.type === "TEXT" && Array.isArray(sb.txtRules) ? (<>
-              <span className="self-center rounded bg-fuchsia-600 px-2 py-0.5 text-[11px] font-bold text-white" title="Texto dinâmico: você digita o texto de cada candidato e a exigência pra ele aparecer. O 1º que bater é mostrado.">🔤 Texto dinâmico</span>
-              <RibbonBtn icon="⚡" label={sb.txtRules.length ? `Textos & exigências (${sb.txtRules.length})` : "Textos & exigências"} onClick={() => openCands("text")} />
+              <span className="self-center rounded bg-fuchsia-600 px-2 py-0.5 text-[11px] font-bold text-white" title="Texto dinâmico: texto normal (duplo-clique pra editar, ferramentas de texto da aba Início) que só aparece quando as Exigências baterem. Mesmo modal de condição dos dinâmicos.">🔤 Texto dinâmico</span>
+              <RibbonBtn icon="⚡" label={sb.showIf ? "Exigências ✓" : "Exigências"} onClick={() => openCondFor({ kind: "showIf" }, sb.showIf)} />
+              <span className="self-center max-w-[230px] truncate text-[11px] italic text-slate-500" title={`aparece se ${condText(sb.showIf)}`}>{condCount(sb.showIf) ? `aparece se ${condText(sb.showIf)}` : "aparece SEMPRE"}</span>
+              {sb.showIf ? <RibbonBtn icon="🚫" label="Sempre aparece" onClick={() => patchSelBox({ showIf: null })} /> : null}
               <span className="mx-1 self-center h-6 w-px bg-fuchsia-300" />
             </>) : null}
             <span className="text-[10px] uppercase tracking-wide text-slate-400">{isDyn ? "Grupo:" : "Caixa:"}</span>
@@ -1349,7 +1351,7 @@ export default function PoolPrintLayoutEditorPage() {
             <RibbonBtn icon="⤒" label="Frente" onClick={() => zOrder("front")} />
             <RibbonBtn icon="⤓" label="Tras" onClick={() => zOrder("back")} />
             {/* Condição/Repetir genéricos NÃO aparecem no grupo dinâmico (ele usa "Exigências"; repetir = multiplicador, futuro) */}
-            {!isDyn ? <RibbonBtn icon="⚡" label={sb.showIf ? "Condicao ✓" : "Condicao"} onClick={() => openCondFor({ kind: "showIf" }, sb.showIf)} /> : null}
+            {!isDyn && !(sb.type === "TEXT" && Array.isArray(sb.txtRules)) ? <RibbonBtn icon="⚡" label={sb.showIf ? "Condicao ✓" : "Condicao"} onClick={() => openCondFor({ kind: "showIf" }, sb.showIf)} /> : null}
             {!isDyn ? <RibbonBtn icon="🔁" label={sb.band ? "Banda ✓" : "Repetir"} onClick={() => setBandModal(true)} /> : null}
             {sb.parentId ? <RibbonBtn icon="🔓" label="Soltar do grupo" onClick={() => patchSelBox({ parentId: null })} /> : null}
             {selSet.size >= 2 ? (
