@@ -449,6 +449,19 @@ export default function PoolBudgetDetailPage() {
     if (!renamingSection) return;
     const newLabel = renamingValue.trim();
     if (!newLabel) { setRenamingSection(null); return; }
+    // Mesma trava de duplicidade do criar: nao deixa renomear pra um nome ja usado por OUTRA etapa.
+    const norm = (s: string) => s.trim().toLowerCase();
+    const otherKeys = new Set<string>([
+      ...Object.keys(SECTION_LABEL),
+      ...Object.keys(customLabelsMap),
+      ...((budget?.items ?? []).map((it) => it.poolSection).filter(Boolean) as string[]),
+    ]);
+    otherKeys.delete(renamingSection);
+    const taken = new Set(Array.from(otherKeys).map((k) => norm(secLabel(k))));
+    if (taken.has(norm(newLabel))) {
+      toast(`Já existe uma etapa chamada "${newLabel}". Use outro nome.`, "error");
+      return;
+    }
     await persistSections({ labels: { [renamingSection]: newLabel } });
     setRenamingSection(null);
     setRenamingValue("");
@@ -457,6 +470,20 @@ export default function PoolBudgetDetailPage() {
   async function handleAddCustomSection(opts?: { openAddLineAfter?: boolean }) {
     const label = newSectionName.trim();
     if (!label) return;
+    // Nome da etapa = exatamente o que o gestor digitou. NAO permite duplicidade de nome
+    // (case-insensitive) com nenhuma etapa existente — padrao, custom ou renomeada. Bloqueia
+    // antes de criar e pede outro nome (a CHAVE interna fica escondida; o usuario so ve o nome).
+    const norm = (s: string) => s.trim().toLowerCase();
+    const existingKeys = new Set<string>([
+      ...Object.keys(SECTION_LABEL),
+      ...Object.keys(customLabelsMap),
+      ...((budget?.items ?? []).map((it) => it.poolSection).filter(Boolean) as string[]),
+    ]);
+    const taken = new Set(Array.from(existingKeys).map((k) => norm(secLabel(k))));
+    if (taken.has(norm(label))) {
+      toast(`Já existe uma etapa chamada "${label}". Use outro nome.`, "error");
+      return;
+    }
     // Gera key unica (CUSTOM_ + slug do nome + random suffix)
     const slug = label.toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Z0-9]/g, "_").slice(0, 30);
     const key = `CUSTOM_${slug}_${Math.random().toString(36).slice(2, 6).toUpperCase()}`;

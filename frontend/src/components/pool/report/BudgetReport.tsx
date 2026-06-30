@@ -373,6 +373,12 @@ function resolveAddressedToken(token: string, data: BudgetReportData): string | 
       case "total": case "valor": return brl(list.reduce((s, x) => s + (x.totalCents || 0), 0));
       case "linhas": case "qtd": case "count": return String(list.length);
       case "nome": case "rotulo": case "etapa": return sectionLabel(data, sec);
+      // Lista de produtos da etapa (1 por linha) — pro layout agrupado do PDF (titulo etapa + itens embaixo).
+      case "itens": case "produtos": case "lista":
+        return list.map((it) => `${it.description}${it.qty ? ` — ${num(it.qty)} ${it.productUnit || "un"}` : ""}`).join("<br>");
+      // Imagem da etapa = imagem do 1o produto da etapa que tiver imagem (pra caixa IMAGE).
+      case "imagem": case "img": case "foto":
+        return (list.find((x) => x.imageUrl)?.imageUrl) || "";
       default: return "";
     }
   }

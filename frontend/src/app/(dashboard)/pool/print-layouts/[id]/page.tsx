@@ -5,11 +5,11 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, getAccessToken } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
-import BudgetReport, { BudgetReportData, ReportNode, CompositionPreview, CanvasEditor, Box, pageDims } from "@/components/pool/report/BudgetReport";
+import BudgetReport, { BudgetReportData, ReportItem, ReportNode, CompositionPreview, CanvasEditor, Box, pageDims } from "@/components/pool/report/BudgetReport";
 import { printViaClone } from "@/lib/printViaClone";
 import CompositionEditor from "@/components/pool/report/CompositionEditor";
 import ReportFieldLibrary from "@/components/pool/report/ReportFieldLibrary";
-import { LineRefPicker, type LineRefPickerLine } from "@/components/pool/LineRefPicker";
+import { LineRefPicker, SECTION_LABEL, SECTION_ORDER, type LineRefPickerLine } from "@/components/pool/LineRefPicker";
 import { validateLayoutTokens } from "@/components/pool/report/reportValidate";
 import { REPORT_ICONS } from "@/components/pool/report/reportIcons";
 import NumInput from "@/components/ui/NumInput";
@@ -191,8 +191,16 @@ export default function PoolPrintLayoutEditorPage() {
   // Picker de etapa/linha (reusa o LineRefPicker do AutoSelect) — alimentado pelas linhas do
   // modelo de obra (templateId) ligado ao layout. Insere {linha:Lx.atributo} no relatorio.
   const [tplLines, setTplLines] = useState<LineRefPickerLine[]>([]);
+  // Rotulos amigaveis das etapas (renomeadas + custom) e a ordem salva no modelo de obra —
+  // lidos de tpl.defaults pra o picker mostrar o nome certo na ordem certa (nao a CHAVE crua).
+  const [tplCustomSections, setTplCustomSections] = useState<{ labels?: Record<string, string>; hidden?: string[] } | null>(null);
+  const [tplSectionOrder, setTplSectionOrder] = useState<string[]>([]);
+  // Linhas do modelo no formato do relatorio — alimentam o PREVIEW (resolve {linha:Lx.*} contra o
+  // PROPRIO modelo, nao um orcamento falso). Sem isso L5 do picker != L5 que aparece impresso.
+  const [tplItems, setTplItems] = useState<ReportItem[]>([]);
   const [pickLine, setPickLine] = useState(false);
   const [lineSel, setLineSel] = useState<Set<string>>(new Set());
+  const [etapaSel, setEtapaSel] = useState<Set<string>>(new Set()); // selecao quando "O que inserir" e nivel-etapa
   const [lineAttr, setLineAttr] = useState("produto");
   const [edTemplates, setEdTemplates] = useState<{ id: string; name: string; isDefault?: boolean }[]>([]);
   const [iconPicker, setIconPicker] = useState(false); // modal de escolher icone
@@ -608,7 +616,7 @@ export default function PoolPrintLayoutEditorPage() {
   // Carrega as linhas do modelo de obra (itemsSnapshot) p/ alimentar o picker de etapa/linha.
   useEffect(() => {
     const tid = layout?.templateId;
-    if (!tid) { setTplLines([]); return; }
+    if (!tid) { setTplLines([]); setTplCustomSections(null); setTplSectionOrder([]); setTplItems([]); return; }
     let cancel = false;
     (async () => {
       try {
@@ -626,11 +634,73 @@ export default function PoolPrintLayoutEditorPage() {
             specs: null,
             qty: Number(it.qty) || 0,
           }));
-        if (!cancel) setTplLines(lines);
-      } catch { if (!cancel) setTplLines([]); }
+        // Linhas do modelo no formato do relatorio (pro preview resolver {linha:Lx.*} contra o modelo).
+        const items: ReportItem[] = snap
+          .filter((it: any) => it?.cellRef)
+          .map((it: any) => {
+            const qty = Number(it.qty) || 0;
+            const unit = Number(it.unitPriceCents) || 0;
+            const desc = String(it.description ?? "");
+            return {
+              poolSection: it.poolSection ?? "OUTROS",
+              kind: it.kind ?? "PRODUCT",
+              description: desc,
+              slotName: it.slotName ?? null,
+              qty,
+              unitPriceCents: unit,
+              totalCents: Math.round(qty * unit),
+              cellRef: String(it.cellRef),
+              productUnit: it.unit ?? null,
+              productDesc: desc,
+              hasProduct: !!desc.trim() && desc.trim().toLowerCase() !== "sem produto",
+            } as ReportItem;
+          });
+        // Rotulos/ordem das etapas vem de tpl.defaults (gravado pelo "Salvar modelo", v1.13.46+).
+        const def = (tpl?.defaults ?? {}) as Record<string, any>;
+        const cs = (def.customSections ?? null) as { labels?: Record<string, string>; hidden?: string[] } | null;
+        const order = Array.isArray(def.sectionOrder) ? (def.sectionOrder as string[]) : [];
+        if (!cancel) { setTplLines(lines); setTplCustomSections(cs); setTplSectionOrder(order); setTplItems(items); }
+      } catch { if (!cancel) { setTplLines([]); setTplCustomSections(null); setTplSectionOrder([]); setTplItems([]); } }
     })();
     return () => { cancel = true; };
   }, [layout?.templateId]);
+
+  // Atributos de "O que inserir" que sao de NIVEL-ETAPA (escolhe a etapa inteira, nao uma linha).
+  const ETAPA_ATTRS = useMemo(() => new Set(["etapa", "etapaNome", "etapaItens", "etapaImagem", "etapaTotal"]), []);
+  const isEtapaMode = ETAPA_ATTRS.has(lineAttr);
+  // Rotulo amigavel de uma etapa: label custom/renomeado > default do enum > a propria chave.
+  const sectionLabelFor = useCallback(
+    (key: string) => (tplCustomSections?.labels ?? {})[key] ?? SECTION_LABEL[key] ?? key,
+    [tplCustomSections],
+  );
+  // Etapas distintas do modelo, na MESMA ordem salva no modelo de obra (sectionOrder); resto no fim.
+  const tplSections = useMemo(() => {
+    const keys = Array.from(new Set(tplLines.map((l) => (l.poolSection || "OUTROS")).filter(Boolean) as string[]));
+    const order = tplSectionOrder.length > 0 ? tplSectionOrder : SECTION_ORDER;
+    return keys.sort((a, b) => {
+      const ia = order.indexOf(a); const ib = order.indexOf(b);
+      return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+    });
+  }, [tplLines, tplSectionOrder]);
+
+  // Dados do PREVIEW: quando ha modelo de obra ligado, resolve os tokens contra as linhas do
+  // PROPRIO modelo (cellRef, etapa, nomes/ordem reais) em vez do SAMPLE_BUDGET fixo — assim o que
+  // o operador escolhe no picker (ex: L5 = Parede pre-moldada) e exatamente o que aparece impresso.
+  const previewData = useMemo<BudgetReportData>(() => {
+    if (!layout?.templateId || tplItems.length === 0) return SAMPLE_BUDGET;
+    const subtotal = tplItems.reduce((s, it) => s + (it.totalCents || 0), 0);
+    return {
+      ...SAMPLE_BUDGET,
+      title: edTemplates.find((t) => t.id === layout.templateId)?.name ?? SAMPLE_BUDGET.title,
+      items: tplItems,
+      sectionOrder: tplSectionOrder.length > 0 ? tplSectionOrder : SAMPLE_BUDGET.sectionOrder,
+      sectionLabels: { ...SECTION_LABEL, ...(tplCustomSections?.labels ?? {}) },
+      subtotalCents: subtotal,
+      discountCents: 0,
+      taxesCents: 0,
+      totalCents: subtotal,
+    };
+  }, [layout?.templateId, tplItems, tplSectionOrder, tplCustomSections, edTemplates]);
 
   // Fase 5 — alertas: tokens do layout que nao vao resolver (outra origem / linha inexistente / desconhecido).
   const reportIssues = useMemo(
@@ -865,12 +935,12 @@ export default function PoolPrintLayoutEditorPage() {
   return (
     <div className="flex flex-col" style={{ height: "calc(100vh - 4.5rem)" }}>
       {/* BARRA DE TITULO */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-slate-200 bg-white shrink-0">
+      <div className="flex items-center gap-3 px-4 py-0.5 border-b border-slate-200 bg-white shrink-0">
         <Link href="/pool/print-layouts" className="text-xs text-slate-500 hover:text-slate-700">← Layouts</Link>
         {editingMeta ? (
           <div className="flex items-center gap-2">
             <input value={name} onChange={(e) => setName(e.target.value)}
-              className="text-lg font-bold text-slate-900 rounded border border-slate-300 px-2 py-0.5" />
+              className="text-sm font-bold text-slate-900 rounded border border-slate-300 px-2 py-0.5" />
             <label className="flex items-center gap-1 text-sm text-slate-700">
               <input type="checkbox" checked={isDefault} onChange={(e) => setIsDefault(e.target.checked)} /> padrao
             </label>
@@ -880,7 +950,7 @@ export default function PoolPrintLayoutEditorPage() {
           </div>
         ) : (
           <div className="flex items-center gap-2">
-            <h1 className="text-lg font-bold text-slate-900">{layout.name}</h1>
+            <h1 className="text-sm font-bold text-slate-900">{layout.name}</h1>
             {layout.isDefault && <span className="rounded-full bg-cyan-100 text-cyan-700 text-xs px-2 py-0.5">padrao</span>}
             <button onClick={() => setEditingMeta(true)} className="text-xs text-cyan-600 hover:text-cyan-800">Editar nome</button>
           </div>
@@ -888,27 +958,29 @@ export default function PoolPrintLayoutEditorPage() {
         <div className="ml-auto flex items-center gap-2">
           {editingPage && pageIsCanvas(editingPage) ? (<>
             <button type="button" onClick={undo} disabled={!histInfo.canUndo} title="Voltar (Ctrl+Z)"
-              className="h-8 w-8 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed">⟲</button>
+              className="h-6 w-6 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed">⟲</button>
             <button type="button" onClick={redo} disabled={!histInfo.canRedo} title="Refazer (Ctrl+Y)"
-              className="h-8 w-8 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed">⟳</button>
+              className="h-6 w-6 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed">⟳</button>
             <span className="text-[11px] text-slate-400 min-w-[52px]">{saveState === "saving" ? "salvando…" : saveState === "saved" ? "salvo ✓" : ""}</span>
             <span className="h-5 w-px bg-slate-300" />
           </>) : null}
           <button onClick={() => printViaClone({ areaId: "budget-pdf-area", cloneId: "budget-pdf-clone" })}
-            className="rounded-md bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800">🖨️ Imprimir exemplo</button>
+            className="rounded-md bg-blue-700 px-2 py-1 text-xs font-semibold text-white hover:bg-blue-800">🖨️ Imprimir exemplo</button>
         </div>
       </div>
 
       {/* ABAS DA RIBBON */}
-      <div className="flex items-end gap-1 px-3 pt-1 bg-slate-100 border-b border-slate-200 shrink-0">
+      <div className="flex items-end gap-0.5 px-2 pt-0.5 bg-slate-100 border-b border-slate-200 shrink-0">
         {["Arquivo", "Inicio", "Inserir", "Campos", "Layout", "Cab/Rodape"].map((t) => (
           <button key={t} type="button" onClick={() => setTab(t)}
-            className={`px-4 py-1.5 text-sm rounded-t-md ${tab === t ? "bg-white font-semibold text-slate-900 border border-b-0 border-slate-200" : "text-slate-600 hover:bg-slate-200"}`}>{t}</button>
+            className={`px-2.5 py-0.5 text-xs rounded-t-md ${tab === t ? "bg-white font-semibold text-slate-900 border border-b-0 border-slate-200" : "text-slate-600 hover:bg-slate-200"}`}>{t}</button>
         ))}
       </div>
 
-      {/* FAIXA DE OPCOES — cada ferramenta na aba certa (estilo Office) */}
-      <div className="flex items-center gap-1.5 px-3 py-1 bg-white border-b border-slate-200 overflow-x-auto shrink-0" style={{ minHeight: 44 }}>
+      {/* FAIXA DE OPCOES — cada ferramenta na aba certa (estilo Office).
+          zoom encolhe TODAS as ferramentas de uma vez (~50%); flex-wrap deixa quebrar pra uma
+          segunda linha em vez de rolar na horizontal (cabe tudo na largura visivel). */}
+      <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 px-2 py-0.5 bg-white border-b border-slate-200 shrink-0" style={{ zoom: 0.7 }}>
         {tab === "Arquivo" && (<>
           <RibbonBtn icon="✏️" label="Renomear" onClick={() => setEditingMeta(true)} />
           <RibbonBtn icon="💾" label="Salvar estilo" onClick={saveBranding} />
@@ -1299,7 +1371,7 @@ export default function PoolPrintLayoutEditorPage() {
               <button type="button" onClick={() => enterRegion("page")} className="ml-auto rounded bg-amber-600 px-2 py-0.5 font-semibold text-white hover:bg-amber-700">↩ Voltar à página</button>
             </div>
             <div className="flex-1 min-h-0">
-              <CanvasEditor boxes={boxes} data={SAMPLE_BUDGET} branding={layout.branding} unit="mm"
+              <CanvasEditor boxes={boxes} data={previewData} branding={layout.branding} unit="mm"
                 selBox={selBox} selSet={selSet} pageW={pageDims(layout.branding).w} pageH={region === "header" ? (brand.headerHmm ?? 18) : (brand.footerHmm ?? 14)}
                 pageBg="#ffffff"
                 onSelect={selectBox}
@@ -1308,7 +1380,7 @@ export default function PoolPrintLayoutEditorPage() {
             </div>
           </div>
         ) : editingPage && pageIsCanvas(editingPage) ? (
-          <CanvasEditor boxes={boxes} data={SAMPLE_BUDGET} branding={layout.branding} unit="mm" hfUnit={(brand as any)?.hfUnit === "mm" ? "mm" : "%"}
+          <CanvasEditor boxes={boxes} data={previewData} branding={layout.branding} unit="mm" hfUnit={(brand as any)?.hfUnit === "mm" ? "mm" : "%"}
             selBox={selBox} selSet={selSet} pageW={pageDims(layout.branding).w} pageH={pageDims(layout.branding).h}
             pageBg={pageBgCss}
             hfOverlay={{ headerBoxes: brand.headerBoxes, footerBoxes: brand.footerBoxes, headerHmm: brand.headerHmm, footerHmm: brand.footerHmm }}
@@ -1348,7 +1420,7 @@ export default function PoolPrintLayoutEditorPage() {
           sourceId={SOURCE_CATALOG_ID[layout.sourceType || "POOL_BUDGET"] || "orcamento_obras"}
           onInsertText={(token) => addBox("TEXT", { html: `<p>${token}</p>` })}
           onInsertBlock={(blockType) => addBox("BLOCK", { blockType })}
-          onPickLine={(layout.sourceType || "POOL_BUDGET") === "POOL_BUDGET" ? () => { setLineSel(new Set()); setPickLine(true); } : undefined}
+          onPickLine={(layout.sourceType || "POOL_BUDGET") === "POOL_BUDGET" ? () => { setLineSel(new Set()); setEtapaSel(new Set()); setPickLine(true); } : undefined}
           onClose={() => setTab("Inserir")} />
       ) : null}
 
@@ -1377,36 +1449,101 @@ export default function PoolPrintLayoutEditorPage() {
                 <option value="prodDescricao">Descricao do cadastro</option>
                 <option value="prodUnidade">Unidade</option>
               </optgroup>
+              <optgroup label="Etapa agrupada (banda por etapa)">
+                <option value="etapaNome">🗂️ Nome da etapa (titulo)</option>
+                <option value="etapaItens">📋 Lista de produtos da etapa</option>
+                <option value="etapaImagem">🖼️ Imagem da etapa</option>
+                <option value="etapaTotal">Total da etapa (R$)</option>
+              </optgroup>
             </select>
             <button type="button"
               onClick={() => {
                 if (lineAttr === "prodImagem") addBox("IMAGE", { url: `{linha:ATUAL.prodImagem}`, fit: "contain" });
+                else if (lineAttr === "etapaImagem") addBox("IMAGE", { url: `{etapa:ATUAL.imagem}`, fit: "cover" });
+                else if (lineAttr === "etapaItens") addBox("TEXT", { html: `<p>{etapa:ATUAL.itens}</p>` });
+                else if (lineAttr === "etapaNome") addBox("TEXT", { html: `<p><b>{etapa:ATUAL.nome}</b></p>`, style: { fontSize: 13 } });
+                else if (lineAttr === "etapaTotal") addBox("TEXT", { html: `<p>{etapa:ATUAL.total}</p>` });
                 else if (lineAttr === "etapa") addBox("TEXT", { html: `<p>{etapa:ATUAL.nome}</p>` });
                 else addBox("TEXT", { html: `<p>{linha:ATUAL.${lineAttr}}</p>` });
                 setPickLine(false);
                 toast("Campo ATUAL inserido (pro item da banda)", "success");
               }}
               className="w-full mb-3 rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800 hover:bg-blue-100">
-              🔁 Inserir como <b>ATUAL</b> (item corrente da banda) — sem escolher linha
+              🔁 Inserir como <b>ATUAL</b> ({isEtapaMode ? "etapa corrente da banda" : "item corrente da banda"}) — sem escolher {isEtapaMode ? "etapa" : "linha"}
             </button>
-            <p className="text-[10px] text-slate-400 mb-1">— ou escolha uma linha específica do modelo abaixo —</p>
-            <LineRefPicker
-              icon="📄" specKey={null} combine="sum" refKind="ALL"
-              lines={tplLines}
-              selected={lineSel}
-              onToggle={(ref) => setLineSel((p) => { const n = new Set(p); if (n.has(ref)) n.delete(ref); else n.add(ref); return n; })}
-              onApply={() => {
-                const refs = Array.from(lineSel);
-                for (const ref of refs) {
-                  // Imagem do cadastro -> caixa IMAGE com url = token (resolve a imagem do produto da linha)
-                  if (lineAttr === "prodImagem") addBox("IMAGE", { url: `{linha:${ref}.prodImagem}`, fit: "contain" });
-                  else addBox("TEXT", { html: `<p>{linha:${ref}.${lineAttr}}</p>` });
-                }
-                setPickLine(false);
-                if (refs.length) toast(`${refs.length} campo(s) de linha inserido(s)`, "success");
-              }}
-              onCancel={() => setPickLine(false)}
-            />
+            {isEtapaMode ? (
+              // NIVEL-ETAPA: escolhe a(s) ETAPA(S) (nao linhas), na ordem do modelo, com nome amigavel.
+              <>
+                <p className="text-[10px] text-slate-400 mb-1">— ou escolha uma etapa específica do modelo abaixo —</p>
+                <div className="rounded-lg border-2 border-violet-300 bg-violet-50 p-3">
+                  <div className="text-xs font-bold text-violet-900 mb-2">
+                    🗂️ Escolha a(s) etapa(s){etapaSel.size > 0 && <span className="text-violet-700"> — {etapaSel.size} selecionada(s)</span>}
+                  </div>
+                  {tplSections.length === 0 ? (
+                    <div className="text-[11px] text-amber-700 italic px-1 py-2">Nenhuma etapa neste modelo (escolha um modelo de obra com etapas).</div>
+                  ) : (
+                    <div className="space-y-1 max-h-64 overflow-y-auto">
+                      {tplSections.map((sec) => {
+                        const checked = etapaSel.has(sec);
+                        const count = tplLines.filter((l) => (l.poolSection || "OUTROS") === sec).length;
+                        return (
+                          <label key={sec}
+                            className={`flex items-center gap-2 rounded border px-2 py-1.5 cursor-pointer transition ${checked ? "bg-violet-100 border-violet-500" : "bg-white border-slate-200 hover:border-violet-400 hover:bg-violet-50"}`}>
+                            <input type="checkbox" checked={checked}
+                              onChange={() => setEtapaSel((p) => { const n = new Set(p); if (n.has(sec)) n.delete(sec); else n.add(sec); return n; })}
+                              className="h-3.5 w-3.5 accent-violet-600 shrink-0" />
+                            <span className="flex-1 min-w-0 text-xs font-semibold text-slate-800 truncate" title={sectionLabelFor(sec)}>{sectionLabelFor(sec)}</span>
+                            <span className="text-[10px] text-slate-500 shrink-0">{count} linha{count > 1 ? "s" : ""}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 mt-2">
+                    <button type="button" disabled={etapaSel.size === 0}
+                      onClick={() => {
+                        const secs = Array.from(etapaSel);
+                        for (const sec of secs) {
+                          if (lineAttr === "etapaImagem") addBox("IMAGE", { url: `{etapa:${sec}.imagem}`, fit: "cover" });
+                          else if (lineAttr === "etapaItens") addBox("TEXT", { html: `<p>{etapa:${sec}.itens}</p>` });
+                          else if (lineAttr === "etapaNome") addBox("TEXT", { html: `<p><b>{etapa:${sec}.nome}</b></p>`, style: { fontSize: 13 } });
+                          else if (lineAttr === "etapaTotal") addBox("TEXT", { html: `<p>{etapa:${sec}.total}</p>` });
+                          else addBox("TEXT", { html: `<p>{etapa:${sec}.nome}</p>` }); // "etapa"
+                        }
+                        setPickLine(false);
+                        if (secs.length) toast(`${secs.length} campo(s) de etapa inserido(s)`, "success");
+                      }}
+                      className="rounded bg-violet-600 hover:bg-violet-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-3 py-1 text-xs font-semibold">
+                      Aplicar {etapaSel.size > 0 && `(${etapaSel.size})`}
+                    </button>
+                    <button type="button" onClick={() => setPickLine(false)} className="text-[10px] text-violet-700 hover:text-violet-900 underline">Cancelar</button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-[10px] text-slate-400 mb-1">— ou escolha uma linha específica do modelo abaixo —</p>
+                <LineRefPicker
+                  icon="📄" specKey={null} combine="sum" refKind="ALL"
+                  lines={tplLines}
+                  environmentParams={{ customSections: tplCustomSections }}
+                  sectionOrder={tplSectionOrder}
+                  selected={lineSel}
+                  onToggle={(ref) => setLineSel((p) => { const n = new Set(p); if (n.has(ref)) n.delete(ref); else n.add(ref); return n; })}
+                  onApply={() => {
+                    const refs = Array.from(lineSel);
+                    for (const ref of refs) {
+                      // Imagem do cadastro -> caixa IMAGE com url = token (resolve a imagem do produto da linha)
+                      if (lineAttr === "prodImagem") addBox("IMAGE", { url: `{linha:${ref}.prodImagem}`, fit: "contain" });
+                      else addBox("TEXT", { html: `<p>{linha:${ref}.${lineAttr}}</p>` });
+                    }
+                    setPickLine(false);
+                    if (refs.length) toast(`${refs.length} campo(s) de linha inserido(s)`, "success");
+                  }}
+                  onCancel={() => setPickLine(false)}
+                />
+              </>
+            )}
           </div>
         </div>
       )}
@@ -1517,7 +1654,7 @@ export default function PoolPrintLayoutEditorPage() {
 
       {/* OCULTO: render completo (#budget-pdf-area) p/ impressao — reflete os boxes ao vivo */}
       <div aria-hidden style={{ position: "absolute", left: -99999, top: 0 }}>
-        <BudgetReport data={SAMPLE_BUDGET} layout={{ branding: layout.branding, pages: layout.pages.map((p) => editingPage && p.id === editingPage.id && pageIsCanvas(editingPage) ? { ...p, type: "FIXED", pageConfig: { ...((p.pageConfig as any) || {}), canvas: true, unit: "mm", boxes, bg: pageBgCfg.bg ?? null, bgType: pageBgCfg.bgType || "solid", bgColor2: pageBgCfg.bgColor2 ?? null, name: pageName || null, noHeader: pageNoHeader || undefined, noFooter: pageNoFooter || undefined } } : p) }} />
+        <BudgetReport data={previewData} layout={{ branding: layout.branding, pages: layout.pages.map((p) => editingPage && p.id === editingPage.id && pageIsCanvas(editingPage) ? { ...p, type: "FIXED", pageConfig: { ...((p.pageConfig as any) || {}), canvas: true, unit: "mm", boxes, bg: pageBgCfg.bg ?? null, bgType: pageBgCfg.bgType || "solid", bgColor2: pageBgCfg.bgColor2 ?? null, name: pageName || null, noHeader: pageNoHeader || undefined, noFooter: pageNoFooter || undefined } } : p) }} />
       </div>
 
       </div>{/* fim 3 paineis */}

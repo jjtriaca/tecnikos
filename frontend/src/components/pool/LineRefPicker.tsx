@@ -11,7 +11,7 @@ import { useState } from "react";
 
 // Defaults de etapa (espelham quotes/pool/[id]/page.tsx). Mantidos aqui pra o componente ser
 // auto-contido; quem tiver labels custom passa via environmentParams.customSections.labels.
-const SECTION_LABEL: Record<string, string> = {
+export const SECTION_LABEL: Record<string, string> = {
   CONSTRUCAO: "Construcao",
   FILTRO: "Filtro",
   CASCATA: "Cascata",
@@ -25,7 +25,7 @@ const SECTION_LABEL: Record<string, string> = {
   EXECUCAO: "Execucao",
   OUTROS: "Outros",
 };
-const SECTION_ORDER: string[] = [
+export const SECTION_ORDER: string[] = [
   "CONSTRUCAO", "BORDA_CALCADA", "FILTRO", "CASCATA", "SPA",
   "AQUECIMENTO", "ILUMINACAO", "CASA_MAQUINAS", "DISPOSITIVOS",
   "ACIONAMENTOS", "EXECUCAO", "OUTROS",
