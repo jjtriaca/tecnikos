@@ -36,6 +36,12 @@ Conceito proposto pelo Juliano (30/06): em vez de só "blocos dinâmicos" (layou
 - **"Sem Produto"/"Sem Serviço"** = linha vazia: `isEmptyLineDesc` → token produto/descrição resolve vazio + listas pulam (v1.15.15).
 - **Inserir N caixas:** `buildBox(kind,extra,cur)` PURO + `addBoxes([])` acumula (loop de addBox usava boxes velho e só a última vingava).
 
+## v1.15.17 — LISTA DINÂMICA (tabela) + generalização pra outras origens
+- **📋 Lista dinâmica:** box `type:"LIST"` + `Box.listCfg: ListConfig`. `renderDynamicList(box,data)` (BudgetReport) monta `<table>` das LINHAS do orçamento — 1 linha = 1 row, **pula vazias** (isEmptyLineDesc) → compacta (resolve "Sem Produto deixa buraco" do approach manual). `ListColumn = {field, header, widthPct, align, fontPt, color, bg}` (estilo POR COLUNA). ListConfig = etapa+kind+maxRows+skipEmpty+columns[]+header(bg/cor/font)+rowHeightMm+zebra+border. Editor = modal de config (page.tsx). Cada célula = `resolveAddressedToken('linha:<cellRef>.<field>')`.
+- **Por que existe:** sem ela, montar lista = empilhar N campos × M produtos na mão (tedioso) E campo solto não compacta vazias. A lista gera linhas sozinha e é configurável (padrão "config rica de tabela" do CLAUDE.md).
+- **GENERALIZAÇÃO (decisão Juliano):** o Engine vai servir outros relatórios (OS hoje é PDF hardcode, virá pra cá). A "fonte" da lista = uma COLEÇÃO da origem: pool→linhas-por-etapa; OS→serviços/materiais/fotos/checklist; financeiro→lançamentos/parcelas. Cada coleção tem seus CAMPOS (colunas). render NÃO amarrado a etapa-de-piscina; fonte/campo são strings genéricas. Ao trazer OS, registrar coleções+campos no catálogo (bíblia de campos) e a MESMA lista funciona. Ver [[plano_enginereporter_biblia_campos]].
+- **Unidade da linha:** `prodUnidade`/coluna Unidade — backend findOne NÃO seleciona `product.unit`; buildReportData usa `it.unit` (unidade da própria linha).
+
 ## Modelo mental
 - 1 clique seleciona o card e mostra as ferramentas dele; o que você inserir com o card selecionado **vai pra dentro** dele (exclusivo do card).
 - Nas ferramentas do card ficam **as exigências pra ele aparecer na impressão** (condição) — reusa o `showIf` que já existia (ferramenta ⚡ Condição).
