@@ -496,41 +496,38 @@ export default function PoolPrintLayoutEditorPage() {
     const zi = ordered[i].z || 0, zj = ordered[j].z || 0;
     commitBoxes(boxes.map((b) => b.id === ordered[i].id ? { ...b, z: zj } : b.id === ordered[j].id ? { ...b, z: zi } : b));
   }
-  function addBox(kind: "TEXT" | "IMAGE" | "BLOCK" | "CARD" | "ICON", extra: Partial<Box>) {
-    // Geometria em MILIMETROS (canto sup-esq = 0,0). A4 = 210x297mm (ou o tamanho da pagina).
-    // Em cab/rodape a "folha" e a FAIXA (largura da pagina x altura da faixa) — a caixa
-    // precisa nascer DENTRO dela, senao cai fora e nao da pra clicar.
+  // Monta UMA caixa nova posicionada contra `cur` (boxes correntes) — PURO, não toca estado.
+  // Usado por addBox (1) e addBoxes (N, acumulando) — sem isso o loop usava `boxes` velho e só a
+  // última caixa "vingava" (bug: inserir 3 linhas inseria 1).
+  function buildBox(kind: "TEXT" | "IMAGE" | "BLOCK" | "CARD" | "ICON", extra: Partial<Box>, cur: Box[]): Box {
     const { w: PW, h: pageH } = pageDims(layout?.branding);
     const isStrip = region !== "page";
     const PH = isStrip ? (region === "header" ? (brand.headerHmm ?? 18) : (brand.footerHmm ?? 14)) : pageH;
+    const zTop = cur.reduce((m, b) => Math.max(m, b.z || 0), 0);
     const base: Box = kind === "TEXT"
-      ? { id: genBoxId(), type: "TEXT", x: 15, y: 15, w: 110, h: 20, z: maxZ() + 1, html: "<p>Novo texto</p>", style: { fontSize: 12 } }
+      ? { id: genBoxId(), type: "TEXT", x: 15, y: 15, w: 110, h: 20, z: zTop + 1, html: "<p>Novo texto</p>", style: { fontSize: 12 } }
       : kind === "IMAGE"
-      ? { id: genBoxId(), type: "IMAGE", x: 20, y: 20, w: 80, h: 55, z: maxZ() + 1, url: "", fit: "cover" }
+      ? { id: genBoxId(), type: "IMAGE", x: 20, y: 20, w: 80, h: 55, z: zTop + 1, url: "", fit: "cover" }
       : kind === "CARD"
-      ? { id: genBoxId(), type: "CARD", x: 15, y: 15, w: 110, h: 60, z: maxZ() + 1, style: { bg: "#ffffff", borderColor: "#e2e8f0", borderWidth: 1, radius: 8 } }
+      ? { id: genBoxId(), type: "CARD", x: 15, y: 15, w: 110, h: 60, z: zTop + 1, style: { bg: "#ffffff", borderColor: "#e2e8f0", borderWidth: 1, radius: 8 } }
       : kind === "ICON"
-      ? { id: genBoxId(), type: "ICON", x: 20, y: 20, w: 14, h: 14, z: maxZ() + 1, style: {} }
-      : { id: genBoxId(), type: "BLOCK", x: 10, y: 15, w: Math.round(PW - 20), h: Math.round(pageH - 30), z: maxZ() + 1, blockType: "PRODUCTS_BY_SECTION", config: {} };
-    // Numa faixa, encolhe a caixa pra caber (altura da faixa) e ancora no topo-esquerda.
+      ? { id: genBoxId(), type: "ICON", x: 20, y: 20, w: 14, h: 14, z: zTop + 1, style: {} }
+      : { id: genBoxId(), type: "BLOCK", x: 10, y: 15, w: Math.round(PW - 20), h: Math.round(pageH - 30), z: zTop + 1, blockType: "PRODUCTS_BY_SECTION", config: {} };
     if (isStrip) {
       base.x = 6; base.y = 2;
       base.w = Math.min(base.w, Math.round(PW - 12));
       base.h = Math.max(4, Math.min(base.h, Math.round(PH - 4)));
     }
-    // offset em cascata (mm) pra caixas novas NAO sobreporem exatamente (estilo PowerPoint)
-    const off = (boxes.length % 6) * (isStrip ? 2 : 6);
+    const off = (cur.length % 6) * (isStrip ? 2 : 6);
     base.x = Math.max(0, Math.min(PW - base.w, (base.x || 0) + off));
     base.y = Math.max(0, Math.min(PH - base.h, (base.y || 0) + off));
     const nb = { ...base, ...extra } as Box;
-    // Icone ja nasce com a COR propria (colorido por padrao); o controle "Cor" sobrescreve.
     if (nb.type === "ICON" && !nb.style?.textColor) {
       const c = REPORT_ICONS.find((i) => i.name === nb.icon)?.color;
       if (c) nb.style = { ...(nb.style || {}), textColor: c };
     }
-    // CARD DINAMICO: se um CARD DINAMICO esta selecionado, a caixa nova nasce DENTRO dele (parentId)
-    // posicionada nos limites do card. Card normal NAO adota; card nao vira filho de card (1 nivel).
-    const parentCard = (!isStrip && nb.type !== "CARD" && selBox) ? boxes.find((b) => b.id === selBox && b.type === "CARD" && (b.dynamic || boxes.some((c) => c.parentId === b.id))) : undefined;
+    // CARD DINAMICO: se um CARD DINAMICO esta selecionado, a caixa nova nasce DENTRO dele (parentId).
+    const parentCard = (!isStrip && nb.type !== "CARD" && selBox) ? cur.find((b) => b.id === selBox && b.type === "CARD" && (b.dynamic || cur.some((c) => c.parentId === b.id))) : undefined;
     if (parentCard) {
       const pad = 3;
       nb.w = Math.min(nb.w, Math.max(8, parentCard.w - pad * 2));
@@ -539,7 +536,20 @@ export default function PoolPrintLayoutEditorPage() {
       nb.y = Math.max(parentCard.y + pad, Math.min(parentCard.y + pad + off, parentCard.y + parentCard.h - nb.h - pad));
       nb.parentId = parentCard.id;
     }
+    return nb;
+  }
+  function addBox(kind: "TEXT" | "IMAGE" | "BLOCK" | "CARD" | "ICON", extra: Partial<Box>) {
+    const nb = buildBox(kind, extra, boxes);
     commitBoxes([...boxes, nb]); setSelBox(nb.id); setSelSet(new Set([nb.id])); setTab("Layout");
+  }
+  // Insere VARIAS caixas de uma vez (acumulando posição/z corretamente) e commita UMA vez.
+  function addBoxes(items: { kind: "TEXT" | "IMAGE" | "BLOCK" | "CARD" | "ICON"; extra: Partial<Box> }[]) {
+    if (!items.length) return;
+    let cur = boxes;
+    const added: Box[] = [];
+    for (const it of items) { const nb = buildBox(it.kind, it.extra, cur); cur = [...cur, nb]; added.push(nb); }
+    commitBoxes(cur);
+    setSelBox(added[added.length - 1].id); setSelSet(new Set(added.map((b) => b.id))); setTab("Layout");
   }
   function duplicateSelBox() {
     if (!selectedBox) return;
@@ -1705,13 +1715,13 @@ export default function PoolPrintLayoutEditorPage() {
                     <button type="button" disabled={etapaSel.size === 0}
                       onClick={() => {
                         const secs = Array.from(etapaSel);
-                        for (const sec of secs) {
-                          if (lineAttr === "etapaImagem") addBox("IMAGE", { url: `{etapa:${sec}.imagem}`, fit: "cover" });
-                          else if (lineAttr === "etapaItens") addBox("TEXT", { html: `<p>{etapa:${sec}.itens}</p>` });
-                          else if (lineAttr === "etapaNome") addBox("TEXT", { html: `<p><b>{etapa:${sec}.nome}</b></p>`, style: { fontSize: 13 } });
-                          else if (lineAttr === "etapaTotal") addBox("TEXT", { html: `<p>{etapa:${sec}.total}</p>` });
-                          else addBox("TEXT", { html: `<p>{etapa:${sec}.nome}</p>` }); // "etapa"
-                        }
+                        addBoxes(secs.map((sec) => {
+                          if (lineAttr === "etapaImagem") return { kind: "IMAGE" as const, extra: { url: `{etapa:${sec}.imagem}`, fit: "cover" as const } };
+                          if (lineAttr === "etapaItens") return { kind: "TEXT" as const, extra: { html: `<p>{etapa:${sec}.itens}</p>` } };
+                          if (lineAttr === "etapaNome") return { kind: "TEXT" as const, extra: { html: `<p><b>{etapa:${sec}.nome}</b></p>`, style: { fontSize: 13 } } };
+                          if (lineAttr === "etapaTotal") return { kind: "TEXT" as const, extra: { html: `<p>{etapa:${sec}.total}</p>` } };
+                          return { kind: "TEXT" as const, extra: { html: `<p>{etapa:${sec}.nome}</p>` } }; // "etapa"
+                        }));
                         setPickLine(false);
                         if (secs.length) toast(`${secs.length} campo(s) de etapa inserido(s)`, "success");
                       }}
@@ -1734,11 +1744,10 @@ export default function PoolPrintLayoutEditorPage() {
                   onToggle={(ref) => setLineSel((p) => { const n = new Set(p); if (n.has(ref)) n.delete(ref); else n.add(ref); return n; })}
                   onApply={() => {
                     const refs = Array.from(lineSel);
-                    for (const ref of refs) {
-                      // Imagem do cadastro -> caixa IMAGE com url = token (resolve a imagem do produto da linha)
-                      if (lineAttr === "prodImagem") addBox("IMAGE", { url: `{linha:${ref}.prodImagem}`, fit: "contain" });
-                      else addBox("TEXT", { html: `<p>{linha:${ref}.${lineAttr}}</p>` });
-                    }
+                    // Imagem do cadastro -> caixa IMAGE com url = token; senão TEXT. addBoxes acumula (1 commit).
+                    addBoxes(refs.map((ref) => lineAttr === "prodImagem"
+                      ? { kind: "IMAGE" as const, extra: { url: `{linha:${ref}.prodImagem}`, fit: "contain" as const } }
+                      : { kind: "TEXT" as const, extra: { html: `<p>{linha:${ref}.${lineAttr}}</p>` } }));
                     setPickLine(false);
                     if (refs.length) toast(`${refs.length} campo(s) de linha inserido(s)`, "success");
                   }}
