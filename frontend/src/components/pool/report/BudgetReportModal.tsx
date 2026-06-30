@@ -64,7 +64,8 @@ export function buildReportData(budget: any, sectionLabels: Record<string, strin
     // Campos do CADASTRO do produto/servico vinculado (Fase 1a blocos dinamicos)
     productCode: it.product?.code ?? it.service?.code ?? null,
     productDesc: it.product?.description ?? it.service?.name ?? null,
-    productUnit: it.product?.unit ?? it.service?.unit ?? null,
+    // Unidade: usa a da LINHA do orçamento (sempre presente); cai no cadastro do produto/serviço.
+    productUnit: it.unit ?? it.product?.unit ?? it.service?.unit ?? null,
     productSpecs: (it.product?.technicalSpecs ?? it.service?.technicalSpecs ?? null) as any,
     hasProduct: !!(it.product || it.service),
   }));

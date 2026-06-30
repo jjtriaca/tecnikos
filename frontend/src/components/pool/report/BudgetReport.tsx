@@ -310,6 +310,50 @@ export function boxShows(box: Box, data: BudgetReportData): boolean {
   return evalCond(box.showIf, data.items || []);
 }
 
+/** Rótulo default de um campo de linha (cabeçalho da coluna quando não personalizado). */
+export const LIST_FIELD_LABEL: Record<string, string> = {
+  produto: "Produto", descricao: "Descrição", qtd: "Qtd", unidade: "Un", valor: "Valor",
+  unitario: "Unitário", papel: "Item", prodCodigo: "Código", prodUnidade: "Un",
+};
+
+/** LISTA DINAMICA: tabela auto-gerada das linhas do orçamento (pula vazias), colunas configuráveis. */
+export function renderDynamicList(box: Box, data: BudgetReportData): ReactNode {
+  const cfg = box.listCfg; if (!cfg) return null;
+  const items = data.items || [];
+  let rows = items.filter((it) => it.cellRef);
+  if (cfg.etapa) rows = rows.filter((it) => (it.poolSection || "").toUpperCase() === cfg.etapa!.toUpperCase());
+  if (cfg.kind) rows = rows.filter((it) => (it.kind || "PRODUCT") === cfg.kind);
+  if (cfg.skipEmpty !== false) rows = rows.filter((it) => !isEmptyLineDesc(it.description));
+  if (cfg.maxRows && cfg.maxRows > 0) rows = rows.slice(0, cfg.maxRows);
+  const cols = cfg.columns && cfg.columns.length ? cfg.columns : [{ field: "produto" }];
+  const cellVal = (it: ReportItem, field: string) => resolveAddressedToken(`linha:${it.cellRef}.${field}`, data) ?? "";
+  const bd = cfg.border ? "1px solid #cbd5e1" : "none";
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+      {cfg.showHeader !== false ? (
+        <thead><tr>{cols.map((c, ci) => (
+          <th key={ci} style={{ width: c.widthPct ? `${c.widthPct}%` : undefined, textAlign: (c.align as any) || "left", background: cfg.headerBg || undefined, color: cfg.headerColor || undefined, fontSize: cfg.headerFontPt ? `${cfg.headerFontPt}pt` : undefined, padding: "2px 5px", border: bd, fontWeight: 700, overflow: "hidden" }}>
+            {c.header ?? LIST_FIELD_LABEL[c.field] ?? c.field}
+          </th>
+        ))}</tr></thead>
+      ) : null}
+      <tbody>
+        {rows.length === 0 ? (
+          <tr><td colSpan={cols.length} style={{ padding: 4, color: "#94a3b8", fontStyle: "italic", border: bd }}>Sem linhas</td></tr>
+        ) : rows.map((it, ri) => (
+          <tr key={ri} style={{ height: cfg.rowHeightMm ? `${cfg.rowHeightMm}mm` : undefined, background: cfg.zebra && ri % 2 ? "rgba(100,116,139,.08)" : undefined }}>
+            {cols.map((c, ci) => (
+              <td key={ci} style={{ textAlign: (c.align as any) || "left", color: c.color || undefined, background: c.bg || undefined, fontSize: c.fontPt ? `${c.fontPt}pt` : undefined, padding: "2px 5px", border: bd, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+                {cellVal(it, c.field)}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 /** Visibilidade EM CASCATA (card dinamico): a caixa aparece se a SUA condicao bate E se o card
  *  dono (parentId) tambem aparece. Sem parentId = so a propria condicao. `pool` = lista onde
  *  procurar o card pai (boxes da pagina/faixa). */
@@ -998,10 +1042,25 @@ export type CondGroup = { match: "all" | "any"; rules: CondRule[] };
 // Candidato de imagem/texto dinâmico: uma LINHA (fonte) + um grupo de exigências (cond). Ordenados;
 // o 1º cujo cond bate (e resolve não-vazio) manda. cond vazio/ausente = sempre bate.
 export type DynCandidate = { cellRef?: string | null; etapa?: string | null; kind?: "PRODUCT" | "SERVICE" | null; cond?: CondGroup | null };
+// LISTA DINAMICA (v1.15.17) — tabela auto-gerada das LINHAS do orçamento (1 linha = 1 row), colunas
+// configuráveis. `field` é o campo da linha (produto/qtd/unidade/valor/unitario/papel/prodCodigo...).
+export type ListColumn = { field: string; header?: string | null; widthPct?: number | null; align?: "left" | "center" | "right" | null; fontPt?: number | null; color?: string | null; bg?: string | null };
+export type ListConfig = {
+  etapa?: string | null;              // fonte: linhas desta etapa (vazio = todas as linhas)
+  kind?: "PRODUCT" | "SERVICE" | null; // filtro por tipo
+  skipEmpty?: boolean;                // pula "Sem Produto"/vazio (default true)
+  maxRows?: number | null;
+  columns: ListColumn[];
+  showHeader?: boolean;               // default true
+  headerBg?: string | null; headerColor?: string | null; headerFontPt?: number | null;
+  rowHeightMm?: number | null;
+  zebra?: boolean;                    // linhas alternadas
+  border?: boolean;
+};
 
 export type Box = {
   id: string;
-  type: "TEXT" | "IMAGE" | "BLOCK" | "CARD" | "ICON";
+  type: "TEXT" | "IMAGE" | "BLOCK" | "CARD" | "ICON" | "LIST";
   name?: string;                              // rotulo do objeto na hierarquia (camadas)
   x: number; y: number; w: number; h: number; // mm a partir do canto sup-esq (unit:"mm")
   z?: number;
@@ -1013,6 +1072,7 @@ export type Box = {
   imgRules?: DynCandidate[];
   txtRules?: DynCandidate[];
   txtAttr?: string; // campo da linha que o texto dinâmico mostra (produto/qtd/valor/unitario/...)
+  listCfg?: ListConfig; // LISTA DINAMICA (box type "LIST") — tabela das linhas do orçamento
   icon?: string;                              // ICON (nome na biblioteca reportIcons; cor = style.textColor)
   blockType?: string; config?: any;           // BLOCK (PRODUCTS_BY_SECTION, COVER, ...)
   // Condicao de visibilidade (Fase 1b blocos dinamicos) — caixa so aparece se a regra bater no orcamento.
@@ -1079,6 +1139,7 @@ function BoxContent({ box, data, branding, editingText, onEditText, onEditCommit
     ? <a href={normalizeHref(box.href)} target="_blank" rel="noopener" style={{ display: "block", width: "100%", height: "100%", color: "inherit", textDecoration: "none", pointerEvents: editor ? "none" : undefined }}>{inner}</a>
     : inner;
   if ((box.type as string) === "CARD") return null; // card = retangulo (bg/borda via boxRectStyle); conteudo vem de outras caixas
+  if (box.type === "LIST") return wrapLink(<div style={{ width: "100%", height: "100%", overflow: "hidden" }}>{renderDynamicList(box, data)}</div>);
   if (box.type === "TEXT") {
     const wrap = (st as any).noWrap ? "nowrap" : "normal";
     const valign = st.valign === "center" ? "center" : st.valign === "bottom" ? "flex-end" : "flex-start";

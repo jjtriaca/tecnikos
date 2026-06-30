@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, getAccessToken } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
-import BudgetReport, { BudgetReportData, ReportNode, CompositionPreview, CanvasEditor, Box, pageDims, type CondRule, type CondGroup, type CondOp, type DynCandidate } from "@/components/pool/report/BudgetReport";
+import BudgetReport, { BudgetReportData, ReportNode, CompositionPreview, CanvasEditor, Box, pageDims, LIST_FIELD_LABEL, type CondRule, type CondGroup, type CondOp, type DynCandidate, type ListConfig, type ListColumn } from "@/components/pool/report/BudgetReport";
 import { buildReportData } from "@/components/pool/report/BudgetReportModal";
 import { printViaClone } from "@/lib/printViaClone";
 import CompositionEditor from "@/components/pool/report/CompositionEditor";
@@ -271,6 +271,16 @@ export default function PoolPrintLayoutEditorPage() {
   };
   // Nº de exigências de uma condição (pro rótulo "Exigências (N)").
   const condCount = (c: CondRule | CondGroup | null | undefined): number => { const cur = c as any; if (!cur) return 0; if (Array.isArray(cur.rules)) return cur.rules.length; return cur.op ? 1 : 0; };
+  // ── LISTA DINAMICA (tabela): fonte (etapa/filtros) + colunas configuráveis + estilo por coluna ──
+  const DEFAULT_LIST: ListConfig = { etapa: null, kind: null, skipEmpty: true, maxRows: null, showHeader: true, zebra: true, border: true, headerBg: "#1e3a8a", headerColor: "#ffffff", columns: [{ field: "produto", widthPct: 60, align: "left" }, { field: "qtd", widthPct: 20, align: "right" }, { field: "unidade", widthPct: 20, align: "center" }] };
+  const NEW_COL: ListColumn = { field: "produto", header: null, widthPct: null, align: "left", fontPt: null, color: null, bg: null };
+  const [listModal, setListModal] = useState(false);
+  const [listDraft, setListDraft] = useState<ListConfig>(DEFAULT_LIST);
+  const openList = () => { setListDraft({ ...DEFAULT_LIST, ...((selectedBox?.listCfg) || {}), columns: ((selectedBox?.listCfg?.columns?.length ? selectedBox.listCfg.columns : DEFAULT_LIST.columns)).map((c) => ({ ...c })) }); setListModal(true); };
+  const setListCol = (i: number, patch: Partial<ListColumn>) => setListDraft((d) => ({ ...d, columns: d.columns.map((c, j) => (j === i ? { ...c, ...patch } : c)) }));
+  const addListCol = () => setListDraft((d) => ({ ...d, columns: [...d.columns, { ...NEW_COL }] }));
+  const removeListCol = (i: number) => setListDraft((d) => ({ ...d, columns: d.columns.filter((_, j) => j !== i) }));
+  const moveListCol = (i: number, dir: -1 | 1) => setListDraft((d) => { const j = i + dir; if (j < 0 || j >= d.columns.length) return d; const n = [...d.columns]; [n[i], n[j]] = [n[j], n[i]]; return { ...d, columns: n }; });
   // Texto legível de UMA regra / de uma condição (escopo do componente — usado na barra E no modal de candidatos).
   const ruleTxt = (r: CondRule) => {
     const alvo = r.cellRef ? `linha ${r.cellRef}` : r.etapa ? `etapa ${sectionLabelFor(r.etapa).toUpperCase()}` : "o orçamento";
@@ -501,10 +511,11 @@ export default function PoolPrintLayoutEditorPage() {
   const [objPanelOpen, setObjPanelOpen] = useState(false); // minimizado por padrao
   // Card que e GRUPO DINAMICO: flag dynamic OU ja tem filhos (legado v1.15.10).
   const isDynCard = (b: Box) => b.type === "CARD" && (!!b.dynamic || boxes.some((c) => c.parentId === b.id));
-  const boxTypeIcon = (b: Box) => b.type === "TEXT" ? (Array.isArray(b.txtRules) ? "🔤" : b.href ? "🔗" : "🇹") : b.type === "IMAGE" ? "🖼️" : b.type === "BLOCK" ? "▦" : b.type === "ICON" ? "⭐" : isDynCard(b) ? "🪄" : "🃏";
+  const boxTypeIcon = (b: Box) => b.type === "TEXT" ? (Array.isArray(b.txtRules) ? "🔤" : b.href ? "🔗" : "🇹") : b.type === "IMAGE" ? "🖼️" : b.type === "LIST" ? "📋" : b.type === "BLOCK" ? "▦" : b.type === "ICON" ? "⭐" : isDynCard(b) ? "🪄" : "🃏";
   const boxAutoLabel = (b: Box) => {
     if (b.type === "TEXT") { if (Array.isArray(b.txtRules)) return `Texto dinâmico (${b.txtRules.length})`; const t = (b.html || "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim(); return t ? (t.length > 26 ? t.slice(0, 26) + "…" : t) : "Texto vazio"; }
     if (b.type === "IMAGE") return Array.isArray(b.imgRules) ? `Imagem dinâmica (${b.imgRules.length})` : (b.url ? "Imagem" : "Imagem (vazia)");
+    if (b.type === "LIST") return `Lista dinâmica (${b.listCfg?.columns?.length || 0} col)`;
     if (b.type === "BLOCK") return (DYNAMIC_LABEL as any)?.[b.blockType || ""] || b.blockType || "Bloco";
     if (b.type === "ICON") return REPORT_ICONS.find((i) => i.name === b.icon)?.label || "Ícone";
     return isDynCard(b) ? "Grupo dinâmico" : "Card";
@@ -532,7 +543,7 @@ export default function PoolPrintLayoutEditorPage() {
   // Monta UMA caixa nova posicionada contra `cur` (boxes correntes) — PURO, não toca estado.
   // Usado por addBox (1) e addBoxes (N, acumulando) — sem isso o loop usava `boxes` velho e só a
   // última caixa "vingava" (bug: inserir 3 linhas inseria 1).
-  function buildBox(kind: "TEXT" | "IMAGE" | "BLOCK" | "CARD" | "ICON", extra: Partial<Box>, cur: Box[]): Box {
+  function buildBox(kind: "TEXT" | "IMAGE" | "BLOCK" | "CARD" | "ICON" | "LIST", extra: Partial<Box>, cur: Box[]): Box {
     const { w: PW, h: pageH } = pageDims(layout?.branding);
     const isStrip = region !== "page";
     const PH = isStrip ? (region === "header" ? (brand.headerHmm ?? 18) : (brand.footerHmm ?? 14)) : pageH;
@@ -545,6 +556,8 @@ export default function PoolPrintLayoutEditorPage() {
       ? { id: genBoxId(), type: "CARD", x: 15, y: 15, w: 110, h: 60, z: zTop + 1, style: { bg: "#ffffff", borderColor: "#e2e8f0", borderWidth: 1, radius: 8 } }
       : kind === "ICON"
       ? { id: genBoxId(), type: "ICON", x: 20, y: 20, w: 14, h: 14, z: zTop + 1, style: {} }
+      : kind === "LIST"
+      ? { id: genBoxId(), type: "LIST", x: 12, y: 15, w: 120, h: 45, z: zTop + 1, style: { fontSize: 10 } }
       : { id: genBoxId(), type: "BLOCK", x: 10, y: 15, w: Math.round(PW - 20), h: Math.round(pageH - 30), z: zTop + 1, blockType: "PRODUCTS_BY_SECTION", config: {} };
     if (isStrip) {
       base.x = 6; base.y = 2;
@@ -571,12 +584,12 @@ export default function PoolPrintLayoutEditorPage() {
     }
     return nb;
   }
-  function addBox(kind: "TEXT" | "IMAGE" | "BLOCK" | "CARD" | "ICON", extra: Partial<Box>) {
+  function addBox(kind: "TEXT" | "IMAGE" | "BLOCK" | "CARD" | "ICON" | "LIST", extra: Partial<Box>) {
     const nb = buildBox(kind, extra, boxes);
     commitBoxes([...boxes, nb]); setSelBox(nb.id); setSelSet(new Set([nb.id])); setTab("Layout");
   }
   // Insere VARIAS caixas de uma vez (acumulando posição/z corretamente) e commita UMA vez.
-  function addBoxes(items: { kind: "TEXT" | "IMAGE" | "BLOCK" | "CARD" | "ICON"; extra: Partial<Box> }[]) {
+  function addBoxes(items: { kind: "TEXT" | "IMAGE" | "BLOCK" | "CARD" | "ICON" | "LIST"; extra: Partial<Box> }[]) {
     if (!items.length) return;
     let cur = boxes;
     const added: Box[] = [];
@@ -1263,6 +1276,7 @@ export default function PoolPrintLayoutEditorPage() {
             <RibbonBtn icon="🔤" label="Texto dinâmico" onClick={() => addBox("TEXT", { txtRules: [], txtAttr: "produto" })} />
             <RibbonBtn icon="🖼️" label="Imagem" onClick={() => addBox("IMAGE", {})} />
             <RibbonBtn icon="🖼️" label="Imagem dinâmica" onClick={() => addBox("IMAGE", { imgRules: [] })} />
+            <RibbonBtn icon="📋" label="Lista dinâmica" onClick={() => addBox("LIST", { listCfg: { ...DEFAULT_LIST, columns: DEFAULT_LIST.columns.map((c) => ({ ...c })) } })} />
             <RibbonBtn icon="⭐" label="Ícone" onClick={() => setIconPicker(true)} />
             <RibbonBtn icon="🔗" label="Link" onClick={() => setLinkModal({ url: "", text: "" })} />
             <span className="mx-0.5 h-5 w-px bg-slate-300" />
@@ -1309,13 +1323,19 @@ export default function PoolPrintLayoutEditorPage() {
             {/* ── IMAGEM DINÂMICA — candidatos (linha + ⚡ Exigências, o MESMO modal) ── */}
             {sb.type === "IMAGE" && Array.isArray(sb.imgRules) ? (<>
               <span className="self-center rounded bg-fuchsia-600 px-2 py-0.5 text-[11px] font-bold text-white" title="Imagem dinâmica: 1º candidato (em ordem) cujas exigências batem e tem imagem manda.">🖼️ Imagem dinâmica</span>
-              <RibbonBtn icon="🎯" label={`Candidatos (${sb.imgRules.length})`} onClick={() => openCands("image")} />
+              <RibbonBtn icon="⚡" label={sb.imgRules.length ? `Exigências (${sb.imgRules.length})` : "Exigências"} onClick={() => openCands("image")} />
               <span className="mx-1 self-center h-6 w-px bg-fuchsia-300" />
+            </>) : null}
+            {/* ── LISTA DINÂMICA — tabela das linhas (configura fonte/colunas/estilo) ── */}
+            {sb.type === "LIST" ? (<>
+              <span className="self-center rounded bg-teal-600 px-2 py-0.5 text-[11px] font-bold text-white" title="Lista dinâmica: tabela que monta sozinha as linhas do orçamento (pula vazias). Configure fonte, colunas e estilo.">📋 Lista dinâmica</span>
+              <RibbonBtn icon="⚙️" label="Configurar lista" onClick={openList} />
+              <span className="mx-1 self-center h-6 w-px bg-teal-300" />
             </>) : null}
             {/* ── TEXTO DINÂMICO — candidatos + campo a mostrar ── */}
             {sb.type === "TEXT" && Array.isArray(sb.txtRules) ? (<>
               <span className="self-center rounded bg-fuchsia-600 px-2 py-0.5 text-[11px] font-bold text-white" title="Texto dinâmico: 1º candidato (em ordem) cujas exigências batem manda o texto da linha.">🔤 Texto dinâmico</span>
-              <RibbonBtn icon="🎯" label={`Candidatos (${sb.txtRules.length})`} onClick={() => openCands("text")} />
+              <RibbonBtn icon="⚡" label={sb.txtRules.length ? `Exigências (${sb.txtRules.length})` : "Exigências"} onClick={() => openCands("text")} />
               <label className="text-xs text-slate-600 flex items-center gap-1" title="Qual campo da linha o texto mostra">Campo
                 <select value={sb.txtAttr || "produto"} onChange={(e) => patchSelBox({ txtAttr: e.target.value })} className="rounded border border-slate-300 px-1 py-1 text-sm">
                   <option value="produto">Produto/descrição</option>
@@ -1883,6 +1903,88 @@ export default function PoolPrintLayoutEditorPage() {
               <button type="button" onClick={() => setCandModal(false)} className="rounded border border-slate-300 px-3 py-1.5 text-sm">Cancelar</button>
               <button type="button" onClick={() => { patchSelBox(candMode === "image" ? { imgRules: candDraft } : { txtRules: candDraft }); setCandModal(false); toast(candMode === "image" ? "Imagem dinâmica salva" : "Texto dinâmico salvo", "success"); }}
                 className="rounded bg-fuchsia-600 px-3 py-1.5 text-sm font-medium text-white">Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Configuração da LISTA DINÂMICA — fonte + colunas + estilo ── */}
+      {listModal && selectedBox && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setListModal(false)}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl p-4 max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-slate-900 mb-1">📋 Lista dinâmica</h3>
+            <p className="text-[11px] text-slate-500 mb-3">Monta uma tabela com as linhas do orçamento (pula as vazias). Escolha a fonte, as colunas e o estilo.</p>
+            {/* FONTE */}
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 mb-3">
+              <div className="text-[11px] font-semibold text-slate-600 mb-1">Fonte das linhas</div>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <label className="flex items-center gap-1">Etapa
+                  <select value={listDraft.etapa || ""} onChange={(e) => setListDraft((d) => ({ ...d, etapa: e.target.value || null }))} className="rounded border border-slate-300 px-2 py-1 text-sm min-w-[140px]">
+                    <option value="">— Todas as etapas —</option>
+                    {tplSections.map((s) => <option key={s} value={s}>{sectionLabelFor(s).toUpperCase()}</option>)}
+                  </select>
+                </label>
+                <label className="flex items-center gap-1">Tipo
+                  <select value={listDraft.kind || ""} onChange={(e) => setListDraft((d) => ({ ...d, kind: (e.target.value || null) as any }))} className="rounded border border-slate-300 px-2 py-1 text-sm">
+                    <option value="">Tudo</option><option value="PRODUCT">Produtos</option><option value="SERVICE">Serviços</option>
+                  </select>
+                </label>
+                <label className="flex items-center gap-1">Máx. linhas<NumInput value={listDraft.maxRows ?? 0} placeholder="todas" onChange={(v) => setListDraft((d) => ({ ...d, maxRows: v || null }))} className="w-16 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
+                <label className="flex items-center gap-1" title="Pula linhas Sem Produto / vazias"><input type="checkbox" checked={listDraft.skipEmpty !== false} onChange={(e) => setListDraft((d) => ({ ...d, skipEmpty: e.target.checked }))} />Pular vazias</label>
+              </div>
+            </div>
+            {/* COLUNAS */}
+            <div className="text-[11px] font-semibold text-slate-600 mb-1">Colunas</div>
+            <div className="space-y-2">
+              {listDraft.columns.map((c, i) => (
+                <div key={i} className="rounded-lg border border-slate-200 bg-white p-2">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="font-bold text-teal-700 w-4 shrink-0">{i + 1}</span>
+                    <label className="flex items-center gap-1">Campo
+                      <select value={c.field} onChange={(e) => setListCol(i, { field: e.target.value })} className="rounded border border-slate-300 px-2 py-1 text-sm">
+                        <option value="produto">Produto/descrição</option>
+                        <option value="qtd">Quantidade</option>
+                        <option value="unidade">Unidade</option>
+                        <option value="valor">Valor total</option>
+                        <option value="unitario">Valor unitário</option>
+                        <option value="papel">Item (papel)</option>
+                        <option value="prodCodigo">Código</option>
+                      </select>
+                    </label>
+                    <input type="text" value={c.header ?? ""} placeholder={LIST_FIELD_LABEL[c.field] || "cabeçalho"} onChange={(e) => setListCol(i, { header: e.target.value || null })} className="w-28 rounded border border-slate-300 px-2 py-1 text-sm" title="Cabeçalho (vazio = padrão)" />
+                    <label className="flex items-center gap-1" title="Largura %">L<NumInput value={c.widthPct ?? 0} placeholder="auto" onChange={(v) => setListCol(i, { widthPct: v || null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />%</label>
+                    <select value={c.align || "left"} onChange={(e) => setListCol(i, { align: e.target.value as any })} className="rounded border border-slate-300 px-1 py-1 text-sm" title="Alinhamento">
+                      <option value="left">⯇</option><option value="center">≡</option><option value="right">⯈</option>
+                    </select>
+                    <label className="flex items-center gap-1" title="Fonte (pt)">pt<NumInput value={c.fontPt ?? 0} placeholder="auto" onChange={(v) => setListCol(i, { fontPt: v || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
+                    <label className="flex items-center gap-1" title="Cor do texto">A<input type="color" value={c.color || "#0f172a"} onChange={(e) => setListCol(i, { color: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /><button type="button" onClick={() => setListCol(i, { color: null })} className="text-slate-400 hover:text-slate-700">⌫</button></label>
+                    <label className="flex items-center gap-1" title="Fundo da célula">Fundo<input type="color" value={c.bg || "#ffffff"} onChange={(e) => setListCol(i, { bg: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /><button type="button" onClick={() => setListCol(i, { bg: null })} className="text-slate-400 hover:text-slate-700">⌫</button></label>
+                    <span className="flex items-center gap-0.5 ml-auto">
+                      <button type="button" onClick={() => moveListCol(i, -1)} disabled={i === 0} className="text-slate-500 hover:text-slate-800 disabled:opacity-30" title="Mover ←">←</button>
+                      <button type="button" onClick={() => moveListCol(i, 1)} disabled={i === listDraft.columns.length - 1} className="text-slate-500 hover:text-slate-800 disabled:opacity-30" title="Mover →">→</button>
+                      <button type="button" onClick={() => removeListCol(i)} disabled={listDraft.columns.length <= 1} className="text-rose-500 hover:text-rose-700 disabled:opacity-30" title="Remover coluna">🗑</button>
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={addListCol} className="mt-2 rounded-md border border-dashed border-teal-300 px-3 py-1.5 text-xs font-medium text-teal-700 hover:bg-teal-50">+ Adicionar coluna</button>
+            {/* ESTILO DA TABELA */}
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-2 mt-3">
+              <div className="text-[11px] font-semibold text-slate-600 mb-1">Estilo da tabela</div>
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                <label className="flex items-center gap-1"><input type="checkbox" checked={listDraft.showHeader !== false} onChange={(e) => setListDraft((d) => ({ ...d, showHeader: e.target.checked }))} />Cabeçalho</label>
+                <label className="flex items-center gap-1">Fundo cab.<input type="color" value={listDraft.headerBg || "#1e3a8a"} onChange={(e) => setListDraft((d) => ({ ...d, headerBg: e.target.value }))} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
+                <label className="flex items-center gap-1">Cor cab.<input type="color" value={listDraft.headerColor || "#ffffff"} onChange={(e) => setListDraft((d) => ({ ...d, headerColor: e.target.value }))} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
+                <label className="flex items-center gap-1" title="Altura da linha (mm)">Altura linha<NumInput value={listDraft.rowHeightMm ?? 0} placeholder="auto" onChange={(v) => setListDraft((d) => ({ ...d, rowHeightMm: v || null }))} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+                <label className="flex items-center gap-1"><input type="checkbox" checked={!!listDraft.zebra} onChange={(e) => setListDraft((d) => ({ ...d, zebra: e.target.checked }))} />Linhas alternadas</label>
+                <label className="flex items-center gap-1"><input type="checkbox" checked={!!listDraft.border} onChange={(e) => setListDraft((d) => ({ ...d, border: e.target.checked }))} />Bordas</label>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 mt-4">
+              <button type="button" onClick={() => setListModal(false)} className="rounded border border-slate-300 px-3 py-1.5 text-sm">Cancelar</button>
+              <button type="button" onClick={() => { patchSelBox({ listCfg: listDraft }); setListModal(false); toast("Lista dinâmica salva", "success"); }}
+                className="rounded bg-teal-600 px-3 py-1.5 text-sm font-medium text-white">Salvar</button>
             </div>
           </div>
         </div>
