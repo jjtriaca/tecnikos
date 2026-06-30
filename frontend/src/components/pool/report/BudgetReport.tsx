@@ -1211,8 +1211,8 @@ function handleStyle(h: string): CSSProperties {
   base.cursor = cursors[h];
   return base;
 }
-function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit = "mm", pageW = 210, pageH = 297, others = [], onGuides, onSelect, onStartEdit, onChange, onCommit, groupMove, onGroupStart, onGroupMove, hasCond, condHidden, bandLabel, dynLabel, children }: {
-  box: Box; selected: boolean; multi?: boolean; editing: boolean; canvasRef: React.RefObject<HTMLDivElement>; lockAspect?: boolean;
+function BoxFrame({ box, selected, multi, parentSelected, editing, canvasRef, lockAspect, unit = "mm", pageW = 210, pageH = 297, others = [], onGuides, onSelect, onStartEdit, onChange, onCommit, groupMove, onGroupStart, onGroupMove, hasCond, condHidden, bandLabel, dynLabel, children }: {
+  box: Box; selected: boolean; multi?: boolean; parentSelected?: boolean; editing: boolean; canvasRef: React.RefObject<HTMLDivElement>; lockAspect?: boolean;
   unit?: "mm" | "%"; pageW?: number; pageH?: number; others?: Box[]; onGuides?: (g: { o: "v" | "h"; p: number }[]) => void;
   onSelect: (additive?: boolean) => void; onStartEdit: () => void; onChange: (b: Box) => void; onCommit: () => void;
   groupMove?: boolean; onGroupStart?: () => void; onGroupMove?: (dx: number, dy: number) => void;
@@ -1300,7 +1300,9 @@ function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit =
       // Selecionado flutua acima de tudo (z alto) e libera overflow pras ALCAS de resize ficarem
       // inteiras e clicaveis mesmo quando o card esta por cima de outro card (senao o vizinho com z
       // maior cobre as alcas e o cursor fica sempre na cruz de mover, nunca na setinha de redimensionar).
-      zIndex: (selected || multi) ? 2000 : (box.z || 1), overflow: (selected || multi) ? "visible" : "hidden" }}
+      // parentSelected: filho de um grupo dinamico SELECIONADO sobe ACIMA do pai (2001 > 2000) pra
+      // continuar clicavel/editavel — senao o card do grupo (que tbm sobe pra 2000) cobre os filhos.
+      zIndex: (selected || multi) ? 2000 : parentSelected ? 2001 : (box.z || 1), overflow: (selected || multi) ? "visible" : "hidden" }}
       onPointerDown={begin("move")}
       onClick={(e) => { e.stopPropagation(); }}
       onDoubleClick={(e) => { e.stopPropagation(); onStartEdit(); }}>
@@ -1360,7 +1362,7 @@ export function CanvasEditor({ boxes, data, branding, selBox, selSet, pageW, pag
           </div>
         ) : null}
         {[...(boxes || [])].sort((a, b) => (a.z || 0) - (b.z || 0)).map((b) => (
-          <BoxFrame key={b.id} box={b} selected={selBox === b.id} multi={!!selSet && selSet.has(b.id) && b.id !== selBox} editing={editingId === b.id} canvasRef={canvasRef} unit={unit || "mm"} pageW={W} pageH={H}
+          <BoxFrame key={b.id} box={b} selected={selBox === b.id} multi={!!selSet && selSet.has(b.id) && b.id !== selBox} parentSelected={!!b.parentId && (selBox === b.parentId || (!!selSet && selSet.has(b.parentId)))} editing={editingId === b.id} canvasRef={canvasRef} unit={unit || "mm"} pageW={W} pageH={H}
             hasCond={!!b.showIf || (!!b.parentId && !!(boxes || []).find((p) => p.id === b.parentId)?.showIf)} condHidden={!boxShowsCascade(b, boxes || [], data)}
             bandLabel={b.band ? (b.band.source === "linhas" ? `🔁 ×${bandCollection("linhas", data).length} (linha)` : `🔁 ×${bandCollection("etapas", data).length} (etapa)`) : undefined}
             dynLabel={b.type === "CARD" && (b.dynamic || (boxes || []).some((c) => c.parentId === b.id)) ? "🪄 grupo dinâmico" : undefined}
