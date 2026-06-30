@@ -178,9 +178,16 @@ const num = (v: number | undefined | null, casas = 2, min = 0) =>
 // Medida fisica (comprimento/area/volume): sempre 2 casas pra nao sair "7" pelado (vira "7,00").
 const dim = (v: number | undefined | null) => num(v, 2, 2);
 
+/** "Sem Produto"/"Sem Serviço" = marcador de linha VAZIA (sem produto/serviço escolhido). Não deve
+ *  sair impresso: o token de produto/descrição resolve vazio e as listas de itens pulam essas linhas. */
+export function isEmptyLineDesc(desc?: string | null): boolean {
+  const t = (desc || "").trim().toLowerCase();
+  return t === "" || t === "sem produto" || t === "sem serviço" || t === "sem servico";
+}
+
 /** Itens com qty>0 (o "tem produto e qtd>0" = entra no relatorio). */
 function activeItems(items: ReportItem[]): ReportItem[] {
-  return (items || []).filter((it) => Number(it.qty) > 0 && it.description && it.description !== "Sem Produto" && it.description !== "Sem Servico");
+  return (items || []).filter((it) => Number(it.qty) > 0 && !isEmptyLineDesc(it.description));
 }
 
 /** Agrupa itens ATIVOS por etapa, na ordem do sectionOrder (resto no fim). */
@@ -225,7 +232,10 @@ function evalCondRule(c: CondRule, items: ReportItem[]): boolean {
   const hasProd = targets.some((t) => t.hasProduct || (t.qty || 0) > 0);
   const qty = targets.reduce((s, t) => s + (t.qty || 0), 0);
   const total = targets.reduce((s, t) => s + (t.totalCents || 0), 0) / 100; // valor total em R$
+  const unit = (targets.reduce((s, t) => s + (t.unitPriceCents || 0), 0) / Math.max(1, targets.length)) / 100; // unitário médio R$
   const v = c.value ?? 0;
+  const needle = (c.text || "").trim().toLowerCase();
+  const descHay = targets.map((t) => `${t.description || ""} ${t.productDesc || ""}`.toLowerCase()).join("  ");
   switch (c.op) {
     case "hasProduct": return hasProd;
     case "noProduct": return !hasProd;
@@ -241,36 +251,63 @@ function evalCondRule(c: CondRule, items: ReportItem[]): boolean {
     case "valNeq": return total !== v;
     case "valLte": return total <= v;
     case "valLt": return total < v;
+    case "unitGt": return unit > v;
+    case "unitGte": return unit >= v;
+    case "unitEq": return unit === v;
+    case "unitNeq": return unit !== v;
+    case "unitLte": return unit <= v;
+    case "unitLt": return unit < v;
+    case "descHas": return needle !== "" && descHay.includes(needle);
+    case "descNot": return needle === "" || !descHay.includes(needle);
     default: return true;
   }
 }
 
-/** IMAGEM DINAMICA: 1º candidato (em ordem) cuja condição bate E cuja linha tem imagem → essa imagem. */
+/** Avalia uma CONDIÇÃO (grupo E/OU ou regra única legada). Vazio/ausente = sempre bate. */
+function evalCond(c: CondRule | CondGroup | null | undefined, items: ReportItem[]): boolean {
+  if (!c) return true;
+  if ("rules" in c && Array.isArray(c.rules)) {
+    if (!c.rules.length) return true;
+    return c.match === "any" ? c.rules.some((r) => evalCondRule(r, items)) : c.rules.every((r) => evalCondRule(r, items));
+  }
+  if (!("op" in c) || !c.op) return true;
+  return evalCondRule(c as CondRule, items);
+}
+
+/** IMAGEM DINAMICA: 1º candidato (em ordem) cujas EXIGÊNCIAS batem E cuja linha tem imagem → essa imagem. */
 export function resolveDynamicImage(box: Box, data: BudgetReportData): string {
-  const rules = box.imgRules;
-  if (!rules || !rules.length) return "";
+  const cands = box.imgRules;
+  if (!cands || !cands.length) return "";
   const items = data.items || [];
-  for (const r of rules) {
-    if (!r.cellRef) continue;
-    if (!evalCondRule(r, items)) continue;
-    const it = items.find((x) => (x.cellRef || "").toUpperCase() === (r.cellRef || "").toUpperCase());
-    if (it?.imageUrl) return it.imageUrl; // condição bateu e tem imagem → usa; senão tenta o próximo
+  for (const c of cands) {
+    if (!c.cellRef) continue;
+    if (!evalCond(candCond(c), items)) continue;
+    const it = items.find((x) => (x.cellRef || "").toUpperCase() === (c.cellRef || "").toUpperCase());
+    if (it?.imageUrl) return it.imageUrl; // exigências bateram e tem imagem → usa; senão tenta o próximo
+  }
+  return "";
+}
+
+/** Compat v1.15.14: candidato antigo era uma CondRule "flat" (com op no topo). Hoje é {cellRef, cond}. */
+function candCond(c: any): CondGroup | CondRule | null { return c?.cond !== undefined ? c.cond : (c?.op ? (c as CondRule) : null); }
+
+/** TEXTO DINAMICO: 1º candidato (em ordem) cujas EXIGÊNCIAS batem E cujo campo (txtAttr) resolve não-vazio. */
+export function resolveDynamicText(box: Box, data: BudgetReportData): string {
+  const cands = box.txtRules;
+  if (!cands || !cands.length) return "";
+  const items = data.items || [];
+  const attr = box.txtAttr || "produto";
+  for (const c of cands) {
+    if (!c.cellRef) continue;
+    if (!evalCond(candCond(c), items)) continue;
+    const v = resolveAddressedToken(`linha:${c.cellRef}.${attr}`, data) ?? "";
+    if (v && v.trim()) return v;
   }
   return "";
 }
 
 export function boxShows(box: Box, data: BudgetReportData): boolean {
-  const c = box.showIf;
-  if (!c) return true;
-  const items = data.items || [];
-  // GRUPO de regras combinadas (E/OU)
-  if ("rules" in c && Array.isArray(c.rules)) {
-    if (!c.rules.length) return true;
-    return c.match === "any" ? c.rules.some((r) => evalCondRule(r, items)) : c.rules.every((r) => evalCondRule(r, items));
-  }
-  // Regra única (legado)
-  if (!("op" in c) || !c.op) return true;
-  return evalCondRule(c as CondRule, items);
+  return evalCond(box.showIf, data.items || []);
 }
 
 /** Visibilidade EM CASCATA (card dinamico): a caixa aparece se a SUA condicao bate E se o card
@@ -288,8 +325,14 @@ export function boxShowsCascade(box: Box, pool: Box[], data: BudgetReportData): 
 /** Texto curto de UMA regra (sem prefixo). */
 function ruleText(c: CondRule): string {
   const alvo = c.cellRef ? `linha ${c.cellRef}` : c.etapa ? `etapa ${c.etapa}` : "o orçamento";
-  const v = c.value ?? 0;
-  const ops: Record<string, string> = { hasProduct: "tem produto", noProduct: "sem produto", qtyGt: `qtd > ${v}`, qtyGte: `qtd ≥ ${v}`, qtyEq: `qtd = ${v}`, qtyNeq: `qtd ≠ ${v}`, qtyLte: `qtd ≤ ${v}`, qtyLt: `qtd < ${v}`, valGt: `valor > ${v}`, valGte: `valor ≥ ${v}`, valEq: `valor = ${v}`, valNeq: `valor ≠ ${v}`, valLte: `valor ≤ ${v}`, valLt: `valor < ${v}` };
+  const v = c.value ?? 0; const tx = c.text || "";
+  const ops: Record<string, string> = {
+    hasProduct: "tem produto", noProduct: "sem produto",
+    qtyGt: `qtd > ${v}`, qtyGte: `qtd ≥ ${v}`, qtyEq: `qtd = ${v}`, qtyNeq: `qtd ≠ ${v}`, qtyLte: `qtd ≤ ${v}`, qtyLt: `qtd < ${v}`,
+    valGt: `valor > ${v}`, valGte: `valor ≥ ${v}`, valEq: `valor = ${v}`, valNeq: `valor ≠ ${v}`, valLte: `valor ≤ ${v}`, valLt: `valor < ${v}`,
+    unitGt: `unitário > ${v}`, unitGte: `unitário ≥ ${v}`, unitEq: `unitário = ${v}`, unitNeq: `unitário ≠ ${v}`, unitLte: `unitário ≤ ${v}`, unitLt: `unitário < ${v}`,
+    descHas: `descrição contém "${tx}"`, descNot: `descrição não contém "${tx}"`,
+  };
   return `${alvo} ${ops[c.op] || c.op}`;
 }
 
@@ -409,7 +452,7 @@ function resolveAddressedToken(token: string, data: BudgetReportData): string | 
       return v == null ? "" : (typeof v === "number" ? num(v) : String(v));
     }
     switch (field) {
-      case "produto": case "descricao": case "item": case "nome": return it.description || "";
+      case "produto": case "descricao": case "item": case "nome": return isEmptyLineDesc(it.description) ? "" : (it.description || "");
       case "qtd": case "quantidade": case "qty": return num(it.qty);
       case "valor": case "total": return brl(it.totalCents);
       case "unitario": case "preco": case "unit": return brl(it.unitPriceCents);
@@ -436,7 +479,7 @@ function resolveAddressedToken(token: string, data: BudgetReportData): string | 
       case "nome": case "rotulo": case "etapa": return sectionLabel(data, sec);
       // Lista de produtos da etapa (1 por linha) — pro layout agrupado do PDF (titulo etapa + itens embaixo).
       case "itens": case "produtos": case "lista":
-        return list.map((it) => `${it.description}${it.qty ? ` — ${num(it.qty)} ${it.productUnit || "un"}` : ""}`).join("<br>");
+        return list.filter((it) => !isEmptyLineDesc(it.description)).map((it) => `${it.description}${it.qty ? ` — ${num(it.qty)} ${it.productUnit || "un"}` : ""}`).join("<br>");
       // Imagem da etapa = imagem do 1o produto da etapa que tiver imagem (pra caixa IMAGE).
       case "imagem": case "img": case "foto":
         return (list.find((x) => x.imageUrl)?.imageUrl) || "";
@@ -942,10 +985,19 @@ export function CompositionPreview({ nodes, data, selectedId, onSelectNode, onEd
 // Condição de visibilidade — uma REGRA aponta um alvo (linha cellRef OU etapa poolSection, ou o
 // orçamento todo) e um operador. v1.15.13: showIf pode ser 1 regra (legado) OU um GRUPO de regras
 // combinadas por E (all) / OU (any). boxShows aceita as duas formas (compat com layouts antigos).
-export type CondOp = "hasProduct" | "noProduct" | "qtyGt" | "qtyGte" | "qtyEq" | "qtyNeq" | "qtyLte" | "qtyLt" | "valGt" | "valGte" | "valEq" | "valNeq" | "valLte" | "valLt";
+export type CondOp =
+  | "hasProduct" | "noProduct"
+  | "qtyGt" | "qtyGte" | "qtyEq" | "qtyNeq" | "qtyLte" | "qtyLt"
+  | "valGt" | "valGte" | "valEq" | "valNeq" | "valLte" | "valLt"        // valor TOTAL (qtd × unitário), R$
+  | "unitGt" | "unitGte" | "unitEq" | "unitNeq" | "unitLte" | "unitLt"  // valor UNITARIO, R$
+  | "descHas" | "descNot";                                              // descrição (produto/item) contém / não contém texto
 // kind = filtro de UI (produto/serviço) pra estreitar o select de linha; NÃO entra na avaliação.
-export type CondRule = { cellRef?: string | null; etapa?: string | null; op: CondOp; value?: number | null; kind?: "PRODUCT" | "SERVICE" | null };
+// text = alvo dos operadores descHas/descNot.
+export type CondRule = { cellRef?: string | null; etapa?: string | null; op: CondOp; value?: number | null; text?: string | null; kind?: "PRODUCT" | "SERVICE" | null };
 export type CondGroup = { match: "all" | "any"; rules: CondRule[] };
+// Candidato de imagem/texto dinâmico: uma LINHA (fonte) + um grupo de exigências (cond). Ordenados;
+// o 1º cujo cond bate (e resolve não-vazio) manda. cond vazio/ausente = sempre bate.
+export type DynCandidate = { cellRef?: string | null; etapa?: string | null; kind?: "PRODUCT" | "SERVICE" | null; cond?: CondGroup | null };
 
 export type Box = {
   id: string;
@@ -956,9 +1008,11 @@ export type Box = {
   html?: string;                              // TEXT (HTML cru com {placeholders})
   href?: string | null;                       // link clicavel da caixa toda (TEXT/IMAGE) — vira <a> no PDF
   url?: string; fit?: "cover" | "contain" | "fill"; // IMAGE
-  // IMAGEM DINAMICA (v1.15.14) — lista ORDENADA de candidatos (linha + condição). Na impressão usa a
-  // imagem do produto da PRIMEIRA linha cuja condição bate E que tenha imagem. Presença do array = imagem dinâmica.
-  imgRules?: CondRule[];
+  // IMAGEM/TEXTO DINAMICO (v1.15.16 unificado) — lista ORDENADA de candidatos (linha-fonte + grupo de
+  // exigências). 1º candidato cujas exigências batem (e resolve não-vazio) manda. Array = dinâmico.
+  imgRules?: DynCandidate[];
+  txtRules?: DynCandidate[];
+  txtAttr?: string; // campo da linha que o texto dinâmico mostra (produto/qtd/valor/unitario/...)
   icon?: string;                              // ICON (nome na biblioteca reportIcons; cor = style.textColor)
   blockType?: string; config?: any;           // BLOCK (PRODUCTS_BY_SECTION, COVER, ...)
   // Condicao de visibilidade (Fase 1b blocos dinamicos) — caixa so aparece se a regra bater no orcamento.
@@ -1027,8 +1081,14 @@ function BoxContent({ box, data, branding, editingText, onEditText, onEditCommit
   if ((box.type as string) === "CARD") return null; // card = retangulo (bg/borda via boxRectStyle); conteudo vem de outras caixas
   if (box.type === "TEXT") {
     const wrap = (st as any).noWrap ? "nowrap" : "normal";
-    if (editingText && onEditText) return <div style={{ width: "100%", height: "100%", whiteSpace: wrap, overflow: "hidden" }}><InlineEditable key={box.id} html={box.html || ""} onChange={(h) => onEditText(box.id, h)} onCommit={onEditCommit} /></div>;
     const valign = st.valign === "center" ? "center" : st.valign === "bottom" ? "flex-end" : "flex-start";
+    // TEXTO DINAMICO: 1º candidato que bate → texto da linha. Read-only (não edita inline).
+    if (Array.isArray(box.txtRules)) {
+      const txt = resolveDynamicText(box, data);
+      if (!txt) return <div className="rp-empty" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: 9, color: "#94a3b8", textAlign: "center", padding: 4 }}>Texto dinâmico (nenhuma linha bateu)</div>;
+      return wrapLink(<div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: valign, textAlign: (st.align as any) || undefined, whiteSpace: wrap }}>{txt}</div>);
+    }
+    if (editingText && onEditText) return <div style={{ width: "100%", height: "100%", whiteSpace: wrap, overflow: "hidden" }}><InlineEditable key={box.id} html={box.html || ""} onChange={(h) => onEditText(box.id, h)} onCommit={onEditCommit} /></div>;
     return wrapLink(<div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: valign, textAlign: (st.align as any) || undefined, whiteSpace: wrap }} dangerouslySetInnerHTML={{ __html: resolvePlaceholders(box.html || "", data) }} />);
   }
   if (box.type === "IMAGE") {
