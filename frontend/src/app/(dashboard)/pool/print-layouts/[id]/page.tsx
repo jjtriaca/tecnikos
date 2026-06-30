@@ -272,8 +272,8 @@ export default function PoolPrintLayoutEditorPage() {
   // Nº de exigências de uma condição (pro rótulo "Exigências (N)").
   const condCount = (c: CondRule | CondGroup | null | undefined): number => { const cur = c as any; if (!cur) return 0; if (Array.isArray(cur.rules)) return cur.rules.length; return cur.op ? 1 : 0; };
   // ── LISTA DINAMICA (tabela): fonte (etapa/filtros) + colunas configuráveis + estilo por coluna ──
-  const DEFAULT_LIST: ListConfig = { etapa: null, kind: null, lines: null, skipEmpty: true, maxRows: null, showHeader: true, zebra: true, border: true, headerBg: "#1e3a8a", headerColor: "#ffffff", columns: [{ field: "produto", widthPct: 60, align: "left" }, { field: "qtd", widthPct: 20, align: "right" }, { field: "unidade", widthPct: 20, align: "center" }] };
-  const NEW_COL: ListColumn = { field: "produto", header: null, widthPct: null, align: "left", fontPt: null, color: null, bg: null };
+  const DEFAULT_LIST: ListConfig = { etapa: null, kind: null, lines: null, skipEmpty: true, maxRows: null, showHeader: true, zebra: true, border: true, headerBg: "#1e3a8a", headerColor: "#ffffff", columns: [{ field: "produto", widthMm: 90, align: "left" }, { field: "qtd", widthMm: 20, align: "right" }, { field: "unidade", widthMm: 20, align: "center" }] };
+  const NEW_COL: ListColumn = { field: "produto", header: null, widthMm: null, align: "left", fontPt: null, color: null, bg: null };
   const [listModal, setListModal] = useState(false);
   const [listDraft, setListDraft] = useState<ListConfig>(DEFAULT_LIST);
   const openList = () => { setListDraft({ ...DEFAULT_LIST, ...((selectedBox?.listCfg) || {}), columns: ((selectedBox?.listCfg?.columns?.length ? selectedBox.listCfg.columns : DEFAULT_LIST.columns)).map((c) => ({ ...c })) }); setListModal(true); };
@@ -1273,7 +1273,7 @@ export default function PoolPrintLayoutEditorPage() {
             <RibbonBtn icon="🃏" label="Card" onClick={() => addBox("CARD", {})} />
             <RibbonBtn icon="🪄" label="Grupo dinâmico" onClick={() => addBox("CARD", { dynamic: true })} />
             <RibbonBtn icon="🇹" label="Texto" onClick={() => addBox("TEXT", {})} />
-            <RibbonBtn icon="🔤" label="Texto dinâmico" onClick={() => addBox("TEXT", { txtRules: [], txtAttr: "produto" })} />
+            <RibbonBtn icon="🔤" label="Texto dinâmico" onClick={() => addBox("TEXT", { txtRules: [] })} />
             <RibbonBtn icon="🖼️" label="Imagem" onClick={() => addBox("IMAGE", {})} />
             <RibbonBtn icon="🖼️" label="Imagem dinâmica" onClick={() => addBox("IMAGE", { imgRules: [] })} />
             <RibbonBtn icon="📋" label="Lista dinâmica" onClick={() => addBox("LIST", { listCfg: { ...DEFAULT_LIST, columns: DEFAULT_LIST.columns.map((c) => ({ ...c })) } })} />
@@ -1303,7 +1303,7 @@ export default function PoolPrintLayoutEditorPage() {
           const migrateCand = (c: any): DynCandidate => {
             if (c && c.cond !== undefined) return { ...c };
             if (c && c.op) return { cellRef: c.cellRef ?? null, etapa: c.etapa ?? null, kind: c.kind ?? null, cond: { match: "all", rules: [{ op: c.op, cellRef: null, etapa: null, value: c.value ?? null, text: c.text ?? null, kind: null }] } };
-            return { cellRef: c?.cellRef ?? null, etapa: c?.etapa ?? null, kind: c?.kind ?? null, cond: null };
+            return { cellRef: c?.cellRef ?? null, etapa: c?.etapa ?? null, kind: c?.kind ?? null, cond: null, text: c?.text ?? null };
           };
           const openCands = (mode: "image" | "text") => {
             setCandMode(mode);
@@ -1334,19 +1334,8 @@ export default function PoolPrintLayoutEditorPage() {
             </>) : null}
             {/* ── TEXTO DINÂMICO — candidatos + campo a mostrar ── */}
             {sb.type === "TEXT" && Array.isArray(sb.txtRules) ? (<>
-              <span className="self-center rounded bg-fuchsia-600 px-2 py-0.5 text-[11px] font-bold text-white" title="Texto dinâmico: 1º candidato (em ordem) cujas exigências batem manda o texto da linha.">🔤 Texto dinâmico</span>
-              <RibbonBtn icon="⚡" label={sb.txtRules.length ? `Exigências (${sb.txtRules.length})` : "Exigências"} onClick={() => openCands("text")} />
-              <label className="text-xs text-slate-600 flex items-center gap-1" title="Qual campo da linha o texto mostra">Campo
-                <select value={sb.txtAttr || "produto"} onChange={(e) => patchSelBox({ txtAttr: e.target.value })} className="rounded border border-slate-300 px-1 py-1 text-sm">
-                  <option value="produto">Produto/descrição</option>
-                  <option value="qtd">Quantidade</option>
-                  <option value="valor">Valor total</option>
-                  <option value="unitario">Valor unitário</option>
-                  <option value="papel">Item (papel)</option>
-                  <option value="prodCodigo">Código do produto</option>
-                  <option value="prodUnidade">Unidade</option>
-                </select>
-              </label>
+              <span className="self-center rounded bg-fuchsia-600 px-2 py-0.5 text-[11px] font-bold text-white" title="Texto dinâmico: você digita o texto de cada candidato e a exigência pra ele aparecer. O 1º que bater é mostrado.">🔤 Texto dinâmico</span>
+              <RibbonBtn icon="⚡" label={sb.txtRules.length ? `Textos & exigências (${sb.txtRules.length})` : "Textos & exigências"} onClick={() => openCands("text")} />
               <span className="mx-1 self-center h-6 w-px bg-fuchsia-300" />
             </>) : null}
             <span className="text-[10px] uppercase tracking-wide text-slate-400">{isDyn ? "Grupo:" : "Caixa:"}</span>
@@ -1874,31 +1863,55 @@ export default function PoolPrintLayoutEditorPage() {
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setCandModal(false)}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl p-4" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-semibold text-slate-900 mb-1">{candMode === "image" ? "🖼️ Imagem dinâmica" : "🔤 Texto dinâmico"} — candidatos</h3>
-            <p className="text-[11px] text-slate-500 mb-3">O <b>1º candidato (de cima pra baixo)</b> cujas <b>exigências</b> batem (e resolve não-vazio) manda {candMode === "image" ? "a imagem da linha" : "o texto da linha"}. Use ↑↓ pra ordenar a prioridade.</p>
+            <p className="text-[11px] text-slate-500 mb-3">{candMode === "image"
+              ? <>O <b>1º candidato (de cima pra baixo)</b> cujas <b>exigências</b> batem (e a linha tem imagem) manda a imagem. Use ↑↓ pra ordenar a prioridade.</>
+              : <>Você <b>digita o texto</b> de cada candidato e a <b>exigência</b> pra ele aparecer (ex: descrição contém "Pré-moldada" na etapa X linha Y). O <b>1º candidato (de cima pra baixo)</b> cujas exigências batem é o que aparece. Use ↑↓ pra ordenar a prioridade.</>}</p>
             <div className="space-y-2 max-h-[55vh] overflow-y-auto">
               {candDraft.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-[11px] italic text-slate-400">Nenhum candidato ainda. Adicione a 1ª linha.</div>
+                <div className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-center text-[11px] italic text-slate-400">Nenhum candidato ainda. Adicione o {candMode === "image" ? "1º (linha-imagem)" : "1º texto"}.</div>
               ) : candDraft.map((c, i) => (
                 <div key={i} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-[10px] font-bold text-fuchsia-700 w-4 shrink-0">{i + 1}º</span>
-                    {lineCore(c, (p) => setCand(i, p), candMode === "image" ? "— Linha (imagem) —" : "— Linha (texto) —")}
-                    <button type="button" onClick={() => openCondFor({ kind: "cand", i }, c.cond)}
-                      className="flex flex-col items-center justify-center gap-0.5 rounded px-1.5 py-0.5 min-w-[44px] text-slate-700 hover:bg-cyan-50">
-                      <span className="text-sm leading-none">⚡</span><span className="text-[9px] leading-tight text-center">{condCount(c.cond) ? `Exigências (${condCount(c.cond)})` : "Exigências"}</span>
-                    </button>
-                    <span className="self-center max-w-[180px] truncate text-[10px] italic text-slate-500" title={condText(c.cond)}>{condText(c.cond)}</span>
-                    <span className="flex items-center gap-0.5 ml-auto">
-                      <button type="button" onClick={() => moveCand(i, -1)} disabled={i === 0} title="Subir prioridade" className="text-slate-500 hover:text-slate-800 disabled:opacity-30">↑</button>
-                      <button type="button" onClick={() => moveCand(i, 1)} disabled={i === candDraft.length - 1} title="Descer prioridade" className="text-slate-500 hover:text-slate-800 disabled:opacity-30">↓</button>
-                      <button type="button" onClick={() => removeCand(i)} title="Remover candidato" className="text-rose-500 hover:text-rose-700">🗑</button>
-                    </span>
-                  </div>
+                  {candMode === "text" ? (
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-start gap-2">
+                        <span className="mt-1.5 w-4 shrink-0 text-[10px] font-bold text-fuchsia-700">{i + 1}º</span>
+                        <textarea value={c.text ?? ""} onChange={(e) => setCand(i, { text: e.target.value })} rows={2} placeholder='Texto que vai aparecer quando as exigências baterem. Ex: "Piscina executada em parede pré-moldada."' className="flex-1 resize-y rounded border border-slate-300 px-2 py-1 text-sm" />
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 pl-6">
+                        <button type="button" onClick={() => openCondFor({ kind: "cand", i }, c.cond)} className="flex items-center gap-1 rounded px-1.5 py-0.5 text-slate-700 hover:bg-cyan-50">
+                          <span className="text-sm leading-none">⚡</span><span className="text-[10px]">{condCount(c.cond) ? `Exigências (${condCount(c.cond)})` : "Definir exigências"}</span>
+                        </button>
+                        <span className="max-w-[220px] truncate text-[10px] italic text-slate-500" title={condText(c.cond)}>{condText(c.cond)}</span>
+                        <span className="ml-auto flex items-center gap-0.5">
+                          <button type="button" onClick={() => moveCand(i, -1)} disabled={i === 0} title="Subir prioridade" className="text-slate-500 hover:text-slate-800 disabled:opacity-30">↑</button>
+                          <button type="button" onClick={() => moveCand(i, 1)} disabled={i === candDraft.length - 1} title="Descer prioridade" className="text-slate-500 hover:text-slate-800 disabled:opacity-30">↓</button>
+                          <button type="button" onClick={() => removeCand(i)} title="Remover candidato" className="text-rose-500 hover:text-rose-700">🗑</button>
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="w-4 shrink-0 text-[10px] font-bold text-fuchsia-700">{i + 1}º</span>
+                      {lineCore(c, (p) => setCand(i, p), "— Linha (imagem) —")}
+                      <button type="button" onClick={() => openCondFor({ kind: "cand", i }, c.cond)}
+                        className="flex min-w-[44px] flex-col items-center justify-center gap-0.5 rounded px-1.5 py-0.5 text-slate-700 hover:bg-cyan-50">
+                        <span className="text-sm leading-none">⚡</span><span className="text-[9px] leading-tight text-center">{condCount(c.cond) ? `Exigências (${condCount(c.cond)})` : "Exigências"}</span>
+                      </button>
+                      <span className="max-w-[180px] self-center truncate text-[10px] italic text-slate-500" title={condText(c.cond)}>{condText(c.cond)}</span>
+                      <span className="ml-auto flex items-center gap-0.5">
+                        <button type="button" onClick={() => moveCand(i, -1)} disabled={i === 0} title="Subir prioridade" className="text-slate-500 hover:text-slate-800 disabled:opacity-30">↑</button>
+                        <button type="button" onClick={() => moveCand(i, 1)} disabled={i === candDraft.length - 1} title="Descer prioridade" className="text-slate-500 hover:text-slate-800 disabled:opacity-30">↓</button>
+                        <button type="button" onClick={() => removeCand(i)} title="Remover candidato" className="text-rose-500 hover:text-rose-700">🗑</button>
+                      </span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
-            <button type="button" onClick={addCand} className="mt-2 rounded-md border border-dashed border-fuchsia-300 px-3 py-1.5 text-xs font-medium text-fuchsia-700 hover:bg-fuchsia-50">+ Adicionar linha-candidata</button>
-            <p className="text-[10px] text-slate-400 mt-1">{candMode === "image" ? "A imagem" : "O texto"} vem da LINHA escolhida em cada candidato. Sem exigências = sempre bate. Se bater mas resolver vazio, tenta o próximo.</p>
+            <button type="button" onClick={addCand} className="mt-2 rounded-md border border-dashed border-fuchsia-300 px-3 py-1.5 text-xs font-medium text-fuchsia-700 hover:bg-fuchsia-50">{candMode === "image" ? "+ Adicionar linha-candidata" : "+ Adicionar texto-candidato"}</button>
+            <p className="text-[10px] text-slate-400 mt-1">{candMode === "image"
+              ? "A imagem vem da LINHA escolhida em cada candidato. Sem exigências = sempre bate. Se bater mas a linha não tiver imagem, tenta o próximo."
+              : "Sem exigências = sempre aparece (bom pro último, como texto padrão). Se o texto estiver vazio, tenta o próximo. Tokens como {linha:L5.produto} também funcionam dentro do texto."}</p>
             <div className="flex items-center justify-end gap-2 mt-4">
               <button type="button" onClick={() => setCandModal(false)} className="rounded border border-slate-300 px-3 py-1.5 text-sm">Cancelar</button>
               <button type="button" onClick={() => { patchSelBox(candMode === "image" ? { imgRules: candDraft } : { txtRules: candDraft }); setCandModal(false); toast(candMode === "image" ? "Imagem dinâmica salva" : "Texto dinâmico salvo", "success"); }}
@@ -1993,8 +2006,8 @@ export default function PoolPrintLayoutEditorPage() {
                     <label className="col-span-2 flex flex-col gap-0.5 text-slate-600">Cabeçalho
                       <input type="text" value={c.header ?? ""} placeholder={`padrão: ${LIST_FIELD_LABEL[c.field] || c.field}`} onChange={(e) => setListCol(i, { header: e.target.value || null })} className="rounded border border-slate-300 px-2 py-1 text-sm" />
                     </label>
-                    <label className="flex flex-col gap-0.5 text-slate-600">Largura (%)
-                      <NumInput value={c.widthPct ?? 0} placeholder="auto" onChange={(v) => setListCol(i, { widthPct: v || null })} className="rounded border border-slate-300 px-2 py-1 text-sm" />
+                    <label className="flex flex-col gap-0.5 text-slate-600">Largura (mm)
+                      <NumInput value={c.widthMm ?? 0} placeholder="auto" onChange={(v) => setListCol(i, { widthMm: v || null, widthPct: null })} className="rounded border border-slate-300 px-2 py-1 text-sm" />
                     </label>
                     <label className="flex flex-col gap-0.5 text-slate-600">Alinhar
                       <select value={c.align || "left"} onChange={(e) => setListCol(i, { align: e.target.value as any })} className="rounded border border-slate-300 px-2 py-1 text-sm">

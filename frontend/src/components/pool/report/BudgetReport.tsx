@@ -291,17 +291,16 @@ export function resolveDynamicImage(box: Box, data: BudgetReportData): string {
 /** Compat v1.15.14: candidato antigo era uma CondRule "flat" (com op no topo). Hoje é {cellRef, cond}. */
 function candCond(c: any): CondGroup | CondRule | null { return c?.cond !== undefined ? c.cond : (c?.op ? (c as CondRule) : null); }
 
-/** TEXTO DINAMICO: 1º candidato (em ordem) cujas EXIGÊNCIAS batem E cujo campo (txtAttr) resolve não-vazio. */
+/** TEXTO DINAMICO: você DIGITA o texto de cada candidato e define a EXIGÊNCIA pra ele aparecer.
+ *  O 1º candidato (em ordem) cujas exigências batem manda o SEU texto (tokens como {linha:Lx.produto} resolvem). */
 export function resolveDynamicText(box: Box, data: BudgetReportData): string {
   const cands = box.txtRules;
   if (!cands || !cands.length) return "";
   const items = data.items || [];
-  const attr = box.txtAttr || "produto";
   for (const c of cands) {
-    if (!c.cellRef) continue;
     if (!evalCond(candCond(c), items)) continue;
-    const v = resolveAddressedToken(`linha:${c.cellRef}.${attr}`, data) ?? "";
-    if (v && v.trim()) return v;
+    const t = (c.text || "").trim();
+    if (t) return resolvePlaceholders(c.text || "", data);
   }
   return "";
 }
@@ -327,13 +326,19 @@ export function renderDynamicList(box: Box, data: BudgetReportData): ReactNode {
   if (cfg.skipEmpty !== false) rows = rows.filter((it) => !isEmptyLineDesc(it.description));
   if (cfg.maxRows && cfg.maxRows > 0) rows = rows.slice(0, cfg.maxRows);
   const cols = cfg.columns && cfg.columns.length ? cfg.columns : [{ field: "produto" }];
-  const cellVal = (it: ReportItem, field: string) => resolveAddressedToken(`linha:${it.cellRef}.${field}`, data) ?? "";
+  const cellVal = (it: ReportItem, field: string) => resolveAddressedToken(`{linha:${it.cellRef}.${field}}`, data) ?? "";
   const bd = cfg.border ? "1px solid #cbd5e1" : "none";
+  // Largura por coluna: mm (absoluto, exato) tem prioridade; % (legado) como fallback.
+  const colW = (c: ListColumn) => (c.widthMm ? `${c.widthMm}mm` : c.widthPct ? `${c.widthPct}%` : undefined);
+  // Se TODAS as colunas têm largura em mm, a tabela é a soma exata (colunas batem o mm pedido);
+  // senão ocupa 100% e distribui (comportamento legado de %).
+  const allMm = cols.every((c) => c.widthMm && c.widthMm > 0);
+  const tableW = allMm ? `${cols.reduce((s, c) => s + (c.widthMm || 0), 0)}mm` : "100%";
   return (
-    <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+    <table style={{ width: tableW, borderCollapse: "collapse", tableLayout: "fixed" }}>
       {cfg.showHeader !== false ? (
         <thead><tr>{cols.map((c, ci) => (
-          <th key={ci} style={{ width: c.widthPct ? `${c.widthPct}%` : undefined, textAlign: (c.align as any) || "left", background: cfg.headerBg || undefined, color: cfg.headerColor || undefined, fontSize: cfg.headerFontPt ? `${cfg.headerFontPt}pt` : undefined, padding: "2px 5px", border: bd, fontWeight: 700, overflow: "hidden" }}>
+          <th key={ci} style={{ width: colW(c), textAlign: (c.align as any) || "left", background: cfg.headerBg || undefined, color: cfg.headerColor || undefined, fontSize: cfg.headerFontPt ? `${cfg.headerFontPt}pt` : undefined, padding: "2px 5px", border: bd, fontWeight: 700, overflow: "hidden" }}>
             {c.header ?? LIST_FIELD_LABEL[c.field] ?? c.field}
           </th>
         ))}</tr></thead>
@@ -344,7 +349,7 @@ export function renderDynamicList(box: Box, data: BudgetReportData): ReactNode {
         ) : rows.map((it, ri) => (
           <tr key={ri} style={{ height: cfg.rowHeightMm ? `${cfg.rowHeightMm}mm` : undefined, background: cfg.zebra && ri % 2 ? "rgba(100,116,139,.08)" : undefined }}>
             {cols.map((c, ci) => (
-              <td key={ci} style={{ textAlign: (c.align as any) || "left", color: c.color || undefined, background: c.bg || undefined, fontSize: c.fontPt ? `${c.fontPt}pt` : undefined, padding: "2px 5px", border: bd, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+              <td key={ci} style={{ width: colW(c), textAlign: (c.align as any) || "left", color: c.color || undefined, background: c.bg || undefined, fontSize: c.fontPt ? `${c.fontPt}pt` : undefined, padding: "2px 5px", border: bd, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
                 {cellVal(it, c.field)}
               </td>
             ))}
@@ -1042,10 +1047,10 @@ export type CondRule = { cellRef?: string | null; etapa?: string | null; op: Con
 export type CondGroup = { match: "all" | "any"; rules: CondRule[] };
 // Candidato de imagem/texto dinâmico: uma LINHA (fonte) + um grupo de exigências (cond). Ordenados;
 // o 1º cujo cond bate (e resolve não-vazio) manda. cond vazio/ausente = sempre bate.
-export type DynCandidate = { cellRef?: string | null; etapa?: string | null; kind?: "PRODUCT" | "SERVICE" | null; cond?: CondGroup | null };
+export type DynCandidate = { cellRef?: string | null; etapa?: string | null; kind?: "PRODUCT" | "SERVICE" | null; cond?: CondGroup | null; text?: string | null };
 // LISTA DINAMICA (v1.15.17) — tabela auto-gerada das LINHAS do orçamento (1 linha = 1 row), colunas
 // configuráveis. `field` é o campo da linha (produto/qtd/unidade/valor/unitario/papel/prodCodigo...).
-export type ListColumn = { field: string; header?: string | null; widthPct?: number | null; align?: "left" | "center" | "right" | null; fontPt?: number | null; color?: string | null; bg?: string | null };
+export type ListColumn = { field: string; header?: string | null; widthMm?: number | null; widthPct?: number | null; align?: "left" | "center" | "right" | null; fontPt?: number | null; color?: string | null; bg?: string | null };
 export type ListConfig = {
   etapa?: string | null;              // fonte: linhas desta etapa (vazio = todas as linhas)
   kind?: "PRODUCT" | "SERVICE" | null; // filtro por tipo
@@ -1145,11 +1150,11 @@ function BoxContent({ box, data, branding, editingText, onEditText, onEditCommit
   if (box.type === "TEXT") {
     const wrap = (st as any).noWrap ? "nowrap" : "normal";
     const valign = st.valign === "center" ? "center" : st.valign === "bottom" ? "flex-end" : "flex-start";
-    // TEXTO DINAMICO: 1º candidato que bate → texto da linha. Read-only (não edita inline).
+    // TEXTO DINAMICO: você digita o texto e a exigência; 1º candidato que bate → seu texto. Read-only (não edita inline).
     if (Array.isArray(box.txtRules)) {
       const txt = resolveDynamicText(box, data);
-      if (!txt) return <div className="rp-empty" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: 9, color: "#94a3b8", textAlign: "center", padding: 4 }}>Texto dinâmico (nenhuma linha bateu)</div>;
-      return wrapLink(<div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: valign, textAlign: (st.align as any) || undefined, whiteSpace: wrap }}>{txt}</div>);
+      if (!txt) return <div className="rp-empty" style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", fontSize: 9, color: "#94a3b8", textAlign: "center", padding: 4 }}>Texto dinâmico (nenhuma exigência bateu)</div>;
+      return wrapLink(<div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: valign, textAlign: (st.align as any) || undefined, whiteSpace: (st as any).noWrap ? "nowrap" : "pre-wrap" }}>{txt}</div>);
     }
     if (editingText && onEditText) return <div style={{ width: "100%", height: "100%", whiteSpace: wrap, overflow: "hidden" }}><InlineEditable key={box.id} html={box.html || ""} onChange={(h) => onEditText(box.id, h)} onCommit={onEditCommit} /></div>;
     return wrapLink(<div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: valign, textAlign: (st.align as any) || undefined, whiteSpace: wrap }} dangerouslySetInnerHTML={{ __html: resolvePlaceholders(box.html || "", data) }} />);
@@ -1301,10 +1306,10 @@ function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit =
       onDoubleClick={(e) => { e.stopPropagation(); onStartEdit(); }}>
       {children}
       {hasCond ? (
-        <div title={condSummary(box.showIf)} style={{ position: "absolute", top: -7, left: -7, zIndex: 40, background: condHidden ? "#b45309" : "#f59e0b", color: "#fff", borderRadius: 9, fontSize: 9, lineHeight: "15px", height: 15, padding: "0 4px", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,.3)", pointerEvents: "none", whiteSpace: "nowrap" }}>⚡{condHidden ? " oculto" : ""}</div>
+        <div title={condSummary(box.showIf)} style={{ position: "absolute", top: 2, left: 2, zIndex: 40, background: condHidden ? "#b45309" : "#f59e0b", color: "#fff", borderRadius: 7, fontSize: 9, lineHeight: "14px", height: 14, padding: "0 4px", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,.3)", pointerEvents: "none", whiteSpace: "nowrap" }}>⚡{condHidden ? " oculto" : ""}</div>
       ) : null}
       {bandLabel ? (
-        <div title="Banda repetidora — esta linha-modelo se repete por item no orçamento (na impressão). Aqui no editor você vê só o modelo." style={{ position: "absolute", top: -7, right: -7, zIndex: 40, background: "#2563eb", color: "#fff", borderRadius: 9, fontSize: 9, lineHeight: "15px", height: 15, padding: "0 4px", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,.3)", pointerEvents: "none", whiteSpace: "nowrap" }}>{bandLabel}</div>
+        <div title="Banda repetidora — esta linha-modelo se repete por item no orçamento (na impressão). Aqui no editor você vê só o modelo." style={{ position: "absolute", top: 2, right: 2, zIndex: 40, background: "#2563eb", color: "#fff", borderRadius: 7, fontSize: 9, lineHeight: "14px", height: 14, padding: "0 4px", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,.3)", pointerEvents: "none", whiteSpace: "nowrap" }}>{bandLabel}</div>
       ) : null}
       {dynLabel ? (
         // DENTRO do canto inferior-esquerdo (offset positivo) pra NUNCA ser cortado pela borda da
