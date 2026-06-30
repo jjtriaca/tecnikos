@@ -1042,12 +1042,14 @@ export default function PoolPrintLayoutEditorPage() {
   // Fonte/tamanho/cor: aplica na SELECAO se estiver editando texto; senao na CAIXA inteira
   // (style.fontSize/fontFamily/textColor). Resolve o "aumentar fonte nao funciona" com a caixa so selecionada.
   const isEditingText = () => { const ed = closestEditable(selRange.current); return !!(ed && selRange.current && !selRange.current.collapsed); };
-  const applySize = (pt: string) => { if (!pt) return; if (isEditingText()) selFontSize(pt); else if (selectedBox?.type === "TEXT") patchSelStyle({ fontSize: Number(pt) }); };
-  const applyFontName = (v: string) => { if (isEditingText()) selExec("fontName", v); else if (selectedBox?.type === "TEXT") patchSelStyle({ fontFamily: v || null }); };
-  const applyColor = (v: string) => { if (isEditingText()) selExec("foreColor", v); else if (selectedBox?.type === "TEXT") patchSelStyle({ textColor: v }); };
+  // Caixas que aceitam fonte/cor/tamanho pela barra normal: TEXTO e LISTA dinâmica (a tabela herda do box.style).
+  const canBoxFont = (b?: Box | null) => !!b && (b.type === "TEXT" || b.type === "LIST");
+  const applySize = (pt: string) => { if (!pt) return; if (isEditingText()) selFontSize(pt); else if (canBoxFont(selectedBox)) patchSelStyle({ fontSize: Number(pt) }); };
+  const applyFontName = (v: string) => { if (isEditingText()) selExec("fontName", v); else if (canBoxFont(selectedBox)) patchSelStyle({ fontFamily: v || null }); };
+  const applyColor = (v: string) => { if (isEditingText()) selExec("foreColor", v); else if (canBoxFont(selectedBox)) patchSelStyle({ textColor: v }); };
   // Reflete o tamanho/cor da CAIXA selecionada (quando nao esta editando texto).
   useEffect(() => {
-    if (selectedBox?.type === "TEXT" && !isEditingText()) setSizeInput(String(selectedBox.style?.fontSize ?? ""));
+    if (canBoxFont(selectedBox) && !isEditingText()) setSizeInput(String(selectedBox?.style?.fontSize ?? ""));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selBox]);
 
@@ -1208,7 +1210,7 @@ export default function PoolPrintLayoutEditorPage() {
           <RibbonBtn icon="📑" label="Duplicar" onClick={() => toast("Duplicar: em breve", "info")} />
         </>)}
         {tab === "Inicio" && (<>
-          <select value={selFmt.fontName || (selectedBox?.type === "TEXT" ? (selectedBox.style?.fontFamily || "") : "")} onMouseDown={(e) => e.stopPropagation()} onChange={(e) => applyFontName(e.target.value)} className="rounded border border-slate-300 px-2 py-1 text-sm" title="Fonte (do trecho selecionado, ou da caixa toda se só selecionada)">
+          <select value={selFmt.fontName || (canBoxFont(selectedBox) ? (selectedBox?.style?.fontFamily || "") : "")} onMouseDown={(e) => e.stopPropagation()} onChange={(e) => applyFontName(e.target.value)} className="rounded border border-slate-300 px-2 py-1 text-sm" title="Fonte (do trecho selecionado, ou da caixa toda se só selecionada)">
             <option value="" disabled hidden></option>
             {FONTS.map((f) => <option key={f.v} value={f.v}>{f.l}</option>)}
           </select>

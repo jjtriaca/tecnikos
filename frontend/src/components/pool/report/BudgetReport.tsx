@@ -1153,7 +1153,7 @@ function BoxContent({ box, data, branding, editingText, onEditText, onEditCommit
     // TEXTO DINAMICO = texto NORMAL (editável inline, ferramentas de texto) cuja visibilidade é controlada
     // pela CONDIÇÃO (showIf). Sem branch read-only: edita igual a qualquer texto; some na impressão se a condição não bater.
     if (editingText && onEditText) return <div style={{ width: "100%", height: "100%", whiteSpace: wrap, overflow: "hidden" }}><InlineEditable key={box.id} html={box.html || ""} onChange={(h) => onEditText(box.id, h)} onCommit={onEditCommit} /></div>;
-    return wrapLink(<div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: valign, textAlign: (st.align as any) || undefined, whiteSpace: wrap }} dangerouslySetInnerHTML={{ __html: resolvePlaceholders(box.html || "", data) }} />);
+    return wrapLink(<div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: valign, textAlign: (st.align as any) || undefined, whiteSpace: wrap, overflow: "hidden" }} dangerouslySetInnerHTML={{ __html: resolvePlaceholders(box.html || "", data) }} />);
   }
   if (box.type === "IMAGE") {
     const isDyn = Array.isArray(box.imgRules);
@@ -1296,7 +1296,11 @@ function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit =
     window.addEventListener("keydown", onKey);
   };
   return (
-    <div style={{ ...boxRectStyle(box, unit), cursor: editing ? "text" : "move", opacity: condHidden ? 0.32 : undefined, outline: (selected || multi) ? "2px solid #06b6d4" : (hasCond ? "1.5px dashed #f59e0b" : (dynLabel ? "1.5px dashed #8b5cf6" : undefined)), outlineOffset: multi && !selected ? 1 : 0, boxShadow: (selected || multi) ? "0 0 0 2px rgba(255,255,255,0.9), 0 0 0 4px rgba(6,182,212,0.45)" : undefined }}
+    <div style={{ ...boxRectStyle(box, unit), cursor: editing ? "text" : "move", opacity: condHidden ? 0.32 : undefined, outline: (selected || multi) ? "2px solid #06b6d4" : (hasCond ? "1.5px dashed #f59e0b" : (dynLabel ? "1.5px dashed #8b5cf6" : undefined)), outlineOffset: multi && !selected ? 1 : 0, boxShadow: (selected || multi) ? "0 0 0 2px rgba(255,255,255,0.9), 0 0 0 4px rgba(6,182,212,0.45)" : undefined,
+      // Selecionado flutua acima de tudo (z alto) e libera overflow pras ALCAS de resize ficarem
+      // inteiras e clicaveis mesmo quando o card esta por cima de outro card (senao o vizinho com z
+      // maior cobre as alcas e o cursor fica sempre na cruz de mover, nunca na setinha de redimensionar).
+      zIndex: (selected || multi) ? 2000 : (box.z || 1), overflow: (selected || multi) ? "visible" : "hidden" }}
       onPointerDown={begin("move")}
       onClick={(e) => { e.stopPropagation(); }}
       onDoubleClick={(e) => { e.stopPropagation(); onStartEdit(); }}>
