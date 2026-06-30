@@ -1,6 +1,6 @@
 ---
 name: engine_reporter_card_dinamico
-description: EngineReporter dinâmicos — GRUPO dinâmico (container parentId/dynamic + condição cascata), IMAGEM dinâmica (imgRules), condições E/OU multi-regra com ruleCore compartilhado, preview por orçamento real. v1.15.14. LER antes de mexer em card/grupo/imagem/condição/picker/preview do canvas.
+description: EngineReporter dinâmicos UNIFICADOS (v1.15.16) — GRUPO (showIf), IMAGEM e TEXTO dinâmicos (candidatos DynCandidate com cond), TODOS no MESMO modal de condição (⚡, E/OU, multi-regra), ruleCore/lineCore compartilhados, operadores desc-contém/unitário/≠, preview por orçamento real. LER antes de mexer em grupo/imagem/texto/condição/picker/preview do canvas.
 metadata:
   type: project
 ---
@@ -25,6 +25,16 @@ Conceito proposto pelo Juliano (30/06): em vez de só "blocos dinâmicos" (layou
 - **IMAGEM DINÂMICA** (objeto próprio na aba Inserir): `Box.imgRules: CondRule[]` ORDENADOS. `resolveDynamicImage(box,data)` (exportado) = imagem do produto da 1ª linha que bate a condição E tem imagem; senão tenta a próxima. BoxContent IMAGE usa isso quando `Array.isArray(box.imgRules)`. Editor com ↑↓/add/remove + selo fuchsia "🖼️ Imagem dinâmica" + botão "🎯 Candidatos (N)".
 - **`ruleCore(r, onChange, lineLabel?)`** (page.tsx, escopo do componente): linha-de-regra COMPARTILHADA (tipo+etapa+linha+operador+valor) usada no modal de Condição E no de Imagem. Mexeu nela → muda nos dois. NÃO recriar inline.
 - `sectionLabel` (BudgetReport) faz `.toUpperCase()` → nome da etapa em CAIXA ALTA na impressão (bate com orçamento+picker).
+
+## v1.15.16 — UNIFICAÇÃO total (grupo/imagem/texto 100% iguais) + condições ricas
+- **REGRA DE OURO:** os 3 dinâmicos (grupo, imagem, texto) usam **O MESMO modal de condição** (⚡, multi-regra E/OU). NUNCA criar modal/ícone/ferramenta paralela — o Juliano cobrou isso explicitamente. A linha-de-regra é o `ruleCore` (page.tsx, escopo do componente); o seletor de linha é o `lineCore` (extraído do ruleCore). Mexeu num → muda em todos.
+- **Condição:** `Box.showIf: CondRule | CondGroup`. `evalCond(c, items)` (BudgetReport) avalia grupo-ou-regra (usado por boxShows E pelos candidatos). `condTarget` no page decide onde o modal grava (showIf do box OU `cond` de um candidato); `openCondFor(target, src)` / `saveCond()`.
+- **Candidato (imagem/texto):** `DynCandidate = {cellRef(fonte), etapa, kind, cond:CondGroup}`. Lista ORDENADA (↑↓). 1º cujo `cond` bate (e resolve não-vazio) manda. **Múltiplas condições por candidato** = o cond é um CondGroup (modal traz 1, +Adicionar). Modal de candidatos ÚNICO (`candMode: image|text`); cada linha = `lineCore` (fonte) + ⚡ Exigências (abre o modal de condição pro cond daquele candidato).
+- **Imagem:** `Box.imgRules: DynCandidate[]` → `resolveDynamicImage` (imagem do produto da linha). **Texto:** `Box.txtRules: DynCandidate[]` + `txtAttr` (campo: produto/qtd/valor/unitario/papel/prodCodigo/prodUnidade) → `resolveDynamicText` (via resolveAddressedToken). BoxContent TEXT/IMAGE usam os resolvers quando `Array.isArray(box.txtRules/imgRules)`.
+- **Operadores (CondOp):** hasProduct/noProduct · qty(>,≥,=,≠,≤,<) · val(total R$, >..) · **unit**(unitário R$, >..) · **descHas/descNot** (procura `text` na description+productDesc). `CondRule.text` pro contém; `CondRule.kind` = filtro UI produto/serviço (NÃO avalia).
+- **Compat v1.15.14:** candidato antigo era CondRule flat (op no topo). `candCond(c)` (resolver) e `migrateCand(c)` (editor) convertem pro {cellRef, cond}.
+- **"Sem Produto"/"Sem Serviço"** = linha vazia: `isEmptyLineDesc` → token produto/descrição resolve vazio + listas pulam (v1.15.15).
+- **Inserir N caixas:** `buildBox(kind,extra,cur)` PURO + `addBoxes([])` acumula (loop de addBox usava boxes velho e só a última vingava).
 
 ## Modelo mental
 - 1 clique seleciona o card e mostra as ferramentas dele; o que você inserir com o card selecionado **vai pra dentro** dele (exclusivo do card).
