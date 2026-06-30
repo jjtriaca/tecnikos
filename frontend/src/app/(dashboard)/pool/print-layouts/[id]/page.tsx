@@ -385,7 +385,16 @@ export default function PoolPrintLayoutEditorPage() {
   }
   // Drag/resize/digitação ao vivo: atualiza + AUTOSAVE (debounce). Commit (1 passo de histórico)
   // no fim do gesto (pointerup) e no blur do texto.
-  const onCanvasChange = (b: Box) => setBoxes((cur) => { const next = cur.map((x) => x.id === b.id ? b : x); scheduleSave(next); return next; });
+  const onCanvasChange = (b: Box) => setBoxes((cur) => {
+    const prev = cur.find((x) => x.id === b.id);
+    let next = cur.map((x) => x.id === b.id ? b : x);
+    // Card dinamico: arrastar o card carrega os filhos junto (mesmo delta de posicao).
+    if (prev && b.type === "CARD") {
+      const dx = b.x - prev.x, dy = b.y - prev.y;
+      if (dx !== 0 || dy !== 0) next = next.map((x) => x.parentId === b.id ? { ...x, x: x.x + dx, y: x.y + dy } : x);
+    }
+    scheduleSave(next); return next;
+  });
   const onCanvasCommit = () => setBoxes((cur) => { pushHist(cur); scheduleSave(cur); groupSnapRef.current = null; return cur; });
   // Mover o GRUPO (multi-selecao) arrastando: snapshot ao iniciar, desloca TODAS as selecionadas pelo mesmo delta (rigido, preso a pagina).
   const groupSnapRef = useRef<Box[] | null>(null);
@@ -480,6 +489,17 @@ export default function PoolPrintLayoutEditorPage() {
       const c = REPORT_ICONS.find((i) => i.name === nb.icon)?.color;
       if (c) nb.style = { ...(nb.style || {}), textColor: c };
     }
+    // CARD DINAMICO: se um CARD esta selecionado, a caixa nova nasce DENTRO dele (vinculada via
+    // parentId) e posicionada nos limites do card. Card nao pode virar filho de outro card (1 nivel).
+    const parentCard = (!isStrip && nb.type !== "CARD" && selBox) ? boxes.find((b) => b.id === selBox && b.type === "CARD") : undefined;
+    if (parentCard) {
+      const pad = 3;
+      nb.w = Math.min(nb.w, Math.max(8, parentCard.w - pad * 2));
+      nb.h = Math.min(nb.h, Math.max(6, parentCard.h - pad * 2));
+      nb.x = Math.max(parentCard.x + pad, Math.min(parentCard.x + pad + off, parentCard.x + parentCard.w - nb.w - pad));
+      nb.y = Math.max(parentCard.y + pad, Math.min(parentCard.y + pad + off, parentCard.y + parentCard.h - nb.h - pad));
+      nb.parentId = parentCard.id;
+    }
     commitBoxes([...boxes, nb]); setSelBox(nb.id); setSelSet(new Set([nb.id])); setTab("Layout");
   }
   function duplicateSelBox() {
@@ -490,7 +510,14 @@ export default function PoolPrintLayoutEditorPage() {
   }
   function patchSelBox(patch: Partial<Box>) {
     if (!selBox) return;
-    commitBoxes(boxes.map((b) => b.id === selBox ? { ...b, ...patch } : b));
+    const cur = boxes.find((b) => b.id === selBox);
+    let next = boxes.map((b) => b.id === selBox ? { ...b, ...patch } : b);
+    // Card dinamico: mover o card pelos campos X/Y carrega os filhos junto (mesmo delta).
+    if (cur && cur.type === "CARD" && (patch.x !== undefined || patch.y !== undefined)) {
+      const dx = (patch.x ?? cur.x) - cur.x, dy = (patch.y ?? cur.y) - cur.y;
+      if (dx !== 0 || dy !== 0) next = next.map((b) => b.parentId === selBox ? { ...b, x: b.x + dx, y: b.y + dy } : b);
+    }
+    commitBoxes(next);
   }
   function patchSelStyle(patch: Record<string, any>) {
     if (!selBox) return;
@@ -515,8 +542,11 @@ export default function PoolPrintLayoutEditorPage() {
     toast("Banda removida", "success");
   }
   function removeSelBox() {
-    if (!selBox) return;
-    commitBoxes(boxes.filter((b) => b.id !== selBox && !selSet.has(b.id))); setSelBox(null); setSelSet(new Set());
+    if (!selBox && selSet.size === 0) return;
+    const toRemove = new Set<string>([...(selBox ? [selBox] : []), ...selSet]);
+    // Card dinamico: apagar o card apaga os filhos (parentId) junto.
+    for (const b of boxes) if (b.parentId && toRemove.has(b.parentId)) toRemove.add(b.id);
+    commitBoxes(boxes.filter((b) => !toRemove.has(b.id))); setSelBox(null); setSelSet(new Set());
   }
   function zOrder(dir: "front" | "back") {
     if (!selBox) return;
@@ -1083,6 +1113,9 @@ export default function PoolPrintLayoutEditorPage() {
             <RibbonBtn icon="⤓" label="Tras" onClick={() => zOrder("back")} />
             <RibbonBtn icon="⚡" label={sb.showIf ? "Condicao ✓" : "Condicao"} onClick={() => { setCondDraft(sb.showIf ? { ...sb.showIf } : { op: "hasProduct", cellRef: null, etapa: null, value: null }); setCondModal(true); }} />
             <RibbonBtn icon="🔁" label={sb.band ? "Banda ✓" : "Repetir"} onClick={() => setBandModal(true)} />
+            {/* Card dinamico: selo quando um CARD esta selecionado + botao pra SOLTAR um campo do card */}
+            {sb.type === "CARD" ? <span className="self-center rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700" title="Card dinâmico: o que você inserir com ele selecionado entra DENTRO; mover/excluir o card leva os campos junto; a Condição (⚡) vale pro card inteiro.">🃏 card dinâmico</span> : null}
+            {sb.parentId ? <RibbonBtn icon="🔓" label="Soltar do card" onClick={() => patchSelBox({ parentId: null })} /> : null}
             {selSet.size >= 2 ? (
               <>
                 <span className="mx-1 self-center h-6 w-px bg-slate-200" />

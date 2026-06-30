@@ -239,6 +239,18 @@ export function boxShows(box: Box, data: BudgetReportData): boolean {
   }
 }
 
+/** Visibilidade EM CASCATA (card dinamico): a caixa aparece se a SUA condicao bate E se o card
+ *  dono (parentId) tambem aparece. Sem parentId = so a propria condicao. `pool` = lista onde
+ *  procurar o card pai (boxes da pagina/faixa). */
+export function boxShowsCascade(box: Box, pool: Box[], data: BudgetReportData): boolean {
+  if (!boxShows(box, data)) return false;
+  if (box.parentId) {
+    const parent = pool.find((b) => b.id === box.parentId);
+    if (parent && !boxShows(parent, data)) return false;
+  }
+  return true;
+}
+
 /** Resumo legivel da condicao (selo/tooltip no editor). */
 function condSummary(c?: Box["showIf"]): string {
   if (!c) return "";
@@ -292,7 +304,8 @@ function expandBandsForPrint(boxes: Box[], data: BudgetReportData): Box[] {
  *  quando a banda estoura a altura. SEGURO: se tudo cabe, retorna 1 pagina (igual antes).
  *  topPad/botPad = alturas de cabecalho/rodape (mm) pra banda nao invadir. */
 function paginateCanvasBoxes(boxes: Box[], data: BudgetReportData, pageH: number, topPad: number, botPad: number): Box[][] {
-  const visible = expandBandsForPrint(boxes, data).filter((b) => boxShows(b, data));
+  const expanded = expandBandsForPrint(boxes, data);
+  const visible = expanded.filter((b) => boxShowsCascade(b, expanded, data));
   const usable = pageH - botPad;
   const bottom = visible.reduce((m, b) => Math.max(m, b.y + b.h), 0);
   if (bottom <= usable + 0.5) return [visible]; // CABE -> 1 pagina (sem mudanca no que ja funciona)
@@ -901,6 +914,10 @@ export type Box = {
   // source: repete a banda por LINHA (cada item com cellRef) ou por ETAPA (cada poolSection).
   // No conteudo, o token ATUAL vira o ref do item corrente: {linha:ATUAL.produto}, {etapa:ATUAL.nome}.
   band?: { id: string; source: "linhas" | "etapas" } | null;
+  // CARD DINAMICO (v1.15.10) — caixa filha de um card (parentId = id do CARD dono). O card
+  // "possui" os filhos: mover/excluir o card move/exclui os filhos junto, e a CONDICAO (showIf)
+  // do card vale pro grupo todo (se o card nao aparece, os filhos tambem nao). So 1 nivel.
+  parentId?: string | null;
   style?: {
     bg?: string | null; borderColor?: string | null; borderWidth?: number | null;
     radius?: number | null; padding?: number | null; textColor?: string | null;
@@ -991,9 +1008,9 @@ function normalizeHref(url: string): string {
 export function CanvasPage({ boxes, data, branding, unit = "%" }: { boxes: Box[]; data: BudgetReportData; branding?: ReportBranding | null; unit?: "mm" | "%" }) {
   return (
     <div className="rp-canvas" style={{ position: "absolute", inset: 0, isolation: "isolate" }}>
-      {expandBandsForPrint([...(boxes || [])], data).sort((a, b) => (a.z || 0) - (b.z || 0)).filter((b) => boxShows(b, data)).map((b) => (
+      {(() => { const exp = expandBandsForPrint([...(boxes || [])], data); return exp.sort((a, b) => (a.z || 0) - (b.z || 0)).filter((b) => boxShowsCascade(b, exp, data)).map((b) => (
         <div key={b.id} style={boxRectStyle(b, unit)}><BoxContent box={b} data={data} branding={branding} /></div>
-      ))}
+      )); })()}
     </div>
   );
 }
@@ -1153,7 +1170,7 @@ export function CanvasEditor({ boxes, data, branding, selBox, selSet, pageW, pag
         ) : null}
         {[...(boxes || [])].sort((a, b) => (a.z || 0) - (b.z || 0)).map((b) => (
           <BoxFrame key={b.id} box={b} selected={selBox === b.id} multi={!!selSet && selSet.has(b.id) && b.id !== selBox} editing={editingId === b.id} canvasRef={canvasRef} unit={unit || "mm"} pageW={W} pageH={H}
-            hasCond={!!b.showIf} condHidden={!!b.showIf && !boxShows(b, data)}
+            hasCond={!!b.showIf || (!!b.parentId && !!(boxes || []).find((p) => p.id === b.parentId)?.showIf)} condHidden={!boxShowsCascade(b, boxes || [], data)}
             bandLabel={b.band ? (b.band.source === "linhas" ? `🔁 ×${bandCollection("linhas", data).length} (linha)` : `🔁 ×${bandCollection("etapas", data).length} (etapa)`) : undefined}
             others={(boxes || []).filter((x) => x.id !== b.id)} onGuides={setGuides}
             groupMove={!!selSet && selSet.has(b.id) && selSet.size > 1} onGroupStart={onGroupStart} onGroupMove={onGroupMove}
