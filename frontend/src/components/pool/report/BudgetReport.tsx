@@ -1129,7 +1129,9 @@ function BoxFrame({ box, selected, multi, editing, canvasRef, lockAspect, unit =
         <div title="Banda repetidora — esta linha-modelo se repete por item no orçamento (na impressão). Aqui no editor você vê só o modelo." style={{ position: "absolute", top: -7, right: -7, zIndex: 40, background: "#2563eb", color: "#fff", borderRadius: 9, fontSize: 9, lineHeight: "15px", height: 15, padding: "0 4px", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,.3)", pointerEvents: "none", whiteSpace: "nowrap" }}>{bandLabel}</div>
       ) : null}
       {dynLabel ? (
-        <div title="Grupo dinâmico — o que você inserir com ele selecionado entra DENTRO; mover/excluir leva os campos junto; as Exigências (⚡) valem pro grupo inteiro." style={{ position: "absolute", bottom: -7, left: -7, zIndex: 40, background: "#8b5cf6", color: "#fff", borderRadius: 9, fontSize: 9, lineHeight: "15px", height: 15, padding: "0 4px", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,.3)", pointerEvents: "none", whiteSpace: "nowrap" }}>{dynLabel}</div>
+        // DENTRO do canto inferior-esquerdo (offset positivo) pra NUNCA ser cortado pela borda da
+        // pagina quando o card encosta na margem (overflow:hidden do canvas cortava o -7px).
+        <div title="Grupo dinâmico — o que você inserir com ele selecionado entra DENTRO; mover/excluir leva os campos junto; as Exigências (⚡) valem pro grupo inteiro." style={{ position: "absolute", bottom: 2, left: 2, zIndex: 40, background: "#8b5cf6", color: "#fff", borderRadius: 7, fontSize: 9, lineHeight: "14px", height: 14, padding: "0 4px", fontWeight: 700, boxShadow: "0 1px 3px rgba(0,0,0,.3)", pointerEvents: "none", whiteSpace: "nowrap" }}>{dynLabel}</div>
       ) : null}
       {selected && !editing ? HANDLES.map((h) => (<div key={h} style={handleStyle(h)} onPointerDown={begin(h)} />)) : null}
     </div>

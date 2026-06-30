@@ -1093,7 +1093,7 @@ export default function PoolPrintLayoutEditorPage() {
           {selectedBox?.type === "TEXT" ? (<>
             <label className="text-xs text-slate-600 flex items-center gap-1 ml-1" title="Quebra automática de linha na caixa de texto"><input type="checkbox" checked={!((selectedBox.style as any)?.noWrap)} onChange={(e) => patchSelStyle({ noWrap: !e.target.checked })} />Quebra linha</label>
             <label className="text-xs text-slate-600 flex items-center gap-1" title="Espaçamento entre linhas (entrelinha)">Entrelinha
-              <NumInput value={(selectedBox.style as any)?.lineHeight ?? 0} placeholder="auto" onChange={(v) => patchSelStyle({ lineHeight: v || null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
+              <NumInput key={`${selectedBox.id}-lh`} value={(selectedBox.style as any)?.lineHeight ?? 0} placeholder="auto" onChange={(v) => patchSelStyle({ lineHeight: v || null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
           </>) : null}
           {/* ── grupo PAGINA (tamanho/orientacao/fundo) ── */}
           <span className="mx-1 h-6 w-px bg-slate-300" />
@@ -1171,10 +1171,10 @@ export default function PoolPrintLayoutEditorPage() {
               <span className="mx-1 self-center h-6 w-px bg-violet-300" />
             </>) : null}
             <span className="text-[10px] uppercase tracking-wide text-slate-400">{isDyn ? "Grupo:" : "Caixa:"}</span>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Posição horizontal (mm a partir da esquerda; 0 = canto)">X<NumInput value={r1(sb.x)} onChange={(v) => patchSelBox({ x: clampN(v, PW - sb.w) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Posição vertical (mm a partir do topo; 0 = canto)">Y<NumInput value={r1(sb.y)} onChange={(v) => patchSelBox({ y: clampN(v, PH - sb.h) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Largura (mm)">L<NumInput value={r1(sb.w)} onChange={(v) => patchSelBox({ w: clampN(v, PW - sb.x) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura (mm)">A<NumInput value={r1(sb.h)} onChange={(v) => patchSelBox({ h: clampN(v, PH - sb.y) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Posição horizontal (mm a partir da esquerda; 0 = canto)">X<NumInput key={`${sb.id}-x`} value={r1(sb.x)} onChange={(v) => patchSelBox({ x: clampN(v, PW - sb.w) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Posição vertical (mm a partir do topo; 0 = canto)">Y<NumInput key={`${sb.id}-y`} value={r1(sb.y)} onChange={(v) => patchSelBox({ y: clampN(v, PH - sb.h) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Largura (mm)">L<NumInput key={`${sb.id}-w`} value={r1(sb.w)} onChange={(v) => patchSelBox({ w: clampN(v, PW - sb.x) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura (mm)">A<NumInput key={`${sb.id}-h`} value={r1(sb.h)} onChange={(v) => patchSelBox({ h: clampN(v, PH - sb.y) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
             <span className="mx-0.5 h-5 w-px bg-slate-300" />
             <RibbonBtn icon="⬄" label="Centro H" onClick={() => patchSelBox({ x: r1((PW - sb.w) / 2) })} />
             <RibbonBtn icon="⬍" label="Centro V" onClick={() => patchSelBox({ y: r1((PH - sb.h) / 2) })} />
@@ -1204,11 +1204,11 @@ export default function PoolPrintLayoutEditorPage() {
             <span className="mx-0.5 h-5 w-px bg-slate-300" />
             <label className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs" title="Cor de fundo da caixa">Fundo<input type="color" value={sbst.bg || "#ffffff"} onChange={(e) => patchSelStyle({ bg: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /><button type="button" onClick={() => patchSelStyle({ bg: null })} title="Sem fundo" className="text-slate-400 hover:text-slate-700">⌫</button></label>
             <label className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs" title="Cor do ícone / texto da caixa">Cor<input type="color" value={sbst.textColor || "#16365C"} onChange={(e) => patchSelStyle({ textColor: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Borda (px)">Borda<NumInput value={sbst.borderWidth ?? 0} onChange={(v) => patchSelStyle({ borderWidth: v || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" /><input type="color" value={sbst.borderColor || "#e2e8f0"} onChange={(e) => patchSelStyle({ borderColor: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Cantos (px)">Cantos<NumInput value={sbst.radius ?? 0} onChange={(v) => patchSelStyle({ radius: v || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Espacamento interno (px)">Padding<NumInput value={sbst.padding ?? 0} onChange={(v) => patchSelStyle({ padding: v || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Borda (px)">Borda<NumInput key={`${sb.id}-bw`} value={sbst.borderWidth ?? 0} onChange={(v) => patchSelStyle({ borderWidth: v || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" /><input type="color" value={sbst.borderColor || "#e2e8f0"} onChange={(e) => patchSelStyle({ borderColor: e.target.value })} className="h-5 w-6 cursor-pointer border-0 bg-transparent p-0" /></label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Cantos (px)">Cantos<NumInput key={`${sb.id}-rad`} value={sbst.radius ?? 0} onChange={(v) => patchSelStyle({ radius: v || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Espacamento interno (px)">Padding<NumInput key={`${sb.id}-pad`} value={sbst.padding ?? 0} onChange={(v) => patchSelStyle({ padding: v || null })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
             <label className="text-xs text-slate-600 flex items-center gap-1" title="Sombra"><input type="checkbox" checked={!!sbst.shadow} onChange={(e) => patchSelStyle({ shadow: e.target.checked })} />Sombra</label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Opacidade (0-1)">Opac.<NumInput value={sbst.opacity ?? 1} onChange={(v) => patchSelStyle({ opacity: v })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Opacidade (0-1)">Opac.<NumInput key={`${sb.id}-op`} value={sbst.opacity ?? 1} onChange={(v) => patchSelStyle({ opacity: v })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" /></label>
             {sb.type === "TEXT" ? (
               <label className="text-xs text-slate-600 flex items-center gap-1" title="Alinhamento vertical do texto">V-align
                 <select value={sbst.valign || "top"} onChange={(e) => patchSelStyle({ valign: e.target.value })} className="rounded border border-slate-300 px-1 py-1 text-sm"><option value="top">Topo</option><option value="center">Centro</option><option value="bottom">Base</option></select>
@@ -1593,7 +1593,7 @@ export default function PoolPrintLayoutEditorPage() {
                             <input type="checkbox" checked={checked}
                               onChange={() => setEtapaSel((p) => { const n = new Set(p); if (n.has(sec)) n.delete(sec); else n.add(sec); return n; })}
                               className="h-3.5 w-3.5 accent-violet-600 shrink-0" />
-                            <span className="flex-1 min-w-0 text-xs font-semibold text-slate-800 truncate" title={sectionLabelFor(sec)}>{sectionLabelFor(sec)}</span>
+                            <span className="flex-1 min-w-0 text-xs font-semibold text-slate-800 truncate uppercase" title={sectionLabelFor(sec)}>{sectionLabelFor(sec)}</span>
                             <span className="text-[10px] text-slate-500 shrink-0">{count} linha{count > 1 ? "s" : ""}</span>
                           </label>
                         );

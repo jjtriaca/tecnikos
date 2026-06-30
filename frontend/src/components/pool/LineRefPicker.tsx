@@ -102,7 +102,7 @@ export function LineRefPicker({
                   onClick={() => setExpanded((p) => { const n = new Set(p); if (n.has(sec)) n.delete(sec); else n.add(sec); return n; })}
                   className="w-full flex items-center gap-2 px-2 py-1.5 text-left hover:bg-violet-50">
                   <span className="text-violet-600 text-[10px] w-3 shrink-0">{open ? '▼' : '▶'}</span>
-                  <span className="text-xs font-semibold text-slate-800 flex-1 truncate">{labelFor(sec)}</span>
+                  <span className="text-xs font-semibold text-slate-800 flex-1 truncate uppercase">{labelFor(sec)}</span>
                   <span className="text-[10px] text-slate-500 shrink-0">{lns.length} linha{lns.length > 1 ? 's' : ''}</span>
                   {selCount > 0 && <span className="text-[10px] font-bold text-violet-700 bg-violet-100 px-1.5 py-0.5 rounded shrink-0">{selCount} ✓</span>}
                 </button>
