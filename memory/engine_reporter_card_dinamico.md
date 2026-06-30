@@ -1,13 +1,23 @@
 ---
 name: engine_reporter_card_dinamico
-description: Card dinâmico do EngineReporter — card vira DONO dos campos (parentId) + condição em cascata. v1 condicional (v1.15.10). LER antes de mexer em card/condição/banda do canvas.
+description: GRUPO DINÂMICO do EngineReporter (ex-"card dinâmico") — container DONO dos campos (parentId/dynamic) + condição em cascata + preview por orçamento real. v1.15.11. LER antes de mexer em card/grupo/condição/banda/preview do canvas.
 metadata:
   type: project
 ---
 
-# Card dinâmico (EngineReporter / canvas de caixas)
+# Grupo dinâmico (EngineReporter / canvas de caixas) — ex-"card dinâmico"
 
-Conceito proposto pelo Juliano (30/06): em vez de só "blocos dinâmicos" (layouts presos no código), o **card** do canvas vira um container que o operador molda na mão. Alinha com a visão "tudo editável, nada hardcode".
+Conceito proposto pelo Juliano (30/06): em vez de só "blocos dinâmicos" (layouts presos no código), um container que o operador molda na mão. Alinha com a visão "tudo editável, nada hardcode".
+
+## NOME (v1.15.11): "Grupo dinâmico", NÃO "card dinâmico" nem "bloco dinâmico"
+- "card" confundia com o Card (retângulo simples); "bloco" colidiria com os "blocos dinâmicos" (BLOCK type, na aba Campos & blocos) — o próprio conceito do qual o Juliano separou isso.
+- Objeto PRÓPRIO na aba Inserir: **🃏 Card** (retângulo) + **🪄 Grupo dinâmico** (container). Flag `Box.dynamic=true`. SÓ grupo dinâmico (ou card legado v1.15.10 que já tem filhos) adota o que é inserido com ele selecionado.
+- Ferramentas próprias na aba Layout quando selecionado (sem fantasma): selo + ⚡ Exigências (abre cond modal) + resumo ao vivo da regra + 🚫 Sempre aparece + 📦 Conteúdo (N) (seleciona os filhos). NÃO mostra Condição genérica nem Repetir (multiplicador = futuro). "Tornar dinâmico" foi REMOVIDO (Juliano: desnecessário).
+
+## PREVIEW POR ORÇAMENTO REAL (v1.15.11) — conserto de raiz do "preview mente"
+- O `SAMPLE_BUDGET` (orçamento FALSO fixo) era a fonte de N contratempos (L5=Quadro elétrico, validade=30). REMOVIDO do preview do canvas (só sobra no PageEditor legado de composição).
+- Cabeçalho tem busca 🔎 (`GET /pool-budgets?search=` por código/cliente) → escolhe um orçamento REAL → `previewData = buildReportData(budget, labels)` (função EXPORTADA de `BudgetReportModal`, mesmo motor do PDF). Último escolhido salvo em localStorage `rp-preview-budget:<layoutId>`. Sem escolha = `BLANK_DATA` (vazio/zero).
+- Assim `{validityDays}`/`{linha:Lx.*}`/cliente/dims resolvem com dado REAL — o que vê = o que imprime. Ao mexer no preview no futuro, NÃO ressuscitar SAMPLE_BUDGET; usar orçamento real.
 
 ## Modelo mental
 - 1 clique seleciona o card e mostra as ferramentas dele; o que você inserir com o card selecionado **vai pra dentro** dele (exclusivo do card).
