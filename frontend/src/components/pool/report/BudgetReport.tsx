@@ -475,15 +475,64 @@ function expandBandsForPrint(boxes: Box[], data: BudgetReportData): Box[] {
   return out;
 }
 
+/** PAGINACAO do MODO PILHA (v1.15.31): se os grupos empilhados estouram a pagina, quebra em VARIAS —
+ *  cada grupo (com a subarvore dele) e uma UNIDADE ATOMICA (nao parte no meio). Conteudo fora da pilha
+ *  (intro, faixa de caracteristicas) fica so na pagina 1. Retorna null se nao ha pilha que estoura
+ *  (deixa a banda/clip cuidarem). Caso comum: 1 container pilha por pagina. */
+function paginateStackFlow(visible: Box[], usable: number, topPad: number): Box[][] | null {
+  const containers = visible.filter((b) => b.type === "CARD" && b.stack);
+  if (!containers.length) return null;
+  const descendants = (rootId: string): Box[] => {
+    const kids = visible.filter((b) => b.parentId === rootId);
+    return kids.flatMap((k) => [k, ...descendants(k.id)]);
+  };
+  const C = containers[0]; // caso comum: 1 pilha por pagina
+  const groups = visible.filter((b) => b.parentId === C.id).sort((a, b) => a.y - b.y);
+  if (groups.length < 2) return null; // 1 grupo so nao tem o que paginar aqui
+  // Unidade = 1 grupo + subarvore (campos/filhos); top/altura do bloco todo.
+  const units = groups.map((g) => {
+    const uboxes = [g, ...descendants(g.id)];
+    const top = Math.min(...uboxes.map((b) => b.y));
+    const bot = Math.max(...uboxes.map((b) => b.y + b.h));
+    return { boxes: uboxes, top, height: bot - top };
+  });
+  const unitIds = new Set(units.flatMap((u) => u.boxes.map((b) => b.id)));
+  const statics = visible.filter((b) => b.id !== C.id && !unitIds.has(b.id)); // intro/faixa -> pagina 1
+  const out: Box[][] = [];
+  // Pagina 1: estaticos + container (altura ajustada aos grupos da pagina) + grupos que cabem ate `usable`.
+  let idx = 0;
+  const page1: typeof units = [];
+  while (idx < units.length && units[idx].top + units[idx].height <= usable + 0.5) { page1.push(units[idx]); idx++; }
+  if (!page1.length) { page1.push(units[0]); idx = 1; } // grupo maior que a pagina: forca 1 (clipa)
+  const c1 = { ...C, h: (page1[page1.length - 1].top + page1[page1.length - 1].height) - C.y + 3 };
+  out.push([...statics, c1, ...page1.flatMap((u) => u.boxes)]);
+  // Continuacao: grupos restantes, re-ancorados no topo (topPad). Mantem o espacamento relativo (offset unico).
+  while (idx < units.length) {
+    const first = units[idx];
+    const chunk: typeof units = [];
+    while (idx < units.length) {
+      const u = units[idx];
+      const topOnPage = topPad + (u.top - first.top);
+      if (topOnPage + u.height > usable + 0.5 && chunk.length) break;
+      chunk.push(u); idx++;
+    }
+    const off = first.top - topPad;
+    out.push(chunk.flatMap((u) => u.boxes.map((b) => ({ ...b, y: b.y - off }))));
+  }
+  return out;
+}
+
 /** PAGINACAO AUTOMATICA (Fase 3): divide as caixas de uma pagina canvas em VARIAS paginas A4
- *  quando a banda estoura a altura. SEGURO: se tudo cabe, retorna 1 pagina (igual antes).
- *  topPad/botPad = alturas de cabecalho/rodape (mm) pra banda nao invadir. */
+ *  quando a banda OU a pilha estoura a altura. SEGURO: se tudo cabe, retorna 1 pagina (igual antes).
+ *  topPad/botPad = alturas de cabecalho/rodape (mm) pra banda/pilha nao invadir. */
 function paginateCanvasBoxes(boxes: Box[], data: BudgetReportData, pageH: number, topPad: number, botPad: number): Box[][] {
   const expanded = expandBandsForPrint(applyStackFlow(boxes, data), data);
   const visible = expanded.filter((b) => boxShowsCascade(b, expanded, data));
   const usable = pageH - botPad;
   const bottom = visible.reduce((m, b) => Math.max(m, b.y + b.h), 0);
   if (bottom <= usable + 0.5) return [visible]; // CABE -> 1 pagina (sem mudanca no que ja funciona)
+  const stacked = paginateStackFlow(visible, usable, topPad); // MODO PILHA estourou? quebra por grupo
+  if (stacked) return stacked;
   const bandRows = visible.filter((b) => typeof (b as any).__bandRow === "number");
   const statics = visible.filter((b) => typeof (b as any).__bandRow !== "number");
   if (!bandRows.length) return [visible]; // overflow sem banda -> deixa numa pagina (clip, como hoje)
