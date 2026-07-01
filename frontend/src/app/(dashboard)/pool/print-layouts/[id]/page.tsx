@@ -515,9 +515,19 @@ export default function PoolPrintLayoutEditorPage() {
   };
   const onCanvasChange = (bIn: Box) => setBoxes((cur) => {
     const prev = cur.find((x) => x.id === bIn.id);
-    // Move (posicao mudou, tamanho igual) trava dentro do pai; resize nao mexe na posicao aqui.
+    // Filho trava dentro do pai: no MOVE limita a posicao; no RESIZE limita o tamanho pra nao passar da borda.
     const isMove = !!prev && bIn.w === prev.w && bIn.h === prev.h;
-    const b = isMove ? clampInParent(bIn, cur) : bIn;
+    let b = bIn;
+    if (bIn.parentId) {
+      const p = cur.find((x) => x.id === bIn.parentId);
+      if (p) {
+        if (!isMove) { // resize: cap largura/altura pra caber ate a borda direita/inferior do pai
+          const maxW = p.x + p.w - bIn.x, maxH = p.y + p.h - bIn.y;
+          b = { ...bIn, w: rnd2(Math.max(4, Math.min(bIn.w, maxW))), h: rnd2(Math.max(4, Math.min(bIn.h, maxH))) };
+        }
+        b = clampInParent(b, cur); // posicao dentro do pai
+      }
+    }
     let next = cur.map((x) => x.id === b.id ? b : x);
     // Card dinamico: arrastar o card carrega a SUBARVORE inteira junto (netos tambem) — conserta a
     // imagem que "escapava" ao arrastar a pilha (antes so os filhos DIRETOS acompanhavam).
@@ -1431,6 +1441,9 @@ export default function PoolPrintLayoutEditorPage() {
         {tab === "Layout" && (selectedBox ? (() => {
           const sb = selectedBox; const sbst: any = sb.style || {};
           const PW = pageDims(layout?.branding).w, PH = pgH();
+          // Se a caixa esta DENTRO de um grupo, X/Y ficam RELATIVOS ao pai (0 = canto do grupo) — combina
+          // com a trava na borda do pai. Sem pai = absoluto (mm a partir do canto da pagina).
+          const sbParent = sb.parentId ? boxes.find((b) => b.id === sb.parentId) || null : null;
           const r1 = (v: number) => Math.round(v * 10) / 10;
           const clampN = (v: number, max: number) => Math.max(0, Math.min(max, isNaN(v) ? 0 : v));
           // GRUPO DINAMICO: card com dynamic=true (ou legado v1.15.10 = card que ja tem filhos).
@@ -1493,8 +1506,8 @@ export default function PoolPrintLayoutEditorPage() {
               </>) : null;
             })()}
             <span className="text-[10px] uppercase tracking-wide text-slate-400">{isDyn ? "Grupo:" : "Caixa:"}</span>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Posição horizontal (mm a partir da esquerda; 0 = canto)">X<NumInput spin key={`${sb.id}-x`} value={r1(sb.x)} onChange={(v) => patchSelBox({ x: clampN(v, PW - sb.w) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Posição vertical (mm a partir do topo; 0 = canto)">Y<NumInput spin key={`${sb.id}-y`} value={r1(sb.y)} onChange={(v) => patchSelBox({ y: clampN(v, PH - sb.h) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title={sbParent ? "Posição horizontal RELATIVA ao grupo (mm a partir do canto esquerdo do grupo; 0 = colado na borda)" : "Posição horizontal (mm a partir da esquerda; 0 = canto)"}>X{sbParent ? <span className="text-emerald-600 text-[9px]">▣</span> : null}<NumInput spin key={`${sb.id}-x`} value={sbParent ? r1(sb.x - sbParent.x) : r1(sb.x)} onChange={(v) => patchSelBox({ x: sbParent ? rnd2(sbParent.x + v) : clampN(v, PW - sb.w) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title={sbParent ? "Posição vertical RELATIVA ao grupo (mm a partir do topo do grupo; 0 = colado na borda)" : "Posição vertical (mm a partir do topo; 0 = canto)"}>Y{sbParent ? <span className="text-emerald-600 text-[9px]">▣</span> : null}<NumInput spin key={`${sb.id}-y`} value={sbParent ? r1(sb.y - sbParent.y) : r1(sb.y)} onChange={(v) => patchSelBox({ y: sbParent ? rnd2(sbParent.y + v) : clampN(v, PH - sb.h) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
             <label className="text-xs text-slate-600 flex items-center gap-1" title="Largura (mm)">L<NumInput spin key={`${sb.id}-w`} value={r1(sb.w)} onChange={(v) => patchSelBox({ w: clampN(v, PW - sb.x) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
             <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura (mm)">A<NumInput spin key={`${sb.id}-h`} value={r1(sb.h)} onChange={(v) => patchSelBox({ h: clampN(v, PH - sb.y) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
             <span className="mx-0.5 h-5 w-px bg-slate-300" />
