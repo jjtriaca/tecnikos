@@ -2715,11 +2715,8 @@ const FORMULA_RECIPES_PISCINA: FormulaRecipe[] = [
   { label: "☀️ Quantidade de coletores Solar (auto)", expr: "solarQty", hint: "Reflete a qtd de coletores dimensionada na aba Solar (qtdColetores). Quando operador recalcula o dimensionamento solar, a qty da linha atualiza." },
   { label: "☀️ Numero de baterias Solar", expr: "solarNumBaterias", hint: "Numero de baterias do dimensionamento solar (5-8 coletores por bateria). Util pra acessorios que escalam com baterias (caixa de juncao, tubo de retorno)." },
   { label: "🚰 Qtd da bomba de recirculacao Solar", expr: "solarBombaQty", hint: "Reflete a Quantidade (N em paralelo) da bomba de recirculacao escolhida no card do Simulador Solar. Quando 1 bomba nao atende a vazao sozinha, o Simulador sugere N; a qty da linha acompanha." },
-  // ── Produto vinculado (technicalSpecs do cadastro) ──
-  { label: "Sacos por consumo (parede+fundo) — CIMA", expr: "ceil(consumoKgM2 * areaParedeEFundo / pesoKg)", hint: "Argamassa, cimentcola, cimento, impermeabilizante: aplica em paredes + fundo (areaParedeEFundo). Ceil = sempre completa o saco." },
-  { label: "Sacos por consumo (parede+fundo) — NORMAL", expr: "round(consumoKgM2 * areaParedeEFundo / pesoKg)", hint: "Igual a anterior, arredondamento normal (50.4→50, 50.5→51)" },
-  { label: "Sacos por consumo (so fundo / superficie d'agua)", expr: "ceil(consumoKgM2 * area / pesoKg)", hint: "Quando o material so vai na area da agua (ex: liner). Use areaParedeEFundo pra revestimento de parede+fundo." },
-  { label: "Consumo total em Kg (parede+fundo)", expr: "consumoKgM2 * areaParedeEFundo", hint: "Quantos Kg do material no total — antes de dividir por saco" },
+  // (Receitas LEGADAS removidas em v1.15.28 — usavam consumoKgM2/pesoKg importados da planilha,
+  //  invisiveis no cadastro e com dados duvidosos. Substituidas pelas receitas de consumo do DRIVER abaixo.)
   // ── Consumos do revestimento / concreto (coeficiente na linha DRIVER × qty dela) ──
   // O coeficiente de consumo NAO mora no material consumido (rejunte), e sim no produto
   // que dirige o consumo (o revestimento, o traco de concreto). A linha do rejunte le o
@@ -3293,6 +3290,47 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
 
             {/* Area scrollavel — accordions colapsaveis pra ficar limpo */}
             <div className="overflow-y-auto px-6 py-4 space-y-2">
+              {/* Picker de linhas — aparece EM DESTAQUE no topo quando o usuario clica numa receita
+                  com needsLineRef (ex: consumo do revestimento). Antes ficava no fim da lista de
+                  receitas (fora da tela) e parecia que o clique nao fazia nada. Escolha UMA ou VARIAS
+                  linhas: gera prod(LX,"key")*qty(LX) ou a soma pra varias linhas. */}
+              {pendingRecipe && (
+                <div className="rounded-lg border-2 border-violet-400 bg-violet-50 p-3 shadow-sm">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs font-bold text-violet-900">🔗 Escolha a linha pra: <span className="font-semibold text-violet-800">{pendingRecipe.label}</span></div>
+                    <button type="button" onClick={() => { setPendingRecipe(null); setPendingLineRefs(new Set()); }} className="text-[11px] text-violet-700 hover:text-violet-900 underline">cancelar</button>
+                  </div>
+                  <LineRefPicker
+                    icon="📦"
+                    specKey={pendingRecipe.expr.match(/"([a-zA-Z_][a-zA-Z0-9_]*)"/)?.[1] || null}
+                    combine="sum"
+                    refKind="PRODUCT"
+                    environmentParams={environmentParams}
+                    sectionOrder={sectionOrder}
+                    lines={(otherItems || []).map((o) => ({
+                      cellRef: o.cellRef,
+                      slotName: o.slotName,
+                      description: o.description,
+                      poolSection: o.poolSection,
+                      kind: o.kind,
+                      linked: o.linked ?? false,
+                      specs: o.productSpecs ?? null,
+                      qty: o.qty,
+                    }))}
+                    selected={pendingLineRefs}
+                    onToggle={(cref) => setPendingLineRefs((prev) => { const n = new Set(prev); if (n.has(cref)) n.delete(cref); else n.add(cref); return n; })}
+                    onApply={() => {
+                      const refs = Array.from(pendingLineRefs);
+                      // Gera prod(LA,"key")*qty(LA) + prod(LB,...)*qty(LB) ... pra cada linha selecionada
+                      const finalExpr = refs.map((r) => pendingRecipe.expr.replace(/\bLREF\b/g, r)).join(' + ');
+                      setExpr(finalExpr);
+                      setPendingRecipe(null);
+                      setPendingLineRefs(new Set());
+                    }}
+                    onCancel={() => { setPendingRecipe(null); setPendingLineRefs(new Set()); }}
+                  />
+                </div>
+              )}
               {/* Receitas — DEFAULT EXPANDIDO */}
               <details open className="group rounded-lg border border-slate-200 bg-white">
                 <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">
@@ -3326,43 +3364,6 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
                     </button>
                   ))}
                 </div>
-                {/* Picker de linhas (multi-select) — aparece quando o usuario clica numa
-                    receita com needsLineRef. Lista linhas da MESMA etapa do item atual com
-                    cellRef. Operador escolhe UMA ou VARIAS linhas — gera prod(LX, "key")
-                    ou soma prod(LA, "key") + prod(LB, "key") + ... pra varios equipamentos. */}
-                {pendingRecipe && (
-                  <div className="mx-4 mb-3">
-                    <LineRefPicker
-                      icon="⏱"
-                      specKey={pendingRecipe.expr.match(/"([a-zA-Z_][a-zA-Z0-9_]*)"/)?.[1] || null}
-                      combine="sum"
-                      refKind="PRODUCT"
-                      environmentParams={environmentParams}
-                      sectionOrder={sectionOrder}
-                      lines={(otherItems || []).map((o) => ({
-                        cellRef: o.cellRef,
-                        slotName: o.slotName,
-                        description: o.description,
-                        poolSection: o.poolSection,
-                        kind: o.kind,
-                        linked: o.linked ?? false,
-                        specs: o.productSpecs ?? null,
-                        qty: o.qty,
-                      }))}
-                      selected={pendingLineRefs}
-                      onToggle={(cref) => setPendingLineRefs((prev) => { const n = new Set(prev); if (n.has(cref)) n.delete(cref); else n.add(cref); return n; })}
-                      onApply={() => {
-                        const refs = Array.from(pendingLineRefs);
-                        // Gera prod(LA, "key") + prod(LB, "key") + ... pra cada linha selecionada
-                        const finalExpr = refs.map((r) => pendingRecipe.expr.replace(/\bLREF\b/g, r)).join(' + ');
-                        setExpr(finalExpr);
-                        setPendingRecipe(null);
-                        setPendingLineRefs(new Set());
-                      }}
-                      onCancel={() => { setPendingRecipe(null); setPendingLineRefs(new Set()); }}
-                    />
-                  </div>
-                )}
               </details>
 
               {/* (Variaveis disponiveis movidas pra CIMA da linha da formula — toggle 📐 ao lado do "digite livre") */}
