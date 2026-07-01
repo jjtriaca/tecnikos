@@ -574,7 +574,9 @@ export default function PoolPrintLayoutEditorPage() {
       if (c) nb.style = { ...(nb.style || {}), textColor: c };
     }
     // CARD DINAMICO: se um CARD DINAMICO esta selecionado, a caixa nova nasce DENTRO dele (parentId).
-    const parentCard = (!isStrip && nb.type !== "CARD" && selBox) ? cur.find((b) => b.id === selBox && b.type === "CARD" && (b.dynamic || cur.some((c) => c.parentId === b.id))) : undefined;
+    // Um CARD (grupo) so aninha dentro de um container em MODO PILHA (stack) — grupo-dentro-de-grupo.
+    const selCont = (!isStrip && selBox) ? cur.find((b) => b.id === selBox && b.type === "CARD" && (b.dynamic || b.stack || cur.some((c) => c.parentId === b.id))) : undefined;
+    const parentCard = (selCont && (nb.type !== "CARD" || selCont.stack)) ? selCont : undefined;
     if (parentCard) {
       const pad = 3;
       nb.w = Math.min(nb.w, Math.max(8, parentCard.w - pad * 2));
@@ -676,10 +678,17 @@ export default function PoolPrintLayoutEditorPage() {
     if (!selBox) return;
     const cur = boxes.find((b) => b.id === selBox);
     let next = boxes.map((b) => b.id === selBox ? { ...b, ...patch } : b);
-    // Card dinamico: mover o card pelos campos X/Y carrega os filhos junto (mesmo delta).
+    // Card dinamico: mover o card pelos campos X/Y carrega os filhos junto (mesmo delta) — em CASCATA
+    // (netos tambem, pra container em modo pilha com grupos-dentro-de-grupos).
     if (cur && cur.type === "CARD" && (patch.x !== undefined || patch.y !== undefined)) {
       const dx = (patch.x ?? cur.x) - cur.x, dy = (patch.y ?? cur.y) - cur.y;
-      if (dx !== 0 || dy !== 0) next = next.map((b) => b.parentId === selBox ? { ...b, x: b.x + dx, y: b.y + dy } : b);
+      if (dx !== 0 || dy !== 0) {
+        const sub = new Set<string>([selBox]);
+        let grew = true;
+        while (grew) { grew = false; for (const b of next) if (b.parentId && sub.has(b.parentId) && !sub.has(b.id)) { sub.add(b.id); grew = true; } }
+        sub.delete(selBox);
+        next = next.map((b) => sub.has(b.id) ? { ...b, x: b.x + dx, y: b.y + dy } : b);
+      }
     }
     commitBoxes(next);
   }
@@ -708,8 +717,9 @@ export default function PoolPrintLayoutEditorPage() {
   function removeSelBox() {
     if (!selBox && selSet.size === 0) return;
     const toRemove = new Set<string>([...(selBox ? [selBox] : []), ...selSet]);
-    // Card dinamico: apagar o card apaga os filhos (parentId) junto.
-    for (const b of boxes) if (b.parentId && toRemove.has(b.parentId)) toRemove.add(b.id);
+    // Card dinamico / pilha: apagar o card apaga os filhos (parentId) em CASCATA (netos tambem).
+    let grew = true;
+    while (grew) { grew = false; for (const b of boxes) if (b.parentId && toRemove.has(b.parentId) && !toRemove.has(b.id)) { toRemove.add(b.id); grew = true; } }
     commitBoxes(boxes.filter((b) => !toRemove.has(b.id))); setSelBox(null); setSelSet(new Set());
   }
   function zOrder(dir: "front" | "back") {
@@ -1343,6 +1353,7 @@ export default function PoolPrintLayoutEditorPage() {
           {editingPage && pageIsCanvas(editingPage) ? (<>
             <RibbonBtn icon="🃏" label="Card" onClick={() => addBox("CARD", {})} />
             <RibbonBtn icon="🪄" label="Grupo dinâmico" onClick={() => addBox("CARD", { dynamic: true })} />
+            <RibbonBtn icon="📚" label="Grupo empilhado" onClick={() => addBox("CARD", { dynamic: true, stack: true })} />
             <RibbonBtn icon="🇹" label="Texto" onClick={() => addBox("TEXT", {})} />
             <RibbonBtn icon="🔤" label="Texto dinâmico" onClick={() => addBox("TEXT", { txtRules: [] })} />
             <RibbonBtn icon="🖼️" label="Imagem" onClick={() => addBox("IMAGE", {})} />
@@ -1367,7 +1378,7 @@ export default function PoolPrintLayoutEditorPage() {
           const clampN = (v: number, max: number) => Math.max(0, Math.min(max, isNaN(v) ? 0 : v));
           // GRUPO DINAMICO: card com dynamic=true (ou legado v1.15.10 = card que ja tem filhos).
           // Tem ferramentas PROPRIAS (exigencias + conteudo).
-          const isDyn = sb.type === "CARD" && (!!sb.dynamic || boxes.some((b) => b.parentId === sb.id));
+          const isDyn = sb.type === "CARD" && (!!sb.dynamic || !!sb.stack || boxes.some((b) => b.parentId === sb.id));
           const kids = isDyn ? boxes.filter((b) => b.parentId === sb.id) : [];
           // Abre a lista de candidatos (imagem/texto) carregando do box. Migra candidato antigo (v1.15.14,
           // CondRule "flat" com op no topo) pro formato {cellRef, cond}.
@@ -1384,11 +1395,12 @@ export default function PoolPrintLayoutEditorPage() {
           return (<>
             {/* ── Ferramentas PRÓPRIAS do GRUPO DINÂMICO (só quando ele está selecionado) ── */}
             {isDyn ? (<>
-              <span className="self-center rounded bg-violet-600 px-2 py-0.5 text-[11px] font-bold text-white" title="Grupo dinâmico: o que você inserir com ele selecionado entra DENTRO; mover/excluir leva os campos junto; as Exigências valem pro grupo inteiro.">🪄 Grupo dinâmico</span>
+              <span className="self-center rounded bg-violet-600 px-2 py-0.5 text-[11px] font-bold text-white" title={sb.stack ? "Grupo dinâmico em MODO PILHA: na impressão os grupos-filhos VISÍVEIS empilham do topo e os escondidos colapsam (sem buraco branco). Coloque os grupos dentro dele." : "Grupo dinâmico: o que você inserir com ele selecionado entra DENTRO; mover/excluir leva os campos junto; as Exigências valem pro grupo inteiro."}>{sb.stack ? "🪄📚 Grupo (pilha)" : "🪄 Grupo dinâmico"}</span>
               <RibbonBtn icon="⚡" label={sb.showIf ? "Exigências ✓" : "Exigências"} onClick={() => openCondFor({ kind: "showIf" }, sb.showIf)} />
               <span className="self-center max-w-[230px] truncate text-[11px] italic text-slate-500" title={`aparece se ${condText(sb.showIf)}`}>{condCount(sb.showIf) ? `aparece se ${condText(sb.showIf)}` : "aparece SEMPRE"}</span>
               {sb.showIf ? <RibbonBtn icon="🚫" label="Sempre aparece" onClick={() => patchSelBox({ showIf: null })} /> : null}
               <RibbonBtn icon="📦" label={`Conteúdo (${kids.length})`} disabled={kids.length === 0} onClick={() => { const ids = kids.map((k) => k.id); setSelBox(ids[0]); setSelSet(new Set(ids)); }} />
+              <RibbonBtn icon="📚" label={sb.stack ? "Empilhar ✓" : "Empilhar"} onClick={() => patchSelBox({ stack: !sb.stack })} />
               <span className="mx-1 self-center h-6 w-px bg-violet-300" />
             </>) : null}
             {/* ── IMAGEM DINÂMICA — candidatos (linha + ⚡ Exigências, o MESMO modal) ── */}
@@ -1439,8 +1451,11 @@ export default function PoolPrintLayoutEditorPage() {
             {/* Caixa solta (sem grupo) + existe grupo dinamico na pagina = botao pra COLOCAR no grupo.
                 Escolhe o grupo cujo retangulo contem o centro da caixa; senao o primeiro. Assim ela passa
                 a acompanhar o grupo ao mover/excluir (parentId), resolvendo "a lista nao acompanhou o grupo". */}
-            {!sb.parentId && sb.type !== "CARD" ? (() => {
-              const groups = boxes.filter((b) => b.id !== sb.id && b.type === "CARD" && (!!b.dynamic || boxes.some((c) => c.parentId === b.id)));
+            {!sb.parentId ? (() => {
+              // Non-CARD entra em qualquer grupo dinamico; um CARD (grupo) so entra em container PILHA (stack).
+              const groups = boxes.filter((b) => b.id !== sb.id && b.type === "CARD"
+                && (!!b.dynamic || !!b.stack || boxes.some((c) => c.parentId === b.id))
+                && (sb.type !== "CARD" || !!b.stack));
               if (!groups.length) return null;
               const cx = sb.x + sb.w / 2, cy = sb.y + sb.h / 2;
               const target = groups.find((g) => cx >= g.x && cx <= g.x + g.w && cy >= g.y && cy <= g.y + g.h) || groups[0];

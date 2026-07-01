@@ -365,11 +365,48 @@ export function renderDynamicList(box: Box, data: BudgetReportData): ReactNode {
  *  procurar o card pai (boxes da pagina/faixa). */
 export function boxShowsCascade(box: Box, pool: Box[], data: BudgetReportData): boolean {
   if (!boxShows(box, data)) return false;
-  if (box.parentId) {
-    const parent = pool.find((b) => b.id === box.parentId);
-    if (parent && !boxShows(parent, data)) return false;
+  // Sobe a cadeia INTEIRA de pais (grupo-dentro-de-grupo / container pilha): se QUALQUER ancestral
+  // nao aparece, o filho tambem nao. Antes so subia 1 nivel — netos vazavam quando o avo sumia.
+  let pid = box.parentId;
+  const seen = new Set<string>();
+  while (pid && !seen.has(pid)) {
+    seen.add(pid);
+    const parent = pool.find((b) => b.id === pid);
+    if (!parent) break;
+    if (!boxShows(parent, data)) return false;
+    pid = parent.parentId;
   }
   return true;
+}
+
+/** MODO PILHA (v1.15.27): um CARD com `stack:true` vira container de FLUXO VERTICAL. No PRINT, seus
+ *  filhos diretos VISIVEIS empilham a partir do topo do container (na ordem do Y atual) e os
+ *  ESCONDIDOS colapsam (os de baixo sobem) — conserta o "buraco branco" do grupo que sumiu pela
+ *  condicao. Move cada filho + a subarvore dele (netos) pelo mesmo delta. So no print (o editor
+ *  segue absoluto). Container auto-ajusta a altura pra envolver o conteudo empilhado. */
+export function applyStackFlow(boxes: Box[], data: BudgetReportData): Box[] {
+  const out = boxes.map((b) => ({ ...b }));
+  const containers = out.filter((b) => b.type === "CARD" && b.stack);
+  if (!containers.length) return out;
+  const PAD = 3, GAP = 2; // mm — respiro no topo/base do container e entre os filhos
+  const shiftSubtree = (rootId: string, dy: number) => {
+    for (const c of out) if (c.parentId === rootId) { c.y += dy; shiftSubtree(c.id, dy); }
+  };
+  for (const C of containers) {
+    if (!boxShowsCascade(C, out, data)) continue; // container escondido = filhos ja nao aparecem
+    const kids = out.filter((b) => b.parentId === C.id).sort((a, b) => a.y - b.y);
+    let cursorY = C.y + PAD;
+    let anyVisible = false;
+    for (const k of kids) {
+      if (!boxShowsCascade(k, out, data)) continue; // escondido -> colapsa (nao avanca o cursor)
+      anyVisible = true;
+      const dy = cursorY - k.y;
+      if (dy !== 0) { k.y += dy; shiftSubtree(k.id, dy); }
+      cursorY += k.h + GAP;
+    }
+    if (anyVisible) C.h = (cursorY - GAP - C.y) + PAD; // auto-fit: envolve exatamente os filhos visiveis
+  }
+  return out;
 }
 
 /** Texto curto de UMA regra (sem prefixo). */
@@ -442,7 +479,7 @@ function expandBandsForPrint(boxes: Box[], data: BudgetReportData): Box[] {
  *  quando a banda estoura a altura. SEGURO: se tudo cabe, retorna 1 pagina (igual antes).
  *  topPad/botPad = alturas de cabecalho/rodape (mm) pra banda nao invadir. */
 function paginateCanvasBoxes(boxes: Box[], data: BudgetReportData, pageH: number, topPad: number, botPad: number): Box[][] {
-  const expanded = expandBandsForPrint(boxes, data);
+  const expanded = expandBandsForPrint(applyStackFlow(boxes, data), data);
   const visible = expanded.filter((b) => boxShowsCascade(b, expanded, data));
   const usable = pageH - botPad;
   const bottom = visible.reduce((m, b) => Math.max(m, b.y + b.h), 0);
@@ -1096,6 +1133,10 @@ export type Box = {
   // dynamic=true marca um CARD como CONTAINER dinamico (objeto proprio na aba Inserir, v1.15.11):
   // SO cards dinamicos "adotam" o que e inserido com eles selecionados. Card normal = retangulo.
   dynamic?: boolean;
+  // stack=true (v1.15.27): CARD vira container em MODO PILHA (fluxo vertical). No print, os filhos
+  // diretos VISIVEIS empilham do topo do card e os ESCONDIDOS colapsam (os de baixo sobem) — conserta
+  // o "buraco branco" do grupo que sumiu pela condicao. Editor segue absoluto; reflow so no print.
+  stack?: boolean;
   style?: {
     bg?: string | null; borderColor?: string | null; borderWidth?: number | null;
     radius?: number | null; padding?: number | null; textColor?: string | null;
@@ -1190,7 +1231,7 @@ function normalizeHref(url: string): string {
 export function CanvasPage({ boxes, data, branding, unit = "%" }: { boxes: Box[]; data: BudgetReportData; branding?: ReportBranding | null; unit?: "mm" | "%" }) {
   return (
     <div className="rp-canvas" style={{ position: "absolute", inset: 0, isolation: "isolate" }}>
-      {(() => { const exp = expandBandsForPrint([...(boxes || [])], data); return exp.sort((a, b) => (a.z || 0) - (b.z || 0)).filter((b) => boxShowsCascade(b, exp, data)).map((b) => (
+      {(() => { const exp = expandBandsForPrint(applyStackFlow([...(boxes || [])], data), data); return exp.sort((a, b) => (a.z || 0) - (b.z || 0)).filter((b) => boxShowsCascade(b, exp, data)).map((b) => (
         <div key={b.id} style={boxRectStyle(b, unit)}><BoxContent box={b} data={data} branding={branding} /></div>
       )); })()}
     </div>
