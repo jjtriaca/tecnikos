@@ -468,6 +468,8 @@ export default function PoolPrintLayoutEditorPage() {
           const pageConfig = { canvas: true, unit: "mm", boxes: bs, bg: bgc.bg ?? null, bgType: bgc.bgType || "solid", bgColor2: bgc.bgColor2 ?? null, name: pageNameRef.current || null, noHeader: pageHFRef.current.noHeader || undefined, noFooter: pageHFRef.current.noFooter || undefined, heightMm: pageSizeRef.current.heightMm ?? undefined, breakA4: pageSizeRef.current.breakA4 || undefined };
           await api.put(`/pool-print-layouts/pages/${pageId}`, { type: "FIXED", htmlContent: null, dynamicType: null, pageConfig });
           setLayout((prev) => prev ? { ...prev, pages: prev.pages.map((p) => p.id === pageId ? { ...p, type: "FIXED", pageConfig } : p) } : prev);
+          // Mantem o editingPage FRESCO (senao o init re-roda lendo pageConfig stale e zera heightMm/breakA4 — bug v1.15.33).
+          setEditingPage((prev) => prev && prev.id === pageId ? { ...prev, type: "FIXED", pageConfig } as Page : prev);
         } else {
           const key = r === "header" ? "headerBoxes" : "footerBoxes";
           const nextBrand = { ...((layoutRef.current?.branding || {}) as any), [key]: bs, hfUnit: "mm" };
