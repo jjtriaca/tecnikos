@@ -1863,6 +1863,11 @@ export default function PoolPrintLayoutEditorPage() {
             selBox={selBox} selSet={selSet} pageW={pageDims(layout.branding).w} pageH={pgH()}
             pageBg={pageBgCss}
             hfOverlay={{ headerBoxes: brand.headerBoxes, footerBoxes: brand.footerBoxes, headerHmm: brand.headerHmm, footerHmm: brand.footerHmm }}
+            pageBreaks={pageSize.breakA4 ? {
+              a4H: brand.orientation === "landscape" ? 210 : 297,
+              hMm: (!pageNoHeader && Array.isArray(brand.headerBoxes) && brand.headerBoxes.length) ? (brand.headerHmm ?? 18) : 0,
+              fMm: (!pageNoFooter && Array.isArray(brand.footerBoxes) && brand.footerBoxes.length) ? (brand.footerHmm ?? 14) : 0,
+            } : null}
             onSelect={selectBox}
             onGroupStart={onCanvasGroupStart} onGroupMove={onCanvasGroupMove}
             onChange={onCanvasChange} onCommit={onCanvasCommit} onEditStart={() => setTab("Inicio")} />

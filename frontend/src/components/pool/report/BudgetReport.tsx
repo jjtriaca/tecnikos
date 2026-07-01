@@ -1418,12 +1418,15 @@ function BoxFrame({ box, selected, multi, parentSelected, editing, canvasRef, lo
 // Editor de canvas (uma pagina) — usado no centro do editor. Renderiza a folha A4
 // (aspect-ratio) e os boxes interativos. onChange = update ao vivo; onCommit = passo
 // de historico (undo/redo) no fim do gesto. Edicao de texto inline via duplo-clique.
-export function CanvasEditor({ boxes, data, branding, selBox, selSet, pageW, pageH, pageBg, unit = "mm", hfUnit = "%", onSelect, onChange, onCommit, onEditStart, onGroupStart, onGroupMove, hfOverlay }: {
+export function CanvasEditor({ boxes, data, branding, selBox, selSet, pageW, pageH, pageBg, unit = "mm", hfUnit = "%", onSelect, onChange, onCommit, onEditStart, onGroupStart, onGroupMove, hfOverlay, pageBreaks }: {
   boxes: Box[]; data: BudgetReportData; branding?: ReportBranding | null; selBox: string | null; selSet?: Set<string>;
   pageW?: number; pageH?: number; pageBg?: string; unit?: "mm" | "%"; hfUnit?: "mm" | "%";
   onSelect: (id: string | null, additive?: boolean) => void; onChange: (b: Box) => void; onCommit: () => void; onEditStart?: (id: string) => void;
   onGroupStart?: () => void; onGroupMove?: (dx: number, dy: number) => void;
   hfOverlay?: { headerBoxes?: Box[]; footerBoxes?: Box[]; headerHmm?: number; footerHmm?: number };
+  // Guia de QUEBRA A4 (quando a pagina de trabalho e comprida + breakA4): mostra onde cada folha A4
+  // termina + faixas de cabecalho/rodape por pagina. So visual (nao imprime).
+  pageBreaks?: { a4H: number; hMm: number; fMm: number } | null;
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [guides, setGuides] = useState<{ o: "v" | "h"; p: number }[]>([]); // guias inteligentes (snap)
@@ -1442,6 +1445,19 @@ export function CanvasEditor({ boxes, data, branding, selBox, selSet, pageW, pag
         {((branding as any)?.pageMarginMm ?? 12) > 0 ? (
           <div style={{ position: "absolute", inset: `${(branding as any)?.pageMarginMm ?? 12}mm`, border: "1px dashed #cbd5e1", pointerEvents: "none", zIndex: 0 }} />
         ) : null}
+        {/* Guia de QUEBRA A4 (so editor) — linha de quebra a cada folha A4 + faixas de cabecalho/rodape */}
+        {pageBreaks && H > pageBreaks.a4H + 0.5 ? (() => {
+          const { a4H, hMm, fMm } = pageBreaks;
+          const n = Math.ceil(H / a4H);
+          const out: React.ReactNode[] = [];
+          for (let k = 0; k < n; k++) {
+            const top = k * a4H;
+            if (hMm > 0) out.push(<div key={`hb${k}`} style={{ position: "absolute", left: 0, right: 0, top: `${top}mm`, height: `${hMm}mm`, background: "rgba(37,99,235,0.06)", borderBottom: "1px dashed #93c5fd", pointerEvents: "none", zIndex: 1 }}><span style={{ position: "absolute", left: 2, top: 1, fontSize: 7, color: "#2563eb" }}>cabeçalho</span></div>);
+            if (fMm > 0) out.push(<div key={`fb${k}`} style={{ position: "absolute", left: 0, right: 0, top: `${top + a4H - fMm}mm`, height: `${fMm}mm`, background: "rgba(37,99,235,0.06)", borderTop: "1px dashed #93c5fd", pointerEvents: "none", zIndex: 1 }}><span style={{ position: "absolute", left: 2, bottom: 1, fontSize: 7, color: "#2563eb" }}>rodapé</span></div>);
+            if (k > 0) out.push(<div key={`bl${k}`} style={{ position: "absolute", left: 0, right: 0, top: `${top}mm`, borderTop: "2px dashed #e11d8f", pointerEvents: "none", zIndex: 2 }}><span style={{ position: "absolute", right: 2, top: 1, fontSize: 8, fontWeight: 700, color: "#e11d8f", background: "#fff", padding: "0 3px", borderRadius: 2 }}>✂ A4 · pág {k + 1}</span></div>);
+          }
+          return <>{out}</>;
+        })() : null}
         {/* Cabecalho/Rodape como SOBREPOSICAO esmaecida (contexto; nao editavel aqui) */}
         {hfOverlay?.headerBoxes && hfOverlay.headerBoxes.length ? (
           <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: `${hfOverlay.headerHmm ?? 18}mm`, overflow: "hidden", opacity: 0.55, pointerEvents: "none", borderBottom: "1px dashed #cbd5e1" }}>
