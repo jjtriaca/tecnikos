@@ -2720,6 +2720,17 @@ const FORMULA_RECIPES_PISCINA: FormulaRecipe[] = [
   { label: "Sacos por consumo (parede+fundo) — NORMAL", expr: "round(consumoKgM2 * areaParedeEFundo / pesoKg)", hint: "Igual a anterior, arredondamento normal (50.4→50, 50.5→51)" },
   { label: "Sacos por consumo (so fundo / superficie d'agua)", expr: "ceil(consumoKgM2 * area / pesoKg)", hint: "Quando o material so vai na area da agua (ex: liner). Use areaParedeEFundo pra revestimento de parede+fundo." },
   { label: "Consumo total em Kg (parede+fundo)", expr: "consumoKgM2 * areaParedeEFundo", hint: "Quantos Kg do material no total — antes de dividir por saco" },
+  // ── Consumos do revestimento / concreto (coeficiente na linha DRIVER × qty dela) ──
+  // O coeficiente de consumo NAO mora no material consumido (rejunte), e sim no produto
+  // que dirige o consumo (o revestimento, o traco de concreto). A linha do rejunte le o
+  // coeficiente da linha do revestimento via prod(LREF,"consumoXxx") e multiplica pela qty
+  // dessa linha (os m²/ml/m³ efetivamente lancados). O picker (needsLineRef) troca LREF pela
+  // linha escolhida; se escolher varias, soma prod(La,..)*qty(La) + prod(Lb,..)*qty(Lb).
+  { label: "📦 Argamassa do revestimento (kg)", expr: 'prod(LREF, "consumoArgamassaM2") * qty(LREF)', hint: "Consumo de argamassa (kg/m²) cadastrado no REVESTIMENTO × os m² lancados na linha dele. Clique pra escolher a linha do revestimento.", needsLineRef: true },
+  { label: "📦 Rejunte do revestimento (kg)", expr: 'prod(LREF, "consumoRejunteM2") * qty(LREF)', hint: "Consumo de rejunte (kg/m²) cadastrado no REVESTIMENTO × os m² lancados na linha dele. Depende do revestimento — clique pra escolher a linha dele.", needsLineRef: true },
+  { label: "📦 Cantoneira do revestimento", expr: 'prod(LREF, "consumoCantoneiraMl") * qty(LREF)', hint: "Consumo de cantoneira (por m/l) cadastrado no acabamento × a qtd lancada na linha dele. Clique pra escolher a linha.", needsLineRef: true },
+  { label: "📦 Cimento do concreto (por m³)", expr: 'prod(LREF, "consumoCimentoM3") * qty(LREF)', hint: "Consumo de cimento por m³ cadastrado no TRACO/concreto × os m³ lancados na linha dele. Clique pra escolher a linha do concreto.", needsLineRef: true },
+  { label: "📦 Areia do concreto (por m³)", expr: 'prod(LREF, "consumoAreiaM3") * qty(LREF)', hint: "Consumo de areia por m³ cadastrado no TRACO/concreto × os m³ lancados na linha dele. Clique pra escolher a linha do concreto.", needsLineRef: true },
   // ── Referencias entre linhas ──
   { label: "30% sobre total da linha L7", expr: "total(L7) * 0.3", hint: "Ex: comissao/margem sobre outra linha" },
   { label: "Mesma quantidade da linha L5", expr: "qty(L5)", hint: "Espelha qty de outra linha (parafuso casa com furo)" },
@@ -2900,6 +2911,9 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
   // Multi-select: linhas selecionadas no picker. Ao aplicar, gera soma de
   // prod(LA, "key") + prod(LB, "key") + ... (multiplos equipamentos).
   const [pendingLineRefs, setPendingLineRefs] = useState<Set<string>>(new Set());
+  // Painel "Variaveis disponiveis" agora fica ACIMA da linha da formula (ao lado do "digite livre"),
+  // aberto/fechado por este toggle em vez do <details> que ficava la embaixo.
+  const [varsOpen, setVarsOpen] = useState(false);
 
   // Mapeia strings -> numero (mesma logica do backend)
   const ventoNum = (() => {
@@ -3092,6 +3106,88 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
     }
   }
 
+  // Conteudo do painel de variaveis (produto vinculado + grupos estaticos + sections).
+  // Renderizado ACIMA da linha da formula quando varsOpen (antes era um <details> la embaixo).
+  const varsPanel = (
+    <div className="space-y-2.5">
+      {/* Produto vinculado — destaque no topo se houver */}
+      {productSpecsList.length > 0 && (
+        <div>
+          <div className="text-[11px] font-medium text-cyan-800 mb-1">
+            Produto vinculado{productName ? `: ${productName}` : ""} ({productSpecsList.length} campos)
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {productSpecsList.map(({ key, value }) => (
+              <button key={key} type="button" onClick={() => insert(key)}
+                title={`${key} = ${value} (de technicalSpecs do cadastro)`}
+                className="inline-flex items-center gap-2 text-xs rounded border border-cyan-200 bg-cyan-50 hover:border-cyan-500 hover:bg-cyan-100 px-2.5 py-1.5 transition">
+                <span className="font-mono font-bold text-cyan-800">{key}</span>
+                <span className="font-mono text-slate-900 font-bold tabular-nums bg-white px-1.5 py-0.5 rounded">{value}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      {/* Grupos estaticos */}
+      {Object.entries(VAR_GROUPS).map(([key, group]) => (
+        <div key={key}>
+          <div className="text-[11px] font-medium text-slate-600 mb-1">{group.label}</div>
+          <div className="flex flex-wrap gap-1.5">
+            {group.vars.map((k) => (
+              <button key={k} type="button" onClick={() => insert(k)}
+                title={VAR_DESCRIPTIONS[k]}
+                className="inline-flex items-center gap-2 text-xs rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-2.5 py-1.5 transition">
+                <span className="font-mono font-bold text-cyan-700">{k}</span>
+                <span className="font-mono text-slate-900 font-bold tabular-nums bg-slate-100 px-1.5 py-0.5 rounded">{vars[k]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+      {/* Sections (dinamico) */}
+      {sectionsList.length > 0 && (
+        <>
+          <div>
+            <div className="text-[11px] font-medium text-slate-600 mb-1">
+              Area de cada section ({sectionsList.length})
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {sectionsList.map((s) => {
+                const k = `areaSec${s.idx}`;
+                return (
+                  <button key={k} type="button" onClick={() => insert(k)}
+                    title={`Area da section ${s.idx} — ${s.name}`}
+                    className="inline-flex items-center gap-2 text-xs rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-2.5 py-1.5 transition">
+                    <span className="font-mono font-bold text-cyan-700">{k}</span>
+                    <span className="text-slate-500 text-[10px]">{s.name}</span>
+                    <span className="font-mono text-slate-900 font-bold tabular-nums bg-slate-100 px-1.5 py-0.5 rounded">{s.area.toFixed(2)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] font-medium text-slate-600 mb-1">Volume de cada section</div>
+            <div className="flex flex-wrap gap-1.5">
+              {sectionsList.map((s) => {
+                const k = `volumeSec${s.idx}`;
+                return (
+                  <button key={k} type="button" onClick={() => insert(k)}
+                    title={`Volume da section ${s.idx} — ${s.name}`}
+                    className="inline-flex items-center gap-2 text-xs rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-2.5 py-1.5 transition">
+                    <span className="font-mono font-bold text-cyan-700">{k}</span>
+                    <span className="text-slate-500 text-[10px]">{s.name}</span>
+                    <span className="font-mono text-slate-900 font-bold tabular-nums bg-slate-100 px-1.5 py-0.5 rounded">{s.volume.toFixed(2)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
   return (
     <tr>
       <td colSpan={8} className="p-0">
@@ -3114,9 +3210,23 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
             {/* Expressao FIXA (nao rola) — sempre visivel enquanto o usuario explora variaveis/receitas abaixo */}
             <div className="px-6 pt-4 pb-4 border-b border-slate-100 bg-white shrink-0">
               <div className="rounded-lg border-2 border-cyan-200 bg-cyan-50/50 p-4">
-                <label className="block text-xs font-bold uppercase tracking-wide text-cyan-900 mb-2">
-                  Expressao <span className="text-[10px] text-slate-500 normal-case font-normal">(editavel — digite livre se entender da sintaxe)</span>
-                </label>
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <label className="text-xs font-bold uppercase tracking-wide text-cyan-900">
+                    Expressao <span className="text-[10px] text-slate-500 normal-case font-normal">(editavel — digite livre se entender da sintaxe)</span>
+                  </label>
+                  <button type="button" onClick={() => setVarsOpen((v) => !v)}
+                    title="Mostrar/esconder as variaveis que voce pode inserir na formula"
+                    className="shrink-0 inline-flex items-center gap-1 rounded border border-cyan-300 bg-white px-2 py-1 text-[11px] font-semibold text-cyan-800 hover:bg-cyan-50">
+                    📐 Variaveis disponiveis{productSpecsList.length > 0 ? ` · ${productSpecsList.length} do produto` : ""}
+                    <span className={"transition-transform " + (varsOpen ? "rotate-180" : "")}>▼</span>
+                  </button>
+                </div>
+                {varsOpen && (
+                  <div className="mb-3 rounded-lg border border-cyan-200 bg-white p-3 max-h-[38vh] overflow-y-auto">
+                    <div className="text-[10px] text-slate-500 mb-2">Clique numa variavel pra inserir na posicao do cursor.</div>
+                    {varsPanel}
+                  </div>
+                )}
                 <input ref={inputRef} value={expr} onChange={(e) => setExpr(e.target.value)} autoFocus
                   placeholder="Ex: ceil(area * 0.5 / 18)"
                   className={"w-full rounded-lg border-2 bg-white px-3 py-2 text-base font-mono outline-none " + (expr.trim() && !result.ok ? "border-red-400 focus:border-red-500" : "border-slate-300 focus:border-cyan-500")} />
@@ -3255,96 +3365,7 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
                 )}
               </details>
 
-              {/* Variaveis — DEFAULT FECHADO */}
-              <details className="group rounded-lg border border-slate-200 bg-white">
-                <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 rounded-lg">
-                  <span className="text-xs font-bold uppercase tracking-wide text-slate-700">
-                    📐 Variaveis disponiveis
-                    <span className="text-slate-600 font-normal normal-case ml-1">
-                      — clique pra inserir no cursor
-                      {productSpecsList.length > 0 && <span className="text-cyan-700"> · {productSpecsList.length} do produto vinculado</span>}
-                    </span>
-                  </span>
-                  <span className="text-slate-400 text-xs group-open:rotate-180 transition-transform">▼</span>
-                </summary>
-                <div className="px-4 pb-3 pt-1 space-y-2.5">
-                  {/* Produto vinculado — destaque no topo se houver */}
-                  {productSpecsList.length > 0 && (
-                    <div>
-                      <div className="text-[11px] font-medium text-cyan-800 mb-1">
-                        Produto vinculado{productName ? `: ${productName}` : ""} ({productSpecsList.length} campos)
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {productSpecsList.map(({ key, value }) => (
-                          <button key={key} type="button" onClick={() => insert(key)}
-                            title={`${key} = ${value} (de technicalSpecs do cadastro)`}
-                            className="inline-flex items-center gap-2 text-xs rounded border border-cyan-200 bg-cyan-50 hover:border-cyan-500 hover:bg-cyan-100 px-2.5 py-1.5 transition">
-                            <span className="font-mono font-bold text-cyan-800">{key}</span>
-                            <span className="font-mono text-slate-900 font-bold tabular-nums bg-white px-1.5 py-0.5 rounded">{value}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  {/* Grupos estaticos */}
-                  {Object.entries(VAR_GROUPS).map(([key, group]) => (
-                    <div key={key}>
-                      <div className="text-[11px] font-medium text-slate-600 mb-1">{group.label}</div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {group.vars.map((k) => (
-                          <button key={k} type="button" onClick={() => insert(k)}
-                            title={VAR_DESCRIPTIONS[k]}
-                            className="inline-flex items-center gap-2 text-xs rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-2.5 py-1.5 transition">
-                            <span className="font-mono font-bold text-cyan-700">{k}</span>
-                            <span className="font-mono text-slate-900 font-bold tabular-nums bg-slate-100 px-1.5 py-0.5 rounded">{vars[k]}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                  {/* Sections (dinamico) */}
-                  {sectionsList.length > 0 && (
-                    <>
-                      <div>
-                        <div className="text-[11px] font-medium text-slate-600 mb-1">
-                          Area de cada section ({sectionsList.length})
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {sectionsList.map((s) => {
-                            const k = `areaSec${s.idx}`;
-                            return (
-                              <button key={k} type="button" onClick={() => insert(k)}
-                                title={`Area da section ${s.idx} — ${s.name}`}
-                                className="inline-flex items-center gap-2 text-xs rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-2.5 py-1.5 transition">
-                                <span className="font-mono font-bold text-cyan-700">{k}</span>
-                                <span className="text-slate-500 text-[10px]">{s.name}</span>
-                                <span className="font-mono text-slate-900 font-bold tabular-nums bg-slate-100 px-1.5 py-0.5 rounded">{s.area.toFixed(2)}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[11px] font-medium text-slate-600 mb-1">Volume de cada section</div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {sectionsList.map((s) => {
-                            const k = `volumeSec${s.idx}`;
-                            return (
-                              <button key={k} type="button" onClick={() => insert(k)}
-                                title={`Volume da section ${s.idx} — ${s.name}`}
-                                className="inline-flex items-center gap-2 text-xs rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-2.5 py-1.5 transition">
-                                <span className="font-mono font-bold text-cyan-700">{k}</span>
-                                <span className="text-slate-500 text-[10px]">{s.name}</span>
-                                <span className="font-mono text-slate-900 font-bold tabular-nums bg-slate-100 px-1.5 py-0.5 rounded">{s.volume.toFixed(2)}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </details>
+              {/* (Variaveis disponiveis movidas pra CIMA da linha da formula — toggle 📐 ao lado do "digite livre") */}
 
               {/* Funcoes — DEFAULT FECHADO */}
               <details className="group rounded-lg border border-slate-200 bg-white">

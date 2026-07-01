@@ -365,6 +365,14 @@ interface ProductForm {
   specBifTrifConta: string;   // numero — quantos espacos ocupa no quadro de distribuicao
   specTempoMontagemH: string; // horas — tempo padrao de montagem/instalacao do equipamento
   specPressaoTrabalhoMca: string; // MCA (metros de coluna d'agua) — pressao maxima de trabalho da bomba
+  // ====== Consumos (coeficientes de aplicacao) — moram no produto DRIVER (revestimento/concreto).
+  // A linha dependente (rejunte, argamassa, cantoneira) le via prod(LREF,"consumoXxx") * qty(LREF).
+  // technicalSpecs eh Json livre; nenhum precisa de whitelist no backend. ======
+  specConsumoArgamassaM2: string;   // kg de argamassa por m² de revestimento
+  specConsumoRejunteM2: string;     // kg de rejunte por m² de revestimento
+  specConsumoCantoneiraMl: string;  // pecas/m de cantoneira por metro linear de canto
+  specConsumoCimentoM3: string;     // consumo de cimento por m³ de concreto (traco)
+  specConsumoAreiaM3: string;       // consumo de areia por m³ de concreto (traco)
   linkedServiceId: string;    // Servico vinculado (instalacao/montagem). Vazio = sem vinculo.
   pumpCurve: Array<{ vazaoM3h: string; alturaMca: string }>; // Curva caracteristica da bomba (pares vazao, altura)
 }
@@ -400,6 +408,11 @@ const EMPTY_FORM: ProductForm = {
   defaultQty: "1",
   specVazaoM3h: "",
   specTuboEntradaMm: "",
+  specConsumoArgamassaM2: "",
+  specConsumoRejunteM2: "",
+  specConsumoCantoneiraMl: "",
+  specConsumoCimentoM3: "",
+  specConsumoAreiaM3: "",
   specKcalHNominal: "",
   specKwNominal: "",
   specBtuH: "",
@@ -472,6 +485,11 @@ function productToForm(p: Product): ProductForm {
     defaultQty: (p as any).defaultQty != null ? String((p as any).defaultQty) : "",
     specVazaoM3h: numericSpecToStr(p.technicalSpecs?.vazaoM3h),
     specTuboEntradaMm: numericSpecToStr(p.technicalSpecs?.tuboEntradaMm),
+    specConsumoArgamassaM2: numericSpecToStr(p.technicalSpecs?.consumoArgamassaM2),
+    specConsumoRejunteM2: numericSpecToStr(p.technicalSpecs?.consumoRejunteM2),
+    specConsumoCantoneiraMl: numericSpecToStr(p.technicalSpecs?.consumoCantoneiraMl),
+    specConsumoCimentoM3: numericSpecToStr(p.technicalSpecs?.consumoCimentoM3),
+    specConsumoAreiaM3: numericSpecToStr(p.technicalSpecs?.consumoAreiaM3),
     specKcalHNominal: numericSpecToStr(p.technicalSpecs?.kcalHNominal),
     specKwNominal: numericSpecToStr(p.technicalSpecs?.kwNominal),
     specBtuH: numericSpecToStr(p.technicalSpecs?.btuH),
@@ -553,6 +571,11 @@ function buildTechnicalSpecs(f: ProductForm, existing?: Record<string, any>): Re
   };
   setOrUnset("vazaoM3h", f.specVazaoM3h);
   setOrUnset("tuboEntradaMm", f.specTuboEntradaMm);
+  setOrUnset("consumoArgamassaM2", f.specConsumoArgamassaM2);
+  setOrUnset("consumoRejunteM2", f.specConsumoRejunteM2);
+  setOrUnset("consumoCantoneiraMl", f.specConsumoCantoneiraMl);
+  setOrUnset("consumoCimentoM3", f.specConsumoCimentoM3);
+  setOrUnset("consumoAreiaM3", f.specConsumoAreiaM3);
   setOrUnset("kcalHNominal", f.specKcalHNominal);
   setOrUnset("kwNominal", f.specKwNominal);
   setOrUnset("btuH", f.specBtuH);
@@ -2149,6 +2172,34 @@ export default function ProductsPage() {
                     })()}
                   </CollapsibleCard>
 
+                  <CollapsibleCard title="📦 Consumos — coeficientes de aplicacao (revestimento, concreto)" defaultOpen={blocksWithRequired.has('consumos')}>
+                    <p className="text-[11px] text-slate-500 mb-3 -mt-1">
+                      Coeficientes de <strong>quanto</strong> de material a aplicacao consome por m²/ml/m³. Preencha no produto que <strong>dirige</strong> o consumo (o revestimento/pastilha, o traco de concreto). Nas linhas dependentes (rejunte, argamassa, cantoneira), use a receita &ldquo;📦 Consumo do revestimento&rdquo; na formula de quantidade — ela le este valor via <code>prod(linha,&hellip;)</code> × a qty da linha.
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <FieldLabel required={currentRequiredSpecs.has('consumoArgamassaM2')} help="Kg de argamassa colante consumidos por m² deste revestimento. Depende do tamanho da peca e do tipo de assentamento (ex: 4 a 6 kg/m²).">Argamassa (kg/m²)</FieldLabel>
+                        <input type="number" step="0.01" min="0" value={form.specConsumoArgamassaM2} onChange={(e) => setField("specConsumoArgamassaM2", e.target.value)} placeholder="Ex: 5" className={inputClass} />
+                      </div>
+                      <div>
+                        <FieldLabel required={currentRequiredSpecs.has('consumoRejunteM2')} help="Kg de rejunte consumidos por m² deste revestimento. Depende do tamanho da peca e da largura da junta.">Rejunte (kg/m²)</FieldLabel>
+                        <input type="number" step="0.01" min="0" value={form.specConsumoRejunteM2} onChange={(e) => setField("specConsumoRejunteM2", e.target.value)} placeholder="Ex: 0.5" className={inputClass} />
+                      </div>
+                      <div>
+                        <FieldLabel required={currentRequiredSpecs.has('consumoCantoneiraMl')} help="Quantas cantoneiras (ou metros) por metro linear de canto/quina deste acabamento.">Cantoneira (por m/l)</FieldLabel>
+                        <input type="number" step="0.01" min="0" value={form.specConsumoCantoneiraMl} onChange={(e) => setField("specConsumoCantoneiraMl", e.target.value)} placeholder="Ex: 1" className={inputClass} />
+                      </div>
+                      <div>
+                        <FieldLabel required={currentRequiredSpecs.has('consumoCimentoM3')} help="Consumo de cimento por m³ de concreto (traco). Ex: sacos ou kg por m³ de concreto.">Cimento (por m³ de concreto)</FieldLabel>
+                        <input type="number" step="0.01" min="0" value={form.specConsumoCimentoM3} onChange={(e) => setField("specConsumoCimentoM3", e.target.value)} placeholder="Ex: 7" className={inputClass} />
+                      </div>
+                      <div>
+                        <FieldLabel required={currentRequiredSpecs.has('consumoAreiaM3')} help="Consumo de areia por m³ de concreto (traco). Ex: m³ de areia por m³ de concreto.">Areia (por m³ de concreto)</FieldLabel>
+                        <input type="number" step="0.01" min="0" value={form.specConsumoAreiaM3} onChange={(e) => setField("specConsumoAreiaM3", e.target.value)} placeholder="Ex: 0.5" className={inputClass} />
+                      </div>
+                    </div>
+                  </CollapsibleCard>
+
                   {/* v1.12.32: curva caracteristica da bomba — DEPOIS do Hidraulico.
                       Aparece quando poolType comeca com "Bomba" (ex: "Bomba", "Bomba de Calor",
                       "Bomba hidraulica"). Auto-selecao interpola esta curva. */}
@@ -2742,6 +2793,15 @@ export const PRODUCT_SPECS_GROUPED: Array<{ block: string; group: string; specs:
     { key: 'pressaoTrabalhoMca', label: 'Pressao de trabalho (MCA)' },
     { key: 'tuboEntradaMm', label: 'Tubo de entrada (mm)' },
   ]},
+  // Coeficientes de consumo — moram no produto DRIVER (revestimento/traco de concreto).
+  // A linha dependente le via prod(LREF,"consumoXxx") * qty(LREF) — receita no FormulaModal.
+  { block: 'consumos', group: '📦 Consumos (coeficientes de aplicacao)', specs: [
+    { key: 'consumoArgamassaM2', label: 'Argamassa (kg/m²)' },
+    { key: 'consumoRejunteM2', label: 'Rejunte (kg/m²)' },
+    { key: 'consumoCantoneiraMl', label: 'Cantoneira (por m/l)' },
+    { key: 'consumoCimentoM3', label: 'Cimento (por m³ de concreto)' },
+    { key: 'consumoAreiaM3', label: 'Areia (por m³ de concreto)' },
+  ]},
   // v1.12.38: curva da bomba como spec selecionavel pra ser obrigatoria
   // em poolType "Bomba" (ou similar). Min de pontos definido no validador (default 6).
   { block: 'bomba', group: '📈 Curva da bomba', specs: [
@@ -2814,6 +2874,11 @@ export const SPEC_KEY_TO_FORM_FIELD: Record<string, string> = {
   vazaoM3h: 'specVazaoM3h',
   pressaoTrabalhoMca: 'specPressaoTrabalhoMca',
   tuboEntradaMm: 'specTuboEntradaMm',
+  consumoArgamassaM2: 'specConsumoArgamassaM2',
+  consumoRejunteM2: 'specConsumoRejunteM2',
+  consumoCantoneiraMl: 'specConsumoCantoneiraMl',
+  consumoCimentoM3: 'specConsumoCimentoM3',
+  consumoAreiaM3: 'specConsumoAreiaM3',
   cascataComprimentoCm: 'specCascataComprimentoCm',
   qtdJatos: 'specQtdJatos',
   bordaAlturaQuedaM: 'specBordaAlturaQuedaM',
