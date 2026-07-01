@@ -323,6 +323,21 @@ export default function PoolPrintLayoutEditorPage() {
       return { ...b, x: rnd2(x), y: rnd2(y) };
     }));
   }
+  // Alinha o filho selecionado ao PAI (borda/centro), milimetrico. So quando a caixa tem parentId.
+  // Reusa patchSelBox (que trava no pai + carrega a subarvore se for um grupo dentro de outro).
+  function alignToParent(kind: "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom") {
+    if (!selBox) return;
+    const b = boxes.find((x) => x.id === selBox); if (!b || !b.parentId) return;
+    const p = boxes.find((x) => x.id === b.parentId); if (!p) return;
+    const patch: Partial<Box> = {};
+    if (kind === "left") patch.x = rnd2(p.x);
+    else if (kind === "hcenter") patch.x = rnd2(p.x + (p.w - b.w) / 2);
+    else if (kind === "right") patch.x = rnd2(p.x + p.w - b.w);
+    else if (kind === "top") patch.y = rnd2(p.y);
+    else if (kind === "vcenter") patch.y = rnd2(p.y + (p.h - b.h) / 2);
+    else if (kind === "bottom") patch.y = rnd2(p.y + p.h - b.h);
+    patchSelBox(patch);
+  }
   // Distribui as selecionadas com espacamento IGUAL (precisa de 3+).
   function distributeSel(axis: "h" | "v") {
     const bs = boxes.filter((b) => selSet.has(b.id));
@@ -484,13 +499,31 @@ export default function PoolPrintLayoutEditorPage() {
   }
   // Drag/resize/digitação ao vivo: atualiza + AUTOSAVE (debounce). Commit (1 passo de histórico)
   // no fim do gesto (pointerup) e no blur do texto.
-  const onCanvasChange = (b: Box) => setBoxes((cur) => {
-    const prev = cur.find((x) => x.id === b.id);
+  // Todos os descendentes (subarvore) de um box — pra mover grupo-dentro-de-grupo junto (netos tambem).
+  const subtreeIds = (rootId: string, list: Box[]): Set<string> => {
+    const out = new Set<string>(); const stk = [rootId];
+    while (stk.length) { const pid = stk.pop()!; for (const b of list) if (b.parentId === pid && !out.has(b.id)) { out.add(b.id); stk.push(b.id); } }
+    return out;
+  };
+  // Trava um filho DENTRO do retangulo do pai (nao passa da borda). Filho maior que o pai = ancora no topo-esq.
+  const clampInParent = (b: Box, list: Box[]): Box => {
+    if (!b.parentId) return b;
+    const p = list.find((x) => x.id === b.parentId); if (!p) return b;
+    const x = Math.max(p.x, Math.min(p.x + p.w - b.w, b.x));
+    const y = Math.max(p.y, Math.min(p.y + p.h - b.h, b.y));
+    return (Math.abs(x - b.x) < 0.001 && Math.abs(y - b.y) < 0.001) ? b : { ...b, x: rnd2(x), y: rnd2(y) };
+  };
+  const onCanvasChange = (bIn: Box) => setBoxes((cur) => {
+    const prev = cur.find((x) => x.id === bIn.id);
+    // Move (posicao mudou, tamanho igual) trava dentro do pai; resize nao mexe na posicao aqui.
+    const isMove = !!prev && bIn.w === prev.w && bIn.h === prev.h;
+    const b = isMove ? clampInParent(bIn, cur) : bIn;
     let next = cur.map((x) => x.id === b.id ? b : x);
-    // Card dinamico: arrastar o card carrega os filhos junto (mesmo delta de posicao).
+    // Card dinamico: arrastar o card carrega a SUBARVORE inteira junto (netos tambem) — conserta a
+    // imagem que "escapava" ao arrastar a pilha (antes so os filhos DIRETOS acompanhavam).
     if (prev && b.type === "CARD") {
       const dx = b.x - prev.x, dy = b.y - prev.y;
-      if (dx !== 0 || dy !== 0) next = next.map((x) => x.parentId === b.id ? { ...x, x: x.x + dx, y: x.y + dy } : x);
+      if (dx !== 0 || dy !== 0) { const sub = subtreeIds(b.id, next); next = next.map((x) => sub.has(x.id) ? { ...x, x: rnd2(x.x + dx), y: rnd2(x.y + dy) } : x); }
     }
     scheduleSave(next); return next;
   });
@@ -701,12 +734,13 @@ export default function PoolPrintLayoutEditorPage() {
     if (cur && cur.type === "CARD" && (patch.x !== undefined || patch.y !== undefined)) {
       const dx = (patch.x ?? cur.x) - cur.x, dy = (patch.y ?? cur.y) - cur.y;
       if (dx !== 0 || dy !== 0) {
-        const sub = new Set<string>([selBox]);
-        let grew = true;
-        while (grew) { grew = false; for (const b of next) if (b.parentId && sub.has(b.parentId) && !sub.has(b.id)) { sub.add(b.id); grew = true; } }
-        sub.delete(selBox);
-        next = next.map((b) => sub.has(b.id) ? { ...b, x: b.x + dx, y: b.y + dy } : b);
+        const sub = subtreeIds(selBox, next);
+        next = next.map((b) => sub.has(b.id) ? { ...b, x: rnd2(b.x + dx), y: rnd2(b.y + dy) } : b);
       }
+    }
+    // Trava o filho dentro do pai (campos X/Y nao passam da borda do grupo dono).
+    if (cur && cur.parentId && (patch.x !== undefined || patch.y !== undefined)) {
+      next = next.map((b) => b.id === selBox ? clampInParent(b, next) : b);
     }
     commitBoxes(next);
   }
@@ -1484,6 +1518,17 @@ export default function PoolPrintLayoutEditorPage() {
               const target = groups.find((g) => cx >= g.x && cx <= g.x + g.w && cy >= g.y && cy <= g.y + g.h) || groups[0];
               return <RibbonBtn icon="📥" label="Colocar no grupo" onClick={() => patchSelBox({ parentId: target.id })} />;
             })() : null}
+            {/* Alinhar ao GRUPO DONO (milimetrico) — so quando a caixa esta dentro de um grupo */}
+            {sb.parentId ? (<>
+              <span className="mx-1 self-center h-6 w-px bg-emerald-200" />
+              <span className="self-center text-[10px] uppercase tracking-wide text-emerald-600" title="Alinhar esta caixa às bordas/centro do grupo dono">no grupo:</span>
+              <RibbonBtn icon="⊢" label="Esq pai" onClick={() => alignToParent("left")} />
+              <RibbonBtn icon="⊟" label="Centro pai" onClick={() => alignToParent("hcenter")} />
+              <RibbonBtn icon="⊣" label="Dir pai" onClick={() => alignToParent("right")} />
+              <RibbonBtn icon="⊤" label="Topo pai" onClick={() => alignToParent("top")} />
+              <RibbonBtn icon="⊞" label="Meio pai" onClick={() => alignToParent("vcenter")} />
+              <RibbonBtn icon="⊥" label="Base pai" onClick={() => alignToParent("bottom")} />
+            </>) : null}
             {selSet.size >= 2 ? (
               <>
                 <span className="mx-1 self-center h-6 w-px bg-slate-200" />

@@ -30,6 +30,17 @@ export default function NumInput({ value, onChange, placeholder, className, titl
       title={title}
       className={className}
       onFocus={() => { focused.current = true; onFocus?.(); }}
+      onKeyDown={(e) => {
+        // Setas ↑/↓ incrementam/decrementam (Shift=10, Alt=0,1) — ajuste fino milimetrico
+        // (o input e type="text" pra corrigir o "0 que gruda", entao nao tem spinner nativo).
+        if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+        e.preventDefault();
+        const base = parseFloat((text || "0").replace(",", ".")) || 0;
+        const step = e.shiftKey ? 10 : e.altKey ? 0.1 : 1;
+        const nv = Math.round((base + (e.key === "ArrowUp" ? step : -step)) * 100) / 100;
+        setText(nv ? String(nv) : "");
+        onChange(nv);
+      }}
       onChange={(e) => {
         let v = e.target.value.replace(",", ".").replace(/[^0-9.-]/g, "");
         const dot = v.indexOf(".");
