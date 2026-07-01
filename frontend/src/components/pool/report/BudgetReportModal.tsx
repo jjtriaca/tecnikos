@@ -68,6 +68,11 @@ export function buildReportData(budget: any, sectionLabels: Record<string, strin
     productUnit: it.unit ?? it.product?.unit ?? it.service?.unit ?? null,
     productSpecs: (it.product?.technicalSpecs ?? it.service?.technicalSpecs ?? null) as any,
     hasProduct: !!(it.product || it.service),
+    // Indicador da auto-selecao (ex: "Tempo de filtragem: 3h 42min") — rotulo vem da regra, valor/unidade/status do item.
+    indicatorLabel: (it.autoSelectRule?.indicator?.label ?? null) as any,
+    indicatorValue: it.indicatorValue ?? null,
+    indicatorUnit: it.indicatorUnit ?? null,
+    indicatorStatus: it.indicatorLabel ?? null,
   }));
   return {
     code: budget?.code ?? "",

@@ -1933,6 +1933,12 @@ export default function PoolPrintLayoutEditorPage() {
                 <option value="prodDescricao">Descricao do cadastro</option>
                 <option value="prodUnidade">Unidade</option>
               </optgroup>
+              <optgroup label="Indicador da auto-selecao">
+                <option value="indicadortexto">⏱️ Indicador completo (ex: Tempo de filtragem: 3h 42min)</option>
+                <option value="indicador">Só o valor (ex: 3h 42min)</option>
+                <option value="indicadorrotulo">Só o rótulo (ex: Tempo de filtragem)</option>
+                <option value="indicadorstatus">Status (OTIMO / COMPATÍVEL)</option>
+              </optgroup>
               <optgroup label="Etapa agrupada (banda por etapa)">
                 <option value="etapaNome">🗂️ Nome da etapa (titulo)</option>
                 <option value="etapaItens">📋 Lista de produtos da etapa</option>

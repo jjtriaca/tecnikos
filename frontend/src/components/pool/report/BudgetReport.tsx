@@ -117,6 +117,11 @@ export type ReportItem = {
   productUnit?: string | null;
   productSpecs?: Record<string, any> | null; // technicalSpecs (Json livre)
   hasProduct?: boolean;              // tem produto/servico vinculado (pra condicao "tem produto")
+  // Indicador da AUTO-SELECAO (ex: "Tempo de filtragem: 3h 42min") — {linha:Lx.indicador|indicadorrotulo|indicadortexto|indicadorstatus}
+  indicatorLabel?: string | null;    // rotulo da metrica (autoSelectRule.indicator.label) — ex: "Tempo de filtragem"
+  indicatorValue?: number | null;    // valor bruto (decimal)
+  indicatorUnit?: string | null;     // unidade (h => "Xh Ymin"; senao decimal + unidade)
+  indicatorStatus?: string | null;   // status qualitativo (OTIMO, COMPATIVEL, ...)
 };
 
 export type BudgetReportData = {
@@ -570,6 +575,21 @@ function sectionLabel(data: BudgetReportData, section: string): string {
  *   {linha:L130.produto|descricao|qtd|valor|unitario|papel|etapa}
  *   {etapa:CASCATA.total|linhas|nome}
  *  Retorna string ja formatada, "" se o alvo nao existe, ou null se nao casa (deixa o token cru). */
+// Formata o valor do indicador da auto-selecao (unit 'h' => "Xh Ymin"; senao decimal + unidade).
+// Espelha o formatIndicatorValue do orcamento (quotes/pool) pra o relatorio mostrar igual.
+function fmtIndicator(value: number | null | undefined, unit: string | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "";
+  const u = (unit || "").toLowerCase().trim();
+  if (u === "h" && value > 0) {
+    const hours = Math.floor(value), minutes = Math.round((value - hours) * 60);
+    if (hours === 0) return `${minutes}min`;
+    if (minutes === 0) return `${hours}h`;
+    return `${hours}h ${minutes}min`;
+  }
+  const f = value.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  return unit ? `${f} ${unit}` : f;
+}
+
 function resolveAddressedToken(token: string, data: BudgetReportData): string | null {
   const inner = token.slice(1, -1); // tira { }
   const items = data.items || [];
@@ -600,6 +620,11 @@ function resolveAddressedToken(token: string, data: BudgetReportData): string | 
       case "prodcodigo": case "codigo": return it.productCode || "";
       case "proddescricao": case "proddesc": return it.productDesc || "";
       case "produnidade": case "produnit": case "unidade": return it.productUnit || "";
+      // ── Indicador da AUTO-SELECAO (ex: "Tempo de filtragem: 3h 42min") ──
+      case "indicador": case "indicadorvalor": return fmtIndicator(it.indicatorValue, it.indicatorUnit);
+      case "indicadorrotulo": case "indicadorlabel": return it.indicatorLabel || "";
+      case "indicadortexto": return (it.indicatorLabel && it.indicatorValue != null) ? `${it.indicatorLabel}: ${fmtIndicator(it.indicatorValue, it.indicatorUnit)}` : "";
+      case "indicadorstatus": return it.indicatorStatus || "";
       default: return "";
     }
   }
