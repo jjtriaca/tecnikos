@@ -224,6 +224,7 @@ export default function PoolPrintLayoutEditorPage() {
   const tplCustomSections = useMemo(() => previewBudget ? (((previewBudget.environmentParams as any)?.customSections ?? null) as { labels?: Record<string, string>; hidden?: string[] } | null) : modelCustomSections, [previewBudget, modelCustomSections]);
   const tplSectionOrder = useMemo<string[]>(() => previewBudget ? ((previewBudget.sectionOrder as string[]) ?? []) : modelSectionOrder, [previewBudget, modelSectionOrder]);
   const [pickLine, setPickLine] = useState(false);
+  const [editFieldBoxId, setEditFieldBoxId] = useState<string | null>(null); // != null => modal de campo em modo EDICAO (troca o conteudo do box)
   const [lineSel, setLineSel] = useState<Set<string>>(new Set());
   const [etapaSel, setEtapaSel] = useState<Set<string>>(new Set()); // selecao quando "O que inserir" e nivel-etapa
   const [lineAttr, setLineAttr] = useState("produto");
@@ -620,6 +621,56 @@ export default function PoolPrintLayoutEditorPage() {
     commitBoxes([...boxes, ...clones]);
     const anchorId = idMap.get(selBox!)!;
     setSelBox(anchorId); setSelSet(new Set(clones.map((c) => c.id)));
+  }
+  // ── Campo de etapa/linha: parse do token + edicao pelo MESMO modal de insercao ──
+  // Reconstroi {kind, extra} de um campo (MESMA logica dos 3 handlers do modal) — fonte unica.
+  function fieldBoxFor(attr: string, ref: string): { kind: "TEXT" | "IMAGE"; extra: Partial<Box> } {
+    if (attr === "prodImagem") return { kind: "IMAGE", extra: { url: `{linha:${ref}.prodImagem}`, fit: "contain" } };
+    if (attr === "etapaImagem") return { kind: "IMAGE", extra: { url: `{etapa:${ref}.imagem}`, fit: "cover" } };
+    if (attr === "etapaItens") return { kind: "TEXT", extra: { html: `<p>{etapa:${ref}.itens}</p>` } };
+    if (attr === "etapaNome") return { kind: "TEXT", extra: { html: `<p><b>{etapa:${ref}.nome}</b></p>`, style: { fontSize: 13 } } };
+    if (attr === "etapaTotal") return { kind: "TEXT", extra: { html: `<p>{etapa:${ref}.total}</p>` } };
+    if (attr === "etapa") return { kind: "TEXT", extra: { html: `<p>{etapa:${ref}.nome}</p>` } };
+    return { kind: "TEXT", extra: { html: `<p>{linha:${ref}.${attr}}</p>` } };
+  }
+  // Extrai {kind:'linha'|'etapa', ref, attr} do conteudo do box (token {linha:..}/{etapa:..}). null se nao for campo.
+  function parseFieldBox(b: Box): { kind: "linha" | "etapa"; ref: string; attr: string } | null {
+    const src = b.type === "IMAGE" ? (b.url || "") : (b.html || "");
+    const m = src.match(/\{(linha|etapa):([^.}]+)\.([^}]+)\}/);
+    return m ? { kind: m[1] as "linha" | "etapa", ref: m[2], attr: m[3] } : null;
+  }
+  // Mapeia o attr do token de volta pro valor do dropdown "O que inserir".
+  function fieldAttrToOption(p: { kind: "linha" | "etapa"; attr: string }): string {
+    if (p.kind === "etapa") return (({ nome: "etapaNome", itens: "etapaItens", imagem: "etapaImagem", total: "etapaTotal" }) as Record<string, string>)[p.attr] || "etapaNome";
+    return p.attr; // linha: o attr JA e o valor do dropdown (produto/qtd/valor/unitario/papel/prod*)
+  }
+  const fieldSummary = (p: { kind: "linha" | "etapa"; ref: string; attr: string }) =>
+    `${p.kind === "etapa" ? "etapa " : ""}${p.ref === "ATUAL" ? "ATUAL" : p.ref} · ${p.attr}`;
+  const closePick = () => { setPickLine(false); setEditFieldBoxId(null); };
+  // Abre o modal de campo em modo EDICAO: pre-seleciona linha/etapa + atributo do box atual.
+  function openFieldEdit(b: Box) {
+    const p = parseFieldBox(b); if (!p) return;
+    const opt = fieldAttrToOption(p);
+    setLineAttr(opt);
+    if (ETAPA_ATTRS.has(opt)) { setEtapaSel(p.ref === "ATUAL" ? new Set() : new Set([p.ref])); setLineSel(new Set()); }
+    else { setLineSel(p.ref === "ATUAL" ? new Set() : new Set([p.ref])); setEtapaSel(new Set()); }
+    setEditFieldBoxId(b.id);
+    setPickLine(true);
+  }
+  // Aplica o(s) campo(s) do modal: editando => troca o conteudo do box selecionado; senao => insere (addBoxes).
+  function applyField(items: { kind: "TEXT" | "IMAGE"; extra: Partial<Box> }[]) {
+    if (!items.length) return;
+    if (editFieldBoxId) {
+      const it = items[0]; const ex = it.extra;
+      const patch: Partial<Box> = it.kind === "IMAGE"
+        ? { type: "IMAGE", url: ex.url ?? "", fit: boxes.find((b) => b.id === editFieldBoxId)?.fit ?? ex.fit ?? "contain", html: null }
+        : { type: "TEXT", html: ex.html ?? "", url: null };
+      commitBoxes(boxes.map((b) => b.id === editFieldBoxId ? { ...b, ...patch } : b));
+      setSelBox(editFieldBoxId); setSelSet(new Set([editFieldBoxId]));
+    } else {
+      addBoxes(items);
+    }
+    closePick();
   }
   function patchSelBox(patch: Partial<Box>) {
     if (!selBox) return;
@@ -1360,6 +1411,17 @@ export default function PoolPrintLayoutEditorPage() {
               {sb.showIf ? <RibbonBtn icon="🚫" label="Sempre aparece" onClick={() => patchSelBox({ showIf: null })} /> : null}
               <span className="mx-1 self-center h-6 w-px bg-fuchsia-300" />
             </>) : null}
+            {/* ── CAMPO DE ETAPA/LINHA — TEXT/IMAGE com token; edita pelo MESMO modal da inserção ── */}
+            {(() => {
+              const isPlainField = (sb.type === "TEXT" && !Array.isArray(sb.txtRules)) || (sb.type === "IMAGE" && !Array.isArray(sb.imgRules));
+              const fp = isPlainField ? parseFieldBox(sb) : null;
+              return fp ? (<>
+                <span className="self-center rounded bg-sky-600 px-2 py-0.5 text-[11px] font-bold text-white" title="Campo de etapa/linha: resolve o valor do orçamento real na impressão. 'Editar campo' reabre o mesmo modal da inserção pra trocar a linha/etapa e o atributo.">🔗 Campo de etapa/linha</span>
+                <RibbonBtn icon="✏️" label="Editar campo" onClick={() => openFieldEdit(sb)} />
+                <span className="self-center max-w-[220px] truncate text-[11px] italic text-slate-500" title={fieldSummary(fp)}>{fieldSummary(fp)}</span>
+                <span className="mx-1 self-center h-6 w-px bg-sky-300" />
+              </>) : null;
+            })()}
             <span className="text-[10px] uppercase tracking-wide text-slate-400">{isDyn ? "Grupo:" : "Caixa:"}</span>
             <label className="text-xs text-slate-600 flex items-center gap-1" title="Posição horizontal (mm a partir da esquerda; 0 = canto)">X<NumInput key={`${sb.id}-x`} value={r1(sb.x)} onChange={(v) => patchSelBox({ x: clampN(v, PW - sb.w) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
             <label className="text-xs text-slate-600 flex items-center gap-1" title="Posição vertical (mm a partir do topo; 0 = canto)">Y<NumInput key={`${sb.id}-y`} value={r1(sb.y)} onChange={(v) => patchSelBox({ y: clampN(v, PH - sb.h) })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
@@ -1721,14 +1783,14 @@ export default function PoolPrintLayoutEditorPage() {
           sourceId={SOURCE_CATALOG_ID[layout.sourceType || "POOL_BUDGET"] || "orcamento_obras"}
           onInsertText={(token) => addBox("TEXT", { html: `<p>${token}</p>` })}
           onInsertBlock={(blockType) => addBox("BLOCK", { blockType })}
-          onPickLine={(layout.sourceType || "POOL_BUDGET") === "POOL_BUDGET" ? () => { setLineSel(new Set()); setEtapaSel(new Set()); setPickLine(true); } : undefined}
+          onPickLine={(layout.sourceType || "POOL_BUDGET") === "POOL_BUDGET" ? () => { setEditFieldBoxId(null); setLineSel(new Set()); setEtapaSel(new Set()); setPickLine(true); } : undefined}
           onClose={() => setTab("Inserir")} />
       ) : null}
 
       {pickLine && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setPickLine(false)}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={closePick}>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-semibold text-slate-900 mb-1">Inserir campo de etapa/linha</h3>
+            <h3 className="text-sm font-semibold text-slate-900 mb-1">{editFieldBoxId ? "Editar campo de etapa/linha" : "Inserir campo de etapa/linha"}</h3>
             <p className="text-[11px] text-slate-500 mb-3">Escolha a linha pelo modelo de obra e o que inserir. Vira um codigo {"{linha:Lx.atributo}"} que resolve no orcamento real na hora de imprimir.</p>
             <label className="block text-[11px] font-medium text-slate-600 mb-1">Modelo de obra</label>
             <select value={layout.templateId || ""} onChange={(e) => setLayoutTemplate(e.target.value)}
@@ -1759,18 +1821,12 @@ export default function PoolPrintLayoutEditorPage() {
             </select>
             <button type="button"
               onClick={() => {
-                if (lineAttr === "prodImagem") addBox("IMAGE", { url: `{linha:ATUAL.prodImagem}`, fit: "contain" });
-                else if (lineAttr === "etapaImagem") addBox("IMAGE", { url: `{etapa:ATUAL.imagem}`, fit: "cover" });
-                else if (lineAttr === "etapaItens") addBox("TEXT", { html: `<p>{etapa:ATUAL.itens}</p>` });
-                else if (lineAttr === "etapaNome") addBox("TEXT", { html: `<p><b>{etapa:ATUAL.nome}</b></p>`, style: { fontSize: 13 } });
-                else if (lineAttr === "etapaTotal") addBox("TEXT", { html: `<p>{etapa:ATUAL.total}</p>` });
-                else if (lineAttr === "etapa") addBox("TEXT", { html: `<p>{etapa:ATUAL.nome}</p>` });
-                else addBox("TEXT", { html: `<p>{linha:ATUAL.${lineAttr}}</p>` });
-                setPickLine(false);
-                toast("Campo ATUAL inserido (pro item da banda)", "success");
+                const ed = !!editFieldBoxId;
+                applyField([fieldBoxFor(lineAttr, "ATUAL")]);
+                toast(ed ? "Campo trocado por ATUAL" : "Campo ATUAL inserido (pro item da banda)", "success");
               }}
               className="w-full mb-3 rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-800 hover:bg-blue-100">
-              🔁 Inserir como <b>ATUAL</b> ({isEtapaMode ? "etapa corrente da banda" : "item corrente da banda"}) — sem escolher {isEtapaMode ? "etapa" : "linha"}
+              🔁 {editFieldBoxId ? "Trocar por" : "Inserir como"} <b>ATUAL</b> ({isEtapaMode ? "etapa corrente da banda" : "item corrente da banda"}) — sem escolher {isEtapaMode ? "etapa" : "linha"}
             </button>
             {isEtapaMode ? (
               // NIVEL-ETAPA: escolhe a(s) ETAPA(S) (nao linhas), na ordem do modelo, com nome amigavel.
@@ -1803,21 +1859,15 @@ export default function PoolPrintLayoutEditorPage() {
                   <div className="flex items-center gap-2 mt-2">
                     <button type="button" disabled={etapaSel.size === 0}
                       onClick={() => {
+                        const ed = !!editFieldBoxId;
                         const secs = Array.from(etapaSel);
-                        addBoxes(secs.map((sec) => {
-                          if (lineAttr === "etapaImagem") return { kind: "IMAGE" as const, extra: { url: `{etapa:${sec}.imagem}`, fit: "cover" as const } };
-                          if (lineAttr === "etapaItens") return { kind: "TEXT" as const, extra: { html: `<p>{etapa:${sec}.itens}</p>` } };
-                          if (lineAttr === "etapaNome") return { kind: "TEXT" as const, extra: { html: `<p><b>{etapa:${sec}.nome}</b></p>`, style: { fontSize: 13 } } };
-                          if (lineAttr === "etapaTotal") return { kind: "TEXT" as const, extra: { html: `<p>{etapa:${sec}.total}</p>` } };
-                          return { kind: "TEXT" as const, extra: { html: `<p>{etapa:${sec}.nome}</p>` } }; // "etapa"
-                        }));
-                        setPickLine(false);
-                        if (secs.length) toast(`${secs.length} campo(s) de etapa inserido(s)`, "success");
+                        applyField(secs.map((sec) => fieldBoxFor(lineAttr, sec)));
+                        if (secs.length) toast(ed ? "Campo trocado" : `${secs.length} campo(s) de etapa inserido(s)`, "success");
                       }}
                       className="rounded bg-violet-600 hover:bg-violet-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-3 py-1 text-xs font-semibold">
-                      Aplicar {etapaSel.size > 0 && `(${etapaSel.size})`}
+                      {editFieldBoxId ? "Trocar" : "Aplicar"} {etapaSel.size > 0 && `(${etapaSel.size})`}
                     </button>
-                    <button type="button" onClick={() => setPickLine(false)} className="text-[10px] text-violet-700 hover:text-violet-900 underline">Cancelar</button>
+                    <button type="button" onClick={closePick} className="text-[10px] text-violet-700 hover:text-violet-900 underline">Cancelar</button>
                   </div>
                 </div>
               </>
@@ -1832,15 +1882,13 @@ export default function PoolPrintLayoutEditorPage() {
                   selected={lineSel}
                   onToggle={(ref) => setLineSel((p) => { const n = new Set(p); if (n.has(ref)) n.delete(ref); else n.add(ref); return n; })}
                   onApply={() => {
+                    const ed = !!editFieldBoxId;
                     const refs = Array.from(lineSel);
-                    // Imagem do cadastro -> caixa IMAGE com url = token; senão TEXT. addBoxes acumula (1 commit).
-                    addBoxes(refs.map((ref) => lineAttr === "prodImagem"
-                      ? { kind: "IMAGE" as const, extra: { url: `{linha:${ref}.prodImagem}`, fit: "contain" as const } }
-                      : { kind: "TEXT" as const, extra: { html: `<p>{linha:${ref}.${lineAttr}}</p>` } }));
-                    setPickLine(false);
-                    if (refs.length) toast(`${refs.length} campo(s) de linha inserido(s)`, "success");
+                    // Editando => troca o conteudo do box (1º ref); senão => insere N (addBoxes, 1 commit).
+                    applyField(refs.map((ref) => fieldBoxFor(lineAttr, ref)));
+                    if (refs.length) toast(ed ? "Campo trocado" : `${refs.length} campo(s) de linha inserido(s)`, "success");
                   }}
-                  onCancel={() => setPickLine(false)}
+                  onCancel={closePick}
                 />
               </>
             )}
