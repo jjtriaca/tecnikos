@@ -600,8 +600,26 @@ export default function PoolPrintLayoutEditorPage() {
   function duplicateSelBox() {
     if (!selectedBox) return;
     const { w: PW, h: PH } = pageDims(layout?.branding);
-    const nb = { ...JSON.parse(JSON.stringify(selectedBox)), id: genBoxId(), x: Math.min(PW - selectedBox.w, selectedBox.x + 5), y: Math.min(PH - selectedBox.h, selectedBox.y + 5), z: maxZ() + 1 } as Box;
-    commitBoxes([...boxes, nb]); setSelBox(nb.id); setSelSet(new Set([nb.id]));
+    // Grupo/card dinamico: duplicar leva os filhos (parentId) junto, remapeando o parentId pro clone.
+    const roots = new Set<string>([...(selBox ? [selBox] : []), ...selSet]);
+    for (const b of boxes) if (b.parentId && roots.has(b.parentId)) roots.add(b.id);
+    // delta (com clamp na pagina) a partir da caixa ancora — filhos acompanham o mesmo deslocamento
+    const dx = Math.min(PW - selectedBox.w, selectedBox.x + 5) - selectedBox.x;
+    const dy = Math.min(PH - selectedBox.h, selectedBox.y + 5) - selectedBox.y;
+    const src = boxes.filter((b) => roots.has(b.id)).sort((a, b) => (a.z || 0) - (b.z || 0));
+    const idMap = new Map<string, string>();
+    for (const b of src) idMap.set(b.id, genBoxId());
+    let zc = maxZ();
+    const clones = src.map((b) => {
+      const c = JSON.parse(JSON.stringify(b)) as Box;
+      c.id = idMap.get(b.id)!;
+      if (c.parentId && idMap.has(c.parentId)) c.parentId = idMap.get(c.parentId)!;
+      c.x = b.x + dx; c.y = b.y + dy; c.z = ++zc;
+      return c;
+    });
+    commitBoxes([...boxes, ...clones]);
+    const anchorId = idMap.get(selBox!)!;
+    setSelBox(anchorId); setSelSet(new Set(clones.map((c) => c.id)));
   }
   function patchSelBox(patch: Partial<Box>) {
     if (!selBox) return;
