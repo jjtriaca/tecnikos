@@ -3103,6 +3103,23 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
     }
   }
 
+  // "Outras linhas" AGRUPADAS por ETAPA (poolSection), na ordem salva do layout (sectionOrder),
+  // tudo colapsado — padrao "mini modal" do sistema (igual ao LineRefPicker). Antes era um scroll
+  // plano de N linhas (dificil de achar). Label da etapa: custom do orcamento > default > a chave.
+  const otherSecLabel = (k: string) =>
+    (((environmentParams as any)?.customSections?.labels?.[k]) ?? SECTION_LABEL[k] ?? k ?? "OUTROS").toUpperCase();
+  const otherBySection = (() => {
+    const items = (otherItems || []).filter((o) => o.cellRef && o.cellRef !== itemCellRef);
+    const groups = new Map<string, typeof items>();
+    for (const o of items) { const sec = o.poolSection || "OUTROS"; const a = groups.get(sec) || []; a.push(o); groups.set(sec, a); }
+    const order = sectionOrder && sectionOrder.length ? sectionOrder : Array.from(groups.keys());
+    const keys = Array.from(groups.keys()).sort((a, b) => {
+      const ia = order.indexOf(a), ib = order.indexOf(b);
+      return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib);
+    });
+    return keys.map((k) => ({ section: k, label: otherSecLabel(k), lines: groups.get(k)! }));
+  })();
+
   // Conteudo do painel de variaveis (produto vinculado + grupos estaticos + sections).
   // Renderizado ACIMA da linha da formula quando varsOpen (antes era um <details> la embaixo).
   const varsPanel = (
@@ -3396,33 +3413,37 @@ function FormulaModal({ initialExpr, dimensions, environmentParams, heatingRepor
                     </span>
                     <span className="text-slate-400 text-xs group-open:rotate-180 transition-transform">▼</span>
                   </summary>
-                  <div className="px-4 pb-3 pt-1">
-                    <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
-                      {otherItems
-                        .filter((o) => o.cellRef && o.cellRef !== itemCellRef)
-                        .map((o) => (
-                          <div key={o.cellRef} className="flex items-center justify-between gap-2 px-2 py-1.5 hover:bg-cyan-50 text-xs">
-                            <div className="flex-1 min-w-0 flex items-center gap-2">
-                              <span className="font-mono font-bold text-cyan-700 shrink-0">{o.cellRef}</span>
-                              <span className="text-[9px] font-medium uppercase tracking-wide text-slate-600 bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 shrink-0">
-                                {SECTION_LABEL[o.poolSection] || o.poolSection}
-                              </span>
-                              <span className="text-slate-800 truncate">{o.description}</span>
+                  <div className="px-4 pb-3 pt-1 space-y-1.5 max-h-72 overflow-y-auto">
+                    <div className="text-[10px] text-slate-500">Agrupadas por etapa (na ordem do orçamento). Clique numa etapa pra abrir e ache a linha; use <span className="font-mono">qty</span>/<span className="font-mono">total</span> pra inserir.</div>
+                    {otherBySection.map((g) => (
+                      <details key={g.section} className="rounded border border-slate-200 bg-slate-50/50">
+                        <summary className="cursor-pointer list-none flex items-center justify-between px-2.5 py-1.5 hover:bg-slate-100 rounded">
+                          <span className="text-[11px] font-bold uppercase tracking-wide text-slate-700 truncate">{g.label}</span>
+                          <span className="text-[10px] text-slate-500 shrink-0 ml-2">{g.lines.length} linha{g.lines.length > 1 ? "s" : ""}</span>
+                        </summary>
+                        <div className="divide-y divide-slate-100 border-t border-slate-200">
+                          {g.lines.map((o) => (
+                            <div key={o.cellRef} className="flex items-center justify-between gap-2 px-2.5 py-1.5 hover:bg-cyan-50 text-xs bg-white">
+                              <div className="flex-1 min-w-0 flex items-center gap-2">
+                                <span className="font-mono font-bold text-cyan-700 shrink-0">{o.cellRef}</span>
+                                <span className="text-slate-800 truncate" title={o.description}>{o.description}</span>
+                              </div>
+                              <div className="text-[10px] text-slate-500 tabular-nums whitespace-nowrap shrink-0">
+                                qty {o.qty} · R$ {o.total.toFixed(2)}
+                              </div>
+                              <div className="flex gap-1 shrink-0">
+                                <button type="button" onClick={() => insert(`qty(${o.cellRef})`)}
+                                  className="rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-1.5 py-0.5 font-mono text-[10px] text-cyan-700 transition"
+                                  title={`Insere qty(${o.cellRef}) — quantidade da linha`}>qty</button>
+                                <button type="button" onClick={() => insert(`total(${o.cellRef})`)}
+                                  className="rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-1.5 py-0.5 font-mono text-[10px] text-cyan-700 transition"
+                                  title={`Insere total(${o.cellRef}) — total em R$ da linha`}>total</button>
+                              </div>
                             </div>
-                            <div className="text-[10px] text-slate-500 tabular-nums whitespace-nowrap">
-                              qty {o.qty} · R$ {o.total.toFixed(2)}
-                            </div>
-                            <div className="flex gap-1">
-                              <button type="button" onClick={() => insert(`qty(${o.cellRef})`)}
-                                className="rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-1.5 py-0.5 font-mono text-[10px] text-cyan-700 transition"
-                                title={`Insere qty(${o.cellRef}) — quantidade da linha`}>qty</button>
-                              <button type="button" onClick={() => insert(`total(${o.cellRef})`)}
-                                className="rounded border border-slate-200 bg-white hover:border-cyan-400 hover:bg-cyan-50 px-1.5 py-0.5 font-mono text-[10px] text-cyan-700 transition"
-                                title={`Insere total(${o.cellRef}) — total em R$ da linha`}>total</button>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
+                          ))}
+                        </div>
+                      </details>
+                    ))}
                   </div>
                 </details>
               )}
