@@ -65,7 +65,7 @@ Arquivos: [BudgetReport.tsx] + [pool/print-layouts/[id]/page.tsx].
 - **Clipping rígido** ("campo não vaza do card"): hoje nasce dentro mas pode ser arrastado pra fora. Render é PLANO (card = retângulo, filhos por cima via z) — clipping de verdade exigiria render aninhado (overflow hidden).
 - **Coreografia 1-clique-seleciona-card / 2-cliques-entra-pra-editar**: hoje clica direto no campo (por cima) pra editar; card via área vazia ou árvore OBJETOS. Falta o "modo dentro do card" (foco/enter-exit).
 - **Repetidor** (sabor #2 acima).
-- Edge conhecidos: duplicar card NÃO duplica filhos (mantêm parentId antigo); group-move multi-seleção não arrasta filhos não-selecionados; resize pelo canto esquerdo/topo do card desloca filhos (muda x/y).
+- ~~Edge: duplicar card NÃO duplica filhos~~ **RESOLVIDO v1.15.24** (ver abaixo). Edges restantes: group-move multi-seleção não arrasta filhos não-selecionados; resize pelo canto esquerdo/topo do card desloca filhos (muda x/y).
 
 ## v1.15.19→23 — texto dinâmico vira texto normal, lista mm+fonte da barra, z-index da seleção, colocar no grupo
 - **Token PRECISA de chaves (v1.15.19, gotcha):** `resolveAddressedToken(token, data)` faz `token.slice(1,-1)` esperando `{...}`. Passar SEM chaves (ex: `linha:L5.produto`) corta caracteres reais → não casa o regex → resolve VAZIO. `renderDynamicList` (cellVal) e o antigo `resolveDynamicText` faziam isso → célula colorida sem texto. SEMPRE montar `` `{linha:${cellRef}.${field}}` ``.
