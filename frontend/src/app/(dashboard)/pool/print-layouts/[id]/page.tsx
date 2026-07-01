@@ -667,9 +667,19 @@ export default function PoolPrintLayoutEditorPage() {
     // Grupo/card dinamico: duplicar leva os filhos (parentId) junto, remapeando o parentId pro clone.
     const roots = new Set<string>([...(selBox ? [selBox] : []), ...selSet]);
     for (const b of boxes) if (b.parentId && roots.has(b.parentId)) roots.add(b.id);
-    // delta (com clamp na pagina) a partir da caixa ancora — filhos acompanham o mesmo deslocamento
-    const dx = Math.min(PW - selectedBox.w, selectedBox.x + 5) - selectedBox.x;
-    const dy = Math.min(PH - selectedBox.h, selectedBox.y + 5) - selectedBox.y;
+    // delta a partir da caixa ancora — filhos acompanham o mesmo deslocamento.
+    // DENTRO de um grupo: nasce ALINHADO (mesmo X) e LOGO ABAIXO do original, respeitando o espaço
+    // da pilha (stackGap) — e travado no pai (cresce o pai se precisar). Solto: desloca +5mm na pagina.
+    const anchorParent = selectedBox.parentId ? boxes.find((b) => b.id === selectedBox.parentId) : null;
+    let dx: number, dy: number;
+    if (anchorParent) {
+      const gap = (anchorParent.stack && typeof anchorParent.stackGap === "number" && anchorParent.stackGap >= 0) ? anchorParent.stackGap : (anchorParent.stack ? 2 : 3);
+      dx = 0;
+      dy = selectedBox.h + gap; // logo abaixo do original + o espaço programado
+    } else {
+      dx = Math.min(PW - selectedBox.w, selectedBox.x + 5) - selectedBox.x;
+      dy = Math.min(PH - selectedBox.h, selectedBox.y + 5) - selectedBox.y;
+    }
     const src = boxes.filter((b) => roots.has(b.id)).sort((a, b) => (a.z || 0) - (b.z || 0));
     const idMap = new Map<string, string>();
     for (const b of src) idMap.set(b.id, genBoxId());
@@ -678,10 +688,17 @@ export default function PoolPrintLayoutEditorPage() {
       const c = JSON.parse(JSON.stringify(b)) as Box;
       c.id = idMap.get(b.id)!;
       if (c.parentId && idMap.has(c.parentId)) c.parentId = idMap.get(c.parentId)!;
-      c.x = b.x + dx; c.y = b.y + dy; c.z = ++zc;
+      c.x = rnd2(b.x + dx); c.y = rnd2(b.y + dy); c.z = ++zc;
       return c;
     });
-    commitBoxes([...boxes, ...clones]);
+    // Cresce o grupo pai pra CONTER o clone (nao vaza a borda inferior).
+    let base = boxes;
+    if (anchorParent) {
+      const cloneBottom = selectedBox.y + dy + selectedBox.h + 3; // 3mm de respiro
+      const need = cloneBottom - (anchorParent.y + anchorParent.h);
+      if (need > 0) base = boxes.map((b) => b.id === anchorParent.id ? { ...b, h: rnd2(b.h + need) } : b);
+    }
+    commitBoxes([...base, ...clones]);
     const anchorId = idMap.get(selBox!)!;
     setSelBox(anchorId); setSelSet(new Set(clones.map((c) => c.id)));
   }
