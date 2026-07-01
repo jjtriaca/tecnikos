@@ -1353,7 +1353,7 @@ export default function PoolPrintLayoutEditorPage() {
           {editingPage && pageIsCanvas(editingPage) ? (<>
             <RibbonBtn icon="🃏" label="Card" onClick={() => addBox("CARD", {})} />
             <RibbonBtn icon="🪄" label="Grupo dinâmico" onClick={() => addBox("CARD", { dynamic: true })} />
-            <RibbonBtn icon="📚" label="Grupo empilhado" onClick={() => addBox("CARD", { dynamic: true, stack: true })} />
+            <RibbonBtn icon="📚" label="Grupo empilhado" onClick={() => addBox("CARD", { dynamic: true, stack: true, w: 190, h: 120, style: { bg: null, borderColor: "#8b5cf6", borderWidth: 1, radius: 6 } })} />
             <RibbonBtn icon="🇹" label="Texto" onClick={() => addBox("TEXT", {})} />
             <RibbonBtn icon="🔤" label="Texto dinâmico" onClick={() => addBox("TEXT", { txtRules: [] })} />
             <RibbonBtn icon="🖼️" label="Imagem" onClick={() => addBox("IMAGE", {})} />
