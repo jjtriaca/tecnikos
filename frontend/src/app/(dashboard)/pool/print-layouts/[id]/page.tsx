@@ -1458,6 +1458,7 @@ export default function PoolPrintLayoutEditorPage() {
               {sb.showIf ? <RibbonBtn icon="🚫" label="Sempre aparece" onClick={() => patchSelBox({ showIf: null })} /> : null}
               <RibbonBtn icon="📦" label={`Conteúdo (${kids.length})`} disabled={kids.length === 0} onClick={() => { const ids = kids.map((k) => k.id); setSelBox(ids[0]); setSelSet(new Set(ids)); }} />
               <RibbonBtn icon="📚" label={sb.stack ? "Empilhar ✓" : "Empilhar"} onClick={() => patchSelBox({ stack: !sb.stack })} />
+              {sb.stack ? <label className="text-xs text-slate-600 flex items-center gap-1" title="Espaço (mm) entre os grupos empilhados na impressão">Espaço<NumInput key={`${sb.id}-sgap`} value={sb.stackGap ?? 2} onChange={(v) => patchSelBox({ stackGap: v })} className="w-12 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label> : null}
               <span className="mx-1 self-center h-6 w-px bg-violet-300" />
             </>) : null}
             {/* ── IMAGEM DINÂMICA — candidatos (linha + ⚡ Exigências, o MESMO modal) ── */}

@@ -388,12 +388,13 @@ export function applyStackFlow(boxes: Box[], data: BudgetReportData): Box[] {
   const out = boxes.map((b) => ({ ...b }));
   const containers = out.filter((b) => b.type === "CARD" && b.stack);
   if (!containers.length) return out;
-  const PAD = 3, GAP = 2; // mm — respiro no topo/base do container e entre os filhos
+  const PAD = 3; // mm — respiro no topo/base do container
   const shiftSubtree = (rootId: string, dy: number) => {
     for (const c of out) if (c.parentId === rootId) { c.y += dy; shiftSubtree(c.id, dy); }
   };
   for (const C of containers) {
     if (!boxShowsCascade(C, out, data)) continue; // container escondido = filhos ja nao aparecem
+    const GAP = (typeof C.stackGap === "number" && C.stackGap >= 0) ? C.stackGap : 2; // mm entre grupos (configuravel)
     const kids = out.filter((b) => b.parentId === C.id).sort((a, b) => a.y - b.y);
     let cursorY = C.y + PAD;
     let anyVisible = false;
@@ -1186,6 +1187,7 @@ export type Box = {
   // diretos VISIVEIS empilham do topo do card e os ESCONDIDOS colapsam (os de baixo sobem) — conserta
   // o "buraco branco" do grupo que sumiu pela condicao. Editor segue absoluto; reflow so no print.
   stack?: boolean;
+  stackGap?: number | null; // mm de espaco ENTRE os grupos empilhados (default 2). v1.15.35.
   style?: {
     bg?: string | null; borderColor?: string | null; borderWidth?: number | null;
     radius?: number | null; padding?: number | null; textColor?: string | null;
