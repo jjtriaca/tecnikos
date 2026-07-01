@@ -1616,9 +1616,14 @@ export default function BudgetReport({ data, layout, editable, selectedPageId, o
             // (pra % dos boxes resolver); CanvasPage posiciona os boxes em absoluto.
             const isCanvas = !!(page.pageConfig as any)?.canvas;
             if (isCanvas) {
-              const { w: cW, h: cH } = pageDims(branding);
-              // Fundo POR PAGINA (pageConfig.bg/bgType/bgColor2); cai pro fundo global so se a pagina nao definir.
               const pc = page.pageConfig as any;
+              const g = pageDims(branding), cW = g.w;
+              // TAMANHO POR-PAGINA (v1.15.33): altura de TRABALHO (pc.heightMm, pode ser comprida pra caber
+              // muitos grupos empilhados) e, se pc.breakA4, a impressao FATIA em A4 (cada folha = A4; o
+              // paginateStackFlow quebra os grupos inteiros). Sem breakA4 = 1 folha na altura configurada.
+              const a4H = branding?.orientation === "landscape" ? 210 : 297;
+              const cH = pc?.breakA4 ? a4H : ((pc?.heightMm && pc.heightMm > 0) ? pc.heightMm : g.h);
+              // Fundo POR PAGINA (pageConfig.bg/bgType/bgColor2); cai pro fundo global so se a pagina nao definir.
               const cbg = pc?.bgType === "gradient"
                 ? `linear-gradient(135deg, ${pc.bg || "#ffffff"}, ${pc.bgColor2 || "#e2e8f0"})`
                 : (pc?.bg || (pageStyle as any).background || "#ffffff");

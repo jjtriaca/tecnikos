@@ -360,6 +360,17 @@ export default function PoolPrintLayoutEditorPage() {
   // Caixas vivas da PAGINA (em mm, ja migradas) — preservadas ao entrar/sair de cab/rodape
   // pra NAO reler do editingPage.pageConfig (que fica % stale ate o save debounced gravar).
   const pageBoxesRef = useRef<Box[]>([]);
+  // TAMANHO POR-PAGINA (v1.15.33): altura de trabalho desta pagina canvas (pageConfig.heightMm) +
+  // "quebrar em A4" na impressao (pageConfig.breakA4). Deixa o operador ESPALHAR muitos grupos numa
+  // folha comprida no editor; se breakA4, a impressao fatia em A4 (paginateStackFlow). Global fica A4.
+  const [pageSize, setPageSize] = useState<{ heightMm?: number | null; breakA4?: boolean }>({});
+  const pageSizeRef = useRef(pageSize);
+  // Altura efetiva da regiao em edicao: pagina (com override por-pagina) OU faixa de cab/rodape.
+  const pgH = () => {
+    if (region === "header") return (layout?.branding as any)?.headerHmm ?? 18;
+    if (region === "footer") return (layout?.branding as any)?.footerHmm ?? 14;
+    return (pageSize.heightMm && pageSize.heightMm > 0) ? pageSize.heightMm : pageDims(layout?.branding).h;
+  };
 
   // Carrega os boxes + fundo ao abrir uma pagina canvas (volta pra regiao PAGINA, reseta historico).
   useEffect(() => {
@@ -380,6 +391,8 @@ export default function PoolPrintLayoutEditorPage() {
       const nm = pc.name || ""; setPageName(nm); pageNameRef.current = nm;
       const noHeader = !!(pc.noHeader || pc.noHF), noFooter = !!(pc.noFooter || pc.noHF);
       setPageNoHeader(noHeader); setPageNoFooter(noFooter); pageHFRef.current = { noHeader, noFooter };
+      const ps = { heightMm: pc.heightMm ?? null, breakA4: !!pc.breakA4 };
+      setPageSize(ps); pageSizeRef.current = ps;
       histRef.current = { stack: [JSON.parse(JSON.stringify(bs))], idx: 0 };
       setHistInfo({ canUndo: false, canRedo: false });
       if (needMigrate) scheduleSave(bs, "page"); // grava a migracao (com unit:"mm")
@@ -391,6 +404,11 @@ export default function PoolPrintLayoutEditorPage() {
   function setPageBg(patch: Record<string, any>) {
     const next = { ...pageBgRef.current, ...patch };
     pageBgRef.current = next; setPageBgCfg(next); scheduleSave(boxes);
+  }
+  // Altura de trabalho / quebra em A4 desta pagina (persiste no pageConfig via scheduleSave).
+  function setPageSizeCfg(patch: Record<string, any>) {
+    const next = { ...pageSizeRef.current, ...patch };
+    pageSizeRef.current = next; setPageSize(next); scheduleSave(boxes);
   }
   // CSS do fundo da pagina atual (gradiente ou solido); usado no editor.
   const pageBgCss = pageBgCfg.bgType === "gradient"
@@ -432,7 +450,7 @@ export default function PoolPrintLayoutEditorPage() {
           if (!editingPage) return;
           const pageId = editingPage.id;
           const bgc = pageBgRef.current;
-          const pageConfig = { canvas: true, unit: "mm", boxes: bs, bg: bgc.bg ?? null, bgType: bgc.bgType || "solid", bgColor2: bgc.bgColor2 ?? null, name: pageNameRef.current || null, noHeader: pageHFRef.current.noHeader || undefined, noFooter: pageHFRef.current.noFooter || undefined };
+          const pageConfig = { canvas: true, unit: "mm", boxes: bs, bg: bgc.bg ?? null, bgType: bgc.bgType || "solid", bgColor2: bgc.bgColor2 ?? null, name: pageNameRef.current || null, noHeader: pageHFRef.current.noHeader || undefined, noFooter: pageHFRef.current.noFooter || undefined, heightMm: pageSizeRef.current.heightMm ?? undefined, breakA4: pageSizeRef.current.breakA4 || undefined };
           await api.put(`/pool-print-layouts/pages/${pageId}`, { type: "FIXED", htmlContent: null, dynamicType: null, pageConfig });
           setLayout((prev) => prev ? { ...prev, pages: prev.pages.map((p) => p.id === pageId ? { ...p, type: "FIXED", pageConfig } : p) } : prev);
         } else {
@@ -482,7 +500,7 @@ export default function PoolPrintLayoutEditorPage() {
   const onCanvasGroupStart = () => setBoxes((cur) => { groupSnapRef.current = cur.map((b) => ({ ...b })); return cur; });
   const onCanvasGroupMove = (dx: number, dy: number) => {
     const snap = groupSnapRef.current; if (!snap || !selSet.size) return;
-    const { w: PW, h: PH } = pageDims(layout?.branding);
+    const PW = pageDims(layout?.branding).w, PH = pgH();
     const sel = snap.filter((b) => selSet.has(b.id)); if (!sel.length) return;
     const minX = Math.min(...sel.map((b) => b.x)), maxR = Math.max(...sel.map((b) => b.x + b.w));
     const minY = Math.min(...sel.map((b) => b.y)), maxB = Math.max(...sel.map((b) => b.y + b.h));
@@ -496,7 +514,7 @@ export default function PoolPrintLayoutEditorPage() {
     const ids = selSet.size ? selSet : (selBox ? new Set([selBox]) : new Set<string>());
     if (!ids.size) return;
     const sel = boxes.filter((b) => ids.has(b.id)); if (!sel.length) return;
-    const { w: PW, h: PH } = pageDims(layout?.branding);
+    const PW = pageDims(layout?.branding).w, PH = pgH();
     const minX = Math.min(...sel.map((b) => b.x)), maxR = Math.max(...sel.map((b) => b.x + b.w));
     const minY = Math.min(...sel.map((b) => b.y)), maxB = Math.max(...sel.map((b) => b.y + b.h));
     let ddx = dx; if (minX + ddx < 0) ddx = -minX; if (maxR + ddx > PW) ddx = PW - maxR;
@@ -545,7 +563,7 @@ export default function PoolPrintLayoutEditorPage() {
   // Usado por addBox (1) e addBoxes (N, acumulando) — sem isso o loop usava `boxes` velho e só a
   // última caixa "vingava" (bug: inserir 3 linhas inseria 1).
   function buildBox(kind: "TEXT" | "IMAGE" | "BLOCK" | "CARD" | "ICON" | "LIST", extra: Partial<Box>, cur: Box[]): Box {
-    const { w: PW, h: pageH } = pageDims(layout?.branding);
+    const PW = pageDims(layout?.branding).w, pageH = pgH();
     const isStrip = region !== "page";
     const PH = isStrip ? (region === "header" ? (brand.headerHmm ?? 18) : (brand.footerHmm ?? 14)) : pageH;
     const zTop = cur.reduce((m, b) => Math.max(m, b.z || 0), 0);
@@ -602,7 +620,7 @@ export default function PoolPrintLayoutEditorPage() {
   }
   function duplicateSelBox() {
     if (!selectedBox) return;
-    const { w: PW, h: PH } = pageDims(layout?.branding);
+    const PW = pageDims(layout?.branding).w, PH = pgH();
     // Grupo/card dinamico: duplicar leva os filhos (parentId) junto, remapeando o parentId pro clone.
     const roots = new Set<string>([...(selBox ? [selBox] : []), ...selSet]);
     for (const b of boxes) if (b.parentId && roots.has(b.parentId)) roots.add(b.id);
@@ -739,7 +757,7 @@ export default function PoolPrintLayoutEditorPage() {
   function convertToCanvas() {
     if (!editingPage) return;
     const p = editingPage; let bs: Box[] = [];
-    const { w: PW, h: PH } = pageDims(layout?.branding);
+    const PW = pageDims(layout?.branding).w, PH = pgH();
     const nodes = (p.pageConfig as any)?.nodes;
     if (p.type === "DYNAMIC" && p.dynamicType) bs = [{ id: genBoxId(), type: "BLOCK", blockType: p.dynamicType, config: p.pageConfig || {}, x: 8, y: 8, w: Math.round(PW - 16), h: Math.round(PH - 16), z: 1 }];
     else if (p.type === "FIXED" && p.htmlContent) bs = [{ id: genBoxId(), type: "TEXT", html: p.htmlContent, x: 12, y: 12, w: Math.round(PW - 24), h: Math.round(PH - 40), z: 1 }];
@@ -1345,6 +1363,11 @@ export default function PoolPrintLayoutEditorPage() {
             {!pageIsCanvas(editingPage) ? <RibbonBtn icon="🔓" label="Converter canvas" onClick={convertToCanvas} /> : null}
             <label className="text-xs text-slate-600 flex items-center gap-1" title="Página ativa"><input type="checkbox" checked={editingPage.isActive !== false} onChange={(e) => savePageMeta({ isActive: e.target.checked })} />Ativa</label>
             <label className="text-xs text-slate-600 flex items-center gap-1" title="Quebra de página depois"><input type="checkbox" checked={editingPage.pageBreak !== false} onChange={(e) => savePageMeta({ pageBreak: e.target.checked })} />Quebra</label>
+            {pageIsCanvas(editingPage) ? (<>
+              <span className="mx-1 h-6 w-px bg-slate-300" />
+              <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura de TRABALHO desta página (mm). Aumente pra caber muitos grupos empilhados numa folha comprida; se 'Quebrar A4' estiver ligado, a impressão fatia em A4.">Alt. pág<NumInput value={(pageSize.heightMm && pageSize.heightMm > 0) ? pageSize.heightMm : pageDims(layout?.branding).h} onChange={(v) => setPageSizeCfg({ heightMm: v && v > 0 ? v : null })} className="w-16 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+              <label className="text-xs text-slate-600 flex items-center gap-1" title="Na impressão, fatia esta página comprida em folhas A4 (cada grupo empilhado sai inteiro). Ligado = proposta A4 paginada; desligado = 1 folha comprida."><input type="checkbox" checked={!!pageSize.breakA4} onChange={(e) => setPageSizeCfg({ breakA4: e.target.checked })} />Quebrar A4</label>
+            </>) : null}
           </>) : null}
         </>)}
         {tab === "Inserir" && (<>
@@ -1373,7 +1396,7 @@ export default function PoolPrintLayoutEditorPage() {
         )}
         {tab === "Layout" && (selectedBox ? (() => {
           const sb = selectedBox; const sbst: any = sb.style || {};
-          const { w: PW, h: PH } = pageDims(layout?.branding);
+          const PW = pageDims(layout?.branding).w, PH = pgH();
           const r1 = (v: number) => Math.round(v * 10) / 10;
           const clampN = (v: number, max: number) => Math.max(0, Math.min(max, isNaN(v) ? 0 : v));
           // GRUPO DINAMICO: card com dynamic=true (ou legado v1.15.10 = card que ja tem filhos).
@@ -1759,7 +1782,7 @@ export default function PoolPrintLayoutEditorPage() {
           </div>
         ) : editingPage && pageIsCanvas(editingPage) ? (
           <CanvasEditor boxes={boxes} data={previewData} branding={layout.branding} unit="mm" hfUnit={(brand as any)?.hfUnit === "mm" ? "mm" : "%"}
-            selBox={selBox} selSet={selSet} pageW={pageDims(layout.branding).w} pageH={pageDims(layout.branding).h}
+            selBox={selBox} selSet={selSet} pageW={pageDims(layout.branding).w} pageH={pgH()}
             pageBg={pageBgCss}
             hfOverlay={{ headerBoxes: brand.headerBoxes, footerBoxes: brand.footerBoxes, headerHmm: brand.headerHmm, footerHmm: brand.footerHmm }}
             onSelect={selectBox}
