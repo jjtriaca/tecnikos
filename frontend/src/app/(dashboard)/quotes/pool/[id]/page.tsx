@@ -3914,6 +3914,29 @@ const CUMULATIVE_SPECS_FRONT = [
   'vazaoM3h', 'vazaoLmin', 'potenciaWatts', 'amperagem',
 ] as const;
 
+// Extrai as LINHAS (cellRefs) ja gravadas numa expressao (`where`/`indExpr`) que casam com o `unit`
+// LREF de um template. Ex: unit='prod(LREF, "amperagem") * prod(LREF, "qtdLinha")' + expr contendo
+// 'prod(L23, "amperagem") * prod(L23, "qtdLinha")' -> {L23}. Multiplos LREF no mesmo unit resolvem
+// pro MESMO ref (backreference \1). Usado pra PRE-SELECIONAR o seletor ao reeditar um template —
+// clicar no template nao zera mais as linhas escolhidas (v1.15.49).
+function extractLineRefsFromExpr(expr: string, unit: string): Set<string> {
+  const out = new Set<string>();
+  if (!expr || !unit || !unit.includes('LREF')) return out;
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const parts = unit.split('LREF');
+  let pattern = esc(parts[0]) + '(L\\d+)';
+  for (let i = 1; i < parts.length; i++) {
+    pattern += esc(parts[i]);
+    if (i < parts.length - 1) pattern += '\\1';
+  }
+  try {
+    const re = new RegExp(pattern, 'g');
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(expr)) !== null) out.add(m[1]);
+  } catch { /* regex invalido -> sem pre-selecao */ }
+  return out;
+}
+
 export function AutoSelectModal({
   initialRule,
   catalog,
@@ -4060,7 +4083,13 @@ export function AutoSelectModal({
     }
     // v1.13.57 (Chunk C): template com LREF -> abre o seletor de linha(s). O where/indicator
     // ficam com o placeholder LREF ate o operador escolher; a trava de salvar bloqueia LREF cru.
-    if (t.lineRef) { setPendingLineRefTemplate({ icon: t.icon, lineRef: t.lineRef }); setPendingLineRefs(new Set()); }
+    // v1.15.49: ao REEDITAR, pre-seleciona as linhas JA gravadas (extrai do where/indExpr atuais
+    // ANTES de sobrescrever) -> clicar no template nao zera mais o que estava escolhido.
+    if (t.lineRef) {
+      const prev = extractLineRefsFromExpr(where, t.lineRef.unit);
+      const seed = prev.size ? prev : extractLineRefsFromExpr(indExpr, t.lineRef.unit);
+      setPendingLineRefTemplate({ icon: t.icon, lineRef: t.lineRef }); setPendingLineRefs(seed);
+    }
     else { setPendingLineRefTemplate(null); setPendingLineRefs(new Set()); }
   };
 
@@ -4364,7 +4393,12 @@ export function AutoSelectModal({
     setIndLevels(t.preset.levels.map((l) => ({ ...l }))); // clone — nao mutar o template
     // Preset com LREF (Folga de espacos/corrente): abre o seletor de linha(s). O indExpr fica com
     // LREF ate escolher; applyLineRefSelection troca no indExpr (e no where, se ele tiver o `unit`).
-    if (t.lineRef) { setPendingLineRefTemplate({ icon: '📊', lineRef: t.lineRef }); setPendingLineRefs(new Set()); }
+    // v1.15.49: pre-seleciona as linhas ja gravadas (indExpr atual, fallback where) ao reeditar.
+    if (t.lineRef) {
+      const prev = extractLineRefsFromExpr(indExpr, t.lineRef.unit);
+      const seed = prev.size ? prev : extractLineRefsFromExpr(where, t.lineRef.unit);
+      setPendingLineRefTemplate({ icon: '📊', lineRef: t.lineRef }); setPendingLineRefs(seed);
+    }
   }
 
   function buildRule(): AutoSelectRule {
