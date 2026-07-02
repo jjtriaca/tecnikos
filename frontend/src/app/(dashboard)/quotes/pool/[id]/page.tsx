@@ -3937,6 +3937,28 @@ function extractLineRefsFromExpr(expr: string, unit: string): Set<string> {
   return out;
 }
 
+// Monta o bloco resolvido de linhas — MESMA logica do applyLineRefSelection: 1 linha = unit[Lx];
+// varias SOMAM ('(a + b)') ou usam o MAIOR ('max(a, b)'). Fonte unica p/ APLICAR e EDITAR linhas.
+function buildLineRefReplacement(refs: string[], unit: string, combine: 'sum' | 'max'): string {
+  const parts = refs.map((r) => unit.replace(/\bLREF\b/g, r));
+  if (parts.length === 1) return parts[0];
+  return combine === 'sum' ? '(' + parts.join(' + ') + ')' : 'max(' + parts.join(', ') + ')';
+}
+
+// Detecta qual template-lineRef (unit/combine) a regra ATUAL usa, varrendo os templates conhecidos e
+// casando o padrao `unit` no where/indExpr. Retorna tb as linhas ja referenciadas (ordem de aparicao
+// = ordem de insercao). Alimenta o botao "Editar linhas": abre o seletor SEM resetar o resto da regra.
+function detectRuleLineRef(where: string, indExpr: string): { unit: string; combine: 'sum' | 'max'; refs: string[] } | null {
+  const cands = [...AUTOSELECT_TEMPLATES, ...INDICATOR_TEMPLATES].filter((t) => t.lineRef);
+  for (const t of cands) {
+    const lr = t.lineRef!;
+    const found = extractLineRefsFromExpr(where, lr.unit);
+    const refs = found.size ? found : extractLineRefsFromExpr(indExpr, lr.unit);
+    if (refs.size) return { unit: lr.unit, combine: lr.combine, refs: Array.from(refs) };
+  }
+  return null;
+}
+
 export function AutoSelectModal({
   initialRule,
   catalog,
@@ -4030,6 +4052,10 @@ export function AutoSelectModal({
   // where + indExpr; pra preset de indicador, o where nao tem o `unit` -> fica intacto.
   const [pendingLineRefTemplate, setPendingLineRefTemplate] = useState<{ icon: string; lineRef: { unit: string; combine: 'sum' | 'max' } } | null>(null);
   const [pendingLineRefs, setPendingLineRefs] = useState<Set<string>>(new Set());
+  // v1.15.50: modo EDICAO in-place das linhas (botao "✏️ Editar linhas"). Quando setado, o picker
+  // troca o bloco de linhas ANTIGO (oldRefs) pelo novo em where/indExpr SEM resetar o resto da regra
+  // (filtros/criterio/indicador). Diferente de aplicar um template (que reescreve tudo).
+  const [pendingLineRefEdit, setPendingLineRefEdit] = useState<{ unit: string; combine: 'sum' | 'max'; oldRefs: string[] } | null>(null);
   const lineRefPickerRef = useRef<HTMLDivElement | null>(null);
   // Rola o seletor de linha(s) pra visivel quando ele abre (importante quando vem de um preset de
   // indicador la embaixo, mas o picker e renderizado no topo do modal).
@@ -4088,9 +4114,9 @@ export function AutoSelectModal({
     if (t.lineRef) {
       const prev = extractLineRefsFromExpr(where, t.lineRef.unit);
       const seed = prev.size ? prev : extractLineRefsFromExpr(indExpr, t.lineRef.unit);
-      setPendingLineRefTemplate({ icon: t.icon, lineRef: t.lineRef }); setPendingLineRefs(seed);
+      setPendingLineRefTemplate({ icon: t.icon, lineRef: t.lineRef }); setPendingLineRefs(seed); setPendingLineRefEdit(null);
     }
-    else { setPendingLineRefTemplate(null); setPendingLineRefs(new Set()); }
+    else { setPendingLineRefTemplate(null); setPendingLineRefs(new Set()); setPendingLineRefEdit(null); }
   };
 
   // v1.13.57 (Chunk C): troca o placeholder LREF (sub-expressao `unit`) no where + indicator
@@ -4101,17 +4127,36 @@ export function AutoSelectModal({
     const refs = Array.from(pendingLineRefs);
     if (!t?.lineRef || refs.length === 0) return;
     const { unit, combine } = t.lineRef;
-    const parts = refs.map((r) => unit.replace(/\bLREF\b/g, r));
-    const replacement = parts.length === 1
-      ? parts[0]
-      : (combine === 'sum' ? '(' + parts.join(' + ') + ')' : 'max(' + parts.join(', ') + ')');
-    const expand = (s: string) => s.split(unit).join(replacement);
-    setWhere((w) => expand(w));
-    setIndExpr((e) => expand(e));
-    setIndExpr2((e) => expand(e)); // v1.14.08: 2o valor (demanda) usa as MESMAS linhas
+    const newBlock = buildLineRefReplacement(refs, unit, combine);
+    if (pendingLineRefEdit) {
+      // EDICAO in-place (botao "Editar linhas"): troca SO o bloco de linhas antigo pelo novo, em
+      // where/indExpr/indExpr2, preservando filtros/criterio/indicador/niveis (a formula fica intacta).
+      const oldBlock = buildLineRefReplacement(pendingLineRefEdit.oldRefs, unit, combine);
+      const swap = (s: string) => (oldBlock && oldBlock !== newBlock ? s.split(oldBlock).join(newBlock) : s);
+      setWhere(swap);
+      setIndExpr(swap);
+      setIndExpr2(swap);
+      setPendingLineRefEdit(null);
+    } else {
+      // APLICAR template: expande o placeholder LREF (`unit`) pelo bloco resolvido.
+      const expand = (s: string) => s.split(unit).join(newBlock);
+      setWhere((w) => expand(w));
+      setIndExpr((e) => expand(e));
+      setIndExpr2((e) => expand(e)); // v1.14.08: 2o valor (demanda) usa as MESMAS linhas
+    }
     setPendingLineRefTemplate(null);
     setPendingLineRefs(new Set());
   };
+  // Abre o seletor pra EDITAR SO as linhas da regra atual, sem resetar o resto (via botao dedicado).
+  const startEditLines = () => {
+    const d = detectRuleLineRef(where, indExpr);
+    if (!d) return;
+    setPendingLineRefEdit({ unit: d.unit, combine: d.combine, oldRefs: d.refs });
+    setPendingLineRefTemplate({ icon: '✏️', lineRef: { unit: d.unit, combine: d.combine } });
+    setPendingLineRefs(new Set(d.refs));
+  };
+  // Regra atual referencia linhas (LREF resolvido)? -> mostra o botao "Editar linhas".
+  const lineRefInUse = useMemo(() => detectRuleLineRef(where, indExpr), [where, indExpr]);
 
   // v1.12.39: carrega tipos do tenant DIRETO ao abrir o modal — garante dados frescos
   // mesmo se o operador cadastrou tipo novo enquanto o orcamento ja estava aberto.
@@ -4397,7 +4442,7 @@ export function AutoSelectModal({
     if (t.lineRef) {
       const prev = extractLineRefsFromExpr(indExpr, t.lineRef.unit);
       const seed = prev.size ? prev : extractLineRefsFromExpr(where, t.lineRef.unit);
-      setPendingLineRefTemplate({ icon: '📊', lineRef: t.lineRef }); setPendingLineRefs(seed);
+      setPendingLineRefTemplate({ icon: '📊', lineRef: t.lineRef }); setPendingLineRefs(seed); setPendingLineRefEdit(null);
     }
   }
 
@@ -4537,6 +4582,14 @@ export function AutoSelectModal({
             </div>
 
             <div className="overflow-y-auto px-6 py-4 space-y-2">
+              {/* EDITAR LINHAS — atalho pra trocar SO as linhas da regra sem resetar o resto (v1.15.50) */}
+              {lineRefInUse && !pendingLineRefTemplate && (
+                <button type="button" onClick={startEditLines}
+                  title="Abre o seletor de linhas SEM resetar filtros/criterio/indicador — troca so as linhas que a regra soma"
+                  className="w-full flex items-center justify-center gap-2 rounded-lg border-2 border-cyan-300 bg-cyan-50 hover:bg-cyan-100 px-4 py-2.5 text-sm font-semibold text-cyan-800 transition">
+                  ✏️ Editar linhas da regra <span className="font-mono text-xs text-cyan-700">({lineRefInUse.refs.join(', ')})</span>
+                </button>
+              )}
               {/* TEMPLATES PRONTOS — clique pra preencher tudo de uma vez */}
               <details open className="group rounded-lg border border-violet-300 bg-violet-50/30">
                 <summary className="cursor-pointer list-none flex items-center justify-between px-4 py-2.5 hover:bg-violet-50 rounded-lg">
@@ -4611,7 +4664,7 @@ export function AutoSelectModal({
                   selected={pendingLineRefs}
                   onToggle={(cref) => setPendingLineRefs((prev) => { const n = new Set(prev); if (n.has(cref)) n.delete(cref); else n.add(cref); return n; })}
                   onApply={applyLineRefSelection}
-                  onCancel={() => { setPendingLineRefTemplate(null); setPendingLineRefs(new Set()); }}
+                  onCancel={() => { setPendingLineRefTemplate(null); setPendingLineRefs(new Set()); setPendingLineRefEdit(null); }}
                 />
               )}
 
