@@ -157,24 +157,29 @@ export function evaluateFormula(
     },
   );
 
-  // prod(LX, "spec") — pega spec do produto vinculado a linha LX
+  // prod(LX, "spec") — pega spec do produto vinculado a linha LX. Linha INEXISTENTE (ex: foi
+  // excluida e a formula ainda referencia) resolve como 0 — NAO lanca erro (senao o recalc caia no
+  // catch e CONGELAVA a qty da linha dependente, com valor obsoleto). Alinha com o auto-select.helper,
+  // que ja resolvia ref faltante como 0. A trava de exclusao (delete) limpa essas refs; isto e a
+  // rede de seguranca pra qualquer ref orfa remanescente. Ver incidente refs-orfas (v1.15.52).
   normalized = normalized.replace(
     /\bprod\s*\(\s*(L\d+)\s*,\s*"([a-zA-Z_][a-zA-Z0-9_]*)"\s*\)/g,
     (_m, ref: string, key: string) => {
       const data = cellRefs.get(ref);
-      if (!data) throw new Error(`Linha ${ref} nao existe`);
+      if (!data) return '(0)';
       const v = Number(data.specs?.[key] ?? 0);
       return `(${v})`;
     },
   );
 
-  // Substitui chamadas a cellRef ANTES das vars (pra nao confundir 'L1' com identifier solto)
+  // Substitui chamadas a cellRef ANTES das vars (pra nao confundir 'L1' com identifier solto).
+  // Linha inexistente -> 0 (mesma logica do prod acima).
   for (const fn of CELL_REF_FUNCTIONS) {
     normalized = normalized.replace(
       new RegExp(`\\b${fn}\\s*\\(\\s*(L\\d+)\\s*\\)`, 'g'),
       (_match, ref: string) => {
         const data = cellRefs.get(ref);
-        if (!data) throw new Error(`Linha ${ref} nao existe`);
+        if (!data) return '(0)';
         const v = Number(data[fn] ?? 0);
         return `(${v})`;
       },

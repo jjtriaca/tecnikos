@@ -698,7 +698,25 @@ export default function PoolBudgetDetailPage() {
   }
 
   async function removeItem(itemId: string) {
-    if (!confirm("Remover este item?")) return;
+    // Avisa se esta linha e usada em formulas de OUTRAS linhas (qty/auto-selecao). Ao excluir, o
+    // backend limpa essas referencias (a linha passa a contribuir 0), mas o operador precisa saber.
+    const target = (budget?.items ?? []).find((i) => i.id === itemId);
+    const ref = target?.cellRef;
+    let msg = "Remover este item?";
+    if (ref) {
+      const refRe = new RegExp(`\\b(?:prod|qty|total|unitPrice)\\s*\\(\\s*${ref}\\b`);
+      const users = (budget?.items ?? []).filter((i) => {
+        if (i.id === itemId) return false;
+        if (i.formulaExpr && refRe.test(i.formulaExpr)) return true;
+        if (i.autoSelectRule && refRe.test(JSON.stringify(i.autoSelectRule))) return true;
+        return false;
+      });
+      if (users.length) {
+        const nomes = users.map((u) => `${u.cellRef} (${(u.slotName || u.description || "").trim() || "sem nome"})`).join(", ");
+        msg = `A linha ${ref} é usada nas fórmulas de: ${nomes}.\n\nAo excluir, essas referências serão removidas (a linha deixa de contar nas somas). Excluir mesmo assim?`;
+      }
+    }
+    if (!confirm(msg)) return;
     try {
       await api.del(`/pool-budgets/items/${itemId}`);
       toast("Item removido", "success");

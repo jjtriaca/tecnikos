@@ -1467,7 +1467,10 @@ export class PoolBudgetService {
         const cellRefMap = buildCellRefMap();
         const allDepsAvailable = refs.every((ref) => {
           const target = items.find((x) => x.cellRef === ref);
-          if (!target) return false; // referencia para linha inexistente
+          // Linha INEXISTENTE (excluida): NAO bloqueia a resolucao — resolve como 0 no
+          // evaluateFormula. Antes retornava false e o item dependente NUNCA resolvia (qty
+          // congelava com valor obsoleto). Ex: excluir L98 travava a qty de L101. v1.15.52.
+          if (!target) return true;
           if (!target.formulaExpr || !usesCellRef(target.formulaExpr)) return true; // nao depende de outros
           return resolved.has(target.id);
         });
@@ -2248,6 +2251,51 @@ export class PoolBudgetService {
     return updated;
   }
 
+  // Remove toda referencia a um cellRef (prod/qty/total/unitPrice) de uma expressao, trocando por 0.
+  // Ex: scrubCellRef('prod(L98,"amperagem") * prod(L98,"qtdLinha") + prod(L23,...)', 'L98')
+  //   -> '0 * 0 + prod(L23,...)'. A linha excluida contribui 0 (matematicamente correto nas somas).
+  private scrubCellRef(expr: string | null | undefined, ref: string): string | null {
+    if (!expr) return expr ?? null;
+    return expr
+      .replace(new RegExp(`\\bprod\\s*\\(\\s*${ref}\\s*,\\s*"[^"]*"\\s*\\)`, 'g'), '0')
+      .replace(new RegExp(`\\b(?:qty|total|unitPrice)\\s*\\(\\s*${ref}\\s*\\)`, 'g'), '0');
+  }
+
+  // Limpa as referencias a `ref` (cellRef que vai ser excluido) nas formulas das linhas irmas do
+  // mesmo orcamento: formulaExpr (qty) + autoSelectRule.where + indicator.expr/expr2.
+  private async scrubCellRefFromSiblings(budgetId: string, ref: string, excludeItemId: string) {
+    const refRe = new RegExp(`\\b(?:prod|qty|total|unitPrice)\\s*\\(\\s*${ref}\\b`);
+    const siblings = await this.prisma.poolBudgetItem.findMany({
+      where: { budgetId, id: { not: excludeItemId } },
+      select: { id: true, formulaExpr: true, autoSelectRule: true },
+    });
+    for (const s of siblings) {
+      let changed = false;
+      let formulaExpr = s.formulaExpr;
+      if (formulaExpr && refRe.test(formulaExpr)) {
+        formulaExpr = this.scrubCellRef(formulaExpr, ref);
+        changed = true;
+      }
+      const rule = s.autoSelectRule as Record<string, unknown> | null;
+      if (rule && typeof rule === 'object') {
+        const before = JSON.stringify(rule);
+        if (typeof rule.where === 'string') rule.where = this.scrubCellRef(rule.where as string, ref);
+        const ind = rule.indicator as Record<string, unknown> | null;
+        if (ind && typeof ind === 'object') {
+          if (typeof ind.expr === 'string') ind.expr = this.scrubCellRef(ind.expr as string, ref);
+          if (typeof ind.expr2 === 'string') ind.expr2 = this.scrubCellRef(ind.expr2 as string, ref);
+        }
+        if (JSON.stringify(rule) !== before) changed = true;
+      }
+      if (changed) {
+        await this.prisma.poolBudgetItem.update({
+          where: { id: s.id },
+          data: { formulaExpr, autoSelectRule: rule as Prisma.InputJsonValue },
+        });
+      }
+    }
+  }
+
   async removeItem(itemId: string, companyId: string, user: AuthenticatedUser) {
     await this.assertModuleActive(companyId);
 
@@ -2260,6 +2308,15 @@ export class PoolBudgetService {
       throw new BadRequestException('Orçamento aprovado — não pode remover items');
     }
     this.assertNotFrozen(item.budget);
+
+    // Antes de excluir: LIMPA as referencias a esta linha nas formulas das OUTRAS linhas
+    // (qty formulaExpr + autoSelectRule where/indicator). Sem isso, `prod(Lx,...)`/`qty(Lx)`
+    // apontando pra linha excluida ficavam orfaos — a qty dependente congelava e o auto-select
+    // somava a linha morta como 0 silenciosamente. Substitui a chamada orfa por 0 (a linha nao
+    // existe = contribui 0). v1.15.52 (incidente refs-orfas ORCP-00001).
+    if (item.cellRef) {
+      await this.scrubCellRefFromSiblings(item.budgetId, item.cellRef, itemId);
+    }
 
     await this.prisma.poolBudgetItem.delete({ where: { id: itemId } });
     await this.recalculateTotals(item.budgetId);
