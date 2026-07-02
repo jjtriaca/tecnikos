@@ -528,6 +528,48 @@ function paginateStackFlow(visible: Box[], usable: number, topPad: number): Box[
   return out;
 }
 
+/** Posicoes Y (mm, coord CONTINUA da pagina de trabalho) onde a IMPRESSAO quebra em A4 — usando a
+ *  MESMA regra do paginateStackFlow (unidade = grupo + subarvore; NUNCA parte no meio). Retorna o Y
+ *  do TOPO do 1o grupo de cada folha DEPOIS da 1a. E o que a guia do editor desenha pra bater 1:1 com
+ *  a impressao (WYSIWYG): a linha cai SEMPRE entre grupos, nunca no meio de um. null = nao ha quebra. */
+export function stackBreakYs(boxes: Box[], data: BudgetReportData, a4H: number, hMm: number, fMm: number): number[] | null {
+  const flowed = applyStackFlow(boxes, data);
+  const visible = flowed.filter((b) => boxShowsCascade(b, flowed, data));
+  const container = visible.find((b) => b.type === "CARD" && b.stack);
+  if (!container) return null;
+  const descendants = (rootId: string): Box[] => {
+    const kids = visible.filter((b) => b.parentId === rootId);
+    return kids.flatMap((k) => [k, ...descendants(k.id)]);
+  };
+  const groups = visible.filter((b) => b.parentId === container.id).sort((a, b) => a.y - b.y);
+  if (groups.length < 2) return null;
+  const units = groups.map((g) => {
+    const ub = [g, ...descendants(g.id)];
+    const top = Math.min(...ub.map((b) => b.y));
+    const bot = Math.max(...ub.map((b) => b.y + b.h));
+    return { top, height: bot - top };
+  });
+  const usable = a4H - fMm;   // conteudo nao pode invadir a faixa do rodape
+  const topPad = hMm;         // continuacao re-ancora abaixo do cabecalho
+  const breaks: number[] = [];
+  // Pagina 1: posicao ABSOLUTA (igual paginateStackFlow).
+  let idx = 0;
+  while (idx < units.length && units[idx].top + units[idx].height <= usable + 0.5) idx++;
+  if (idx === 0) idx = 1; // 1o grupo maior que a folha inteira: forca 1 (clipa) pra nao travar
+  // Paginas seguintes: re-ancoradas em topPad; mesma capacidade util.
+  while (idx < units.length) {
+    breaks.push(units[idx].top);   // topo do 1o grupo da proxima folha = onde a quebra cai
+    const first = units[idx];
+    idx++;                         // 1o grupo sempre entra (mesmo maior que a pagina)
+    while (idx < units.length) {
+      const topOnPage = topPad + (units[idx].top - first.top);
+      if (topOnPage + units[idx].height > usable + 0.5) break;
+      idx++;
+    }
+  }
+  return breaks.length ? breaks : null;
+}
+
 /** PAGINACAO AUTOMATICA (Fase 3): divide as caixas de uma pagina canvas em VARIAS paginas A4
  *  quando a banda OU a pilha estoura a altura. SEGURO: se tudo cabe, retorna 1 pagina (igual antes).
  *  topPad/botPad = alturas de cabecalho/rodape (mm) pra banda/pilha nao invadir. */
@@ -1470,18 +1512,17 @@ export function CanvasEditor({ boxes, data, branding, selBox, selSet, pageW, pag
         {((branding as any)?.pageMarginMm ?? 12) > 0 ? (
           <div style={{ position: "absolute", inset: `${(branding as any)?.pageMarginMm ?? 12}mm`, border: "1px dashed #cbd5e1", pointerEvents: "none", zIndex: 0 }} />
         ) : null}
-        {/* Guia de QUEBRA A4 (so editor) — linha de quebra a cada folha A4 + faixas de cabecalho/rodape */}
-        {pageBreaks && H > pageBreaks.a4H + 0.5 ? (() => {
+        {/* Guia de QUEBRA A4 (so editor) — linha DATA-DRIVEN: cai onde a impressao REALMENTE quebra
+            (mesma logica do paginateStackFlow), sempre ENTRE grupos, nunca no meio de um. WYSIWYG. */}
+        {pageBreaks ? (() => {
           const { a4H, hMm, fMm } = pageBreaks;
-          const n = Math.ceil(H / a4H);
-          const out: React.ReactNode[] = [];
-          for (let k = 0; k < n; k++) {
-            const top = k * a4H;
-            if (hMm > 0) out.push(<div key={`hb${k}`} style={{ position: "absolute", left: 0, right: 0, top: `${top}mm`, height: `${hMm}mm`, background: "rgba(37,99,235,0.06)", borderBottom: "1px dashed #93c5fd", pointerEvents: "none", zIndex: 1 }}><span style={{ position: "absolute", left: 2, top: 1, fontSize: 7, color: "#2563eb" }}>cabeçalho</span></div>);
-            if (fMm > 0) out.push(<div key={`fb${k}`} style={{ position: "absolute", left: 0, right: 0, top: `${top + a4H - fMm}mm`, height: `${fMm}mm`, background: "rgba(37,99,235,0.06)", borderTop: "1px dashed #93c5fd", pointerEvents: "none", zIndex: 1 }}><span style={{ position: "absolute", left: 2, bottom: 1, fontSize: 7, color: "#2563eb" }}>rodapé</span></div>);
-            if (k > 0) out.push(<div key={`bl${k}`} style={{ position: "absolute", left: 0, right: 0, top: `${top}mm`, borderTop: "2px dashed #e11d8f", pointerEvents: "none", zIndex: 2 }}><span style={{ position: "absolute", right: 2, top: 1, fontSize: 8, fontWeight: 700, color: "#e11d8f", background: "#fff", padding: "0 3px", borderRadius: 2 }}>✂ A4 · pág {k + 1}</span></div>);
-          }
-          return <>{out}</>;
+          const ys = stackBreakYs(boxes || [], data, a4H, hMm, fMm);
+          if (!ys || !ys.length) return null;
+          return <>{ys.map((y, i) => (
+            <div key={`bl${i}`} style={{ position: "absolute", left: 0, right: 0, top: `${y}mm`, borderTop: "2px dashed #e11d8f", pointerEvents: "none", zIndex: 2 }}>
+              <span style={{ position: "absolute", right: 2, top: 1, fontSize: 8, fontWeight: 700, color: "#e11d8f", background: "#fff", padding: "0 3px", borderRadius: 2 }}>✂ A4 · folha {i + 2} começa aqui</span>
+            </div>
+          ))}</>;
         })() : null}
         {/* Cabecalho/Rodape como SOBREPOSICAO esmaecida (contexto; nao editavel aqui) */}
         {hfOverlay?.headerBoxes && hfOverlay.headerBoxes.length ? (
