@@ -698,11 +698,11 @@ export default function PoolBudgetDetailPage() {
   }
 
   async function removeItem(itemId: string) {
-    // Avisa se esta linha e usada em formulas de OUTRAS linhas (qty/auto-selecao). Ao excluir, o
-    // backend limpa essas referencias (a linha passa a contribuir 0), mas o operador precisa saber.
+    // TRAVA: nao deixa excluir uma linha que ainda esta ligada a formula de OUTRA linha (qty ou
+    // auto-selecao). Lista onde e manda desligar primeiro (botao "Editar linhas"). O backend tambem
+    // bloqueia (defesa em profundidade). Evita ref orfa que congelava qty / somava 0 escondido.
     const target = (budget?.items ?? []).find((i) => i.id === itemId);
     const ref = target?.cellRef;
-    let msg = "Remover este item?";
     if (ref) {
       const refRe = new RegExp(`\\b(?:prod|qty|total|unitPrice)\\s*\\(\\s*${ref}\\b`);
       const users = (budget?.items ?? []).filter((i) => {
@@ -713,10 +713,11 @@ export default function PoolBudgetDetailPage() {
       });
       if (users.length) {
         const nomes = users.map((u) => `${u.cellRef} (${(u.slotName || u.description || "").trim() || "sem nome"})`).join(", ");
-        msg = `A linha ${ref} é usada nas fórmulas de: ${nomes}.\n\nAo excluir, essas referências serão removidas (a linha deixa de contar nas somas). Excluir mesmo assim?`;
+        alert(`Não dá pra excluir a linha ${ref}: ela é usada nas fórmulas de ${nomes}.\n\nRemova ${ref} dessas fórmulas primeiro — abra a auto-seleção de cada uma e use "✏️ Editar linhas" (ou edite a fórmula de quantidade). Depois exclua.`);
+        return;
       }
     }
-    if (!confirm(msg)) return;
+    if (!confirm("Remover este item?")) return;
     try {
       await api.del(`/pool-budgets/items/${itemId}`);
       toast("Item removido", "success");

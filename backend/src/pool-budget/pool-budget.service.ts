@@ -2251,49 +2251,25 @@ export class PoolBudgetService {
     return updated;
   }
 
-  // Remove toda referencia a um cellRef (prod/qty/total/unitPrice) de uma expressao, trocando por 0.
-  // Ex: scrubCellRef('prod(L98,"amperagem") * prod(L98,"qtdLinha") + prod(L23,...)', 'L98')
-  //   -> '0 * 0 + prod(L23,...)'. A linha excluida contribui 0 (matematicamente correto nas somas).
-  private scrubCellRef(expr: string | null | undefined, ref: string): string | null {
-    if (!expr) return expr ?? null;
-    return expr
-      .replace(new RegExp(`\\bprod\\s*\\(\\s*${ref}\\s*,\\s*"[^"]*"\\s*\\)`, 'g'), '0')
-      .replace(new RegExp(`\\b(?:qty|total|unitPrice)\\s*\\(\\s*${ref}\\s*\\)`, 'g'), '0');
-  }
-
-  // Limpa as referencias a `ref` (cellRef que vai ser excluido) nas formulas das linhas irmas do
-  // mesmo orcamento: formulaExpr (qty) + autoSelectRule.where + indicator.expr/expr2.
-  private async scrubCellRefFromSiblings(budgetId: string, ref: string, excludeItemId: string) {
+  // Acha as linhas irmas cujas formulas (qty formulaExpr OU autoSelectRule where/indicator) referenciam
+  // `ref` (o cellRef que se quer excluir). Base da TRAVA de exclusao: nao deixa excluir uma linha
+  // enquanto ela estiver ligada a alguma formula — o operador tem que desliga-la primeiro (botao
+  // "Editar linhas"). Evita ref orfa (que congelava qty / somava 0 escondido). v1.15.54.
+  private async findSiblingsReferencing(
+    budgetId: string,
+    ref: string,
+    excludeItemId: string,
+  ): Promise<Array<{ cellRef: string | null; slotName: string | null; description: string }>> {
     const refRe = new RegExp(`\\b(?:prod|qty|total|unitPrice)\\s*\\(\\s*${ref}\\b`);
     const siblings = await this.prisma.poolBudgetItem.findMany({
       where: { budgetId, id: { not: excludeItemId } },
-      select: { id: true, formulaExpr: true, autoSelectRule: true },
+      select: { cellRef: true, slotName: true, description: true, formulaExpr: true, autoSelectRule: true },
     });
-    for (const s of siblings) {
-      let changed = false;
-      let formulaExpr = s.formulaExpr;
-      if (formulaExpr && refRe.test(formulaExpr)) {
-        formulaExpr = this.scrubCellRef(formulaExpr, ref);
-        changed = true;
-      }
-      const rule = s.autoSelectRule as Record<string, unknown> | null;
-      if (rule && typeof rule === 'object') {
-        const before = JSON.stringify(rule);
-        if (typeof rule.where === 'string') rule.where = this.scrubCellRef(rule.where as string, ref);
-        const ind = rule.indicator as Record<string, unknown> | null;
-        if (ind && typeof ind === 'object') {
-          if (typeof ind.expr === 'string') ind.expr = this.scrubCellRef(ind.expr as string, ref);
-          if (typeof ind.expr2 === 'string') ind.expr2 = this.scrubCellRef(ind.expr2 as string, ref);
-        }
-        if (JSON.stringify(rule) !== before) changed = true;
-      }
-      if (changed) {
-        await this.prisma.poolBudgetItem.update({
-          where: { id: s.id },
-          data: { formulaExpr, autoSelectRule: rule as Prisma.InputJsonValue },
-        });
-      }
-    }
+    return siblings.filter((s) => {
+      if (s.formulaExpr && refRe.test(s.formulaExpr)) return true;
+      if (s.autoSelectRule && refRe.test(JSON.stringify(s.autoSelectRule))) return true;
+      return false;
+    }).map(({ cellRef, slotName, description }) => ({ cellRef, slotName, description }));
   }
 
   async removeItem(itemId: string, companyId: string, user: AuthenticatedUser) {
@@ -2309,13 +2285,20 @@ export class PoolBudgetService {
     }
     this.assertNotFrozen(item.budget);
 
-    // Antes de excluir: LIMPA as referencias a esta linha nas formulas das OUTRAS linhas
-    // (qty formulaExpr + autoSelectRule where/indicator). Sem isso, `prod(Lx,...)`/`qty(Lx)`
-    // apontando pra linha excluida ficavam orfaos — a qty dependente congelava e o auto-select
-    // somava a linha morta como 0 silenciosamente. Substitui a chamada orfa por 0 (a linha nao
-    // existe = contribui 0). v1.15.52 (incidente refs-orfas ORCP-00001).
+    // TRAVA: nao deixa excluir uma linha que ainda esta ligada a alguma formula (qty ou auto-selecao)
+    // de outra linha. O operador tem que desliga-la primeiro (botao "Editar linhas" na auto-selecao,
+    // ou editar a formula de qty). Evita ref orfa que congelava a qty / somava 0 escondido. v1.15.54.
     if (item.cellRef) {
-      await this.scrubCellRefFromSiblings(item.budgetId, item.cellRef, itemId);
+      const users = await this.findSiblingsReferencing(item.budgetId, item.cellRef, itemId);
+      if (users.length > 0) {
+        const list = users
+          .map((u) => `${u.cellRef}${u.slotName?.trim() ? ` (${u.slotName.trim()})` : ''}`)
+          .join(', ');
+        throw new BadRequestException(
+          `Não dá pra excluir a linha ${item.cellRef}: ela é usada nas fórmulas de ${list}. ` +
+            `Remova ${item.cellRef} dessas fórmulas primeiro (botão "Editar linhas" na auto-seleção, ou edite a fórmula de quantidade).`,
+        );
+      }
     }
 
     await this.prisma.poolBudgetItem.delete({ where: { id: itemId } });
