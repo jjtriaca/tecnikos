@@ -1,7 +1,13 @@
 # TAREFA ATUAL
 
-## ▶️ HANDOFF SESSÃO 229→230 (02/07) — LER PRIMEIRO
-**Resumo completo da sessão 229 (v1.15.41→47) em [[sessao_229_summary]].** Local=prod=**v1.15.47**, git limpo. Frente = **EngineReporter / GRUPO EMPILHADO (pilha) + quebra A4 no editor**. Detalhe técnico em [[engine_reporter_card_dinamico]].
+## ▶️ HANDOFF SESSÃO 230 (02/07) — LER PRIMEIRO
+Local=prod=**v1.15.48**, git limpo. Frente = **padronização de seletores de linha + fixes no editor de layout (pilha/rodapé)**.
+**✅ DEPLOYED v1.15.48 (02/07):**
+1. **Seletores de linha UNIFICADOS (Nº + item + descrição em TODO lugar).** Novo componente/fonte única em [components/pool/LineRefPicker.tsx]: **`LineIdentity`** (bloco visual: cellRef + ITEM=slotName em cima + DESCRIÇÃO=produto/"Sem Produto" embaixo) e **`lineOptionLabel`** (mesmo conteúdo em texto pra `<option>` nativo). Aplicados em: LineRefPicker (roxo), Lista dinâmica, "Outras linhas" da fórmula, e `lineCore` (dropdown de condição/candidato de imagem/texto). **Deletei a cópia LOCAL duplicada do `LineRefPicker` no quotes/pool** (-124 linhas) → agora importa a compartilhada. Antes cada tela mostrava só `Lx + descrição` → linha Sem Produto irreconhecível. **REGRA #11** nova no CLAUDE.md + [[feedback_reusar_filtros_prontos]].
+2. **Auto-save da branding (FIX data-loss do rodapé).** `setBranding` ([pool/print-layouts/[id]/page.tsx]) só persistia pelo botão "Salvar" manual → Rod./Cab./cores/tamanho/margem voltavam ao valor do servidor ao recarregar. Agora `scheduleBrandingSave` (debounced 700ms, lê `layoutRef` no fire) persiste sozinho, mesma UX do canvas.
+3. **Reflow da pilha ao mudar Rod./Cab.** `repaginateStack` lia fMm mas só rodava em arrastar/Espaço/duplicar → mudar rodapé não movia os blocos (CASCATA não subia pra folha 1 com Rod=12). Novos `reflowStacks`/`reflowAndCommit` (só com breakA4 ligado; comita se mudou) disparados nos campos Rod./Cab. e nos toggles Cab/Rodapé da página. `repaginateStack` ganhou param `brandOverride` (estado ainda não propagou no tick do onChange).
+
+**Resumo da sessão 229 (v1.15.41→47) em [[sessao_229_summary]].** Detalhe técnico do editor em [[engine_reporter_card_dinamico]].
 **Aguardando Juliano validar na tela (v1.15.47):** auto-quebra da pilha (grupo que estoura a folha pula pro topo da próxima, abaixo do cabeçalho); duplicar Cascata → clone nasce na folha 2; conferir no "Imprimir exemplo" que bate.
 **⚠️ Bug de raiz resolvido (v1.15.46):** autosave debounced contaminava página (renomeava + perdia breakA4/rodapé ao trocar de página em 700ms). Fix = snapshot no momento da chamada. **Padrão: autosave debounced NUNCA lê ref mutável no fire.** Ver [[sessao_229_summary]].
 **Follow-up conhecido:** auto-crescer Alt.pág (heightMm) quando a pilha paginada passa da altura de trabalho (hoje as folhas além clipam no canvas).
