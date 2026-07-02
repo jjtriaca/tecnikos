@@ -459,13 +459,22 @@ export default function PoolPrintLayoutEditorPage() {
     if (r === "page") pageBoxesRef.current = bs; // mantem o snapshot vivo da pagina (mm)
     setSaveState("saving");
     if (saveTimer.current) clearTimeout(saveTimer.current);
+    // SNAPSHOT no momento da CHAMADA (nao na hora que o timeout dispara): o autosave e debounced
+    // (700ms); se o operador troca de PAGINA dentro desse intervalo, os refs (nome/tamanho/HF/bg) ja
+    // apontam pra pagina NOVA e o save pendente gravaria os valores dela por cima da pagina ANTIGA
+    // (contaminacao: renomeava a Itens pra "Apresentacao" + perdia breakA4/rodape). Congela aqui.
+    const snapPageId = editingPage?.id;
+    const snapName = pageNameRef.current;
+    const snapHF = { ...pageHFRef.current };
+    const snapSize = { ...pageSizeRef.current };
+    const snapBg = { ...pageBgRef.current };
     saveTimer.current = setTimeout(async () => {
       try {
         if (r === "page") {
-          if (!editingPage) return;
-          const pageId = editingPage.id;
-          const bgc = pageBgRef.current;
-          const pageConfig = { canvas: true, unit: "mm", boxes: bs, bg: bgc.bg ?? null, bgType: bgc.bgType || "solid", bgColor2: bgc.bgColor2 ?? null, name: pageNameRef.current || null, noHeader: pageHFRef.current.noHeader || undefined, noFooter: pageHFRef.current.noFooter || undefined, heightMm: pageSizeRef.current.heightMm ?? undefined, breakA4: pageSizeRef.current.breakA4 || undefined };
+          if (!snapPageId) return;
+          const pageId = snapPageId;
+          const bgc = snapBg;
+          const pageConfig = { canvas: true, unit: "mm", boxes: bs, bg: bgc.bg ?? null, bgType: bgc.bgType || "solid", bgColor2: bgc.bgColor2 ?? null, name: snapName || null, noHeader: snapHF.noHeader || undefined, noFooter: snapHF.noFooter || undefined, heightMm: snapSize.heightMm ?? undefined, breakA4: snapSize.breakA4 || undefined };
           await api.put(`/pool-print-layouts/pages/${pageId}`, { type: "FIXED", htmlContent: null, dynamicType: null, pageConfig });
           setLayout((prev) => prev ? { ...prev, pages: prev.pages.map((p) => p.id === pageId ? { ...p, type: "FIXED", pageConfig } : p) } : prev);
           // Mantem o editingPage FRESCO (senao o init re-roda lendo pageConfig stale e zera heightMm/breakA4 — bug v1.15.33).
