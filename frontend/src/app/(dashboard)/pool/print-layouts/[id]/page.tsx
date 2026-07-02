@@ -754,10 +754,37 @@ export default function PoolPrintLayoutEditorPage() {
     }
     closePick();
   }
+  // Re-empilha os grupos filhos de um container-pilha pelo gap dado (mantem o 1o grupo no lugar,
+  // espaca os de baixo, move a subarvore de cada um e cresce o container pra envolver). Espelha o
+  // applyStackFlow (impressao) porem aplicado AO VIVO no editor — antes o Espaco so refluia no print.
+  function restackContainer(list: Box[], containerId: string, gap: number): Box[] {
+    const C = list.find((b) => b.id === containerId);
+    if (!C) return list;
+    const PAD = 3;
+    const kids = list.filter((b) => b.parentId === containerId).sort((a, b) => a.y - b.y);
+    if (!kids.length) return list;
+    let out = list.map((b) => ({ ...b }));
+    let cursorY = kids[0].y; // mantem o 1o grupo onde esta; so espaca os de baixo
+    for (const k of kids) {
+      const kk = out.find((b) => b.id === k.id)!;
+      const dy = cursorY - kk.y;
+      if (dy !== 0) {
+        const sub = subtreeIds(k.id, out); // filhos/netos do grupo acompanham
+        out = out.map((b) => (b.id === k.id || sub.has(b.id)) ? { ...b, y: rnd2(b.y + dy) } : b);
+      }
+      cursorY += kk.h + gap;
+    }
+    const newH = rnd2((cursorY - gap) - C.y + PAD); // container envolve exatamente os grupos
+    return out.map((b) => b.id === containerId ? { ...b, h: newH } : b);
+  }
   function patchSelBox(patch: Partial<Box>) {
     if (!selBox) return;
     const cur = boxes.find((b) => b.id === selBox);
     let next = boxes.map((b) => b.id === selBox ? { ...b, ...patch } : b);
+    // Mudar o Espaco (stackGap) de um container-pilha reposiciona os grupos filhos AO VIVO no editor.
+    if (cur && cur.type === "CARD" && cur.stack && patch.stackGap !== undefined) {
+      next = restackContainer(next, selBox, patch.stackGap);
+    }
     // Card dinamico: mover o card pelos campos X/Y carrega os filhos junto (mesmo delta) — em CASCATA
     // (netos tambem, pra container em modo pilha com grupos-dentro-de-grupos).
     if (cur && cur.type === "CARD" && (patch.x !== undefined || patch.y !== undefined)) {
