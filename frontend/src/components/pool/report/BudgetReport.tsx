@@ -401,16 +401,21 @@ export function applyStackFlow(boxes: Box[], data: BudgetReportData): Box[] {
     if (!boxShowsCascade(C, out, data)) continue; // container escondido = filhos ja nao aparecem
     const GAP = (typeof C.stackGap === "number" && C.stackGap >= 0) ? C.stackGap : 2; // mm entre grupos (configuravel)
     const kids = out.filter((b) => b.parentId === C.id).sort((a, b) => a.y - b.y);
-    let cursorY = C.y + PAD;
-    let anyVisible = false;
+    // Ancora no 1o filho VISIVEL (respeita ONDE o operador posicionou a pilha) e NUNCA empurra pra
+    // baixo — so puxa pra cima quando ha folga (ex: 1o grupo escondido colapsa pro topo). Antes
+    // ancorava fixo em C.y+PAD, gerando um DRIFT de ~PAD que (a) desalinhava a guia de quebra A4 do
+    // bloco que aparece no editor e (b) empurrava pra proxima folha um bloco que, na posicao do
+    // editor, cabia por 1-2mm. WYSIWYG: a impressao passa a honrar o layout cru da tela.
+    const firstVis = kids.find((k) => boxShowsCascade(k, out, data));
+    if (!firstVis) continue; // container sem filho visivel: nao mexe (mantem h)
+    let cursorY = Math.min(C.y + PAD, firstVis.y);
     for (const k of kids) {
       if (!boxShowsCascade(k, out, data)) continue; // escondido -> colapsa (nao avanca o cursor)
-      anyVisible = true;
       const dy = cursorY - k.y;
       if (dy !== 0) { k.y += dy; shiftSubtree(k.id, dy); }
       cursorY += k.h + GAP;
     }
-    if (anyVisible) C.h = (cursorY - GAP - C.y) + PAD; // auto-fit: envolve exatamente os filhos visiveis
+    C.h = (cursorY - GAP - C.y) + PAD; // auto-fit: envolve exatamente os filhos visiveis
   }
   return out;
 }
