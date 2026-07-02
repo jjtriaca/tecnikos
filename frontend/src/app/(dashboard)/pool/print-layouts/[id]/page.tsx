@@ -10,7 +10,7 @@ import { buildReportData } from "@/components/pool/report/BudgetReportModal";
 import { printViaClone } from "@/lib/printViaClone";
 import CompositionEditor from "@/components/pool/report/CompositionEditor";
 import ReportFieldLibrary from "@/components/pool/report/ReportFieldLibrary";
-import { LineRefPicker, SECTION_LABEL, SECTION_ORDER, type LineRefPickerLine } from "@/components/pool/LineRefPicker";
+import { LineRefPicker, LineIdentity, lineOptionLabel, SECTION_LABEL, SECTION_ORDER, type LineRefPickerLine } from "@/components/pool/LineRefPicker";
 import { validateLayoutTokens } from "@/components/pool/report/reportValidate";
 import { REPORT_ICONS } from "@/components/pool/report/reportIcons";
 import NumInput from "@/components/ui/NumInput";
@@ -357,6 +357,7 @@ export default function PoolPrintLayoutEditorPage() {
   const [histInfo, setHistInfo] = useState({ canUndo: false, canRedo: false });
   const histRef = useRef<{ stack: Box[][]; idx: number }>({ stack: [], idx: -1 });
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const brandTimer = useRef<ReturnType<typeof setTimeout> | null>(null); // auto-save debounced da branding (cores/tamanho/margem/altura cab-rodape)
   const layoutRef = useRef<Layout | null>(null);
   useEffect(() => { layoutRef.current = layout; }, [layout]);
   const pageIsCanvas = (p: Page | null) => !!((p?.pageConfig as any)?.canvas);
@@ -779,10 +780,10 @@ export default function PoolPrintLayoutEditorPage() {
   // cabecalho, no espaco configurado). Move a subarvore de cada grupo e cresce o container pra envolver.
   // Espelha applyStackFlow+paginateStackFlow da impressao, mas AO VIVO no editor (WYSIWYG). Sem breakA4
   // = so empilha contiguo. Idempotente (recalcula do 1o grupo).
-  function repaginateStack(list: Box[], containerId: string): Box[] {
+  function repaginateStack(list: Box[], containerId: string, brandOverride?: any): Box[] {
     const C = list.find((b) => b.id === containerId);
     if (!C || C.type !== "CARD" || !C.stack) return list;
-    const brand = (layout?.branding || {}) as any;
+    const brand = (brandOverride ?? layout?.branding ?? {}) as any;
     const breakA4 = !!pageSizeRef.current.breakA4;
     const a4H = brand.orientation === "landscape" ? 210 : 297;
     const hMm = (!pageHFRef.current.noHeader && Array.isArray(brand.headerBoxes) && brand.headerBoxes.length) ? (brand.headerHmm ?? 18) : 0;
@@ -811,6 +812,20 @@ export default function PoolPrintLayoutEditorPage() {
     }
     const newH = rnd2((cursorY - gap) - C.y + PAD); // container envolve exatamente os grupos
     return out.map((b) => b.id === containerId ? { ...b, h: newH } : b);
+  }
+  // Re-empilha TODOS os containers-pilha da pagina (quebra de folha A4). `brandOverride` deixa passar
+  // a branding NOVA na hora (o setBranding do estado ainda nao propagou), pra Rod./Cab. reflurirem AO VIVO.
+  function reflowStacks(list: Box[], brandOverride?: any): Box[] {
+    let out = list;
+    for (const c of list) if (c.type === "CARD" && c.stack) out = repaginateStack(out, c.id, brandOverride);
+    return out;
+  }
+  // Reflui a pilha e comita SO se algo mudou (evita entrada de historico/save fantasma a cada tick).
+  // So age com "Quebrar A4" ligado — a altura de cab/rodape so reposiciona grupos quando ha paginacao.
+  function reflowAndCommit(brandOverride?: any) {
+    if (!pageSizeRef.current.breakA4) return;
+    const reflowed = reflowStacks(boxes, brandOverride);
+    if (JSON.stringify(reflowed) !== JSON.stringify(boxes)) commitBoxes(reflowed);
   }
   function patchSelBox(patch: Partial<Box>) {
     if (!selBox) return;
@@ -1062,7 +1077,7 @@ export default function PoolPrintLayoutEditorPage() {
       className="rounded border border-slate-300 px-2 py-1.5 text-sm min-w-[150px] flex-1">
       <option value="">{lineLabel || (obj.etapa ? "— etapa toda —" : "— linha (opcional) —")}</option>
       {tplLines.filter((l) => (!obj.etapa || l.poolSection === obj.etapa) && (!obj.kind || (l.kind || "PRODUCT") === obj.kind)).map((l) => (
-        <option key={l.cellRef} value={l.cellRef}>{`${l.cellRef} — ${l.description || (l.slotName || "")}`}</option>
+        <option key={l.cellRef} value={l.cellRef}>{lineOptionLabel(l)}</option>
       ))}
     </select>
   </>);
@@ -1146,6 +1161,22 @@ export default function PoolPrintLayoutEditorPage() {
   // Branding/estilo do relatorio — edita local (preview ao vivo) + salva no layout (Json).
   function setBranding(patch: Record<string, any>) {
     setLayout((prev) => (prev ? { ...prev, branding: { ...(prev.branding || {}), ...patch } } : prev));
+    scheduleBrandingSave();
+  }
+  // Auto-save da branding (mesma UX do canvas): qualquer edicao de estilo/tamanho/margem/altura de
+  // cab-rodape persiste sozinha em 700ms. Antes SO o botao "Salvar estilo" gravava -> quem mudava
+  // Cab./Rod. (footerHmm) e trocava de pagina/saia perdia a alteracao ao recarregar (voltava ao valor
+  // do servidor). Le layoutRef.current no disparo (ja sincronizado com o setLayout via useEffect),
+  // entao pega a branding COMPLETA (inclui header/footerBoxes) — nao clobbera as caixas.
+  function scheduleBrandingSave() {
+    setSaveState("saving");
+    if (brandTimer.current) clearTimeout(brandTimer.current);
+    brandTimer.current = setTimeout(async () => {
+      try {
+        await api.put(`/pool-print-layouts/${id}`, { branding: layoutRef.current?.branding || {} });
+        setSaveState("saved");
+      } catch { setSaveState("idle"); }
+    }, 700);
   }
   async function saveBranding() {
     try {
@@ -1680,14 +1711,14 @@ export default function PoolPrintLayoutEditorPage() {
           <RibbonBtn icon="🔻" label="Rodapé" onClick={() => enterRegion("footer")} />
           {region !== "page" ? <RibbonBtn icon="↩️" label="Voltar à página" onClick={() => enterRegion("page")} /> : null}
           <span className="mx-1 h-6 w-px bg-slate-300" />
-          <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura do cabeçalho (mm)">Cab.<NumInput value={brand.headerHmm ?? 18} onChange={(v) => setBranding({ headerHmm: v || null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
-          <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura do rodapé (mm)">Rod.<NumInput value={brand.footerHmm ?? 14} onChange={(v) => setBranding({ footerHmm: v || null })} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura do cabeçalho (mm)">Cab.<NumInput value={brand.headerHmm ?? 18} onChange={(v) => { setBranding({ headerHmm: v || null }); reflowAndCommit({ ...(layout?.branding || {}), headerHmm: v || null }); }} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
+          <label className="text-xs text-slate-600 flex items-center gap-1" title="Altura do rodapé (mm)">Rod.<NumInput value={brand.footerHmm ?? 14} onChange={(v) => { setBranding({ footerHmm: v || null }); reflowAndCommit({ ...(layout?.branding || {}), footerHmm: v || null }); }} className="w-14 rounded border border-slate-300 px-1 py-1 text-sm" />mm</label>
           <RibbonBtn icon="💾" label="Salvar" onClick={saveBranding} />
           {editingPage && pageIsCanvas(editingPage) ? (<>
             <span className="mx-1 h-6 w-px bg-slate-300" />
             <span className="text-[10px] uppercase tracking-wide text-slate-400">Nesta página:</span>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Mostrar o CABEÇALHO nesta página"><input type="checkbox" checked={!pageNoHeader} onChange={(e) => { const v = !e.target.checked; setPageNoHeader(v); pageHFRef.current = { ...pageHFRef.current, noHeader: v }; scheduleSave(boxes); }} />Cabeçalho</label>
-            <label className="text-xs text-slate-600 flex items-center gap-1" title="Mostrar o RODAPÉ nesta página"><input type="checkbox" checked={!pageNoFooter} onChange={(e) => { const v = !e.target.checked; setPageNoFooter(v); pageHFRef.current = { ...pageHFRef.current, noFooter: v }; scheduleSave(boxes); }} />Rodapé</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Mostrar o CABEÇALHO nesta página"><input type="checkbox" checked={!pageNoHeader} onChange={(e) => { const v = !e.target.checked; setPageNoHeader(v); pageHFRef.current = { ...pageHFRef.current, noHeader: v }; scheduleSave(boxes); reflowAndCommit(); }} />Cabeçalho</label>
+            <label className="text-xs text-slate-600 flex items-center gap-1" title="Mostrar o RODAPÉ nesta página"><input type="checkbox" checked={!pageNoFooter} onChange={(e) => { const v = !e.target.checked; setPageNoFooter(v); pageHFRef.current = { ...pageHFRef.current, noFooter: v }; scheduleSave(boxes); reflowAndCommit(); }} />Rodapé</label>
           </>) : null}
           <span className="text-[10px] text-slate-400 ml-1">Edite como uma página: vá em <b>Inserir</b> (texto, imagem, campos). Marque/desmarque <b>Cabeçalho</b> e <b>Rodapé</b> por página — independentes (em todas ou só numa).</span>
         </>)}
@@ -2223,10 +2254,9 @@ export default function PoolPrintLayoutEditorPage() {
                     {src.length === 0 ? <div className="px-1 py-2 italic text-slate-400">Nenhuma linha na etapa/tipo escolhidos.</div> : src.map((l) => {
                       const checked = (listDraft.lines || []).includes(l.cellRef);
                       return (
-                        <label key={l.cellRef} className="flex items-center gap-2 px-1 py-0.5 hover:bg-slate-50 cursor-pointer">
+                        <label key={l.cellRef} className="flex items-center gap-2 px-1 py-1 hover:bg-slate-50 cursor-pointer">
                           <input type="checkbox" checked={checked} onChange={() => setListDraft((d) => ({ ...d, lines: checked ? (d.lines || []).filter((r) => r !== l.cellRef) : [...(d.lines || []), l.cellRef] }))} />
-                          <span className="font-mono text-[10px] text-teal-700 w-9 shrink-0">{l.cellRef}</span>
-                          <span className="truncate">{l.description || l.slotName || ""}</span>
+                          <LineIdentity cellRef={l.cellRef} item={l.slotName} description={l.description} refClassName="text-teal-700" />
                         </label>
                       );
                     })}

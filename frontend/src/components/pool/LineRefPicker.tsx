@@ -42,6 +42,45 @@ export type LineRefPickerLine = {
   qty?: number;
 };
 
+// LineIdentity — IDENTIDADE visual de uma linha do orcamento dentro de QUALQUER seletor/filtro de
+// linha do sistema: numero (Lx) + ITEM (nome proprio da linha = slotName) em cima + DESCRICAO
+// (produto vinculado / "Sem Produto") embaixo. FONTE UNICA de "como uma linha aparece num picker"
+// (v1.15.48). Antes cada tela mostrava so Lx + descricao do produto -> linha "Sem Produto" ficava
+// irreconhecivel (nao dava pra saber que era "Blower", "Kit SPA Anatomico"...). Renderiza um
+// FRAGMENT (span do Lx + bloco do rotulo) pra encaixar em qualquer container flex. `refClassName`
+// deixa cada tela pintar o Lx no seu tom (violet/teal/cyan).
+// lineOptionLabel — MESMO conteudo do LineIdentity (numero + item + descricao), mas em TEXTO puro
+// pra <option>/<select> nativo (onde nao da pra renderizar 2 linhas ricas). FONTE UNICA do rotulo
+// de linha em dropdown (v1.15.48). Ex: "L40 — Blower · Sem Produto" / "L39 — Hidromassagem · Kit...".
+// Todo dropdown de linha do sistema usa isto -> mesmo padrao do mini-modal, sem "Sem Produto" solto.
+export function lineOptionLabel(line: { cellRef: string; slotName?: string | null; description?: string | null }): string {
+  const it = line.slotName && line.slotName.trim() ? line.slotName.trim() : null;
+  const desc = line.description && line.description.trim() ? line.description.trim() : null;
+  const parts = [it, desc].filter(Boolean);
+  return parts.length ? `${line.cellRef} — ${parts.join(" · ")}` : line.cellRef;
+}
+
+export function LineIdentity({ cellRef, item, description, refClassName = "text-violet-700" }: {
+  cellRef: string;
+  item?: string | null;
+  description?: string | null;
+  refClassName?: string;
+}) {
+  const it = item && item.trim() ? item.trim() : null;
+  const desc = description && description.trim() ? description.trim() : null;
+  const primary = it || desc || cellRef;
+  const sub = it && desc && desc !== it ? desc : null;
+  return (
+    <>
+      <span className={`font-mono text-[10px] ${refClassName} w-9 shrink-0`}>{cellRef}</span>
+      <span className="flex-1 min-w-0">
+        <span className="block text-xs text-slate-800 truncate" title={primary}>{primary}</span>
+        {sub && <span className="block text-[10px] text-slate-500 truncate" title={sub}>{sub}</span>}
+      </span>
+    </>
+  );
+}
+
 export function LineRefPicker({
   icon, specKey, combine, refKind = 'PRODUCT', lines, environmentParams, sectionOrder,
   selected, onToggle, onApply, onCancel, innerRef,
@@ -112,18 +151,11 @@ export function LineRefPicker({
                       const sv = specKey ? Number(o.specs?.[specKey]) : null;
                       const hasSpec = sv !== null && Number.isFinite(sv);
                       const checked = selected.has(o.cellRef);
-                      const itemLabel = (o.slotName && o.slotName.trim()) ? o.slotName.trim() : null;
                       return (
                         <label key={o.cellRef}
                           className={`flex items-center gap-2 rounded border px-2 py-1.5 cursor-pointer transition ${checked ? 'bg-violet-100 border-violet-500' : 'bg-white border-slate-200 hover:border-violet-400 hover:bg-violet-50'}`}>
                           <input type="checkbox" checked={checked} onChange={() => onToggle(o.cellRef)} className="h-3.5 w-3.5 accent-violet-600 shrink-0" />
-                          <span className="font-mono text-[10px] text-violet-700 w-9 shrink-0">{o.cellRef}</span>
-                          <span className="flex-1 min-w-0">
-                            <span className="block text-xs text-slate-800 truncate" title={itemLabel || o.description}>{itemLabel || o.description}</span>
-                            {itemLabel && o.description && o.description !== itemLabel && (
-                              <span className="block text-[10px] text-slate-500 truncate" title={o.description}>{o.description}</span>
-                            )}
-                          </span>
+                          <LineIdentity cellRef={o.cellRef} item={o.slotName} description={o.description} />
                           {hasSpec
                             ? <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">{specKey}={sv}</span>
                             : (specKey ? <span className="text-[10px] text-amber-700 shrink-0">sem {specKey}</span> : null)}
