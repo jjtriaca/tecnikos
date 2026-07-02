@@ -3945,18 +3945,21 @@ function buildLineRefReplacement(refs: string[], unit: string, combine: 'sum' | 
   return combine === 'sum' ? '(' + parts.join(' + ') + ')' : 'max(' + parts.join(', ') + ')';
 }
 
-// Detecta qual template-lineRef (unit/combine) a regra ATUAL usa, varrendo os templates conhecidos e
-// casando o padrao `unit` no where/indExpr. Retorna tb as linhas ja referenciadas (ordem de aparicao
-// = ordem de insercao). Alimenta o botao "Editar linhas": abre o seletor SEM resetar o resto da regra.
-function detectRuleLineRef(where: string, indExpr: string): { unit: string; combine: 'sum' | 'max'; refs: string[] } | null {
+// Detecta qual template-lineRef (unit/combine) uma expressao usa, varrendo os templates conhecidos e
+// casando o padrao `unit`. Retorna tb as linhas ja referenciadas (ordem de aparicao = ordem de
+// insercao). Base dos botoes "Editar linhas" (abre o seletor SEM resetar o resto da regra).
+function detectLineRefIn(expr: string): { unit: string; combine: 'sum' | 'max'; refs: string[] } | null {
   const cands = [...AUTOSELECT_TEMPLATES, ...INDICATOR_TEMPLATES].filter((t) => t.lineRef);
   for (const t of cands) {
     const lr = t.lineRef!;
-    const found = extractLineRefsFromExpr(where, lr.unit);
-    const refs = found.size ? found : extractLineRefsFromExpr(indExpr, lr.unit);
+    const refs = extractLineRefsFromExpr(expr, lr.unit);
     if (refs.size) return { unit: lr.unit, combine: lr.combine, refs: Array.from(refs) };
   }
   return null;
+}
+// Regra inteira: procura no where primeiro (criterio de selecao), cai pro indExpr (indicador).
+function detectRuleLineRef(where: string, indExpr: string): { unit: string; combine: 'sum' | 'max'; refs: string[] } | null {
+  return detectLineRefIn(where) ?? detectLineRefIn(indExpr);
 }
 
 export function AutoSelectModal({
@@ -4129,8 +4132,10 @@ export function AutoSelectModal({
     const { unit, combine } = t.lineRef;
     const newBlock = buildLineRefReplacement(refs, unit, combine);
     if (pendingLineRefEdit) {
-      // EDICAO in-place (botao "Editar linhas"): troca SO o bloco de linhas antigo pelo novo, em
-      // where/indExpr/indExpr2, preservando filtros/criterio/indicador/niveis (a formula fica intacta).
+      // EDICAO in-place (botao "Editar linhas", tanto da regra quanto o lapis do indicador): troca SO
+      // o bloco de linhas antigo pelo novo em where+indExpr+indExpr2, preservando filtros/criterio/
+      // indicador/niveis (a formula fica intacta). Mantem criterio e indicador SEMPRE nas MESMAS
+      // linhas (o sistema nunca as separa; divergir = folga medir linha diferente da selecao).
       const oldBlock = buildLineRefReplacement(pendingLineRefEdit.oldRefs, unit, combine);
       const swap = (s: string) => (oldBlock && oldBlock !== newBlock ? s.split(oldBlock).join(newBlock) : s);
       setWhere(swap);
@@ -4147,7 +4152,8 @@ export function AutoSelectModal({
     setPendingLineRefTemplate(null);
     setPendingLineRefs(new Set());
   };
-  // Abre o seletor pra EDITAR SO as linhas da regra atual, sem resetar o resto (via botao dedicado).
+  // Abre o seletor pra EDITAR SO as linhas da regra atual, sem resetar o resto (botao da regra E
+  // lapis do indicador — ambos editam as MESMAS linhas de criterio+indicador, de forma consistente).
   const startEditLines = () => {
     const d = detectRuleLineRef(where, indExpr);
     if (!d) return;
@@ -4155,8 +4161,9 @@ export function AutoSelectModal({
     setPendingLineRefTemplate({ icon: '✏️', lineRef: { unit: d.unit, combine: d.combine } });
     setPendingLineRefs(new Set(d.refs));
   };
-  // Regra atual referencia linhas (LREF resolvido)? -> mostra o botao "Editar linhas".
+  // Regra/indicador referenciam linhas (LREF resolvido)? -> mostram os botoes "Editar linhas".
   const lineRefInUse = useMemo(() => detectRuleLineRef(where, indExpr), [where, indExpr]);
+  const indicatorLineRefInUse = useMemo(() => detectLineRefIn(indExpr), [indExpr]);
 
   // v1.12.39: carrega tipos do tenant DIRETO ao abrir o modal — garante dados frescos
   // mesmo se o operador cadastrou tipo novo enquanto o orcamento ja estava aberto.
@@ -4835,7 +4842,16 @@ export function AutoSelectModal({
                             className="w-full rounded border border-slate-300 px-2 py-1 text-sm text-slate-900" />
                         </div>
                         <div className="col-span-2">
-                          <label className="block text-[11px] font-medium text-slate-800 mb-1">Calculo</label>
+                          <label className="flex items-center justify-between gap-2 text-[11px] font-medium text-slate-800 mb-1">
+                            <span>Calculo</span>
+                            {indicatorLineRefInUse && !pendingLineRefTemplate && (
+                              <button type="button" onClick={startEditLines}
+                                title="Editar as linhas usadas no calculo do indicador — abre o seletor SEM reescrever a formula (troca so as linhas)"
+                                className="inline-flex items-center gap-1 rounded border border-cyan-300 bg-cyan-50 hover:bg-cyan-100 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-800">
+                                ✏️ linhas <span className="font-mono">({indicatorLineRefInUse.refs.join(', ')})</span>
+                              </button>
+                            )}
+                          </label>
                           <input type="text" value={indExpr} onChange={(e) => setIndExpr(e.target.value)}
                             placeholder="Ex: volume / vazaoM3h"
                             className="w-full rounded border border-slate-300 px-2 py-1 text-sm font-mono text-slate-900" />
