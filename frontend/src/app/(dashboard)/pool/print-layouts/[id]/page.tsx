@@ -548,7 +548,13 @@ export default function PoolPrintLayoutEditorPage() {
     }
     scheduleSave(next); return next;
   });
-  const onCanvasCommit = () => setBoxes((cur) => { pushHist(cur); scheduleSave(cur); groupSnapRef.current = null; return cur; });
+  const onCanvasCommit = () => setBoxes((cur) => {
+    // Ao SOLTAR (fim do arraste/resize): re-empilha as pilhas com quebra de folha, pra nenhum grupo
+    // ficar em cima da quebra/cabecalho/rodape (auto-quebra). Idempotente se ja esta certo.
+    let next = cur;
+    for (const c of cur) if (c.type === "CARD" && c.stack) next = repaginateStack(next, c.id);
+    pushHist(next); scheduleSave(next); groupSnapRef.current = null; return next;
+  });
   // Mover o GRUPO (multi-selecao) arrastando: snapshot ao iniciar, desloca TODAS as selecionadas pelo mesmo delta (rigido, preso a pagina).
   const groupSnapRef = useRef<Box[] | null>(null);
   const onCanvasGroupStart = () => setBoxes((cur) => { groupSnapRef.current = cur.map((b) => ({ ...b })); return cur; });
@@ -709,7 +715,11 @@ export default function PoolPrintLayoutEditorPage() {
       const need = cloneBottom - (anchorParent.y + anchorParent.h);
       if (need > 0) base = boxes.map((b) => b.id === anchorParent.id ? { ...b, h: rnd2(b.h + need) } : b);
     }
-    commitBoxes([...base, ...clones]);
+    let finalBoxes = [...base, ...clones];
+    // Grupo DENTRO de pilha: re-empilha com quebra de folha — o clone (ex: 2a Cascata) pula pro topo da
+    // proxima folha (abaixo do cabecalho) se estourar a atual, em vez de ficar em cima da quebra.
+    if (anchorParent && anchorParent.type === "CARD" && anchorParent.stack) finalBoxes = repaginateStack(finalBoxes, anchorParent.id);
+    commitBoxes(finalBoxes);
     const anchorId = idMap.get(selBox!)!;
     setSelBox(anchorId); setSelSet(new Set(clones.map((c) => c.id)));
   }
@@ -763,19 +773,35 @@ export default function PoolPrintLayoutEditorPage() {
     }
     closePick();
   }
-  // Re-empilha os grupos filhos de um container-pilha pelo gap dado (mantem o 1o grupo no lugar,
-  // espaca os de baixo, move a subarvore de cada um e cresce o container pra envolver). Espelha o
-  // applyStackFlow (impressao) porem aplicado AO VIVO no editor — antes o Espaco so refluia no print.
-  function restackContainer(list: Box[], containerId: string, gap: number): Box[] {
+  // Re-empilha os grupos filhos de um container-pilha respeitando as QUEBRAS de folha A4 (quando
+  // breakA4): mantem o 1o grupo no lugar, espaca os de baixo pelo gap e — se um grupo nao cabe ate o
+  // fim da area util da folha atual (antes do rodape) — PULA pro topo da PROXIMA folha (logo abaixo do
+  // cabecalho, no espaco configurado). Move a subarvore de cada grupo e cresce o container pra envolver.
+  // Espelha applyStackFlow+paginateStackFlow da impressao, mas AO VIVO no editor (WYSIWYG). Sem breakA4
+  // = so empilha contiguo. Idempotente (recalcula do 1o grupo).
+  function repaginateStack(list: Box[], containerId: string): Box[] {
     const C = list.find((b) => b.id === containerId);
-    if (!C) return list;
+    if (!C || C.type !== "CARD" || !C.stack) return list;
+    const brand = (layout?.branding || {}) as any;
+    const breakA4 = !!pageSizeRef.current.breakA4;
+    const a4H = brand.orientation === "landscape" ? 210 : 297;
+    const hMm = (!pageHFRef.current.noHeader && Array.isArray(brand.headerBoxes) && brand.headerBoxes.length) ? (brand.headerHmm ?? 18) : 0;
+    const fMm = (!pageHFRef.current.noFooter && Array.isArray(brand.footerBoxes) && brand.footerBoxes.length) ? (brand.footerHmm ?? 14) : 0;
+    const gap = (typeof C.stackGap === "number" && C.stackGap >= 0) ? C.stackGap : 2;
     const PAD = 3;
     const kids = list.filter((b) => b.parentId === containerId).sort((a, b) => a.y - b.y);
     if (!kids.length) return list;
     let out = list.map((b) => ({ ...b }));
-    let cursorY = kids[0].y; // mantem o 1o grupo onde esta; so espaca os de baixo
+    let cursorY = kids[0].y; // 1o grupo fica onde esta
     for (const k of kids) {
       const kk = out.find((b) => b.id === k.id)!;
+      if (breakA4 && a4H > 0) {
+        const folha = Math.max(0, Math.floor(cursorY / a4H));
+        const contentBottom = (folha + 1) * a4H - fMm; // fim da area util da folha (antes do rodape)
+        if (cursorY + kk.h > contentBottom + 0.5) {
+          cursorY = (folha + 1) * a4H + hMm; // topo da proxima folha, abaixo do cabecalho
+        }
+      }
       const dy = cursorY - kk.y;
       if (dy !== 0) {
         const sub = subtreeIds(k.id, out); // filhos/netos do grupo acompanham
@@ -790,9 +816,9 @@ export default function PoolPrintLayoutEditorPage() {
     if (!selBox) return;
     const cur = boxes.find((b) => b.id === selBox);
     let next = boxes.map((b) => b.id === selBox ? { ...b, ...patch } : b);
-    // Mudar o Espaco (stackGap) de um container-pilha reposiciona os grupos filhos AO VIVO no editor.
+    // Mudar o Espaco (stackGap) de um container-pilha re-empilha os grupos AO VIVO (com quebra de folha).
     if (cur && cur.type === "CARD" && cur.stack && patch.stackGap !== undefined) {
-      next = restackContainer(next, selBox, patch.stackGap);
+      next = repaginateStack(next, selBox);
     }
     // Card dinamico: mover o card pelos campos X/Y carrega os filhos junto (mesmo delta) — em CASCATA
     // (netos tambem, pra container em modo pilha com grupos-dentro-de-grupos).
