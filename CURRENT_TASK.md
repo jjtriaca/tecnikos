@@ -1,8 +1,11 @@
 # TAREFA ATUAL
 
 ## ▶️ HANDOFF SESSÃO 228→229 (02/07) — LER PRIMEIRO
-**Resumo completo da sessão 228 (v1.15.24→41) em [[sessao_228_summary]].** Local=prod=**v1.15.41**, git limpo. Frente = **EngineReporter / GRUPO EMPILHADO (pilha)**. Detalhe técnico dos dinâmicos/pilha em [[engine_reporter_card_dinamico]].
+**Resumo completo da sessão 228 (v1.15.24→41) em [[sessao_228_summary]].** Local=prod=**v1.15.42**, git limpo. Frente = **EngineReporter / GRUPO EMPILHADO (pilha)**. Detalhe técnico dos dinâmicos/pilha em [[engine_reporter_card_dinamico]].
 **Aguardando Juliano testar na tela:** pilha com muitos grupos + "Quebrar A4" (paginação A4), heightMm persistindo (Alt. pág), guias de quebra A4, duplicar-dentro-do-grupo alinhado, campo INDICADOR (tempo de filtragem) no preview/print.
+
+## 📌 VERSÃO ATUAL **v1.15.42** (deploy 02/07). Frente ATIVA: **EngineReporter — pilha / paginação A4**
+## - **✅ DEPLOYED v1.15.42 (02/07) — Guia de quebra A4 HONESTA (WYSIWYG) no editor:** a guia magenta desenhava linhas em intervalos FIXOS de 297mm (borda física do papel), ignorando os 14mm reservados pro rodapé → bloco cujo fundo passava de `297−rodapé` (283mm) cabia "no olho" mas quebrava no print (caso do CASCATA: imagem alta empurra fundo a ~286mm). Fix: novo helper `stackBreakYs(boxes,data,a4H,hMm,fMm)` ([BudgetReport.tsx]) calcula onde a impressão REALMENTE quebra usando a MESMA lógica do `paginateStackFlow` (unidade=grupo+subárvore, nunca partida; pág 1 absoluta até `a4H−rodapé`, continuação re-ancora em `hMm`). A `CanvasEditor` deixou de desenhar 297-fixo + faixas cab/rodapé (confundiam) e passa a desenhar a linha "✂ A4 · folha N começa aqui" EXATAMENTE no topo do 1º grupo que vai pra próxima folha. Como a quebra cai SEMPRE entre grupos, bloco duplicado nunca mais fica montado em cima da linha (resolve as 2 queixas do Juliano de uma vez). **PRINT INTOCADO** (só helper novo + desenho da guia). Guia usa posições FLOWED (applyStackFlow) = bate 1:1 com o print.
 **Pendências vivas:** (1) `onCanvasGroupMove` multi-select não cascateia subárvore; clamp de resize parcial. (2) Mini-modal agrupado nas outras listas planas do sistema (varredura). (3) Indicador como COLUNA da Lista dinâmica (se pedir). (4) Migração legado consumoKgM2/pesoKg **PARQUEADA**. (5) NFS-e OBRA: resolver contradição flat vs aninhada no código antes de emitir obra. (6) Repetidor/multiplicador do grupo: PARADO por decisão.
 
 ## 📌 VERSÃO ATUAL **v1.15.41** (deploy 01/07). Frente ATIVA: **EngineReporter — editor estilo PowerPoint (canvas de caixas livres x,y)**
