@@ -2251,25 +2251,37 @@ export class PoolBudgetService {
     return updated;
   }
 
-  // Acha as linhas irmas cujas formulas (qty formulaExpr OU autoSelectRule where/indicator) referenciam
-  // `ref` (o cellRef que se quer excluir). Base da TRAVA de exclusao: nao deixa excluir uma linha
-  // enquanto ela estiver ligada a alguma formula — o operador tem que desliga-la primeiro (botao
-  // "Editar linhas"). Evita ref orfa (que congelava qty / somava 0 escondido). v1.15.54.
-  private async findSiblingsReferencing(
+  // Acha as linhas SOBREVIVENTES (que NAO estao no conjunto sendo excluido) cujas formulas (qty
+  // formulaExpr OU autoSelectRule where/indicator) referenciam ALGUM dos cellRefs `refs` que se quer
+  // excluir. Base da TRAVA de exclusao: nao deixa excluir uma linha enquanto uma linha que FICA ainda
+  // depende dela — o operador desliga primeiro (botao "Editar linhas" / editar formula de qty). Evita
+  // ref orfa (congelava qty / somava 0 escondido). Excluir etapa (varias linhas de uma vez) usa o
+  // conjunto: refs internos ao conjunto somem juntos e NAO bloqueiam; so bloqueia dep externa. v1.15.55.
+  private async findSurvivorsReferencing(
     budgetId: string,
-    ref: string,
-    excludeItemId: string,
-  ): Promise<Array<{ cellRef: string | null; slotName: string | null; description: string }>> {
-    const refRe = new RegExp(`\\b(?:prod|qty|total|unitPrice)\\s*\\(\\s*${ref}\\b`);
-    const siblings = await this.prisma.poolBudgetItem.findMany({
-      where: { budgetId, id: { not: excludeItemId } },
-      select: { cellRef: true, slotName: true, description: true, formulaExpr: true, autoSelectRule: true },
+    refs: string[],
+    excludeItemIds: string[],
+  ): Promise<Array<{ cellRef: string | null; slotName: string | null; usedRefs: string[] }>> {
+    const validRefs = refs.filter((r): r is string => !!r);
+    if (validRefs.length === 0) return [];
+    // \b apos o grupo garante L9 != L96 (mesmo com alternacao); backtracking casa o ref completo.
+    const refRe = new RegExp(`\\b(?:prod|qty|total|unitPrice)\\s*\\(\\s*(${validRefs.join('|')})\\b`, 'g');
+    const excludeSet = new Set(excludeItemIds);
+    const items = await this.prisma.poolBudgetItem.findMany({
+      where: { budgetId },
+      select: { id: true, cellRef: true, slotName: true, formulaExpr: true, autoSelectRule: true },
     });
-    return siblings.filter((s) => {
-      if (s.formulaExpr && refRe.test(s.formulaExpr)) return true;
-      if (s.autoSelectRule && refRe.test(JSON.stringify(s.autoSelectRule))) return true;
-      return false;
-    }).map(({ cellRef, slotName, description }) => ({ cellRef, slotName, description }));
+    const out: Array<{ cellRef: string | null; slotName: string | null; usedRefs: string[] }> = [];
+    for (const s of items) {
+      if (excludeSet.has(s.id)) continue; // so quem SOBREVIVE
+      const text = `${s.formulaExpr || ''} ${s.autoSelectRule ? JSON.stringify(s.autoSelectRule) : ''}`;
+      const used = new Set<string>();
+      refRe.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while ((m = refRe.exec(text)) !== null) used.add(m[1]);
+      if (used.size > 0) out.push({ cellRef: s.cellRef, slotName: s.slotName, usedRefs: [...used] });
+    }
+    return out;
   }
 
   async removeItem(itemId: string, companyId: string, user: AuthenticatedUser) {
@@ -2289,7 +2301,7 @@ export class PoolBudgetService {
     // de outra linha. O operador tem que desliga-la primeiro (botao "Editar linhas" na auto-selecao,
     // ou editar a formula de qty). Evita ref orfa que congelava a qty / somava 0 escondido. v1.15.54.
     if (item.cellRef) {
-      const users = await this.findSiblingsReferencing(item.budgetId, item.cellRef, itemId);
+      const users = await this.findSurvivorsReferencing(item.budgetId, [item.cellRef], [itemId]);
       if (users.length > 0) {
         const list = users
           .map((u) => `${u.cellRef}${u.slotName?.trim() ? ` (${u.slotName.trim()})` : ''}`)
@@ -2316,6 +2328,60 @@ export class PoolBudgetService {
     });
 
     return { success: true };
+  }
+
+  // Exclui um CONJUNTO de linhas de uma vez (ex: excluir etapa inteira) — ATOMICO. A trava considera
+  // so as linhas que SOBREVIVEM: refs internas ao conjunto somem juntas (nao bloqueiam); so bloqueia
+  // se uma linha de FORA usa alguma das que seriam excluidas. Evita o gap do delete linha-a-linha
+  // (que engolia o erro da trava e deixava a etapa meio-excluida). v1.15.55.
+  async removeItems(budgetId: string, itemIds: string[], companyId: string, user: AuthenticatedUser) {
+    await this.assertModuleActive(companyId);
+    const ids = Array.from(new Set((itemIds || []).filter(Boolean)));
+    if (ids.length === 0) return { success: true, deleted: 0 };
+
+    const budget = await this.prisma.poolBudget.findFirst({
+      where: { id: budgetId, companyId, deletedAt: null },
+      select: { status: true, frozenAt: true },
+    });
+    if (!budget) throw new NotFoundException('Orçamento não encontrado');
+    if (budget.status === PoolBudgetStatus.APROVADO) {
+      throw new BadRequestException('Orçamento aprovado — não pode remover items');
+    }
+    this.assertNotFrozen(budget);
+
+    const items = await this.prisma.poolBudgetItem.findMany({
+      where: { id: { in: ids }, budgetId },
+      select: { id: true, cellRef: true },
+    });
+    if (items.length === 0) return { success: true, deleted: 0 };
+
+    const refs = items.map((i) => i.cellRef).filter((r): r is string => !!r);
+    const survivors = await this.findSurvivorsReferencing(budgetId, refs, ids);
+    if (survivors.length > 0) {
+      const list = survivors
+        .map((u) => `${u.cellRef}${u.slotName?.trim() ? ` (${u.slotName.trim()})` : ''} → usa ${u.usedRefs.join(', ')}`)
+        .join('; ');
+      throw new BadRequestException(
+        `Não dá pra excluir: linha(s) desta etapa são usadas em fórmulas de linhas que ficam: ${list}. ` +
+          `Remova essas referências primeiro (botão "Editar linhas" / edite a fórmula de quantidade).`,
+      );
+    }
+
+    await this.prisma.poolBudgetItem.deleteMany({ where: { id: { in: items.map((i) => i.id) }, budgetId } });
+    await this.recalculateTotals(budgetId);
+
+    for (const it of items) {
+      this.audit.log({
+        companyId,
+        entityType: 'POOL_BUDGET_ITEM',
+        entityId: it.id,
+        action: 'DELETED',
+        actorType: 'USER',
+        actorId: user.id,
+        actorName: user.email,
+      });
+    }
+    return { success: true, deleted: items.length };
   }
 
   // ============== APLICAR TEMPLATE LINEAR (Padrao Juliano) ==============

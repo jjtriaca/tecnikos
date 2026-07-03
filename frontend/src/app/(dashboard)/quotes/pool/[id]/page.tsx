@@ -505,13 +505,22 @@ export default function PoolBudgetDetailPage() {
   }
 
   async function handleDeleteSection(key: string) {
-    // Exclui PERMANENTEMENTE as linhas dessa etapa (antes movia pra OUTROS — mudanca pedida pelo usuario).
-    // persistSections() ao final recarrega o orcamento (totais + lista ja sem as linhas).
+    // Exclui PERMANENTEMENTE as linhas dessa etapa via bulk-delete ATOMICO (backend). A trava de refs
+    // orfas roda contra as linhas que FICAM: refs internas a etapa somem juntas (ok); se uma linha de
+    // OUTRA etapa usa alguma destas em formula, o backend BLOQUEIA e a etapa NAO e excluida (mostra
+    // quem usa). Antes era linha-a-linha engolindo o erro da trava -> etapa meio-excluida silenciosa.
     const itemsInSection = (budget?.items ?? []).filter((it) => it.poolSection === key);
-    for (const it of itemsInSection) {
-      try { await api.del(`/pool-budgets/items/${it.id}`); } catch { /* segue */ }
+    if (itemsInSection.length > 0) {
+      try {
+        await api.post(`/pool-budgets/${id}/items/bulk-delete`, { itemIds: itemsInSection.map((it) => it.id) });
+      } catch (err: any) {
+        setDeleteSectionConfirm(null);
+        alert(err?.payload?.message || "Não foi possível excluir a etapa (linhas usadas em fórmulas de outras etapas).");
+        await load();
+        return;
+      }
     }
-    // Esconde a etapa e remove da ordem
+    // Esconde a etapa e remove da ordem (so chega aqui se a exclusao passou)
     const hidden = Array.from(hiddenSections);
     if (!hidden.includes(key)) hidden.push(key);
     const currentOrder = (budget as any)?.sectionOrder?.length > 0 ? (budget as any).sectionOrder : SECTION_ORDER;

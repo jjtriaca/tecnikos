@@ -601,6 +601,18 @@ export class PoolBudgetController {
     return this.service.removeItem(itemId, user.companyId, user);
   }
 
+  @ApiOperation({ summary: 'Remove VARIAS linhas de uma vez (ex: excluir etapa) — atomico, com trava de refs orfas contra linhas que ficam' })
+  @RequireVerification()
+  @Roles(UserRole.ADMIN, UserRole.DESPACHO)
+  @Post(':id/items/bulk-delete')
+  removeItems(
+    @Param('id') id: string,
+    @Body() body: { itemIds: string[] },
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.service.removeItems(id, body?.itemIds ?? [], user.companyId, user);
+  }
+
   // ============== STATUS TRANSITIONS ==============
 
   @ApiOperation({
